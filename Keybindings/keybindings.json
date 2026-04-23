@@ -1,0 +1,37 @@
+// CopilotAtelier keybindings — merged idempotently into %APPDATA%\Code\User\keybindings.json
+// by Setup-CopilotSettings.ps1. Match key = (key, command, when).
+[
+    {
+        "key": "ctrl+k x",
+        "command": "PowerShell.RestartSession"
+    },
+    {
+        "key": "ctrl+k n",
+        "command": "workbench.action.terminal.moveIntoNewWindow",
+        "when": "terminalHasBeenCreated && terminalIsOpen || terminalIsOpen && terminalProcessSupported"
+    },
+    {
+        "key": "ctrl+k k",
+        "command": "workbench.action.chat.openInNewWindow",
+        "when": "chatIsEnabled"
+    },
+    {
+        "key": "enter",
+        "command": "-workbench.action.chat.submit",
+        "when": "inChatInput && chatCursorAtTop && !chatIsEditing && !suggestWidgetVisible"
+    },
+    {
+        "key": "enter",
+        "command": "-workbench.action.chat.submit",
+        "when": "inChatInput && !chatIsEditing && !suggestWidgetVisible"
+    },
+    {
+        "key": "enter",
+        "command": "-workbench.action.chat.submit"
+    },
+    {
+        "key": "ctrl+enter",
+        "command": "workbench.action.chat.submit",
+        "when": "inChatInput && !chatIsEditing && !suggestWidgetVisible"
+    }
+]
