@@ -194,16 +194,24 @@ foreach ($sub in $subDirs) {
     }
 }
 
-# --- Create OneDrive/<repoName> directories if OneDrive is available ---
+# --- Create OneDrive/<repoName> directories and copy files if OneDrive is available ---
 if ($oneDriveRoot) {
     $oneDriveBase = Join-Path $oneDriveRoot $repoName
     foreach ($sub in $subDirs) {
         $dir = Join-Path $oneDriveBase $sub
-        if (-not (Test-Path $dir)) {
-            New-Item -ItemType Directory -Path $dir -Force | Out-Null
-            Write-Host "Created: $dir"
+        if (Test-Path $dir) {
+            Remove-Item -Path $dir -Recurse -Force
+            Write-Host "Cleared: $dir"
+        }
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        Write-Host "Created: $dir"
+
+        $source = Join-Path $repoRoot $sub
+        if (Test-Path $source) {
+            Copy-Item -Path "$source\*" -Destination $dir -Recurse -Force
+            Write-Host "Copied:  $source -> $dir"
         } else {
-            Write-Host "Exists:  $dir"
+            Write-Host "Skipped: $source (not found in repo)"
         }
     }
 }
