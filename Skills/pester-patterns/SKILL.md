@@ -728,6 +728,81 @@ Describe 'Module exports' -Tag 'QA' {
 }
 ```
 
+## Pattern 12: Testing Non-Exported (Private) Functions
+
+Private helpers in `source/Private/` are merged into the built `.psm1` but are
+not exported, so they cannot be called directly from a test file. Use Pester's
+**module-internal scope invocation** to reach them:
+
+```powershell
+# Inside a Describe block, after the module has been imported:
+It 'ConvertFrom-MyXml aggregates values' {
+    $result = & (Get-Module MyModule) {
+        param($xml)
+        ConvertFrom-MyXml -Xml $xml    # Private function — resolves in module scope
+    } $someXmlString
+
+    $result.Total | Should -Be 42
+}
+```
+
+The `& (Get-Module Name) { ... }` form runs the scriptblock inside the module's
+private session state, where non-exported functions are visible. Pass inputs
+via `param()` + positional args rather than closing over `$using:` — the module
+scope is a separate session state and does not inherit your `$script:` vars.
+
+This removes the need to either export private functions for testing or rely
+on `InModuleScope` (which still works but is slower and pulls in the whole
+module state per call).
+
+## Pattern 13: External Test Fixtures (Avoid Nested Here-Strings)
+
+For tests that exercise parsers, serialisers, or format converters, **do not**
+embed multi-line sample input as a here-string inside the test file. Nested
+here-strings are fragile, confuse editors, and (critically) break tooling that
+writes test files via terminal heredocs (`@'...'@` inside another `@'...'@`
+hangs pwsh waiting for input).
+
+**Pattern**: store fixtures as their own files under
+`tests/Unit/<area>/Fixtures/<name>.<ext>` and load them in `BeforeAll`:
+
+```
+tests/
+  Unit/
+    Private/
+      ConvertFrom-MyXml.Tests.ps1
+      Fixtures/
+        valid-response.xml
+        error-response.xml
+```
+
+```powershell
+BeforeAll {
+    Import-Module -Name MyModule -Force -ErrorAction Stop
+    $script:validXml = Get-Content -LiteralPath "$PSScriptRoot/Fixtures/valid-response.xml" -Raw
+    $script:errorXml = Get-Content -LiteralPath "$PSScriptRoot/Fixtures/error-response.xml" -Raw
+}
+
+Describe 'ConvertFrom-MyXml' -Tag 'Unit' {
+    It 'Parses a valid response' {
+        & (Get-Module MyModule) { param($x) ConvertFrom-MyXml -Xml $x } $script:validXml |
+            Should -Not -BeNullOrEmpty
+    }
+
+    It 'Throws on an error response' {
+        { & (Get-Module MyModule) { param($x) ConvertFrom-MyXml -Xml $x } $script:errorXml } |
+            Should -Throw
+    }
+}
+```
+
+Benefits:
+
+- Fixtures are syntax-highlighted by the editor as the correct file type.
+- Fixtures are diff-friendly and can be replaced by captured real-world output.
+- Test file stays short and focused on assertions.
+- Agents/tools can write the fixture and the test in two small, non-nested operations.
+
 ## Quick Reference: Mock Cheat Sheet
 
 | What to Mock | Mock Command | Key Detail |
