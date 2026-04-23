@@ -186,3 +186,8 @@ If a skill doesn't appear, open the ellipsis (**…**) menu in the Chat view and
 | `/skills` | Configure Skills menu |
 | `/prompts` | Configure Prompt Files menu |
 | `/init` | Generate workspace instructions from your codebase |
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+
