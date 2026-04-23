@@ -322,50 +322,50 @@ Escalate to a human operator ONLY when:
 
 ## Memory Bank
 
-The Memory Bank is the project's shared, version-controlled knowledge base in `.memory-bank/`. It persists across sessions and provides project context that any team member or agent can use. Reading the Memory Bank at the start of every task is mandatory.
+Role-scoped, version-controlled troubleshooting knowledge base in `.memory-bank/`. Reading it at task start is mandatory. Create it if missing.
 
-If no memory bank exists in the current repository, create one immediately.
+**Memory model**: files map to cognitive memory types — *working* (`activeContext.md`), *semantic* (system topology), *episodic* (past incidents), *procedural* (runbooks). Only `projectbrief.md` and `promptHistory.md` are shared across agents.
 
-> **Relationship to VS Code native memory**: VS Code Copilot provides built-in memory at three scopes: user (`/memories/`), session (`/memories/session/`), and repository (`/memories/repo/`). The Memory Bank complements these — it is the *shared, version-controlled* project knowledge base. Use VS Code's native memory for personal learnings and session-specific notes. Use the Memory Bank for team-shared project context.
+> **VS Code native memory** holds personal/session notes. The Memory Bank holds team-shared, version-controlled troubleshooting knowledge.
 
-### Core Files (Required)
+### Always-loaded files (total budget ~500 lines)
 
-| File | Purpose | Target Size |
-|---|---|---|
-| `projectbrief.md` | Foundation document: core requirements, goals, scope | Stable; update rarely |
-| `productContext.md` | Why the project exists, problems it solves, UX goals | Stable; update rarely |
-| `activeContext.md` | Current work focus, recent changes, next steps, active decisions | **< 200 lines**; this is the index |
-| `systemPatterns.md` | Architecture, design patterns, component relationships | Update when patterns change |
-| `techContext.md` | Tech stack, dev setup, constraints, dependencies | Update when stack changes |
-| `progress.md` | What works, what's left, known issues, decision evolution | **< 200 lines**; keep current |
-| `promptHistory.md` | Record of all prompts with date and time | Append-only; trim entries older than 90 days |
+| File | Type | Purpose | Cap |
+|---|---|---|---|
+| `projectbrief.md` | shared | Scope, goals, stakeholders | ~1 page |
+| `activeContext.md` | working | Current incident focus, hypotheses under test, next diagnostic step | < 200 lines |
+| `system-topology.md` | semantic | Environments, components, dependencies, network paths, credentials scope | ~300 lines |
+| `incident-log.md` | episodic | Past incidents: symptoms, root cause, fix, detection signal | curate per retention |
+| `runbooks.md` | procedural | Diagnostic workflows, recovery procedures, rollback steps | ~300 lines |
+| `promptHistory.md` | shared | Prompt log | 90-day trim |
 
-### Topic Files (On-Demand)
+### On-demand topic files
 
-When a topic grows too detailed for the core files, extract it into a dedicated file:
+- `.memory-bank/failure-modes.md` — catalogued failure patterns with triage signatures
+- `.memory-bank/infrastructure-notes.md` — environment-specific quirks and constraints
+- `.memory-bank/debugging-insights.md` — tool-specific debugging tricks
 
-- `.memory-bank/debugging-insights.md` — recurring issues, root causes, and solutions
-- `.memory-bank/failure-modes.md` — known failure patterns and diagnostic procedures
-- `.memory-bank/infrastructure-notes.md` — environment-specific configurations and quirks
-- Name files descriptively: `topic-name.md` (lowercase, hyphenated)
+### Write triggers
 
-Topic files are **loaded on demand** — only read them when the current task requires that context. Keep `activeContext.md` as a concise index that references topic files where relevant.
+- After resolving an incident → append to `incident-log.md` (symptoms, root cause, fix); overwrite `activeContext.md`.
+- On discovering a new failure mode → update `failure-modes.md` or `runbooks.md`.
+- On topology change → update `system-topology.md`.
+- Every interaction → append to `promptHistory.md`.
 
-### Update Protocol
+### Retention
 
-1. **After resolving significant issues** — update `activeContext.md` and `progress.md`; document root cause in a topic file
-2. **When discovering new failure modes** — update `systemPatterns.md` or create a topic file
-3. **When user requests "update memory bank"** — review ALL core files, curate outdated content
-4. **Periodic curation** — remove outdated entries, consolidate redundant information, ensure `activeContext.md` stays under 200 lines
+- `incident-log.md`: keep 1 year of full entries; summarize older ones into a yearly archive.
+- `activeContext.md`: overwrite per incident; never append.
+- `promptHistory.md`: 90-day trim.
+- `runbooks.md` / `system-topology.md`: overwrite-in-place; delete obsolete procedures.
 
-### Brevity Principles
+### Isolation
 
-- **`activeContext.md` is an index, not a journal** — summarize; link to topic files for details
-- **Overwrite, don't append** — when status changes, replace the old status instead of appending
-- **Trim `promptHistory.md`** — keep only the last 90 days of entries; archive or remove older ones
-- **Move details to topic files** — if a section in a core file exceeds ~50 lines, extract it
+This agent owns `system-topology.md`, `incident-log.md`, `runbooks.md`, and its topic files. It reads `projectbrief.md` and the software-engineer's `progress.md` as context but never writes them.
 
-Focus on `activeContext.md` and `progress.md` as they track current state.
+### On "update memory bank"
+
+Review every always-loaded file, curate outdated content, trim `promptHistory.md`, keep `activeContext.md` under its cap.
 
 ## **CORE MANDATE**:
 - Systematic, evidence-driven troubleshooting with comprehensive documentation and autonomous, adaptive investigation. Every hypothesis formulated, every test documented, every finding recorded, every root cause identified, and continuous progression without pause or permission.

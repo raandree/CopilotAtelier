@@ -656,46 +656,50 @@ When a security gate can be enforced via a hook, prefer the hook over relying on
 
 ## Memory Bank
 
-The Memory Bank is the project's shared, version-controlled knowledge base in `.memory-bank/`. It persists across sessions and provides project context that any team member or agent can use. Reading the Memory Bank at the start of every assessment is mandatory.
+Role-scoped, version-controlled security knowledge base in `.memory-bank/`. Reading it at the start of every assessment is mandatory. Create it if missing.
 
-> **Relationship to VS Code native memory**: VS Code Copilot provides built-in memory at three scopes: user (`/memories/`), session (`/memories/session/`), and repository (`/memories/repo/`). The Memory Bank complements these — it is the *shared, version-controlled* project knowledge base. Use VS Code's native memory for personal learnings and session-specific notes. Use the Memory Bank for team-shared project context.
+**Memory model**: files map to cognitive memory types — *working* (`activeContext.md`), *semantic* (threat landscape), *episodic* (past assessments), *procedural* (review playbooks). Only `projectbrief.md` and `promptHistory.md` are shared across agents; the other files are owned by this agent.
 
-### Core Files (Required)
+> **VS Code native memory** holds personal/session notes. The Memory Bank holds team-shared, version-controlled security knowledge.
 
-| File | Security Assessment Purpose | Target Size |
-|---|---|---|
-| `projectbrief.md` | Understand scope and objectives | Stable; update rarely |
-| `productContext.md` | Understand business context and user impact | Stable; update rarely |
-| `activeContext.md` | Understand recent changes and active work | **< 200 lines**; this is the index |
-| `systemPatterns.md` | Understand architecture and attack surface | Update when patterns change |
-| `techContext.md` | Understand technology stack and dependencies | Update when stack changes |
-| `progress.md` | Understand current state and known issues | **< 200 lines**; keep current |
-| `promptHistory.md` | Review past assessment history | Append-only; trim entries older than 90 days |
+### Always-loaded files (total budget ~500 lines)
 
-### Topic Files (On-Demand)
+| File | Type | Purpose | Cap |
+|---|---|---|---|
+| `projectbrief.md` | shared | Scope, goals, stakeholders | ~1 page |
+| `activeContext.md` | working | Current assessment focus, last verdict (PASS/FAIL/CONDITIONAL), open criticals | < 200 lines |
+| `threat-model.md` | semantic | Attack surface, asset inventory, trust boundaries, data flows | ~300 lines |
+| `assessment-log.md` | episodic | Past assessments: date, scope, verdict, top findings, remediation status | curate per retention |
+| `security-playbooks.md` | procedural | Review checklists, remediation patterns, pentest recipes | ~300 lines |
+| `promptHistory.md` | shared | Prompt log | 90-day trim |
 
-When a topic grows too detailed for the core files, extract it into a dedicated file:
+### On-demand topic files
 
 - `.memory-bank/security-findings.md` — recurring vulnerability patterns and remediations
 - `.memory-bank/dependency-audit.md` — dependency risk assessments and CVE tracking
 - `.memory-bank/compliance-status.md` — regulatory compliance state and gaps
-- Name files descriptively: `topic-name.md` (lowercase, hyphenated)
 
-Topic files are **loaded on demand** — only read them when the current task requires that context. Keep `activeContext.md` as a concise index that references topic files where relevant.
+### Write triggers
 
-### Update Protocol
+- After every assessment → append verdict + top findings to `assessment-log.md`; overwrite summary in `activeContext.md`.
+- On new vulnerability pattern discovered → update `security-playbooks.md` or `security-findings.md`.
+- On architecture change affecting attack surface → update `threat-model.md`.
+- Every interaction → append to `promptHistory.md`.
 
-1. **After every assessment** — update `activeContext.md` with: assessment date, status (PASS/FAIL/CONDITIONAL), critical issue count, and key security patterns identified
-2. **When discovering new vulnerability patterns** — update `systemPatterns.md` or create a topic file
-3. **When user requests "update memory bank"** — review ALL core files, curate outdated content
-4. **Periodic curation** — remove outdated entries, consolidate redundant information, ensure `activeContext.md` stays under 200 lines
+### Retention
 
-### Brevity Principles
+- `assessment-log.md`: keep 2 years of entries; archive older ones to a dated topic file.
+- `activeContext.md`: overwrite; never append.
+- `promptHistory.md`: 90-day trim.
+- `threat-model.md` / `security-playbooks.md`: overwrite-in-place.
 
-- **`activeContext.md` is an index, not a journal** — summarize; link to topic files for details
-- **Overwrite, don't append** — when assessment status changes, replace the old status
-- **Trim `promptHistory.md`** — keep only the last 90 days of entries; archive or remove older ones
-- **Move details to topic files** — if a section in a core file exceeds ~50 lines, extract it
+### Isolation
+
+This agent owns `threat-model.md`, `assessment-log.md`, `security-playbooks.md`, and its topic files. It reads `projectbrief.md` and other agents' episodic files as context but never writes them.
+
+### On "update memory bank"
+
+Review every always-loaded file, curate outdated entries, trim `promptHistory.md`, keep `activeContext.md` under its cap.
 
 ## Escalation Protocol
 

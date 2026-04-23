@@ -391,50 +391,49 @@ This mirrors the **Open/Closed Principle** from software engineering: the generi
 
 ## 9. Memory Bank
 
-The Memory Bank is the project's shared, version-controlled knowledge base in `.memory-bank/`. It persists across sessions and provides project context that any team member or agent can use. Reading the Memory Bank at the start of every content creation task is mandatory.
+Role-scoped, version-controlled DevOps-training knowledge base in `.memory-bank/`. Reading it at the start of every content creation task is mandatory. Create it if missing. This agent extends the generic `training-writer` Memory Bank with DevOps-specific files.
 
-If no memory bank exists in the current repository, create one immediately.
+**Memory model**: files map to cognitive memory types — *working* (`activeContext.md`), *semantic* (platform matrix), *episodic* (module registry, shared with `training-writer`), *procedural* (pipeline patterns). Only `projectbrief.md` and `promptHistory.md` are shared across all agents.
 
-> **Relationship to VS Code native memory**: VS Code Copilot provides built-in memory at three scopes: user (`/memories/`), session (`/memories/session/`), and repository (`/memories/repo/`). The Memory Bank complements these — it is the *shared, version-controlled* project knowledge base. Use VS Code's native memory for personal learnings and session-specific notes. Use the Memory Bank for team-shared project context.
+> **VS Code native memory** holds personal/session notes. The Memory Bank holds team-shared, version-controlled training knowledge.
 
-### Core Files (Required)
+### Always-loaded files (total budget ~500 lines)
 
-| File | DevOps Training Purpose | Target Size |
-|---|---|---|
-| `projectbrief.md` | Understand training scope, objectives, and target audience | Stable; update rarely |
-| `productContext.md` | Understand why the training exists and what problems it addresses | Stable; update rarely |
-| `activeContext.md` | Current work focus, recent changes, next steps | **< 200 lines**; this is the index |
-| `systemPatterns.md` | Understand content architecture and module relationships | Update when patterns change |
-| `techContext.md` | Understand technology stack, tools, and platforms covered in training | Update when stack changes |
-| `progress.md` | What's complete, what's remaining, known issues | **< 200 lines**; keep current |
-| `promptHistory.md` | Record of all prompts with date and time | Append-only; trim entries older than 90 days |
+| File | Type | Purpose | Cap |
+|---|---|---|---|
+| `projectbrief.md` | shared | Curriculum scope, target audience, learning goals | ~1 page |
+| `activeContext.md` | working | Current DevOps module/lab focus, next steps | < 200 lines |
+| `platform-matrix.md` | semantic | Tools, versions, platforms covered (Jenkins, GHA, Terraform, K8s, etc.) | ~200 lines |
+| `module-registry.md` | episodic | All modules: title, objectives, status, dependencies (shared with `training-writer`) | curate per retention |
+| `pipeline-patterns.md` | procedural | CI/CD lab recipes, IaC patterns, observability templates | ~300 lines |
+| `promptHistory.md` | shared | Prompt log | 90-day trim |
 
-### Topic Files (On-Demand)
-
-When a topic grows too detailed for the core files, extract it into a dedicated file:
+### On-demand topic files
 
 - `.memory-bank/lab-environment-notes.md` — environment-specific configurations, tool versions, setup issues
-- `.memory-bank/pipeline-patterns.md` — CI/CD patterns and lab pipeline configurations
-- `.memory-bank/tool-version-matrix.md` — tool versions referenced across modules
-- Name files descriptively: `topic-name.md` (lowercase, hyphenated)
+- `.memory-bank/tool-version-matrix.md` — detailed tool versions referenced across modules (extract from `platform-matrix.md` when it grows > 200 lines)
 
-Topic files are **loaded on demand** — only read them when the current task requires that context. Keep `activeContext.md` as a concise index that references topic files where relevant.
+### Write triggers
 
-### Update Protocol
+- After creating or revising a DevOps module/lab → update `module-registry.md`; overwrite `activeContext.md`.
+- On tool version bump or new platform → update `platform-matrix.md` (or `tool-version-matrix.md`).
+- On new effective pipeline or lab recipe → update `pipeline-patterns.md`.
+- Every interaction → append to `promptHistory.md`.
 
-1. **After creating or significantly revising a module or lab** — update `activeContext.md` and `progress.md`
-2. **When tool versions, lab environments, or platform changes occur** — update `techContext.md` or relevant topic file
-3. **When user requests "update memory bank"** — review ALL core files, curate outdated content
-4. **Periodic curation** — remove outdated entries, consolidate redundant information, ensure `activeContext.md` stays under 200 lines
+### Retention
 
-### Brevity Principles
+- `platform-matrix.md`: overwrite-in-place; note last-verified date per tool.
+- `module-registry.md`: keep all entries; mark deprecated modules.
+- `activeContext.md`: overwrite; never append.
+- `promptHistory.md`: 90-day trim.
 
-- **`activeContext.md` is an index, not a journal** — summarize; link to topic files for details
-- **Overwrite, don't append** — when status changes, replace the old status instead of appending
-- **Trim `promptHistory.md`** — keep only the last 90 days of entries; archive or remove older ones
-- **Move details to topic files** — if a section in a core file exceeds ~50 lines, extract it
+### Isolation
 
-Always keep the `promptHistory.md` file updated with each interaction.
+This agent owns `platform-matrix.md`, `pipeline-patterns.md`, and its topic files. It co-owns `module-registry.md` with `training-writer`; agree on module ID prefix to avoid collisions. It reads `projectbrief.md` and `didactics-rules.md` as context but does not write them.
+
+### On "update memory bank"
+
+Review every always-loaded file, refresh tool versions in `platform-matrix.md`, curate outdated modules, trim `promptHistory.md`.
 
 ---
 

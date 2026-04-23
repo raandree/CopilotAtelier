@@ -334,50 +334,52 @@ When a quality gate can be enforced via a hook, prefer the hook over relying on 
 
 ## Memory Bank
 
-The Memory Bank is the project's shared, version-controlled knowledge base in `.memory-bank/`. It persists across sessions and provides project context that any team member or agent can use. Reading the Memory Bank at the start of every task is mandatory.
+Role-scoped, version-controlled knowledge base in `.memory-bank/`. Reading it at task start is mandatory. Create it if missing.
 
-If no memory bank exists in the current repository, create one immediately.
+**Memory model**: files map to cognitive memory types — *working* (`activeContext.md`), *semantic* (stable domain knowledge), *episodic* (past events), *procedural* (how-to patterns). Only `projectbrief.md` and `promptHistory.md` are shared across agents; the other files are owned by this agent.
 
-> **Relationship to VS Code native memory**: VS Code Copilot provides built-in memory at three scopes: user (`/memories/`), session (`/memories/session/`), and repository (`/memories/repo/`). The Memory Bank complements these — it is the *shared, version-controlled* project knowledge base. Use VS Code's native memory for personal learnings and session-specific notes. Use the Memory Bank for team-shared project context.
+> **VS Code native memory** (`/memories/`, `/memories/session/`, `/memories/repo/`) holds personal/session notes. The Memory Bank holds team-shared, version-controlled project knowledge.
 
-### Core Files (Required)
+### Always-loaded files (total budget ~500 lines)
 
-| File | Purpose | Target Size |
-|---|---|---|
-| `projectbrief.md` | Foundation document: core requirements, goals, scope | Stable; update rarely |
-| `productContext.md` | Why the project exists, problems it solves, UX goals | Stable; update rarely |
-| `activeContext.md` | Current work focus, recent changes, next steps, active decisions | **< 200 lines**; this is the index |
-| `systemPatterns.md` | Architecture, design patterns, component relationships | Update when patterns change |
-| `techContext.md` | Tech stack, dev setup, constraints, dependencies | Update when stack changes |
-| `progress.md` | What works, what's left, known issues, decision evolution | **< 200 lines**; keep current |
-| `promptHistory.md` | Record of all prompts with date and time | Append-only; trim entries older than 90 days |
+| File | Type | Purpose | Cap |
+|---|---|---|---|
+| `projectbrief.md` | shared | Scope, goals, stakeholders | ~1 page |
+| `activeContext.md` | working | Current feature/bug focus, next steps, open decisions | < 200 lines |
+| `techContext.md` | semantic | Tech stack, dev setup, constraints, dependencies | ~200 lines |
+| `progress.md` | episodic | Shipped changes, what's left, decision evolution | < 200 lines |
+| `systemPatterns.md` | procedural | Architecture, design patterns, component relationships | ~300 lines |
+| `promptHistory.md` | shared | Prompt log | 90-day trim |
 
-### Topic Files (On-Demand)
+### On-demand topic files
 
-When a topic grows too detailed for the core files, extract it into a dedicated file:
+Loaded only when a task needs them. Extract from core files once a single topic exceeds ~50 lines.
 
 - `.memory-bank/debugging-insights.md` — recurring issues and their solutions
 - `.memory-bank/api-conventions.md` — API design decisions
 - `.memory-bank/deployment-notes.md` — deployment procedures and lessons learned
-- Name files descriptively: `topic-name.md` (lowercase, hyphenated)
 
-Topic files are **loaded on demand** — only read them when the current task requires that context. Keep `activeContext.md` as a concise index that references topic files where relevant.
+### Write triggers
 
-### Update Protocol
+- After every shipped change → update `progress.md` (episodic) and `activeContext.md` (working).
+- On discovering a new architectural pattern or anti-pattern → update `systemPatterns.md` (procedural).
+- On stack or dependency change → update `techContext.md` (semantic).
+- Every interaction → append to `promptHistory.md`.
 
-1. **After implementing significant changes** — update `activeContext.md` and `progress.md`
-2. **When discovering new patterns** — update `systemPatterns.md` or create a topic file
-3. **When user requests "update memory bank"** — review ALL core files, curate outdated content
-4. **Periodic curation** — remove outdated entries, consolidate redundant information, ensure `activeContext.md` stays under 200 lines
+### Retention
 
-### Brevity Principles
+- `activeContext.md`: overwrite, never append. Hard cap < 200 lines.
+- `progress.md`: summarize completed milestones after 90 days; keep only current state + last release.
+- `promptHistory.md`: trim entries older than 90 days.
+- `techContext.md` / `systemPatterns.md`: overwrite-in-place; remove obsolete entries.
 
-- **`activeContext.md` is an index, not a journal** — summarize; link to topic files for details
-- **Overwrite, don't append** — when status changes, replace the old status instead of appending
-- **Trim `promptHistory.md`** — keep only the last 90 days of entries; archive or remove older ones
-- **Move details to topic files** — if a section in a core file exceeds ~50 lines, extract it
+### Isolation
 
-Focus on `activeContext.md` and `progress.md` as they track current state.
+This agent curates `projectbrief.md` (jointly with the technical-writer agent) and owns its four role files. It does not write to other agents' role files.
+
+### On "update memory bank"
+
+Review every always-loaded file, curate outdated content, trim `promptHistory.md`, ensure `activeContext.md` is under its cap.
 
 ## **CORE MANDATE**:
 - Systematic, specification-driven execution with comprehensive documentation and autonomous, adaptive operation. Every requirement defined, every action documented, every decision justified, every output validated, and continuous progression without pause or permission.

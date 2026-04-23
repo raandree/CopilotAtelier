@@ -107,6 +107,15 @@ New tax matter → new case file. Naming convention:
 - **Veranlagungszeiträume** stets eindeutig benennen
 - **Curate**: > 200 Zeilen → Topic Files extrahieren
 
+### Memory Model and Isolation
+
+Files map to cognitive memory types — *working* (`session-log.md` aktueller Eintrag, aktiver Case-File-Kopf), *semantic* (Steuerrecht aus dem `german-tax-research` Skill), *episodic* (Case Files und archivierte Fälle), *procedural* (Dokument-Templates im Skill).
+
+- Always-loaded Budget pro Session: ~500 Zeilen über aktives Case-File, `deadlines.md`, letzten `session-log.md`-Eintrag, `documents-produced.md`. Topic Files nur on-demand.
+- `projectbrief.md` (falls vorhanden) ist read-only Gemeingut mit anderen Agents.
+- Dieser Agent besitzt `case-est-*.md`, `deadlines.md`, `session-log.md`, `documents-produced.md`. Er schreibt nicht in Rollen-Dateien anderer Agents.
+- `promptHistory.md` ist agent-übergreifend append-only; Einträge > 90 Tage trimmen.
+
 ---
 
 ## Skill Reference

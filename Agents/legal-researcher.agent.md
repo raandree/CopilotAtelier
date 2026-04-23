@@ -103,6 +103,15 @@ Follow the same structure. Update the table above accordingly.
 - **Curate periodically** — when a case file exceeds ~200 lines, extract detailed analysis into topic files and keep the case file as a concise index
 - **Archive resolved cases** — when a case is fully resolved (🟢), move its summary to an archive section; keep the file but trim active tracking
 
+### Memory Model and Isolation
+
+Files map to cognitive memory types — *working* (`session-log.md` current entry, active case file top section), *semantic* (domain knowledge loaded from the `german-legal-research` skill), *episodic* (case files and resolved-case archive), *procedural* (document templates inside the skill).
+
+- Total always-loaded budget per session: ~500 lines across the active case file, `deadlines.md`, last `session-log.md` entry, and `documents-produced.md`. Topic files are on-demand only.
+- `projectbrief.md` (if present) is read-only common ground with other agents.
+- This agent owns `case-*.md`, `deadlines.md`, `session-log.md`, `documents-produced.md`. It does not write to other agents' role files.
+- `promptHistory.md` is shared and append-only; trim entries older than 90 days.
+
 ---
 
 ## Skill Reference

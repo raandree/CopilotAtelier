@@ -774,46 +774,48 @@ When using the fetch tool for research:
 
 ## Memory Bank
 
-The Memory Bank is the project's shared, version-controlled knowledge base in `.memory-bank/`. It persists across sessions and provides project context that any team member or agent can use. Reading the Memory Bank at the start of every writing task is mandatory.
+Role-scoped, version-controlled writing knowledge base in `.memory-bank/`. Reading it at the start of every writing task is mandatory.
 
-> **Relationship to VS Code native memory**: VS Code Copilot provides built-in memory at three scopes: user (`/memories/`), session (`/memories/session/`), and repository (`/memories/repo/`). The Memory Bank complements these — it is the *shared, version-controlled* project knowledge base. Use VS Code's native memory for personal learnings and session-specific notes. Use the Memory Bank for team-shared project context.
+**Memory model**: files map to cognitive memory types — *working* (`activeContext.md`), *semantic* (editorial standards), *episodic* (published deliverables), *procedural* (writing patterns). Only `projectbrief.md` and `promptHistory.md` are shared across agents.
 
-### Core Files (Required)
+> **VS Code native memory** holds personal/session notes. The Memory Bank holds team-shared, version-controlled writing knowledge.
 
-| File | Writing Purpose | Target Size |
-|---|---|---|
-| `projectbrief.md` | Understand project scope and objectives | Stable; update rarely |
-| `productContext.md` | Understand business context and audience | Stable; update rarely |
-| `activeContext.md` | Understand recent changes and focus areas | **< 200 lines**; this is the index |
-| `systemPatterns.md` | Understand architecture for technical writing | Update when patterns change |
-| `techContext.md` | Understand technology stack and terminology | Update when stack changes |
-| `progress.md` | Understand current state and known issues | **< 200 lines**; keep current |
-| `promptHistory.md` | Review past writing history and decisions | Append-only; trim entries older than 90 days |
+### Always-loaded files (total budget ~500 lines)
 
-### Topic Files (On-Demand)
+| File | Type | Purpose | Cap |
+|---|---|---|---|
+| `projectbrief.md` | shared | Scope, goals, stakeholders | ~1 page |
+| `activeContext.md` | working | Current article focus, outline, open research questions | < 200 lines |
+| `style-guide.md` | semantic | Editorial standards, terminology glossary, tone, citation format | ~200 lines |
+| `article-registry.md` | episodic | Published articles: title, audience, date, key sources, reusable assets | curate per retention |
+| `writing-patterns.md` | procedural | Article templates, structure recipes, review checklists | ~200 lines |
+| `promptHistory.md` | shared | Prompt log | 90-day trim |
 
-When a topic grows too detailed for the core files, extract it into a dedicated file:
+### On-demand topic files
 
 - `.memory-bank/research-sources.md` — reusable source catalog with citations
 - `.memory-bank/style-decisions.md` — editorial style choices and precedents
-- `.memory-bank/article-registry.md` — index of published articles with metadata
-- Name files descriptively: `topic-name.md` (lowercase, hyphenated)
 
-Topic files are **loaded on demand** — only read them when the current task requires that context. Keep `activeContext.md` as a concise index that references topic files where relevant.
+### Write triggers
 
-### Update Protocol
+- After publishing an article → append entry to `article-registry.md`; overwrite `activeContext.md`.
+- On new editorial decision → update `style-guide.md` or `style-decisions.md`.
+- On reusable source discovered → append to `research-sources.md`.
+- Every interaction → append to `promptHistory.md`.
 
-1. **After every article or documentation deliverable** — update `activeContext.md` with: publication date, article title, key research findings, and reusable source catalog
-2. **When discovering new writing patterns** — update `systemPatterns.md` or create a topic file
-3. **When user requests "update memory bank"** — review ALL core files, curate outdated content
-4. **Periodic curation** — remove outdated entries, consolidate redundant information, ensure `activeContext.md` stays under 200 lines
+### Retention
 
-### Brevity Principles
+- `article-registry.md`: keep all entries; summarize sources older than 2 years.
+- `activeContext.md`: overwrite per article; never append.
+- `promptHistory.md`: 90-day trim.
 
-- **`activeContext.md` is an index, not a journal** — summarize; link to topic files for details
-- **Overwrite, don't append** — when status changes, replace the old status instead of appending
-- **Trim `promptHistory.md`** — keep only the last 90 days of entries; archive or remove older ones
-- **Move details to topic files** — if a section in a core file exceeds ~50 lines, extract it
+### Isolation
+
+This agent jointly curates `projectbrief.md` with the software-engineer agent. It owns `style-guide.md`, `article-registry.md`, `writing-patterns.md`, and its topic files.
+
+### On "update memory bank"
+
+Review every always-loaded file, curate outdated content, trim `promptHistory.md`.
 
 ## Escalation Protocol
 
