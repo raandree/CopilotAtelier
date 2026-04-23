@@ -68,6 +68,42 @@ for ($i = 0; $i -lt 120; $i++) {
 - Use `-Tasks test` to run only tests, not the full build pipeline.
 - Use `-Tasks build` to rebuild the module without running tests.
 
+## Source & Test File Encoding — UTF-8 **with BOM** Required
+
+Sampler's QA test suite includes a `Missing BOM encoding for non-ASCII encoded file`
+check. All files under `source/` and `tests/` that contain any non-ASCII byte
+**must** be saved as UTF-8 **with BOM**.
+
+**Trap**: In PowerShell 7.x, `Set-Content -Encoding UTF8` writes a **BOM-less**
+file (the default changed from Windows PowerShell 5.1). This silently breaks
+Sampler QA. The failure message looks like:
+
+```text
+Expected 'UTF8 BOM' encoding for file 'MyFunction.ps1', but got
+Missing BOM encoding for non-ASCII encoded file 'MyFunction.ps1'.
+```
+
+**Fix** — always use the explicit `utf8BOM` encoding when writing source/test files:
+
+```powershell
+# Wrong (pwsh 7): produces BOM-less UTF-8, breaks Sampler QA
+Set-Content -Path 'source/Public/MyFunction.ps1' -Value $content -Encoding UTF8
+
+# Correct
+Set-Content -Path 'source/Public/MyFunction.ps1' -Value $content -Encoding utf8BOM
+
+# Bulk re-save an existing tree
+Get-ChildItem -Path source,tests -Recurse -Include *.ps1,*.psm1,*.psd1,*.ps1xml |
+    ForEach-Object {
+        $c = Get-Content -LiteralPath $_.FullName -Raw
+        Set-Content -LiteralPath $_.FullName -Value $c -Encoding utf8BOM -NoNewline
+    }
+```
+
+Files containing only ASCII bytes pass the check regardless of BOM, but any
+em-dash, smart-quote, umlaut, or non-ASCII comment character will fail without
+a BOM. Save everything with BOM unconditionally.
+
 ## Diagnosing Test Failures
 
 ### Step 1: Read the Pester Object
