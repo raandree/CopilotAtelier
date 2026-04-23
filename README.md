@@ -112,7 +112,8 @@ The setup script merges the bindings in [`Keybindings/keybindings.json`](Keybind
 - **Instructions**: Type `/instructions` in chat to see the Configure Instructions menu
 - **Skills**: Type `/` in chat to see skills as slash commands
 - **Prompts**: Type `/` in chat to see prompt files as slash commands
-- **Diagnostics**: Right-click in the Chat view → select **Diagnostics** to see all loaded agents, instructions, skills, and prompts with any errors
+- **Chat Customizations editor**: Click the gear icon in the Chat view (or run **Chat: Open Chat Customizations** from the Command Palette) to see all registered agents, instructions, skills, and prompts in one place
+- **Debug logs**: If customizations aren't being applied, open the ellipsis (**…**) menu in the Chat view → **Show Agent Debug Logs**
 
 ## Troubleshooting Skills
 
@@ -168,11 +169,13 @@ After adding or fixing a skill file, you must **reload VS Code** (or start a new
 
 ### Verifying Skills Are Loaded
 
-Use the Copilot Chat diagnostics to confirm a skill is registered:
+To confirm a skill is registered:
 
-1. Right-click in the Chat view
-2. Select **Diagnostics**
-3. Check the skills section for your skill name and any errors
+1. In the Chat view, click the gear icon (**Configure Chat**) — or run **Chat: Open Chat Customizations** from the Command Palette
+2. Select the **Skills** tab and look for your skill in the list
+3. Alternatively, type `/skills` in chat to open the Configure Skills menu
+
+If a skill doesn't appear, open the ellipsis (**…**) menu in the Chat view and choose **Show Agent Debug Logs** to see why it failed to load (usually a frontmatter or `name`/directory mismatch).
 
 ## Useful Chat Shortcuts
 
