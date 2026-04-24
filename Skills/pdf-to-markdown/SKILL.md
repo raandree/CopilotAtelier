@@ -7,13 +7,20 @@ description: >-
   (BT/ET, Td, Tj), reconstructs lines by Y-coordinate positioning, and produces
   clean Markdown with tables and formatting. Handles German-locale PDFs
   (ISO-8859-1 encoding, umlauts, ß, special chars). Best suited for structured
-  documents like payslips, invoices, reports.
+  documents like payslips, invoices, reports. Also includes an OCR fallback
+  (Recipe 4) using pymupdf + Tesseract for scanned / image-only PDFs with a
+  two-pass heuristic and Windows installation guide (winget + tessdata_best +
+  user-scope TESSDATA_PREFIX).
   USE FOR: convert PDF to markdown, PDF to md, extract text from PDF, parse PDF,
   PDF text extraction, PDF to text, Entgeltabrechnung PDF, payslip PDF, invoice
   PDF, read PDF in PowerShell, decode PDF hex, PDF content stream, deflate PDF
-  stream, structured PDF extraction, German PDF, Gehaltsabrechnung.
-  DO NOT USE FOR: scanned/image-based PDFs (use OCR tools), PDFs with complex
-  vector graphics, PDF form filling, PDF editing, PDF creation.
+  stream, structured PDF extraction, German PDF, Gehaltsabrechnung, scanned
+  PDF, image-only PDF, Microsoft Lens scan, Office Lens, OCR PDF, Tesseract,
+  tesseract deu, tessdata_best, pymupdf OCR, TESSDATA_PREFIX, winget Tesseract,
+  UB-Mannheim.TesseractOCR, OCR German documents, PDF needs OCR, empty PDF
+  text extraction, pdf zu text OCR, Bescheid scannen OCR.
+  DO NOT USE FOR: PDFs with complex vector graphics, PDF form filling, PDF
+  editing, PDF creation.
 ---
 
 # PDF to Markdown Conversion
@@ -356,3 +363,151 @@ for page in doc:
     print(page.get_text())
 "
 ```
+
+## Recipe 4: Scanned / Image-only PDFs — Tesseract OCR Fallback
+
+When `pymupdf`/`pdftotext` return mostly empty text (e.g. < ~40 chars per page
+after stripping headers), the PDF is **image-based** (typical for phone scans
+via Microsoft Lens, Office Lens, CamScanner, Adobe Scan). Use pymupdf to
+**render pages to PNG at 300 DPI** and pipe them through Tesseract.
+
+### Windows installation (non-admin friendly)
+
+```powershell
+# 1) Install Tesseract via winget (system scope — --scope user fails)
+winget install --id UB-Mannheim.TesseractOCR --silent `
+  --accept-source-agreements --accept-package-agreements
+
+# 2) The installer's tessdata in 'Program Files\Tesseract-OCR\tessdata'
+#    is NOT writable without admin. Install extra languages to user scope:
+$userTess = "$env:LOCALAPPDATA\tessdata"
+New-Item -ItemType Directory -Path $userTess -Force | Out-Null
+Copy-Item 'C:\Program Files\Tesseract-OCR\tessdata\eng.traineddata' $userTess -Force
+Copy-Item 'C:\Program Files\Tesseract-OCR\tessdata\osd.traineddata' $userTess -Force
+
+# 3) Download high-quality language model (tessdata_best, LSTM trained):
+Invoke-WebRequest `
+  -Uri 'https://github.com/tesseract-ocr/tessdata_best/raw/main/deu.traineddata' `
+  -OutFile "$userTess\deu.traineddata" -UseBasicParsing
+
+# 4) Persist TESSDATA_PREFIX for the user
+[Environment]::SetEnvironmentVariable('TESSDATA_PREFIX', $userTess, 'User')
+$env:TESSDATA_PREFIX = $userTess
+$env:PATH += ';C:\Program Files\Tesseract-OCR'
+
+tesseract --list-langs   # should list deu, eng, osd
+```
+
+Use `tessdata_best` (not the default `tessdata_fast` from the installer) for
+best accuracy on German documents. File size ~9 MB per language.
+
+### Detection heuristic — does the PDF need OCR?
+
+A PDF with a text layer returns non-trivial text per page. Image-only PDFs
+return a few characters of header noise or nothing. Good threshold:
+
+```python
+import re
+def needs_ocr(pdf_path, body_text):
+    # Strip page-break headers first
+    body = re.sub(r"## Seite \d+", "", body_text).strip()
+    # Dynamic threshold: < 40 chars per page = image-based
+    import pymupdf
+    pages = len(pymupdf.open(pdf_path))
+    return len(body) < max(30, 40 * pages)
+```
+
+Run a **two-pass extraction**: first pass with pymupdf text, then re-process
+any file below the threshold with OCR. This catches PDFs that have *some*
+extractable text (page numbers, watermarks) but need OCR for the real content.
+
+### Python OCR script (pymupdf + Tesseract subprocess)
+
+```python
+import os, pathlib, subprocess, sys, tempfile
+import pymupdf
+
+TESS = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+os.environ["TESSDATA_PREFIX"] = os.environ.get(
+    "TESSDATA_PREFIX") or os.path.expandvars(r"%LOCALAPPDATA%\tessdata")
+
+def ocr_pdf(pdf: pathlib.Path, lang: str = "deu+eng") -> str:
+    doc = pymupdf.open(pdf)
+    parts = []
+    for i, page in enumerate(doc, 1):
+        # 300 DPI grayscale is the sweet spot: accurate + small files
+        pix = page.get_pixmap(dpi=300, colorspace=pymupdf.csGRAY)
+        # IMPORTANT: do NOT use NamedTemporaryFile(delete=False) on Windows.
+        # Tesseract may still hold the file handle when os.unlink runs,
+        # causing "Permission denied". Use mkstemp + explicit close + unlink.
+        fd, img = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        pix.save(img)
+        try:
+            out = subprocess.run(
+                [TESS, img, "stdout", "-l", lang, "--psm", "6"],
+                capture_output=True, text=True, encoding="utf-8",
+                env=os.environ,
+            )
+            parts.append(f"\n\n---\n\n## Seite {i}\n\n{out.stdout.strip()}")
+        finally:
+            try: os.unlink(img)
+            except OSError: pass
+    return "".join(parts).strip() + "\n"
+```
+
+### Tesseract `--psm` (Page Segmentation Mode) cheat sheet
+
+| PSM | Use for |
+|-----|---------|
+| `3` | Fully automatic (default) — multi-column docs |
+| `6` | **Single uniform block of text** — best for letters, invoices, statements |
+| `4` | Single column of variable-size text |
+| `11`/`12` | Sparse text (receipts, ID cards) |
+
+For German business documents (invoices, payslips, tax forms, rental
+statements), **`--psm 6`** gives the best results.
+
+### Language packs
+
+Use `-l deu+eng` for documents that mix German body text with English
+acronyms (common in IT, banking, logistics). Order matters: list the
+*dominant* language first. For legal/tax documents in Germany, `deu+eng`
+catches both the German prose and English abbreviations like "IBAN", "BIC".
+
+### Running via `uv` (zero-install Python)
+
+When no pinned Python environment exists, use `uv` for on-demand deps:
+
+```powershell
+uv run --with pymupdf python scripts\ocr_pdf.py
+```
+
+This downloads pymupdf into an ephemeral cache on first use (~50 ms after
+warmup) and runs the script — no `pip install`, no venv to manage. On
+Windows, `python` in PATH is often the Microsoft Store stub (not a real
+Python); `uv run` sidesteps this entirely.
+
+### Common Windows pitfalls
+
+| Pitfall | Symptom | Fix |
+|---|---|---|
+| `tempfile.NamedTemporaryFile(delete=False)` | `Permission denied` when deleting after tesseract ran | Use `mkstemp` + explicit `os.close(fd)` + `os.unlink` in `finally` |
+| winget `--scope user` | `No applicable installer found` | Install system scope (default); dependencies use user-scope tessdata instead |
+| `Access to 'C:\ProgramData\chocolatey\lib-bad' is denied` | choco install fails without admin | Prefer `winget` for Tesseract; no admin needed |
+| tessdata permission denied | Program Files tessdata not writable | Put extra languages in `%LOCALAPPDATA%\tessdata` + set `TESSDATA_PREFIX` |
+| Python launcher `py` not installed | `py: The term … is not recognized` | Use `python`, `python3`, or (preferably) `uv run` |
+| Microsoft Store Python stub | `python` prints install banner and exits 1 | Use `uv run`; do not rely on `where.exe python` output |
+
+### Quality vs. effort tradeoff
+
+| Approach | Speed | Accuracy (DE docs) | When |
+|---|---|---|---|
+| `pymupdf` text extraction | 🚀🚀🚀 | 100% (if text layer present) | First attempt always |
+| Tesseract `tessdata_fast` | 🚀🚀 | ~92% | Large batches, print-quality scans |
+| Tesseract `tessdata_best` | 🚀 | ~97% | Phone scans, handwritten mixed, umlauts critical |
+| Azure AI Document Intelligence | 🐢 (network) | ~99% + structure | Tables, forms, receipts with layout recovery |
+
+For tax/legal documents where a single misread digit (e.g. `7,55` vs. `2,55 €`)
+changes the tax owed, **always use `tessdata_best`** and **spot-check the OCR
+output against the scanned image** for critical amounts.
