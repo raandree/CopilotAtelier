@@ -2,7 +2,7 @@
 
 ## Why this project exists
 
-VS Code's GitHub Copilot supports custom agents, instructions, skills, and prompt files, but by default these are stored locally in the VS Code profile or workspace. This means customizations do not follow the developer across machines. CopilotAtelier solves this by redirecting all four customization locations to a repo-derived folder under the user profile (and, when available, to a OneDrive-synced mirror), ensuring every machine gets the same Copilot setup automatically.
+VS Code's GitHub Copilot supports custom agents, instructions, skills, and prompt files, but by default these are stored locally in the VS Code profile or workspace. This means customizations do not follow the developer across machines. CopilotAtelier solves this by redirecting all four customization locations to a single repo-derived folder — the OneDrive-synced folder when available, or a plain user-profile folder otherwise — ensuring every machine gets the same Copilot setup automatically.
 
 ## Problems it solves
 
@@ -13,10 +13,10 @@ VS Code's GitHub Copilot supports custom agents, instructions, skills, and promp
 
 ## How it works
 
-1. All customization files live in `~/CopilotAtelier/` organized into four subdirectories: Agents, Instructions, Skills, Prompts. When OneDrive is signed in, `~/OneDrive/CopilotAtelier/` is registered as a second location and kept in sync.
-2. A PowerShell setup script (`Setup-CopilotSettings.ps1`) patches VS Code's `settings.json` to point all four Copilot file-location settings at the local folder — and at the OneDrive folder when OneDrive is detected.
+1. All customization files live under a single repo-derived folder organized into four subdirectories: Agents, Instructions, Skills, Prompts. When OneDrive is signed in the folder is `~/OneDrive/CopilotAtelier/`; otherwise the script falls back to `~/CopilotAtelier/`. Only one location is populated per machine — no dual mirror.
+2. A PowerShell setup script (`Setup-CopilotSettings.ps1`) patches VS Code's `settings.json` to point all four Copilot file-location settings at the chosen folder (OneDrive when present, local profile otherwise).
 3. The script is idempotent: it merges new entries into existing settings, strips JSONC comments before parsing, and creates a timestamped backup on every run.
-4. The local `~/CopilotAtelier/` folder is always populated by copying the repo contents, so the library works on machines without OneDrive. When OneDrive is present, it propagates changes to all signed-in machines.
+4. The chosen target folder is populated by copying the repo contents on every run. When OneDrive is present, the OneDrive folder is used and changes propagate to every signed-in machine. When OneDrive is absent, the local `~/CopilotAtelier/` folder is used so the library still works on standalone machines. Stale local mirrors from older dual-copy runs are cleaned up automatically.
 
 ## User experience goals
 

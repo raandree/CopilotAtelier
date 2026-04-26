@@ -87,7 +87,7 @@ The CopilotAtelier project reached functional completeness on February 24, 2026 
 2. **Setup script enhanced** → Added idempotent merging, JSONC handling, backups.
 3. **Instructions massively expanded** → Each grew from basic guidelines to comprehensive reference documents.
 4. **Agent frontmatter formalized** → Added explicit `name`, `model`, `tools`, `agents`, `handoffs`.
-5. **Path standardized** → Default layout `~/CopilotAtelier/*` is derived from the repo clone name (no hardcoded path).
+5. **Path standardized** — Default layout is derived from the repo clone name (no hardcoded path). The script uses `~/OneDrive/<repoName>/*` when OneDrive is present, or `~/<repoName>/*` as a fallback — only one location is populated per machine.
 6. **Code review prompt formalized** → Multi-prompt workflow with industry-standard schemas (SARIF, CVSS, CWE).
 7. **Sampler instructions became the largest file** → ~2,720 lines covering the complete Sampler ecosystem including DSC and Datum.
 8. **Lab deployment fully automated** → Parameterized `Deploy-LabEnvironment.ps1` accepts a `$LabConfig` hashtable, `Test-LabDeployment.Tests.ps1` validates post-deployment, `lab-deploy.prompt.md` enables natural language lab requests.

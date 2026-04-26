@@ -4,15 +4,15 @@
 
 VS Code's GitHub Copilot supports custom agents, instructions, skills, and prompt files — but by default these are stored locally in your VS Code profile or workspace. This means they don't follow you across machines.
 
-CopilotAtelier solves that by redirecting all four Copilot customization locations to a single, repo-derived folder under your user profile (`~/CopilotAtelier/`) — and, when OneDrive is available, additionally to a synced mirror (`~/OneDrive/CopilotAtelier/`). Write an agent once, use it everywhere.
+CopilotAtelier solves that by redirecting all four Copilot customization locations to a single, repo-derived folder. When OneDrive is available the script targets the OneDrive-synced folder (`~/OneDrive/CopilotAtelier/`) so changes propagate automatically to every signed-in machine; otherwise it falls back to a plain user-profile folder (`~/CopilotAtelier/`). Either way you get one source of truth — write an agent once, use it everywhere.
 
-The local mirror is always populated by the setup script, so the library works on machines without OneDrive. When OneDrive is present, changes propagate automatically to every signed-in machine.
+Only one location is populated per machine (no duplicate mirror), so there is no risk of drift between two copies. If a previous version of the script left a stale local mirror behind, the new run cleans it up automatically when OneDrive is present.
 
 ## Folder Structure
 
 ```
-~/CopilotAtelier/                # Local mirror — always populated by Setup-CopilotSettings.ps1
-~/OneDrive/CopilotAtelier/       # Optional OneDrive mirror — populated when OneDrive is detected
+~/OneDrive/CopilotAtelier/       # Used when OneDrive is detected (preferred)
+~/CopilotAtelier/                # Fallback — used only when OneDrive is not installed
 ├── Agents/          # Custom agents (.agent.md files)
 ├── Instructions/    # Custom instructions (.instructions.md files)
 ├── Skills/          # Agent skills (folders with SKILL.md)
@@ -65,20 +65,20 @@ The setup script configures the following in `settings.json`:
 
 ### File Locations
 
-The local mirror is always registered. The OneDrive mirror is registered additionally when OneDrive is detected.
+Exactly one set of locations is registered per machine: the OneDrive paths when OneDrive is detected, otherwise the local-profile paths. Existing entries from previous runs are preserved (`Merge-LocationSetting`), so user-added paths are never removed.
 
 ```jsonc
-// Local — always
-"chat.agentFilesLocations":        { "~/CopilotAtelier/Agents": true }
-"chat.instructionsFilesLocations": { "~/CopilotAtelier/Instructions": true }
-"chat.agentSkillsLocations":       { "~/CopilotAtelier/Skills": true }
-"chat.promptFilesLocations":       { "~/CopilotAtelier/Prompts": true }
-
-// OneDrive — when detected
+// When OneDrive is detected (preferred)
 "chat.agentFilesLocations":        { "~/OneDrive/CopilotAtelier/Agents": true }
 "chat.instructionsFilesLocations": { "~/OneDrive/CopilotAtelier/Instructions": true }
 "chat.agentSkillsLocations":       { "~/OneDrive/CopilotAtelier/Skills": true }
 "chat.promptFilesLocations":       { "~/OneDrive/CopilotAtelier/Prompts": true }
+
+// Fallback when OneDrive is not installed
+"chat.agentFilesLocations":        { "~/CopilotAtelier/Agents": true }
+"chat.instructionsFilesLocations": { "~/CopilotAtelier/Instructions": true }
+"chat.agentSkillsLocations":       { "~/CopilotAtelier/Skills": true }
+"chat.promptFilesLocations":       { "~/CopilotAtelier/Prompts": true }
 ```
 
 ### Feature Flags
@@ -124,7 +124,7 @@ The setup script merges the bindings in [`Keybindings/keybindings.json`](Keybind
 & "$env:USERPROFILE\OneDrive\CopilotAtelier\Setup-CopilotSettings.ps1"
 ```
 
-The script copies the contents of the clone into `~/CopilotAtelier/` (and, if OneDrive is detected, into `~/OneDrive/CopilotAtelier/`) and patches your VS Code `settings.json` and `keybindings.json` idempotently with timestamped backups.
+The script copies the contents of the clone into `~/OneDrive/CopilotAtelier/` when OneDrive is detected, or into `~/CopilotAtelier/` otherwise, and patches your VS Code `settings.json` and `keybindings.json` idempotently with timestamped backups. If a stale `~/CopilotAtelier/` mirror exists from a previous dual-copy run, the script removes it when OneDrive is now used.
 
 3. Restart VS Code.
 

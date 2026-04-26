@@ -110,42 +110,30 @@ if ($oneDriveCandidates.Count -gt 1) {
 }
 
 # --- File location settings (merged, not replaced) ---
-# ~/<repoName> is always registered so settings remain identical regardless of
-# whether OneDrive is installed on the current machine.
+# Prefer OneDrive when available so a single synced copy serves every machine.
+# Fall back to ~/<repoName> only when OneDrive is not installed.
+if ($oneDriveRoot) {
+    Write-Host "OneDrive detected at: $oneDriveRoot - registering OneDrive paths only."
+    $locationPrefix = "~/OneDrive/$repoName"
+} else {
+    Write-Host "OneDrive not found - registering ~/$repoName paths."
+    $locationPrefix = "~/$repoName"
+}
+
 Merge-LocationSetting $settings 'chat.agentFilesLocations' @{
-    "~/$repoName/Agents" = $true
+    "$locationPrefix/Agents" = $true
 }
 
 Merge-LocationSetting $settings 'chat.instructionsFilesLocations' @{
-    "~/$repoName/Instructions" = $true
+    "$locationPrefix/Instructions" = $true
 }
 
 Merge-LocationSetting $settings 'chat.agentSkillsLocations' @{
-    "~/$repoName/Skills" = $true
+    "$locationPrefix/Skills" = $true
 }
 
 Merge-LocationSetting $settings 'chat.promptFilesLocations' @{
-    "~/$repoName/Prompts" = $true
-}
-
-# When OneDrive is available, also register the synced paths.
-if ($oneDriveRoot) {
-    Write-Host "OneDrive detected at: $oneDriveRoot"
-
-    Merge-LocationSetting $settings 'chat.agentFilesLocations' @{
-        "~/OneDrive/$repoName/Agents" = $true
-    }
-    Merge-LocationSetting $settings 'chat.instructionsFilesLocations' @{
-        "~/OneDrive/$repoName/Instructions" = $true
-    }
-    Merge-LocationSetting $settings 'chat.agentSkillsLocations' @{
-        "~/OneDrive/$repoName/Skills" = $true
-    }
-    Merge-LocationSetting $settings 'chat.promptFilesLocations' @{
-        "~/OneDrive/$repoName/Prompts" = $true
-    }
-} else {
-    Write-Host "OneDrive not found - only ~/$repoName paths registered."
+    "$locationPrefix/Prompts" = $true
 }
 
 # --- Feature flags ---
@@ -170,51 +158,39 @@ $settings | Add-Member -NotePropertyName 'github.copilot.chat.agent.maxRequests'
 # Write back
 $settings | ConvertTo-Json -Depth 10 | Set-Content $settingsPath -Encoding UTF8
 
-# --- Always clear and recreate ~/<repoName> subdirectories ---
-$localBase = "$env:USERPROFILE\$repoName"
-$subDirs   = @('Agents', 'Instructions', 'Skills', 'Prompts')
+# --- Clear and recreate the chosen target subdirectories, then copy files ---
+# Only one location is populated: OneDrive when available, otherwise ~/<repoName>.
+# A stale local copy from a previous run is removed when OneDrive is now used.
+$subDirs = @('Agents', 'Instructions', 'Skills', 'Prompts')
 
-foreach ($sub in $subDirs) {
-    $dir = Join-Path $localBase $sub
-    if (Test-Path $dir) {
-        Remove-Item -Path $dir -Recurse -Force
-        Write-Host "Cleared: $dir"
+if ($oneDriveRoot) {
+    $targetBase = Join-Path $oneDriveRoot $repoName
+
+    # Clean up legacy ~/<repoName> tree from earlier dual-copy runs.
+    $legacyLocalBase = Join-Path $env:USERPROFILE $repoName
+    if (Test-Path $legacyLocalBase) {
+        Remove-Item -Path $legacyLocalBase -Recurse -Force
+        Write-Host "Removed legacy local copy: $legacyLocalBase"
     }
-    New-Item -ItemType Directory -Path $dir -Force | Out-Null
-    Write-Host "Created: $dir"
+} else {
+    $targetBase = Join-Path $env:USERPROFILE $repoName
 }
 
-# --- Copy files from repo to ~/<repoName> ---
 foreach ($sub in $subDirs) {
+    $dest = Join-Path $targetBase $sub
+    if (Test-Path $dest) {
+        Remove-Item -Path $dest -Recurse -Force
+        Write-Host "Cleared: $dest"
+    }
+    New-Item -ItemType Directory -Path $dest -Force | Out-Null
+    Write-Host "Created: $dest"
+
     $source = Join-Path $repoRoot $sub
-    $dest   = Join-Path $localBase $sub
     if (Test-Path $source) {
         Copy-Item -Path "$source\*" -Destination $dest -Recurse -Force
         Write-Host "Copied:  $source -> $dest"
     } else {
         Write-Host "Skipped: $source (not found in repo)"
-    }
-}
-
-# --- Create OneDrive/<repoName> directories and copy files if OneDrive is available ---
-if ($oneDriveRoot) {
-    $oneDriveBase = Join-Path $oneDriveRoot $repoName
-    foreach ($sub in $subDirs) {
-        $dir = Join-Path $oneDriveBase $sub
-        if (Test-Path $dir) {
-            Remove-Item -Path $dir -Recurse -Force
-            Write-Host "Cleared: $dir"
-        }
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
-        Write-Host "Created: $dir"
-
-        $source = Join-Path $repoRoot $sub
-        if (Test-Path $source) {
-            Copy-Item -Path "$source\*" -Destination $dir -Recurse -Force
-            Write-Host "Copied:  $source -> $dir"
-        } else {
-            Write-Host "Skipped: $source (not found in repo)"
-        }
     }
 }
 

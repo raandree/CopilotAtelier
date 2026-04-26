@@ -7,6 +7,10 @@ This project does not currently use versioned releases; tagged releases will fol
 
 ## [Unreleased]
 
+### Changed
+
+- **Setup script now uses a single target location instead of dual-copying.** When OneDrive is detected, `Setup-CopilotSettings.ps1` registers and populates only `~/OneDrive/<repoName>/*`; otherwise it falls back to `~/<repoName>/*`. Previously both locations were always populated, which doubled disk usage and created drift risk when one copy was edited out-of-band. Stale `~/<repoName>/` trees from earlier dual-copy runs are removed automatically when OneDrive is now used. README and memory bank updated accordingly.
+
 ## [1.1.0] — 2026-04-26
 
 First public release alongside [`raandree/AgenticOperatingModel`](https://github.com/raandree/AgenticOperatingModel) (the workshop in which CopilotAtelier is the reference exemplar of a mature personal atelier).

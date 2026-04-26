@@ -2,7 +2,7 @@
 
 ## Overview
 
-CopilotAtelier is a portable GitHub Copilot customization framework that synchronizes custom AI agents, coding instructions, skills, and prompt files across multiple machines. It eliminates the need to manually configure VS Code's Copilot settings on each workstation by storing all customizations in `~/CopilotAtelier/` (and optionally `~/OneDrive/CopilotAtelier/` when OneDrive is available) and redirecting VS Code to use those locations. The setup script derives its folder name from the repository, so renaming the repo clone renames the synced layout automatically.
+CopilotAtelier is a portable GitHub Copilot customization framework that synchronizes custom AI agents, coding instructions, skills, and prompt files across multiple machines. It eliminates the need to manually configure VS Code's Copilot settings on each workstation by storing all customizations in a single repo-derived folder — `~/OneDrive/CopilotAtelier/` when OneDrive is available, or `~/CopilotAtelier/` as a fallback — and redirecting VS Code to use that location. The setup script derives its folder name from the repository, so renaming the repo clone renames the synced layout automatically.
 
 ## Core requirements
 
