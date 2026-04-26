@@ -89,6 +89,7 @@ Exactly one set of locations is registered per machine: the OneDrive paths when 
 | `chat.includeReferencedInstructions` | `true` | Follow Markdown links in instruction files and load referenced content into context |
 | `github.copilot.chat.agent.thinkingTool` | `true` | Enable the thinking tool so agents can reason through complex problems before acting |
 | `github.copilot.chat.search.semanticTextResults` | `true` | Improve search results in agent mode with semantic matching |
+| `github.copilot.chat.agent.maxRequests` | `500` | Raise the per-turn agent request budget so long autonomous loops do not stall on the default limit |
 
 ### AI Model Preferences
 
@@ -208,6 +209,10 @@ If a skill doesn't appear, open the ellipsis (**…**) menu in the Chat view and
 | `/skills` | Configure Skills menu |
 | `/prompts` | Configure Prompt Files menu |
 | `/init` | Generate workspace instructions from your codebase |
+
+## Reference
+
+- [`Reference/copilot-cli-model-routing.md`](Reference/copilot-cli-model-routing.md) — 4-tier model-routing policy for the GitHub Copilot CLI (Executors / Implementers / Tech Leads / Architects). Reference-only; not auto-attached. The document was written against the early-2026 lineup; a banner at the top maps the older model IDs (Opus 4.5 / 4.6, GPT-5.1) to the current ones (Opus 4.7, GPT-5.4 / 5.5). A full rewrite is planned post-1.1.0.
 
 ## Featured In
 

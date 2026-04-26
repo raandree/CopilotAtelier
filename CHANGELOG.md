@@ -5,15 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project does not currently use versioned releases; tagged releases will follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once publishing begins.
 
-## [Unreleased]
+## [1.1.0] — 2026-04-26
+
+First public release alongside [`raandree/AgenticOperatingModel`](https://github.com/raandree/AgenticOperatingModel) (the workshop in which CopilotAtelier is the reference exemplar of a mature personal atelier).
 
 ### Changed
 
 - **Setup script now uses a single target location instead of dual-copying.** When OneDrive is detected, `Setup-CopilotSettings.ps1` registers and populates only `~/OneDrive/<repoName>/*`; otherwise it falls back to `~/<repoName>/*`. Previously both locations were always populated, which doubled disk usage and created drift risk when one copy was edited out-of-band. Stale `~/<repoName>/` trees from earlier dual-copy runs are removed automatically when OneDrive is now used. README and memory bank updated accordingly.
-
-## [1.1.0] — 2026-04-26
-
-First public release alongside [`raandree/AgenticOperatingModel`](https://github.com/raandree/AgenticOperatingModel) (the workshop in which CopilotAtelier is the reference exemplar of a mature personal atelier).
 
 ### Added
 
@@ -79,6 +77,5 @@ Auto-applied coding standards for PowerShell, Markdown, YAML, C#, Changelog, Ver
 - Feature flags configured: `chat.includeApplyingInstructions`, `chat.includeReferencedInstructions`, `github.copilot.chat.agent.thinkingTool`, `github.copilot.chat.search.semanticTextResults`, `github.copilot.chat.agent.maxRequests=500`.
 - Default model set to Claude Opus 4.6 for GitLens AI and Copilot inline completions. *(Superseded in 1.1.0 — Opus 4.6 Fast was retired by GitHub on 2026-04-10; the new default is Opus 4.7.)*
 
-[Unreleased]: https://github.com/raandree/CopilotAtelier/compare/v1.1.0...HEAD
 [1.1.0]: https://github.com/raandree/CopilotAtelier/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/raandree/CopilotAtelier/releases/tag/v1.0.0
