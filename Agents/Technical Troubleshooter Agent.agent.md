@@ -1,7 +1,7 @@
 ---
 description: 'Expert-level technical troubleshooter. Systematically diagnose and resolve infrastructure, application, and security problems. Apply hypothetico-deductive reasoning. Document findings comprehensively. Operate autonomously with evidence-based methodology.'
 name: troubleshooter
-model: 'Claude Opus 4.6 (fast mode) (copilot)'
+model: 'Claude Opus 4.7 (copilot)'
 argument-hint: 'Describe the problem, error message, or unexpected behavior'
 tools: ['changes', 'codebase', 'editFiles', 'extensions', 'fetch', 'findTestFiles', 'githubRepo', 'new', 'openSimpleBrowser', 'problems', 'runCommands', 'runTasks', 'runTests', 'search', 'searchResults', 'terminalLastCommand', 'terminalSelection', 'testFailure', 'usages', 'vscodeAPI', 'github', 'thinking', 'useMcp', 'codeInterpreter']
 agents: ['software-engineer', 'technical-writer']

@@ -168,7 +168,7 @@ The following were committed before the memory bank was created but were never c
 
 ## Active decisions and considerations
 
-- **Model choice**: Claude Opus 4.6 is the current default for agents. Model selection instructions provide tiered routing for CLI usage.
+- **Model choice**: Claude Opus 4.7 is the current default for agents and the model id configured in `Setup-CopilotSettings.ps1`. Opus 4.7 is GA in Copilot since 2026-04-16; the prior default (`claude-opus-4.6-fast`) was retired 2026-04-10. The Copilot CLI model-routing reference (`Reference/copilot-cli-model-routing.md`) still describes the pre-4.7 lineup and is flagged for a fuller refresh post-1.1.0.
 - **OneDrive path**: Optional. When present, `~/OneDrive/CopilotAtelier/` is registered in addition to the mandatory `~/CopilotAtelier/` local mirror. The folder name is derived from the repo clone name, so renaming the clone renames the layout automatically.
 - **No CI/CD**: This is a configuration repository. Markdown linting could be added.
 

@@ -5,7 +5,7 @@
 | Layer | Technology | Purpose |
 |---|---|---|
 | IDE | VS Code | Primary development environment |
-| AI assistant | GitHub Copilot (Claude Opus 4.6) | Code generation, review, documentation |
+| AI assistant | GitHub Copilot (Claude Opus 4.7) | Code generation, review, documentation |
 | Sync | OneDrive | Cross-machine file synchronization |
 | Setup script | PowerShell 5.1+ | Automated VS Code configuration |
 | Version control | Git | Repository management |
@@ -54,8 +54,10 @@ The setup script also merges `Keybindings/keybindings.json` into `%APPDATA%\Code
 
 | Setting | Value |
 |---|---|
-| `gitlens.ai.vscode.model` | `copilot:claude-opus-4.6-fast` |
-| `github.copilot.advanced.model` | `claude-opus-4.6-fast` |
+| `gitlens.ai.vscode.model` | `copilot:claude-opus-4.7` |
+| `github.copilot.advanced.model` | `claude-opus-4.7` |
+
+Opus 4.7 is GA in Copilot since 2026-04-16 and is the announced replacement for Opus 4.5 / 4.6. Opus 4.6 Fast (the previous default) was retired on 2026-04-10.
 
 ## Agents inventory
 

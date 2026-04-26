@@ -4,12 +4,15 @@
 
 VS Code's GitHub Copilot supports custom agents, instructions, skills, and prompt files — but by default these are stored locally in your VS Code profile or workspace. This means they don't follow you across machines.
 
-By redirecting all four customization locations to **OneDrive**, every machine you sign into gets the same Copilot setup automatically. Write an agent once, use it everywhere.
+CopilotAtelier solves that by redirecting all four Copilot customization locations to a single, repo-derived folder under your user profile (`~/CopilotAtelier/`) — and, when OneDrive is available, additionally to a synced mirror (`~/OneDrive/CopilotAtelier/`). Write an agent once, use it everywhere.
+
+The local mirror is always populated by the setup script, so the library works on machines without OneDrive. When OneDrive is present, changes propagate automatically to every signed-in machine.
 
 ## Folder Structure
 
 ```
-~/OneDrive/CopilotAtelier/
+~/CopilotAtelier/                # Local mirror — always populated by Setup-CopilotSettings.ps1
+~/OneDrive/CopilotAtelier/       # Optional OneDrive mirror — populated when OneDrive is detected
 ├── Agents/          # Custom agents (.agent.md files)
 ├── Instructions/    # Custom instructions (.instructions.md files)
 ├── Skills/          # Agent skills (folders with SKILL.md)
@@ -18,6 +21,8 @@ By redirecting all four customization locations to **OneDrive**, every machine y
 ├── Setup-CopilotSettings.ps1   # Setup script
 └── README.md        # This file
 ```
+
+The folder name is derived from the repository clone, so renaming the clone renames the synced layout automatically.
 
 ## What Each Folder Contains
 
@@ -60,11 +65,20 @@ The setup script configures the following in `settings.json`:
 
 ### File Locations
 
+The local mirror is always registered. The OneDrive mirror is registered additionally when OneDrive is detected.
+
 ```jsonc
+// Local — always
 "chat.agentFilesLocations":        { "~/CopilotAtelier/Agents": true }
 "chat.instructionsFilesLocations": { "~/CopilotAtelier/Instructions": true }
 "chat.agentSkillsLocations":       { "~/CopilotAtelier/Skills": true }
 "chat.promptFilesLocations":       { "~/CopilotAtelier/Prompts": true }
+
+// OneDrive — when detected
+"chat.agentFilesLocations":        { "~/OneDrive/CopilotAtelier/Agents": true }
+"chat.instructionsFilesLocations": { "~/OneDrive/CopilotAtelier/Instructions": true }
+"chat.agentSkillsLocations":       { "~/OneDrive/CopilotAtelier/Skills": true }
+"chat.promptFilesLocations":       { "~/OneDrive/CopilotAtelier/Prompts": true }
 ```
 
 ### Feature Flags
@@ -80,8 +94,10 @@ The setup script configures the following in `settings.json`:
 
 | Setting | Value | What It Does |
 |---|---|---|
-| `gitlens.ai.vscode.model` | `copilot:claude-opus-4.6-fast` | Use Claude Opus 4.6 (fast) for GitLens AI features (commit messages, explanations) |
-| `github.copilot.advanced.model` | `claude-opus-4.6-fast` | Use Claude Opus 4.6 (fast) for inline autocompletions (experimental, may be overridden server-side) |
+| `gitlens.ai.vscode.model` | `copilot:claude-opus-4.7` | Use Claude Opus 4.7 for GitLens AI features (commit messages, explanations). Opus 4.7 is GA in Copilot since 2026-04-16 and is Anthropic's announced replacement for Opus 4.5 / 4.6. |
+| `github.copilot.advanced.model` | `claude-opus-4.7` | Use Claude Opus 4.7 for inline autocompletions (experimental; may be overridden server-side). |
+
+> **Note on model availability**: Opus 4.7 requires Copilot Pro+, Business, or Enterprise. On other plans VS Code falls back to its default. To pin a different model, edit `Setup-CopilotSettings.ps1` or override these two settings in your `settings.json` after running the script.
 
 ## Keybindings Applied
 
@@ -97,14 +113,20 @@ The setup script merges the bindings in [`Keybindings/keybindings.json`](Keybind
 
 ## Setup on a New Machine
 
-1. Sign into OneDrive so `~/OneDrive/CopilotAtelier/` syncs down
-2. Open PowerShell and run:
+1. Clone this repository (or sign into OneDrive if you already keep a synced clone there).
+2. Open PowerShell and run the setup script from the cloned location, for example:
 
 ```powershell
+# From a local clone
+& "<path-to-clone>\Setup-CopilotSettings.ps1"
+
+# Or from a OneDrive-synced clone
 & "$env:USERPROFILE\OneDrive\CopilotAtelier\Setup-CopilotSettings.ps1"
 ```
 
-3. Restart VS Code
+The script copies the contents of the clone into `~/CopilotAtelier/` (and, if OneDrive is detected, into `~/OneDrive/CopilotAtelier/`) and patches your VS Code `settings.json` and `keybindings.json` idempotently with timestamped backups.
+
+3. Restart VS Code.
 
 ## Verifying It Works
 

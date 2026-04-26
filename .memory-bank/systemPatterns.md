@@ -72,10 +72,11 @@
 - **Choice**: Every `SKILL.md` must start with YAML frontmatter containing `name` and `description`.
 - **Rationale**: VS Code cannot discover or register skills without this metadata. The `description` field should include `USE FOR` and `DO NOT USE FOR` trigger phrases.
 
-### Decision 7: Claude Opus 4.6 as default model
+### Decision 7: Claude Opus 4.7 as default model
 
-- **Choice**: All agents use `Claude Opus 4.6 (copilot)` and the setup script configures GitLens and inline completions to use `claude-opus-4.6-fast`.
-- **Rationale**: Preferred model for complex reasoning, code generation, and security analysis.
+- **Choice**: All agents declare `Claude Opus 4.7 (copilot)` and the setup script configures GitLens and inline completions to use `claude-opus-4.7`.
+- **Rationale**: Opus 4.7 is GA in Copilot since 2026-04-16 and is Anthropic's announced replacement for Opus 4.5 / 4.6. The previous default (`claude-opus-4.6-fast`) was retired on 2026-04-10.
+- **Trade-off**: Opus 4.7 requires Copilot Pro+, Business, or Enterprise; other plans fall back to the VS Code default.
 
 ## Component relationships
 

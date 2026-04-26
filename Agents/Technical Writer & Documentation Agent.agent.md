@@ -1,7 +1,7 @@
 ---
 description: 'Expert-level Technical Writer & Documentation agent. Create comprehensive, well-researched articles and documentation. Understand scope autonomously. Research thoroughly. Structure professionally. Cite sources meticulously. Operate with journalistic and technical writing excellence.'
 name: technical-writer
-model: 'Claude Opus 4.6 (fast mode) (copilot)'
+model: 'Claude Opus 4.7 (copilot)'
 argument-hint: 'Describe the article topic or documentation to create'
 tools: ['changes', 'codebase', 'editFiles', 'extensions', 'fetch', 'findTestFiles', 'githubRepo', 'new', 'openSimpleBrowser', 'problems', 'runCommands', 'runTasks', 'runTests', 'search', 'searchResults', 'terminalLastCommand', 'terminalSelection', 'testFailure', 'usages', 'vscodeAPI', 'github']
 agents: []

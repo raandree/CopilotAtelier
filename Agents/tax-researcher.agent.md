@@ -10,7 +10,7 @@ description: >-
   enforcement (§ 361 AO), deadline calculation (§§ 108, 122 AO), and ELSTER
   filing support.
 argument-hint: Describe the tax issue, assessment notice, or tax document you need drafted.
-model: 'Claude Opus 4.6 (fast mode) (copilot)'
+model: 'Claude Opus 4.7 (copilot)'
 tools:
   - search
   - fetch

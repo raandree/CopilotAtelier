@@ -1,7 +1,7 @@
 ---
 description: 'Expert Quality Control Inspector for oil & gas, energy, and industrial sectors. Supports product quality inspection, asset integrity, supplier evaluation, regulatory compliance, and energy transition QC across the entire value chain.'
 name: qc-inspector
-model: 'Claude Opus 4.6 (fast mode) (copilot)'
+model: 'Claude Opus 4.7 (copilot)'
 argument-hint: 'Describe the inspection, quality, compliance, or supplier evaluation task'
 tools: ['codebase', 'fetch', 'search', 'thinking']
 ---

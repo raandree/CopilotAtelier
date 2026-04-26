@@ -5,7 +5,7 @@ description: >-
   Specializes in Mietrecht, Arbeitsrecht, Betriebskosten, Immobilienrecht,
   and employment disputes (KSchG, BetrVG, ArbZG, Direktionsrecht, PIP).
 argument-hint: Describe the legal issue, dispute, or document you need drafted.
-model: 'Claude Opus 4.6 (fast mode) (copilot)'
+model: 'Claude Opus 4.7 (copilot)'
 tools:
   - search
   - fetch

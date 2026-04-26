@@ -7,12 +7,27 @@ This project does not currently use versioned releases; tagged releases will fol
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-04-26
+
+First public release alongside [`raandree/AgenticOperatingModel`](https://github.com/raandree/AgenticOperatingModel) (the workshop in which CopilotAtelier is the reference exemplar of a mature personal atelier).
+
 ### Added
 
 - **Keybindings merge** — [`Keybindings/keybindings.json`](Keybindings/keybindings.json) is now merged idempotently by `Setup-CopilotSettings.ps1` into `%APPDATA%\Code\User\keybindings.json`. Match key is `(key, command, when)`; user-added bindings are preserved; a timestamped backup is created on every run. Bindings: `Ctrl+K X` restart PowerShell session, `Ctrl+K N` pop terminal to new window, `Ctrl+K K` pop chat to new window, and a chat-submit swap so `Ctrl+Enter` sends and plain `Enter` inserts a newline in the chat input.
 - Top-level `CHANGELOG.md` (this file).
 - Tax Researcher (DE) agent section in `Agents/README.md`.
+- README "Featured In" section linking to the [Agentic Operating Model](https://github.com/raandree/AgenticOperatingModel) workshop and its companion patterns / memory-bank-template artefacts.
 - Memory-bank documentation pass: refreshed inventories (20 skills, 13 instructions, 9 agents, 8 prompts) and expanded the `systemPatterns.md` applyTo list.
+
+### Changed
+
+- **Default model bumped to Claude Opus 4.7** across `Setup-CopilotSettings.ps1` (`gitlens.ai.vscode.model`, `github.copilot.advanced.model`), all 9 agent frontmatters, and supporting documentation. Opus 4.7 went GA in Copilot on 2026-04-16 and is Anthropic's announced replacement for Opus 4.5 / 4.6. The previous default `claude-opus-4.6-fast` was retired by GitHub on 2026-04-10 and would no longer resolve. Memory bank, [`README.md`](README.md), and [`Instructions/copilot-authoring.instructions.md`](Instructions/copilot-authoring.instructions.md) updated accordingly.
+- **README clarified** to describe the actual dual-mirror layout (`~/CopilotAtelier/` always-populated local mirror plus an optional `~/OneDrive/CopilotAtelier/` mirror when OneDrive is detected) instead of describing the workflow as OneDrive-only. "Setup on a New Machine" now starts from a local clone.
+- [`Reference/copilot-cli-model-routing.md`](Reference/copilot-cli-model-routing.md) carries a banner noting the April 2026 model-lineup changes (Opus 4.7 GA, GPT-5.5 GA, GPT-5.1 family deprecated, Opus 4.6 Fast retired). A full rewrite is planned post-1.1.0.
+
+### Fixed
+
+- Removed stale "German employment law skill" entry from [`.memory-bank/progress.md`](.memory-bank/progress.md) — the skill is not present in the repository (only [`german-legal-research`](Skills/german-legal-research) is).
 
 ## [1.0.0] — 2026-04-22
 
@@ -58,7 +73,8 @@ Auto-applied coding standards for PowerShell, Markdown, YAML, C#, Changelog, Ver
 
 - `Setup-CopilotSettings.ps1` — one-command VS Code configuration. Derives folder name from the repo clone, registers `~/<repoName>/*` locations always, plus `~/OneDrive/<repoName>/*` when OneDrive is detected. Idempotent (merges settings instead of replacing), JSONC-tolerant (strips comments before parsing), and creates a timestamped backup on every run. Creates the VS Code user directory if missing.
 - Feature flags configured: `chat.includeApplyingInstructions`, `chat.includeReferencedInstructions`, `github.copilot.chat.agent.thinkingTool`, `github.copilot.chat.search.semanticTextResults`, `github.copilot.chat.agent.maxRequests=500`.
-- Default model set to Claude Opus 4.6 for GitLens AI and Copilot inline completions.
+- Default model set to Claude Opus 4.6 for GitLens AI and Copilot inline completions. *(Superseded in 1.1.0 — Opus 4.6 Fast was retired by GitHub on 2026-04-10; the new default is Opus 4.7.)*
 
-[Unreleased]: https://github.com/raandree/CopilotAtelier/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/raandree/CopilotAtelier/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/raandree/CopilotAtelier/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/raandree/CopilotAtelier/releases/tag/v1.0.0

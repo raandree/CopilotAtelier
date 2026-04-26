@@ -55,7 +55,6 @@ The CopilotAtelier project reached functional completeness on February 24, 2026 
 | Outlook email export skill | Done | Export emails from Outlook via COM automation with DASL filters |
 | PDF to Markdown skill | Done | .NET-native PDF parsing: zlib/deflate decompression, hex text decoding, Y-coordinate line reconstruction, ISO-8859-1 encoding |
 | Grammar check skill | Done | Text proofing for grammar, logic, and flow errors |
-| German employment law skill | Done | Legal research and statement drafting for Arbeitsrecht |
 | German legal research skill | Done | Legal research for German tenancy/rental law (Mietrecht) and civil law |
 | README | Done | Comprehensive setup guide with troubleshooting and skills inventory table |
 | Agents README | Done | Pipeline documentation with severity matrix and workflow diagrams |

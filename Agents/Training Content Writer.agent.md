@@ -1,7 +1,7 @@
 ---
 description: 'Expert training content writer. Create modular, GitHub-hosted training modules, workshops, and presentations. Apply didactical best practices (Bloom''s taxonomy, progressive disclosure, constructive alignment). Design self-contained modules with flexible agendas. Integrate labs, exercises, and knowledge checks.'
 name: training-writer
-model: 'Claude Opus 4.6 (fast mode) (copilot)'
+model: 'Claude Opus 4.7 (copilot)'
 argument-hint: 'Describe the training module, workshop, or presentation to create'
 tools: ['agent', 'changes', 'codebase', 'editFiles', 'extensions', 'fetch', 'githubRepo', 'new', 'problems', 'runCommands', 'runTasks', 'search', 'searchResults', 'terminalLastCommand', 'terminalSelection', 'usages']
 agents: ['technical-writer']

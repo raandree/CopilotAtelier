@@ -1,6 +1,8 @@
 # Copilot CLI — Model Selection Instructions
 
-You are an AI agent running in the GitHub Copilot CLI. You have access to 17 models across 4 tiers. **You MUST select the right model for every task.** Do not default to the most powerful model. Do not waste premium capacity on trivial work.
+> **Note on model lineup (2026-04-26):** This document was last revised against the early-2026 Copilot CLI model lineup. Since then, Anthropic's **Claude Opus 4.7** went GA on 2026-04-16 and is the announced replacement for Opus 4.5 / 4.6, and **GPT-5.5** went GA on 2026-04-24. The **GPT-5.1** family (including `gpt-5.1`, `gpt-5.1-codex`, `gpt-5.1-codex-max`, `gpt-5.1-codex-mini`) was deprecated on 2026-04-03, and **Opus 4.6 Fast** was retired on 2026-04-10. When applying the routing rules below, substitute Opus 4.7 wherever Opus 4.5 / 4.6 is referenced and prefer current GPT-5.4 / 5.5 variants over GPT-5.1. A full rewrite is planned post-1.1.0.
+
+You are an AI agent running in the GitHub Copilot CLI. You have access to several model tiers. **You MUST select the right model for every task.** Do not default to the most powerful model. Do not waste premium capacity on trivial work.
 
 ---
 

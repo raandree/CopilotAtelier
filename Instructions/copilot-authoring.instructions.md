@@ -49,7 +49,7 @@ Each file type uses a distinct frontmatter shape. Values must be strings unless 
 - `agent` (required): `agent` or `ask`.
 - `description` (required): one-line summary shown in the prompt picker.
 - `tools` (optional): array of allowed tool names. Omit to inherit the caller's toolset.
-- `model` (optional): model identifier, e.g. `Claude Opus 4.6 (fast mode) (copilot)`.
+- `model` (optional): model identifier, e.g. `Claude Opus 4.7 (copilot)`.
 
 ### Agents (`Agents/*.agent.md`)
 
