@@ -187,7 +187,12 @@ If a skill doesn't appear, open the ellipsis (**…**) menu in the Chat view and
 | `/prompts` | Configure Prompt Files menu |
 | `/init` | Generate workspace instructions from your codebase |
 
+## Featured In
+
+- [**The Agentic Operating Model**](https://github.com/raandree/AgenticOperatingModel) — a 1h/2h/4h presentation and workshop on versioned, agent-assisted knowledge work. CopilotAtelier is used as the reference exemplar of a mature personal atelier (Module 3 — *Your Atelier — Customization as Code*; Module 8 — *A Mature Personal Atelier*) and as the cross-machine instruction-sync pattern. The workshop also publishes complementary, project-level material that pairs well with this repo:
+  - [Agentic Knowledge-Work Patterns](https://github.com/raandree/AgenticOperatingModel/blob/main/content/materials/agentic-knowledge-work-patterns.md) — ten reusable patterns for applying the operating model beyond code.
+  - [Memory Bank Template](https://github.com/raandree/AgenticOperatingModel/tree/main/content/materials/memory-bank-template) — a tool-neutral starter set for per-project memory banks.
+
 ## License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-
