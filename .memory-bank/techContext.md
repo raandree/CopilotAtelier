@@ -110,6 +110,7 @@ Opus 4.7 is GA in Copilot since 2026-04-16 and is the announced replacement for 
 | `dsc-troubleshooting` | `Skills/dsc-troubleshooting/` | Debug and troubleshoot PowerShell DSC resource failures on target nodes |
 | `german-legal-research` | `Skills/german-legal-research/` | Legal research for German tenancy/rental law and civil law |
 | `grammar-check` | `Skills/grammar-check/` | Identify grammar, logical, and flow errors in text |
+| `marp-slide-overflow` | `Skills/marp-slide-overflow/` | Detect and fix silent content overflow in Marp slide decks (Puppeteer detector, `dense`/`compact` density, `fillRatio` decision table, side-by-side review) |
 | `mecm-dsc-deployment` | `Skills/mecm-dsc-deployment/` | Deploy and troubleshoot MECM/SCCM via DSC (ConfigMgrCBDsc, Datum) |
 | `microsoft-todo-tasks` | `Skills/microsoft-todo-tasks/` | Create and manage Microsoft To Do tasks via Graph REST + OAuth2 device flow |
 | `outlook-calendar-export` | `Skills/outlook-calendar-export/` | Export Outlook calendar entries to Markdown via COM automation |

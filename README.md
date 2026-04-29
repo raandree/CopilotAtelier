@@ -58,6 +58,7 @@ The folder name is derived from the repository clone, so renaming the clone rena
 | **xlsx-to-markdown** | Convert XLSX (Excel) files to Markdown tables using .NET-native ZIP/XML parsing in PowerShell — no Excel COM, ImportExcel, or Python required. Handles shared strings, cell references, multi-sheet workbooks, inline strings, and column letter-to-index conversion. |
 | **microsoft-todo-tasks** | Create, list, and manage Microsoft To Do tasks via the Graph REST API using raw OAuth2 device code flow in PowerShell. Bypasses the buggy Microsoft.Graph SDK (WAM broker issues, System.Text.Json conflicts) and supports personal Microsoft accounts (live.com). |
 | **winrm-troubleshooting** | Debug and troubleshoot Windows Remote Management (WinRM) connectivity failures on Windows servers, including lab VMs managed by AutomatedLab. Covers service state recovery, listener configuration, authentication failures, and PowerShell Direct fallback. |
+| **marp-slide-overflow** | Detect and fix content overflow in Marp slide decks before exporting to PPTX/PDF/PNG. Provides a Puppeteer-based `scrollHeight`-vs-viewBox detector, a side-by-side HTML review report, a two-tier CSS density pattern (`dense` / `compact`), and a `fillRatio` decision table for picking the smallest fix. |
 
 ## VS Code Settings Applied
 
