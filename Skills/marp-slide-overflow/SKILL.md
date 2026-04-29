@@ -16,7 +16,12 @@ description: >-
   slide, slide overflow CI gate, Marp side-by-side review, slide review
   report, fillRatio Marp, Marp class directive, marp-cli overflow,
   marpit overflow hidden, Marp build pipeline overflow, programmatic slide
-  overflow check, headless Chromium slide measurement, Marp 720 viewBox.
+  overflow check, headless Chromium slide measurement, Marp 720 viewBox,
+  Marp section-divider, Marp backgroundColor frontmatter, Marp inline style
+  override, Marp class background ignored, Marp gradient not rendered,
+  Marp white-on-white text, Marp low contrast headline, Marp invisible
+  heading, Marp section class background CSS, Marp _class directive
+  background.
   DO NOT USE FOR: Reveal.js, Slidev, PowerPoint authoring, generic CSS
   layout problems, PDF page breaks unrelated to Marp, font rendering bugs.
 ---
@@ -271,6 +276,92 @@ $slides.Add(($cur -join "`n").Trim("`n"))   # always add, even if empty
 
 This was a real bug found in production tooling — slides 1..N had source/rendered swapped by one position, which made debugging "why does slide 23 show slide 22's content" extremely confusing until the section count and separator count were compared.
 
+## Critical Gotcha: Frontmatter `backgroundColor` Wins Over Class CSS
+
+Marp's YAML frontmatter `backgroundColor:` (and `color:`) directive is **not** translated to a CSS rule — it is injected as an **inline `style="..."` attribute on every `<section>` element**. Inline styles beat any class-based selector in the `style:` block, regardless of specificity. This silently breaks two common patterns:
+
+1. **Section dividers with a coloured background**
+
+   ```yaml
+   ---
+   marp: true
+   backgroundColor: "#ffffff"
+   color: "#1e293b"
+   style: |
+     section.section-divider {
+       background: linear-gradient(135deg, #0c4a6e, #0369a1);
+       color: #ffffff;
+     }
+     section.section-divider h1 { color: #ffffff; }
+     section.section-divider h2 { color: #bae6fd; }
+   ---
+   ```
+
+   The gradient is **never rendered**. The section still has the white inline background. The h1 stays `#ffffff` → **white-on-white, invisible headline**. The h2 stays `#bae6fd` → **light cyan on white, fails WCAG contrast** (~1.4:1, looks like a faded watermark).
+
+2. **`<!-- _class: lead -->` slides expecting a tinted background**
+
+   Same root cause — the `section.lead { background: ... }` rule is overridden by the inline style.
+
+### How to detect it
+
+Render the deck once with `marp-cli --html` and grep the output:
+
+```powershell
+$h = Get-Content rendered.html -Raw
+# Inline style attribute on a section (not data-style):
+$rx = [regex]'(?<![-\w])style="([^"]*)"'
+$rx.Matches($h) | Select-Object -First 3 | ForEach-Object { $_.Groups[1].Value }
+# You will see: ...background-color:#ffffff;background-image:none;color:#1e293b
+```
+
+The `background-image:none` part is the smoking gun — it actively **erases** any `background: linear-gradient(...)` set by a class rule.
+
+Visual symptom in the side-by-side review report: the section-divider PNG looks identical to a regular content slide, with the heading text either missing or barely legible.
+
+### Fix options
+
+**Option A — Tune class-based text colours to the inline background (recommended).** Accept that frontmatter wins, treat dividers as same-background-as-body, and use **dark text on the white background**:
+
+```css
+section.section-divider {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  /* no background — frontmatter wins anyway */
+  color: #1e293b;
+}
+section.section-divider h1 { color: #0c4a6e; border-bottom: none; }
+section.section-divider h2 { color: #0369a1; }
+```
+
+This preserves the visual rhythm (centred, larger heading, no border) without fighting the engine.
+
+**Option B — Drop the frontmatter directive and set both palettes in the `style:` block.** Move `backgroundColor`/`color` out of YAML and into a base `section { ... }` rule, where class-based rules can override on equal footing:
+
+```yaml
+---
+marp: true
+# no backgroundColor, no color here
+style: |
+  section { background-color: #ffffff; color: #1e293b; }
+  section.section-divider {
+    background: linear-gradient(135deg, #0c4a6e, #0369a1);
+    color: #ffffff;
+  }
+---
+```
+
+Now both rules are class-based and the divider gets its gradient. Trade-off: Marp's per-slide `<!-- _backgroundColor: ... -->` comment directive stops working (it relies on the YAML form), so use this only when you do not need per-slide background overrides.
+
+**Option C — Per-slide `<!-- _backgroundColor: ... -->` comment.** Apply a one-off inline override on each divider slide. Verbose for many dividers but the only path that gives you a *different* background per slide while keeping the global default.
+
+### The lesson
+
+Never rely on `section.<class> { background: ... }` to override a YAML `backgroundColor:`. Either match the text palette to the inline background (Option A) or move backgrounds entirely into the `style:` block (Option B). Always check at least one section-divider / lead slide in the side-by-side review report after any palette change — a low-contrast headline is the canary that frontmatter is silently winning.
+
 ## Recommended Workflow
 
 ```
@@ -315,6 +406,7 @@ Wire `overflow-check` into your build script so the build **exits non-zero** on 
 | Splitting every overflowing slide | Inflates slide count, breaks agenda timing, hides the real problem (slide is doing too many jobs at once) |
 | Removing the `overflow: hidden` from the theme | Content escapes the slide bounds in the PPTX, looks broken |
 | Off-by-one slide indexing without accounting for the phantom section | Reviewer compares the wrong source against the wrong rendered slide and trusts the wrong fix |
+| Setting `section.<class> { background: ... }` while frontmatter declares `backgroundColor:` | Frontmatter is injected as an inline `style` attribute and beats any class rule; the class background is dead code, and any white-on-coloured text colour set alongside it becomes invisible on the actual (white) background |
 
 ## Reference Implementation
 
