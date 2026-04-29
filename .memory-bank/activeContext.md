@@ -2,7 +2,16 @@
 
 ## Current work focus
 
-The project is release-ready. As of April 23, 2026 the repository contains 9 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 20 skills, and 8 prompts. Current focus: release preparation (documentation refresh and CHANGELOG).
+The project is post-1.1.0 release. As of April 29, 2026 the repository contains 9 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 21 skills, and 8 prompts. Current focus: incremental skill additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (April 29, 2026)
+
+### New skill: `marp-slide-overflow`
+
+- `Skills/marp-slide-overflow/SKILL.md` — detect and fix content overflow in Marp slide decks before exporting to PPTX/PDF/PNG. Marp wraps each slide in `<svg viewBox="0 0 1280 720"><foreignObject><section>` with `overflow: hidden`, so anything taller than 720 px is silently clipped in the binary export with no warning.
+- Provides four recipes: (1) a Puppeteer-based detector that loads the rendered HTML headlessly and compares each `<section>.scrollHeight` against the SVG `viewBox` height (exit 0 = all fit, 1 = at least one overflows, 2 = error — usable as a CI gate); (2) a two-tier CSS density pattern (`dense` ≈ +20 % capacity, `compact` ≈ +33 %) toggled per slide via Marp's `<!-- _class: ... -->` directive so overflow is fixed without splitting slides and changing agenda timing; (3) a `fillRatio` decision table mapping the detector's measured ratio to the smallest viable fix; (4) a side-by-side HTML review report pairing source markdown with the rendered PNG and a fits/OVERFLOW badge.
+- Documents the phantom-leading-`<section>` gotcha — when a build script writes `---` immediately after the YAML frontmatter, Marp emits an empty leading section that off-by-ones any source-to-rendered slide mapping.
+- Skill count: 20 → 21. README "Available Skills" table, `techContext.md` inventory, `progress.md` "What works" table, and a new `[Unreleased]` block in `CHANGELOG.md` updated.
 
 ## Recent changes (April 23, 2026)
 

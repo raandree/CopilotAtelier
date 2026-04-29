@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project does not currently use versioned releases; tagged releases will follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once publishing begins.
 
+## [Unreleased]
+
+### Added
+
+- **New skill: `marp-slide-overflow`** — [`Skills/marp-slide-overflow/SKILL.md`](Skills/marp-slide-overflow/SKILL.md). Detects and fixes content overflow in Marp slide decks before exporting to PPTX/PDF/PNG, where Marp silently clips anything taller than the 1280×720 viewBox. Ships a Puppeteer-based `scrollHeight`-vs-viewBox detector (with CI-gate exit codes), a two-tier CSS density pattern (`dense` / `compact`) to fit content without splitting slides, a `fillRatio` decision table for picking the smallest fix, and a side-by-side HTML review report. Documents the phantom-leading-section gotcha that causes off-by-one mapping between source markdown and rendered slides. Brings the skill count to 21.
+
 ## [1.1.0] — 2026-04-26
 
 First public release alongside [`raandree/AgenticOperatingModel`](https://github.com/raandree/AgenticOperatingModel) (the workshop in which CopilotAtelier is the reference exemplar of a mature personal atelier).

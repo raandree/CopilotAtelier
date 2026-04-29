@@ -1,8 +1,8 @@
 # Progress
 
-## Project status: Release-ready (v1)
+## Project status: Released (v1.1.0), incremental additions tracked under `[Unreleased]`
 
-The CopilotAtelier project reached functional completeness on February 24, 2026 and has been steadily expanded since. As of April 23, 2026 the repository contains 9 agents, 13 instruction files, 1 reference doc, 20 skills, and 8 prompts, and is ready for public release.
+The CopilotAtelier project reached functional completeness on February 24, 2026 and has been steadily expanded since. v1.1.0 shipped on April 26, 2026. As of April 29, 2026 the repository contains 9 agents, 13 instruction files, 1 reference doc, 21 skills, and 8 prompts.
 
 ## What works
 
@@ -56,6 +56,7 @@ The CopilotAtelier project reached functional completeness on February 24, 2026 
 | PDF to Markdown skill | Done | .NET-native PDF parsing: zlib/deflate decompression, hex text decoding, Y-coordinate line reconstruction, ISO-8859-1 encoding |
 | Grammar check skill | Done | Text proofing for grammar, logic, and flow errors |
 | German legal research skill | Done | Legal research for German tenancy/rental law (Mietrecht) and civil law |
+| Marp slide overflow skill | Done | Puppeteer `scrollHeight`-vs-viewBox detector (CI gate), two-tier CSS density pattern (`dense` / `compact`), `fillRatio` decision table, side-by-side HTML review report; documents the phantom-leading-section off-by-one gotcha |
 | README | Done | Comprehensive setup guide with troubleshooting and skills inventory table |
 | Agents README | Done | Pipeline documentation with severity matrix and workflow diagrams |
 
@@ -121,3 +122,4 @@ The CopilotAtelier project reached functional completeness on February 24, 2026 
 37. **Tax Researcher agent added** → `Agents/tax-researcher.agent.md` for German tax research and drafting. Persistent case memory bank; mandatory StBerG/RDG disclaimer.
 38. **CHANGELOG added** → Top-level `CHANGELOG.md` in Keep a Changelog format, covering the project from first release.
 39. **Keybindings merge** → New `Keybindings/keybindings.json` in the repo holds shared VS Code bindings. `Setup-CopilotSettings.ps1` merges them idempotently into `%APPDATA%\Code\User\keybindings.json` via a `(key, command, when)` dedup key; user-added bindings preserved; timestamped backup created on every run. Ships PowerShell restart, terminal/chat window-popout, and the Enter/Ctrl+Enter chat-submit swap.
+40. **Marp slide overflow skill** → New `Skills/marp-slide-overflow/SKILL.md` for detecting and fixing the silent content-clipping bug in Marp's 1280×720 viewBox. Ships a Puppeteer headless-Chromium detector measuring each `<section>.scrollHeight` (exit codes 0/1/2 for CI gating), a two-tier CSS density pattern (`dense` ≈ +20 %, `compact` ≈ +33 %) applied via Marp's `<!-- _class: ... -->` directive to avoid splitting slides, a `fillRatio` decision table, and a side-by-side HTML review report. Documents the phantom-leading-`<section>` off-by-one gotcha when a build script writes `---` immediately after the YAML frontmatter. Skill count: 20 → 21.
