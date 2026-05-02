@@ -2,7 +2,7 @@
 
 ## Project status: Released (v1.1.0), incremental additions tracked under `[Unreleased]`
 
-The CopilotAtelier project reached functional completeness on February 24, 2026 and has been steadily expanded since. v1.1.0 shipped on April 26, 2026. As of April 29, 2026 the repository contains 9 agents, 13 instruction files, 1 reference doc, 21 skills, and 8 prompts.
+The CopilotAtelier project reached functional completeness on February 24, 2026 and has been steadily expanded since. v1.1.0 shipped on April 26, 2026. As of May 2, 2026 the repository contains 9 agents, 13 instruction files, 1 reference doc, 22 skills, and 8 prompts.
 
 ## What works
 
@@ -57,6 +57,7 @@ The CopilotAtelier project reached functional completeness on February 24, 2026 
 | Grammar check skill | Done | Text proofing for grammar, logic, and flow errors |
 | German legal research skill | Done | Legal research for German tenancy/rental law (Mietrecht) and civil law |
 | Marp slide overflow skill | Done | Puppeteer `scrollHeight`-vs-viewBox detector (CI gate), two-tier CSS density pattern (`dense` / `compact`), `fillRatio` decision table, side-by-side HTML review report; documents the phantom-leading-section off-by-one gotcha |
+| Whisper + pyannote transcription skill | Done | GPU pipeline: ffmpeg 16 kHz WAV → `faster-whisper` large-v3 (CUDA float16) → `pyannote/speaker-diarization-3.1` → speaker-labeled SRT/JSON/text via max-overlap merge. Ships `transcribe.py` + `diarize.py`; documents 11 pitfalls (CPU torch default, `cu128` channel, dual HF gated-model agreement, Windows `torchcodec` bypass via `torchaudio.load`, Python 3.12 venv, `Tee-Object` exit-code trap) |
 | README | Done | Comprehensive setup guide with troubleshooting and skills inventory table |
 | Agents README | Done | Pipeline documentation with severity matrix and workflow diagrams |
 
@@ -123,3 +124,4 @@ The CopilotAtelier project reached functional completeness on February 24, 2026 
 38. **CHANGELOG added** → Top-level `CHANGELOG.md` in Keep a Changelog format, covering the project from first release.
 39. **Keybindings merge** → New `Keybindings/keybindings.json` in the repo holds shared VS Code bindings. `Setup-CopilotSettings.ps1` merges them idempotently into `%APPDATA%\Code\User\keybindings.json` via a `(key, command, when)` dedup key; user-added bindings preserved; timestamped backup created on every run. Ships PowerShell restart, terminal/chat window-popout, and the Enter/Ctrl+Enter chat-submit swap.
 40. **Marp slide overflow skill** → New `Skills/marp-slide-overflow/SKILL.md` for detecting and fixing the silent content-clipping bug in Marp's 1280×720 viewBox. Ships a Puppeteer headless-Chromium detector measuring each `<section>.scrollHeight` (exit codes 0/1/2 for CI gating), a two-tier CSS density pattern (`dense` ≈ +20 %, `compact` ≈ +33 %) applied via Marp's `<!-- _class: ... -->` directive to avoid splitting slides, a `fillRatio` decision table, and a side-by-side HTML review report. Documents the phantom-leading-`<section>` off-by-one gotcha when a build script writes `---` immediately after the YAML frontmatter. Skill count: 20 → 21.
+41. **Whisper + pyannote transcription skill** → New `Skills/whisper-pyannote-transcription/SKILL.md` plus companion `transcribe.py` and `diarize.py` for GPU-accelerated audio/video transcription with speaker labels on Windows. ffmpeg extracts a 16 kHz mono WAV; `faster-whisper` large-v3 (CTranslate2, CUDA float16) produces `.txt` / `.srt` / `.json`; `pyannote/speaker-diarization-3.1` produces an `.rttm`; segments are merged by max-overlap into `.diarized.{json,srt,txt}`. Documents 11 pitfalls (CPU-only PyPI torch wheels, `cu128` PyTorch channel, dual HF gated-model agreement on `speaker-diarization-3.1` and `segmentation-3.0`, the Windows `torchcodec` bypass via `torchaudio.load` + waveform-dict pipeline input, the Python 3.12 venv constraint, and the `Tee-Object` non-ASCII exit-code trap). RTX 4080 Laptop ≈ 2 h audio in ≈ 30 min. Skill count: 21 → 22.
