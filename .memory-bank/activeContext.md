@@ -2,7 +2,16 @@
 
 ## Current work focus
 
-The project is post-1.1.0 release. As of April 29, 2026 the repository contains 9 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 21 skills, and 8 prompts. Current focus: incremental skill additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+The project is post-1.1.0 release. As of May 2, 2026 the repository contains 9 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 22 skills, and 8 prompts. Current focus: incremental skill additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (May 2, 2026)
+
+### New skill: `whisper-pyannote-transcription`
+
+- `Skills/whisper-pyannote-transcription/SKILL.md` plus companion `transcribe.py` and `diarize.py` — end-to-end pipeline to transcribe long audio/video on a Windows GPU workstation and attach speaker identifiers to each segment. ffmpeg extracts a 16 kHz mono WAV (≈100× shrink from the source MP4); `faster-whisper` large-v3 (CTranslate2, CUDA float16) produces `.txt` / `.srt` / `.json`; `pyannote/speaker-diarization-3.1` produces an `.rttm`; segments are merged by max-overlap into `.diarized.json` / `.diarized.srt` / `.diarized.txt`.
+- Documents 11 concrete pitfalls hit during initial implementation: CPU-only PyPI torch wheel default (must use `--index-url https://download.pytorch.org/whl/cu128`), residual CPU torch after rebuild (`pip uninstall -y torch torchaudio torchcodec` first), pyannote.audio ≥ 4.0 requiring torch ≥ 2.8 (and `cu124` capping at torch 2.6), the `use_auth_token` → `token` rename, the Windows `torchcodec` failure with Gyan.FFmpeg full builds (preload waveform with `torchaudio.load` and pass `{waveform, sample_rate}` dict to the pipeline), the dual HF gated-model agreement (`speaker-diarization-3.1` **and** `segmentation-3.0`), the Python 3.12 venv constraint (3.13/3.14 lack ctranslate2/pyannote wheels), and the `Tee-Object` non-ASCII exit-code trap (verify outputs by file size, not exit code).
+- Throughput on RTX 4080 Laptop: ≈ 2 h of audio transcribed in ≈ 30 min. Whisper handles in-segment language switching (e.g. German with English passages) even when a primary `--language` is set.
+- Skill count: 21 → 22. README "Available Skills" table, `techContext.md` inventory, `progress.md` "What works" + Evolution list, and the `[Unreleased]` block in `CHANGELOG.md` updated.
 
 ## Recent changes (April 29, 2026)
 
