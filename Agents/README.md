@@ -333,6 +333,7 @@ In VS Code with GitHub Copilot:
    - **Legal Research** *(supplementary)*: "legal-researcher"
    - **Tax Research** *(supplementary)*: "tax-researcher"
    - **QC Inspection** *(supplementary)*: "QC Inspector"
+   - **Career Coaching** *(supplementary)*: "career-coach"
 
 ### Example Workflows
 
@@ -382,6 +383,16 @@ In VS Code with GitHub Copilot:
 ```
 1. Activate: QC Inspector
    Prompt: "Create an ITP for API 6A wellhead equipment with hold/witness points for a European manufacturer."
+```
+
+#### Domain-Specific: Career Coaching & Job Applications
+
+```
+1. Activate: career-coach
+   Prompt: "Here's my master CV and a job ad for a Senior Platform Engineer role at Acme. Tailor my CV and draft a cover letter."
+
+2. Activate: career-coach
+   Prompt: "I have an offer: 95k base, 10% bonus, 40k RSU over 4 years. Build a counter-offer strategy."
 ```
 
 ## Best Practices
@@ -447,7 +458,52 @@ In VS Code with GitHub Copilot:
 
 ---
 
-### 9. DevOps Training Writer Agent
+### 9. Career Coach Agent
+
+**Role**: Career Coaching, CV Writing, Job Search, Application Tracking, Interview Prep, Negotiation  
+**Scope**: Supplementary — not part of the SDLC pipeline  
+**File**: `career-coach.agent.md`
+
+**Responsibilities**:
+
+- Candidate self-assessment (skills, experience, achievements, constraints, drivers)
+- Career strategy and positioning (target roles, industries, geographies, comp range, value proposition)
+- CV / resume / Lebenslauf crafting (region-aware: US/UK/IE/CA/AU resume vs. DE/AT/CH Lebenslauf vs. EuroPass vs. Academic CV)
+- Cover letter / Anschreiben drafting tailored per role
+- LinkedIn / Xing profile optimization (headline, about, experience, skills, featured)
+- Application pipeline tracking with status taxonomy and KPI monitoring (response rate, conversion, time-to-response by channel)
+- Interview preparation (panel research, STAR/CAR stories, questions to ask, mock-interview debrief)
+- Offer negotiation (total-comp modeling, equity vesting analysis, counter-offer scripts)
+- 30-60-90 onboarding plan and graceful resignation
+
+**Key Features**:
+
+- Five-phase career workflow (ASSESS → POSITION → CRAFT → APPLY → ADVANCE)
+- Persistent memory bank (`profile.md`, `career-strategy.md`, `applications.md`, `deadlines.md`, plus per-job dossiers and per-interview prep files)
+- Application status vocabulary with consistent icons (🎯 RESEARCHING, 📤 APPLIED, 🎤 INTERVIEWING, 💰 OFFER, ✅ ACCEPTED, ❌ REJECTED, 👻 GHOSTED)
+- ATS-aware formatting rules (single column, standard headings, parseable dates, no white-text keyword stuffing)
+- STAR / CAR / XYZ achievement framing with quantified outcomes
+- Bilingual operation (EN/DE) with region-appropriate conventions and protected-data rules
+- Ethics-first: never fabricates experience, qualifications, metrics, or credentials
+- Skill integration: `pdf-to-markdown`, `docx-to-markdown`, `xlsx-to-markdown` for ingestion; `pandoc-docx-export` for final DOCX rendering; `create-outlook-draft` / `send-outlook-email` for application emails; `outlook-calendar-export` for interview tracking; `microsoft-todo-tasks` for follow-up reminders; `grammar-check` for proofreading; `whisper-pyannote-transcription` for mock-interview debriefs; `marp-slide-overflow` for portfolio decks
+- Handoff to `legal-researcher` for German employment-law matters (Kündigung, Aufhebungsvertrag, PIP, contract clauses)
+- Handoff to `technical-writer` for LinkedIn articles and thought-leadership content
+- Mandatory escalation rules for visa / immigration, equity / IP / non-compete clauses, employment disputes, scam detection
+
+**When to Use**:
+
+- Building or refreshing a CV / Lebenslauf for a specific target role
+- Drafting tailored cover letters, application emails, or LinkedIn content
+- Parsing a job ad and producing a fit-gap analysis with a tailored CV
+- Tracking an active job-search pipeline with deadlines and follow-ups
+- Preparing for phone screens, technical interviews, panel loops, or executive finals
+- Modeling total compensation across competing offers and crafting a counter-offer
+- Negotiating salary, equity, signing bonus, or relocation
+- Planning the first 30-60-90 days at a new role
+
+---
+
+### 10. DevOps Training Writer Agent
 
 **Role**: Specialized DevOps/Ops Training Content Creation  
 **Scope**: Supplementary — not part of the SDLC pipeline  
@@ -526,4 +582,4 @@ When creating new agents:
 
 ---
 
-**Remember**: The core agents (Software Engineer, Security & QA, Technical Writer, Technical Troubleshooter) are designed to work together as a cohesive release pipeline. Use them sequentially for best results, with clear handoffs between phases documented in the Memory Bank. The domain-specific agents (Legal Researcher, Tax Researcher, QC Inspector, Training Content Writer, DevOps Training Writer) operate independently for their respective use cases.
+**Remember**: The core agents (Software Engineer, Security & QA, Technical Writer, Technical Troubleshooter) are designed to work together as a cohesive release pipeline. Use them sequentially for best results, with clear handoffs between phases documented in the Memory Bank. The domain-specific agents (Legal Researcher, Tax Researcher, QC Inspector, Training Content Writer, DevOps Training Writer, Career Coach) operate independently for their respective use cases.

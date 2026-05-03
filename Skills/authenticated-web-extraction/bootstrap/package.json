@@ -1,0 +1,14 @@
+{
+  "name": "career-auth-browser",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Persistent authenticated browser profile for career data extraction (LinkedIn, GitHub, Sessionize, etc.). Uses Playwright with the installed Microsoft Edge channel.",
+  "type": "module",
+  "scripts": {
+    "open": "node scripts/open.mjs",
+    "extract": "node scripts/extract.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

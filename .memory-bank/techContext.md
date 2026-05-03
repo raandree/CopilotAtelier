@@ -77,6 +77,7 @@ Opus 4.7 is GA in Copilot since 2026-04-16 and is the announced replacement for 
 | legal-researcher | `legal-researcher` | German legal research & statement drafting |
 | tax-researcher | `tax-researcher` | German tax research, assessment-notice review, tax document drafting |
 | QC Inspector | `qc-inspector` | Quality control inspection for Oil & Gas / Energy / Industrial |
+| Career Coach | `career-coach` | Bilingual (EN/DE) career coaching, CV/Lebenslauf writing, job search, application tracking, interview prep, salary negotiation. Five-phase workflow (ASSESS → POSITION → CRAFT → APPLY → ADVANCE); persistent memory bank; ATS-aware; ethics-first. Hands off to `legal-researcher` (Arbeitsrecht) and `technical-writer` (LinkedIn articles) |
 | Training Content Writer | `training-writer` | Generic training & workshop content creation |
 | DevOps Training Writer | `devops-training-writer` | DevOps-specialized training (inherits from Training Content Writer) |
 
@@ -104,6 +105,7 @@ Opus 4.7 is GA in Copilot since 2026-04-16 and is the announced replacement for 
 | Skill | Directory | Purpose |
 |---|---|---|
 | `automatedlab-deployment` | `Skills/automatedlab-deployment/` | Build and deploy Hyper-V lab environments using AutomatedLab |
+| `authenticated-web-extraction` | `Skills/authenticated-web-extraction/` | Persistent Playwright + Microsoft Edge profile at `%LOCALAPPDATA%\CareerAuthBrowser\` for authenticated extraction (LinkedIn, GitHub, Sessionize, M365, X, Meetup). Bundled `bootstrap/` (`package.json`, `open.mjs`, `extract.mjs`, `check-logins`, `dump-cookies`); documents per-site auth cookie names, session-cookie re-injection workaround, OAuth tracking-prevention flags, and the profile-lock orphan-`msedge.exe` failure mode |
 | `create-outlook-draft` | `Skills/create-outlook-draft/` | Create Outlook email drafts from Markdown via COM automation |
 | `datum-configuration` | `Skills/datum-configuration/` | Reference for Datum hierarchical DSC configuration data module |
 | `docx-to-markdown` | `Skills/docx-to-markdown/` | Convert DOCX to Markdown via .NET-native ZIP/XML parsing (no pandoc/Word) |

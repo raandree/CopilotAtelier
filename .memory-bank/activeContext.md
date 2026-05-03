@@ -2,7 +2,28 @@
 
 ## Current work focus
 
-The project is post-1.1.0 release. As of May 2, 2026 the repository contains 9 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 22 skills, and 8 prompts. Current focus: incremental skill additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+The project is post-1.1.0 release. As of May 3, 2026 the repository contains 10 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 23 skills, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (May 3, 2026)
+
+### New agent: `career-coach`
+
+- `Agents/career-coach.agent.md` — bilingual (EN/DE) career-coaching agent covering the full application lifecycle: self-assessment, positioning, CV/Lebenslauf and cover-letter crafting, job search, application-pipeline tracking, interview prep, offer negotiation, and 30-60-90 onboarding planning. Five-phase workflow (ASSESS → POSITION → CRAFT → APPLY → ADVANCE).
+- Persistent memory bank (`profile.md`, `career-strategy.md`, `applications.md`, `deadlines.md`, per-job dossiers, per-interview prep). Region-aware CV conventions (US/UK/IE/CA/AU resume vs. DE/AT/CH Lebenslauf vs. EuroPass vs. Academic CV). ATS-aware formatting rules. STAR/CAR/XYZ achievement framing.
+- Ethics-first rule: never fabricates experience, qualifications, metrics, or credentials. Mandatory StBerG/RDG-style disclaimer on outputs with legal, financial, or contractual recommendations.
+- Skill integration: `pdf-to-markdown` / `docx-to-markdown` / `xlsx-to-markdown` for ingestion; `pandoc-docx-export` for final DOCX rendering; `create-outlook-draft` / `send-outlook-email` for application emails; `outlook-calendar-export` for interview tracking; `microsoft-todo-tasks` for follow-ups; `grammar-check` for proofreading; `whisper-pyannote-transcription` for mock-interview debriefs; `marp-slide-overflow` for portfolio decks; `authenticated-web-extraction` for LinkedIn/GitHub/Sessionize ingestion.
+- Handoffs: `legal-researcher` for German Arbeitsrecht (Arbeitsvertrag, Kündigung, Aufhebungsvertrag, PIP); `technical-writer` for LinkedIn / thought-leadership content.
+- Agent count: 9 → 10. `Agents/README.md` reorganized to insert Career Coach at position 9 (DevOps Training Writer renumbered to 10), with a new "Domain-Specific: Career Coaching & Job Applications" example workflow.
+
+### New skill: `authenticated-web-extraction`
+
+- `Skills/authenticated-web-extraction/SKILL.md` plus a bundled `bootstrap/` folder (`package.json`, `scripts/open.mjs`, `scripts/extract.mjs`, `tasks/check-logins.mjs`, `tasks/dump-cookies.mjs`) so the harness can be recreated on a new machine in one PowerShell snippet. Persistent Playwright + Microsoft Edge profile at `%LOCALAPPDATA%\CareerAuthBrowser\` for pulling data out of authenticated sites (LinkedIn, GitHub, Sessionize, Microsoft 365, X, Meetup) without app registration.
+- Documents cookie-based auth detection with per-site cookie names (`li_at`, `user_session`, `.AspNet.ApplicationCookie`, `auth_token`, `MEETUP_MEMBER`) — markup-stable, unlike DOM selectors. Sessionize specifically uses `.AspNet.ApplicationCookie` (ASP.NET Identity / OWIN, not ASP.NET Core).
+- Documents the session-cookie-vanish workaround: Chromium discards session-only cookies on persistent-context shutdown even though the user-data-dir is preserved. `open.mjs` snapshots cookies every 5 s and on close; `extract.mjs` re-injects via `context.addCookies(...)` from `auth-state/<host>.json` before navigating, promoting `expires === -1` to `now + 365 d`. This is the documented reason Sessionize would otherwise log out between every run.
+- Documents the Edge launch flags required for OAuth callbacks: `--disable-features=TrackingPrevention,ThirdPartyStoragePartitioning,PrivacySandboxAdsAPIs,FedCm` plus `--disable-blink-features=AutomationControlled` (also reduces LinkedIn captchas) and `ignoreDefaultArgs: ['--enable-automation']`. Without them, the Microsoft OAuth round-trip on Sessionize completes but the resulting third-party cookie is blocked.
+- Documents the profile-lock orphan-`msedge.exe` failure mode (`SingletonLock` left behind), and a generic task-harness pattern (`tasks/<name>.mjs` default-exporting `async ({ context, page, args, outDir })`).
+- Default rule: extract → propose changes → user pastes manually; never mutate user accounts (no auto-RSVP, no auto-save profile edits, no auto-commit).
+- Used by the new Career Coach agent for LinkedIn/GitHub/Sessionize ingestion. Skill count: 22 → 23. README "Available Skills" table, `techContext.md` inventory, `progress.md` "What works" + Evolution list, and the `[Unreleased]` block in `CHANGELOG.md` updated.
 
 ## Recent changes (May 2, 2026)
 

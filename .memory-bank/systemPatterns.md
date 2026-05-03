@@ -44,7 +44,7 @@
   - `security-reviewer` can hand off to `software-engineer` (for fixing issues)
   - `technical-writer` can hand off to `security-reviewer` (for documentation review)
   - `technical-troubleshooter` can hand off to `software-engineer` (for implementing fixes)
-- **Agent organization**: Core SDLC pipeline (Software Engineer, Security & QA, Technical Writer, Technical Troubleshooter) + Supplementary domain-specific (Legal Researcher, QC Inspector, Training Content Writer, DevOps Training Writer).
+- **Agent organization**: Core SDLC pipeline (Software Engineer, Security & QA, Technical Writer, Technical Troubleshooter) + Supplementary domain-specific (Legal Researcher, Tax Researcher, QC Inspector, Training Content Writer, DevOps Training Writer, Career Coach).
 - **Inheritance**: DevOps Training Writer inherits all generic training rules from Training Content Writer.
 
 ### Decision 5: Instruction files with `applyTo` globs
