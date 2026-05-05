@@ -2,7 +2,18 @@
 
 ## Current work focus
 
-The project is post-1.1.0 release. As of May 3, 2026 the repository contains 10 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 23 skills, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+The project is post-1.1.0 release. As of May 5, 2026 the repository contains 10 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 23 skills, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (May 5, 2026)
+
+### Skill update: `whisper-pyannote-transcription` — evidence-grade transcription patterns
+
+- `Skills/whisper-pyannote-transcription/SKILL.md` expanded from 11 to 17 pitfalls and grew two new recipes covering long-form / mixed-language and evidence-grade transcription. New companion script `transcribe-segment.py` joins `transcribe.py` and `diarize.py`.
+- **New pitfalls (12–17)**: `condition_on_previous_text=False` is mandatory for transcripts > 30 min and for mixed-language audio (default `True` causes loops and language drift); the `initial_prompt` glossary is a *bias*, not a hard constraint, so rare proper nouns (e.g. "Replit" → "PocketOS") still need a post-processing regex pass; mixed-language recordings must be split by offset and run as two passes (`--language de`, then `--language en`), each with its own glossary; Whisper is non-deterministic at the segment level, so high-stakes passages need 2–3 focus passes with `--beam-size 10–15` and majority voting; a mechanical bulk regex pass on the master SRT can silently overwrite a focus-verified reading by resolving the artefact to the *grammatically nearest* candidate (typically a personal pronoun) rather than the acoustic one; and short subject-phrase hallucinations have multiple plausible resolutions — always cross-check against domain-coherent secondary sources.
+- **New `Recipe 3b`**: transcribe a segment with a glossary file via `transcribe-segment.py` (offset/end windows, `--initial-prompt-file`, `--no-condition`), including the mixed-language split pattern that prevents the EN half of a recording being transcribed as broken German with mojibake umlauts.
+- **New `Recipe 5`**: focused re-transcription with majority voting for evidence-grade quotation — pick a 30–90 s window, re-run with stronger settings, apply a 2-of-3 majority rule. Documents the "audio is the primary evidence" guidance (§ 286 ZPO, free evidence assessment in German civil law) and the cross-stage consistency pattern that defends focus-verified readings against later bulk regex passes (focus pass sees audio, bulk pass sees only text and picks the grammatically nearest token).
+- **PII / project-name redaction**: verification-example tables anonymized with placeholders (`<SubjectA>`, `<PersonA>`, `<PersonC>`, `<Term>`, `<Org>`, `<Amount>`, `<ACRO1>`...) for personal names, internal acronyms, and amounts. `Replit → PocketOS` retained as a public third-party brand-name example. Date-specific session references replaced with neutral phrasing ("days later", "anonymized"). The technical methodology, code, and lessons remain intact — placeholders carry the structural pattern (Focus wins / v2 wins / v1+v2 win / Not quotable) without leaking domain context.
+- Skill count unchanged at 23. `progress.md` row updated to reflect the expanded scope; `[Unreleased]` block in `CHANGELOG.md` adds a `### Changed` entry.
 
 ## Recent changes (May 3, 2026)
 
