@@ -7,6 +7,10 @@ This project does not currently use versioned releases; tagged releases will fol
 
 ## [Unreleased]
 
+### Changed
+
+- **Pre-flight: probe directly for `.memory-bank/`, do not trust the workspace summary.** [`Instructions/preflight.instructions.md`](Instructions/preflight.instructions.md) and the embedded pre-flight blocks in all 10 agents now explicitly require an active probe (`list_dir`, `file_search`, or `Test-Path .memory-bank`) to detect the Memory Bank. The `<workspace_info>` listing surfaced at session start frequently omits dotfile folders (`.memory-bank`, `.git`, `.vscode`), and treating that summary as authoritative has caused agents to silently skip Memory Bank reads. This codifies the rule against that failure mode.
+
 ### Added
 
 - **New instruction: `preflight`** — [`Instructions/preflight.instructions.md`](Instructions/preflight.instructions.md). Workspace-wide (`applyTo: "**"`) pre-flight compliance hook that auto-loads on every chat turn and forces Memory Bank reads, instruction/skill discovery, `promptHistory.md` append, and a UTC-timestamped PRE-FLIGHT acknowledgment before the first tool call. Acts as the de facto pre-prompt hook for the default (non-agent) chat mode and as a backstop for all agent modes.
