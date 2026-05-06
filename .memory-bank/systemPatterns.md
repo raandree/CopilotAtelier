@@ -34,6 +34,7 @@
 
 - **Choice**: The `Merge-LocationSetting` helper function preserves existing keys and only adds/overwrites the OneDrive paths.
 - **Rationale**: Users may have manually added other custom paths to the location settings. Replacing the entire setting would destroy those entries.
+- **Note (May 6, 2026)**: `Merge-LocationSetting` is retained but no longer called for `chat.*FilesLocations`. Discovery for both the VS Code Copilot chat extension and the GitHub Copilot CLI is now wired through NTFS junctions at `%USERPROFILE%\.copilot\{agents,instructions,skills,prompts}` pointing to the canonical target tree. Empty pre-existing real folders at those paths are removed silently; non-empty ones prompt the user and, on consent, are merged into the target before being removed.
 
 ### Decision 4: Agent handoff architecture
 

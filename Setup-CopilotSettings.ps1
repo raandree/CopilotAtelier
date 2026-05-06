@@ -109,31 +109,16 @@ if ($oneDriveCandidates.Count -gt 1) {
     $oneDriveRoot = $null
 }
 
-# --- File location settings (merged, not replaced) ---
+# --- File location strategy ---
 # Prefer OneDrive when available so a single synced copy serves every machine.
-# Fall back to ~/<repoName> only when OneDrive is not installed.
+# Fall back to ~/<repoName> only when OneDrive is not installed. Discovery for
+# both the VS Code Copilot chat extension and the GitHub Copilot CLI is wired
+# up later via NTFS junctions under $env:USERPROFILE\.copilot, so no
+# chat.*FilesLocations settings are written.
 if ($oneDriveRoot) {
-    Write-Host "OneDrive detected at: $oneDriveRoot - registering OneDrive paths only."
-    $locationPrefix = "~/OneDrive/$repoName"
+    Write-Host "OneDrive detected at: $oneDriveRoot - target tree will live there."
 } else {
-    Write-Host "OneDrive not found - registering ~/$repoName paths."
-    $locationPrefix = "~/$repoName"
-}
-
-Merge-LocationSetting $settings 'chat.agentFilesLocations' @{
-    "$locationPrefix/Agents" = $true
-}
-
-Merge-LocationSetting $settings 'chat.instructionsFilesLocations' @{
-    "$locationPrefix/Instructions" = $true
-}
-
-Merge-LocationSetting $settings 'chat.agentSkillsLocations' @{
-    "$locationPrefix/Skills" = $true
-}
-
-Merge-LocationSetting $settings 'chat.promptFilesLocations' @{
-    "$locationPrefix/Prompts" = $true
+    Write-Host "OneDrive not found - target tree will live under ~/$repoName."
 }
 
 # --- Feature flags ---
@@ -192,6 +177,91 @@ foreach ($sub in $subDirs) {
     } else {
         Write-Host "Skipped: $source (not found in repo)"
     }
+}
+
+# --- Create ~/.copilot/{agents,instructions,skills,prompts} junctions ---
+# Both the VS Code Copilot chat extension and the GitHub Copilot CLI discover
+# customization files under $env:USERPROFILE\.copilot. Pointing those well-known
+# folders at our single target tree (OneDrive or local fallback) keeps both
+# clients in sync without writing chat.*FilesLocations settings.
+#
+# Behaviour for each link path:
+#   - Already a junction/symlink -> remove and recreate at the current target.
+#   - Real directory and empty   -> remove silently.
+#   - Real directory, non-empty  -> prompt the user. On consent, copy contents
+#     into the target (merge, no overwrite of newer files in the target) and
+#     then remove. On refusal, skip the junction with a warning.
+#   - Missing                    -> just create the junction.
+$copilotRoot = Join-Path $env:USERPROFILE '.copilot'
+if (-not (Test-Path $copilotRoot)) {
+    New-Item -ItemType Directory -Path $copilotRoot -Force | Out-Null
+    Write-Host "Created: $copilotRoot"
+}
+
+# Map repo subfolder (PascalCase) -> well-known .copilot link name (lowercase).
+$junctionMap = [ordered]@{
+    'Agents'       = 'agents'
+    'Instructions' = 'instructions'
+    'Skills'       = 'skills'
+    'Prompts'      = 'prompts'
+}
+
+foreach ($entry in $junctionMap.GetEnumerator()) {
+    $linkPath   = Join-Path $copilotRoot $entry.Value
+    $targetPath = Join-Path $targetBase  $entry.Key
+
+    if (-not (Test-Path $targetPath)) {
+        Write-Host "Skipped junction: target missing - $targetPath"
+        continue
+    }
+
+    if (Test-Path $linkPath) {
+        $item = Get-Item -LiteralPath $linkPath -Force
+        $isLink = $item.Attributes.HasFlag([IO.FileAttributes]::ReparsePoint)
+
+        if ($isLink) {
+            # Stale or correct junction: remove and recreate so it always
+            # points at the current $targetPath.
+            try {
+                [IO.Directory]::Delete($linkPath)
+            } catch {
+                Remove-Item -LiteralPath $linkPath -Force -Recurse
+            }
+            Write-Host "Removed existing junction: $linkPath"
+        } else {
+            # Real directory. Check if it has any content.
+            $children = Get-ChildItem -LiteralPath $linkPath -Force -ErrorAction SilentlyContinue
+            if (-not $children) {
+                Remove-Item -LiteralPath $linkPath -Force
+                Write-Host "Removed empty directory: $linkPath"
+            } else {
+                Write-Host ""
+                Write-Host "Directory '$linkPath' is not empty ($($children.Count) item(s))."
+                Write-Host "It must be replaced with a junction to '$targetPath'."
+                $answer = Read-Host 'Copy its contents into the target and then delete it? [y/N]'
+                if ($answer -match '^(y|yes)$') {
+                    # Merge into target without clobbering newer files already there.
+                    foreach ($child in $children) {
+                        $destChild = Join-Path $targetPath $child.Name
+                        if (Test-Path -LiteralPath $destChild) {
+                            Write-Host "  Skip (already present in target): $($child.Name)"
+                            continue
+                        }
+                        Copy-Item -LiteralPath $child.FullName -Destination $destChild -Recurse -Force
+                        Write-Host "  Copied: $($child.Name) -> $targetPath"
+                    }
+                    Remove-Item -LiteralPath $linkPath -Recurse -Force
+                    Write-Host "Removed: $linkPath"
+                } else {
+                    Write-Host "Skipped junction: user declined to remove '$linkPath'."
+                    continue
+                }
+            }
+        }
+    }
+
+    New-Item -ItemType Junction -Path $linkPath -Target $targetPath | Out-Null
+    Write-Host "Junction: $linkPath -> $targetPath"
 }
 
 # --- Merge keybindings into %APPDATA%\Code\User\keybindings.json ---

@@ -14,8 +14,8 @@ VS Code's GitHub Copilot supports custom agents, instructions, skills, and promp
 ## How it works
 
 1. All customization files live under a single repo-derived folder organized into four subdirectories: Agents, Instructions, Skills, Prompts. When OneDrive is signed in the folder is `~/OneDrive/CopilotAtelier/`; otherwise the script falls back to `~/CopilotAtelier/`. Only one location is populated per machine — no dual mirror.
-2. A PowerShell setup script (`Setup-CopilotSettings.ps1`) patches VS Code's `settings.json` to point all four Copilot file-location settings at the chosen folder (OneDrive when present, local profile otherwise).
-3. The script is idempotent: it merges new entries into existing settings, strips JSONC comments before parsing, and creates a timestamped backup on every run.
+2. A PowerShell setup script (`Setup-CopilotSettings.ps1`) copies the repo contents into the chosen target and then creates NTFS junctions at `%USERPROFILE%\.copilot\{agents,instructions,skills,prompts}` pointing to that target. Both the VS Code Copilot chat extension and the GitHub Copilot CLI discover customization files under `~/.copilot`, so a single set of junctions serves both clients without writing any `chat.*FilesLocations` settings.
+3. The script is idempotent: it merges new entries into existing settings, strips JSONC comments before parsing, recreates junctions to track the current target, and creates a timestamped backup on every run. Pre-existing real folders at the junction paths are removed silently when empty; when non-empty the script prompts the user before merging contents into the target and deleting the folder.
 4. The chosen target folder is populated by copying the repo contents on every run. When OneDrive is present, the OneDrive folder is used and changes propagate to every signed-in machine. When OneDrive is absent, the local `~/CopilotAtelier/` folder is used so the library still works on standalone machines. Stale local mirrors from older dual-copy runs are cleaned up automatically.
 
 ## User experience goals
