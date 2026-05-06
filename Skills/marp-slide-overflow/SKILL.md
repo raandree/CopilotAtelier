@@ -1,29 +1,7 @@
 ---
 name: marp-slide-overflow
 description: >-
-  Detect and fix content overflow in Marp slide decks before exporting to
-  PPTX/PDF/PNG. Marp silently clips any slide content taller than the
-  1280x720 viewBox — tables, code blocks, long paragraphs disappear with
-  zero warning in the binary export. This skill provides a Puppeteer-based
-  overflow detector, a side-by-side HTML review report, a two-tier CSS
-  density pattern (`dense` / `compact`) for fitting content without
-  splitting slides, and a fillRatio decision table for choosing the right
-  fix.
-  USE FOR: Marp overflow, slide content clipped, slide too tall, Marp
-  silently truncates, content cut off in PPTX, Marp PPTX export missing
-  content, slide overflow detection, Puppeteer slide check, Marp scrollHeight,
-  marpit-svg viewBox, Marp dense class, Marp compact class, fit content to
-  slide, slide overflow CI gate, Marp side-by-side review, slide review
-  report, fillRatio Marp, Marp class directive, marp-cli overflow,
-  marpit overflow hidden, Marp build pipeline overflow, programmatic slide
-  overflow check, headless Chromium slide measurement, Marp 720 viewBox,
-  Marp section-divider, Marp backgroundColor frontmatter, Marp inline style
-  override, Marp class background ignored, Marp gradient not rendered,
-  Marp white-on-white text, Marp low contrast headline, Marp invisible
-  heading, Marp section class background CSS, Marp _class directive
-  background.
-  DO NOT USE FOR: Reveal.js, Slidev, PowerPoint authoring, generic CSS
-  layout problems, PDF page breaks unrelated to Marp, font rendering bugs.
+  Detect and fix content overflow in Marp slide decks before exporting to PPTX/PDF/PNG. Marp silently clips any content taller than the 1280x720 viewBox — tables, code blocks, long paragraphs disappear with zero warning. Provides a Puppeteer-based overflow detector, a side-by-side HTML review report, a two-tier CSS density pattern (`dense`/`compact`), and a fillRatio decision table. USE FOR: Marp overflow, slide content clipped, slide too tall, content cut off in PPTX, slide overflow detection, Puppeteer slide check, Marp scrollHeight, marpit-svg viewBox, Marp dense/compact class, fit content to slide, slide overflow CI gate, fillRatio Marp, marp-cli overflow, headless Chromium slide measurement, Marp backgroundColor frontmatter, Marp class background ignored, Marp gradient not rendered, Marp _class directive background. DO NOT USE FOR: Reveal.js, Slidev, PowerPoint authoring, generic CSS layout, font rendering bugs.
 ---
 
 # Marp Slide Overflow — Detect, Fix, Verify

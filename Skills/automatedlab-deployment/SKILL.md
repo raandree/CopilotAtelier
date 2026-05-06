@@ -1,26 +1,7 @@
 ---
 name: automatedlab-deployment
 description: >-
-  Build and deploy Hyper-V lab environments using AutomatedLab (AL).
-  Covers installation, lab definitions, roles (AD, File Server, Routing, PKI, SQL, etc.),
-  networking, internet connectivity, post-deployment configuration, VM status monitoring,
-  snapshots, file transfer, DSC, certificates, firewall management, and teardown.
-  USE FOR: AutomatedLab, Hyper-V lab, deploy lab, create lab, domain controller, file server,
-  routing, NAT, lab networking, lab VMs, test environment, lab setup, ISO images, LabSources,
-  Install-Lab, New-LabDefinition, Add-LabMachineDefinition, Remove-Lab,
-  Get-LabVMStatus, Get-LabVM, Get-LabVMUptime, Wait-LabVM, Wait-LabVMRestart,
-  Wait-LabVMShutdown, Wait-LabADReady, Restart-LabVM, Save-LabVM, Remove-LabVM,
-  Copy-LabFileItem, Get-LabInternetFile, Invoke-LabDscConfiguration,
-  Test-LabMachineInternetConnectivity, Test-LabADReady, Join-LabVMDomain,
-  Enable-LabVMFirewallGroup, Disable-LabVMFirewallGroup, Add-LabVMUserRight,
-  Request-LabCertificate, Enable-LabCertificateAutoenrollment, Get-LabIssuingCA,
-  Add-LabDiskDefinition, Mount-LabIsoImage, Update-LabIsoImage, Set-LabDefaultOperatingSystem,
-  Connect-Lab, Enable-LabInternalRouting, Get-LabHyperVAvailableMemory,
-  Add-LabVirtualNetworkDefinition -UseNat, NAT switch, NAT gateway, NetNat,
-  HyperVUseNAT, internet without router VM, CredSSP, credential delegation,
-  double-hop, Enable-LabHostRemoting, network resource access from VM.
-  DO NOT USE FOR: Azure VM deployment (use azure-deploy), production infrastructure,
-  non-Hyper-V virtualisation.
+  Build and manage Hyper-V lab environments with AutomatedLab (AL): installation, lab definitions, roles (AD, File Server, Routing, PKI, SQL), networking (incl. NAT), post-deploy configuration, VM status, snapshots, file transfer, DSC, certificates, firewall, and teardown. USE FOR: AutomatedLab, Hyper-V lab, deploy/create lab, domain controller, lab VMs, ISO images, LabSources, Install-Lab, New-LabDefinition, Add-LabMachineDefinition, Remove-Lab, Get-LabVM*, Wait-LabVM, Wait-LabADReady, Restart-LabVM, Save-LabVM, Copy-LabFileItem, Get-LabInternetFile, Invoke-LabDscConfiguration, Test-LabMachineInternetConnectivity, Join-LabVMDomain, Enable/Disable-LabVMFirewallGroup, Add-LabVMUserRight, Request-LabCertificate, Mount-LabIsoImage, Connect-Lab, Enable-LabInternalRouting, Add-LabVirtualNetworkDefinition -UseNat, NetNat, HyperVUseNAT, CredSSP double-hop, Enable-LabHostRemoting. DO NOT USE FOR: Azure VM deployment, production infrastructure, non-Hyper-V virtualisation.
 ---
 
 # AutomatedLab — Hyper-V Lab Deployment

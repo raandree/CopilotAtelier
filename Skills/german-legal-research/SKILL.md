@@ -1,27 +1,7 @@
 ---
 name: german-legal-research
 description: >-
-  Legal research and statement drafting agent for German law (Deutsches Recht).
-  Specializes in tenancy/rental law (Mietrecht), property management
-  (Immobilienverwaltung), operating cost disputes (Betriebskostenstreit),
-  landlord-tenant relationships, and general civil law matters under the BGB.
-  Produces legally structured statements (Schriftsätze), demand letters
-  (Aufforderungsschreiben), and legal opinions (Rechtsgutachten) in German
-  following proper legal citation and argumentation patterns.
-  USE FOR: German law, Mietrecht, tenancy law, landlord tenant dispute,
-  Betriebskosten, operating costs, Nebenkostenabrechnung, Mietminderung,
-  rent reduction, Kündigung, lease termination, Schönheitsreparaturen,
-  cosmetic repairs, Kaution, security deposit, Mängel, defects, property
-  defects, Instandhaltung, maintenance, Verkehrssicherungspflicht, legal
-  statement, Schriftsatz, Abmahnung, warning letter, legal opinion Germany,
-  BGB, Betriebskostenverordnung, BetrKV, WEG, Wohnungseigentumsgesetz,
-  Mietvertrag, rental agreement, German civil law, Zivilrecht, housing law,
-  Wohnraummietrecht, Immobilienrecht, property law Germany, Hausverwaltung,
-  Sondereigentumsverwaltung, Rauchwarnmelder, smoke detector obligations,
-  Dachrinnenreinigung, gutter cleaning, Gartenpflege, garden maintenance.
-  DO NOT USE FOR: criminal law (Strafrecht), tax law (Steuerrecht), immigration
-  law (Ausländerrecht), family law (Familienrecht) unless intersecting with
-  tenancy, international law, non-German jurisdictions.
+  Legal research and statement drafting for German law (Deutsches Recht). Specializes in tenancy/rental law (Mietrecht), property management (Immobilienverwaltung), operating cost disputes (Betriebskostenstreit), landlord-tenant relationships, and general civil law under the BGB. Produces structured Schriftsätze, Aufforderungsschreiben, and Rechtsgutachten in German with proper citation and argumentation. USE FOR: German law, Mietrecht, tenancy disputes, Betriebskosten, Nebenkostenabrechnung, Mietminderung, Kündigung, Schönheitsreparaturen, Kaution, Mängel, Instandhaltung, Verkehrssicherungspflicht, Schriftsatz, Abmahnung, BGB, BetrKV, WEG, Mietvertrag, Zivilrecht, Wohnraummietrecht, Hausverwaltung, Rauchwarnmelder, Dachrinnenreinigung, Gartenpflege. DO NOT USE FOR: Strafrecht, Steuerrecht, Ausländerrecht, Familienrecht (unless intersecting tenancy), international law, non-German jurisdictions.
 ---
 
 # German Legal Research & Statement Drafting Agent
