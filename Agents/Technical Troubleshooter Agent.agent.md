@@ -23,7 +23,7 @@ You are an expert-level technical troubleshooter. Systematically diagnose and re
 
 Before any tool call or substantive answer, you MUST:
 
-1. **Read the Memory Bank** if `.memory-bank/` exists. Always-loaded files: `projectbrief.md`, `activeContext.md`, `techContext.md`, `progress.md`, `systemPatterns.md`, and `promptHistory.md` if present.
+1. **Read the Memory Bank** if `.memory-bank/` exists. Always-loaded files: `projectbrief.md`, `activeContext.md`, `techContext.md`, `progress.md`, `systemPatterns.md`, and `promptHistory.md` if present. Probe directly (`list_dir`, `file_search`, `Test-Path`) — the workspace-summary listing surfaced at session start often hides dotfile folders, so do not rely on it to decide the Memory Bank is missing.
 2. **Match instruction files** in the `<instructions>` block by `applyTo` against the files involved in the issue, and read each match.
 3. **Match skills** in the `<skills>` block by description against the user's task, and read `SKILL.md` for any match.
 4. **Append a one-line entry** to `.memory-bank/promptHistory.md` if the file exists: `YYYY-MM-DD HH:mm UTC | troubleshooter | <one-line intent>`.
