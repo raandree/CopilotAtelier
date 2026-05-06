@@ -1,27 +1,7 @@
 ---
 name: winrm-troubleshooting
 description: >-
-  Debug and troubleshoot Windows Remote Management (WinRM) connectivity failures
-  on Windows servers, including lab VMs managed by AutomatedLab. Covers service
-  state recovery (StopPending, hung, won't start), listener configuration,
-  HTTP.sys conflicts with IIS, authentication failures (Kerberos, NTLM, CredSSP),
-  HTTPS certificate issues, firewall rules, TrustedHosts, MaxEnvelopeSize,
-  double-hop delegation, and PowerShell Direct as a fallback diagnostic channel.
-  USE FOR: WinRM error, WinRM not working, WinRM HTTP 500, WinRM quickconfig
-  fails, WinRM StopPending, WinRM service stuck, WinRM listener missing, WinRM
-  connection refused, WinRM access denied, WinRM timeout, Enter-PSSession fails,
-  Invoke-Command fails, PowerShell remoting broken, WSManFault, 0x80338170,
-  0x80070005, 0x80090322, WinRM firewall, WinRM HTTPS, WinRM certificate,
-  WinRM CredSSP, WinRM TrustedHosts, WinRM MaxEnvelopeSize, WinRM Kerberos,
-  WinRM NTLM, WinRM double-hop, PowerShell Direct, PS Direct, VMBus remoting,
-  Invoke-LabCommand fails, WinRM 5985, WinRM 5986, HTTP.sys conflict, IIS WinRM
-  conflict, IISADMIN WinRM, WinRM plugin error, Test-WSMan fails,
-  New-PSSession fails, remoting not enabled, Enable-PSRemoting fails,
-  Set-WSManQuickConfig error, WinRM MaxMemoryPerShellMB, WinRM proxy,
-  0x803381A6, 0x80338126, 0x803380E4, SEC_E_NO_CREDENTIALS.
-  DO NOT USE FOR: SSH remoting (use SSH docs), PowerShell 7 remoting over SSH,
-  Azure Automation DSC (use azure-diagnostics), WMI/CIM connectivity issues
-  unrelated to WinRM, general networking (use network troubleshooting).
+  Debug WinRM connectivity failures on Windows servers, including AutomatedLab VMs. Covers service state recovery (StopPending, hung, won't start), listener configuration, HTTP.sys/IIS conflicts, authentication (Kerberos, NTLM, CredSSP), HTTPS certificates, firewall rules, TrustedHosts, MaxEnvelopeSize, double-hop delegation, and PowerShell Direct as a fallback. USE FOR: WinRM error, WinRM HTTP 500, WinRM quickconfig fails, WinRM StopPending, WinRM listener missing, WinRM refused/denied/timeout, Enter-PSSession fails, Invoke-Command fails, remoting broken, WSManFault, 0x80338170, 0x80070005, 0x80090322, WinRM firewall, WinRM HTTPS, WinRM CredSSP, WinRM TrustedHosts, WinRM Kerberos, WinRM double-hop, PowerShell Direct, VMBus remoting, Invoke-LabCommand fails, WinRM 5985/5986, HTTP.sys conflict, Test-WSMan fails, Enable-PSRemoting fails, SEC_E_NO_CREDENTIALS. DO NOT USE FOR: SSH remoting, Azure Automation DSC, WMI/CIM unrelated to WinRM, general networking.
 ---
 
 # WinRM Troubleshooting

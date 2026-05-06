@@ -1,21 +1,7 @@
 ---
 name: mecm-dsc-deployment
 description: >-
-  Deploy and troubleshoot Microsoft Endpoint Configuration Manager (MECM/SCCM) via DSC
-  using ConfigMgrCBDsc, CommonTasks, and UpdateServicesDsc modules in DscWorkshop/Datum
-  environments. Covers ADK/WinPE product registration, SCCM 2509 silent install,
-  UpdateServicesDsc bugs, Datum merge strategies for Tiny scenarios, cross-domain SQL
-  access, and AutomatedLab operational patterns.
-  USE FOR: SCCM DSC, MECM DSC, ConfigMgrCBDsc, xSccmInstall, xSccmPreReqs, ADK product ID,
-  ADK GUID mismatch, WinPE product name, SetupWpf.exe, SCCM silent install, SCCM 2509,
-  ConfigurationManagerDeployment, UpdateServicesDsc, WSUS DSC, Products wildcard,
-  Classifications wildcard, DatabaseInstance, SqlServerName, TinyMecmSiteServer,
-  ConfigMgrVersion ValidateSet, SCCM setup return value 1, SetupWpf mutex,
-  UnauthorizedAccessException mutex, cross-domain SQL, Kerberos double-hop SCCM,
-  Install-LabSoftwarePackage SCCM, ADK offline layout, ADK download.
-  DO NOT USE FOR: general DSC troubleshooting (use dsc-troubleshooting), Sampler build
-  issues (use sampler-build-debug), Datum configuration basics (use datum-configuration),
-  AutomatedLab deployment (use automatedlab-deployment).
+  Deploy and troubleshoot Microsoft Endpoint Configuration Manager (MECM/SCCM) via DSC using ConfigMgrCBDsc, CommonTasks, and UpdateServicesDsc in DscWorkshop/Datum environments. Covers ADK/WinPE product registration, SCCM 2509 silent install, UpdateServicesDsc bugs, Datum merge strategies for Tiny scenarios, cross-domain SQL access, and AutomatedLab patterns. USE FOR: SCCM DSC, MECM DSC, ConfigMgrCBDsc, xSccmInstall, xSccmPreReqs, ADK product ID, ADK GUID mismatch, WinPE product name, SetupWpf.exe, SCCM silent install, SCCM 2509, ConfigurationManagerDeployment, UpdateServicesDsc, WSUS DSC, Products/Classifications wildcard, DatabaseInstance, SqlServerName, TinyMecmSiteServer, ConfigMgrVersion ValidateSet, SetupWpf mutex, cross-domain SQL, Kerberos double-hop SCCM, ADK offline layout. DO NOT USE FOR: general DSC troubleshooting, Sampler builds, Datum basics, AutomatedLab.
 ---
 
 # MECM/SCCM DSC Deployment

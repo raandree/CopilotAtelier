@@ -6,6 +6,13 @@ The project is post-1.1.0 release. As of May 6, 2026 the repository contains 10 
 
 ## Recent changes (May 6, 2026)
 
+### Skill descriptions trimmed to satisfy GH Copilot CLI 1024-char limit
+
+- 11 `SKILL.md` files failed to load in `gh copilot` with `description: Skill description must be at most 1024 characters`. The VS Code Copilot extension does not enforce this cap, so the same files loaded fine in the chat surface.
+- Trimmed the folded-scalar `description:` field in `authenticated-web-extraction`, `automatedlab-deployment`, `datum-configuration`, `dsc-troubleshooting`, `german-legal-research`, `marp-slide-overflow`, `mecm-dsc-deployment`, `pdf-to-markdown`, `sampler-framework`, `whisper-pyannote-transcription`, and `winrm-troubleshooting`. Kept summary sentence + USE FOR / DO NOT USE FOR signals; condensed verbose keyword lists; removed redundant qualifiers and parenthetical cross-references. All 23 skill descriptions now ≤ 1024 chars (max 1010, `datum-configuration`).
+- Verified by parsing each YAML frontmatter and folding the `>-` block to a single line: `Get-ChildItem Skills -Directory | ... | Where-Object { $_ -like 'BAD*' }` returned no matches.
+- No body or `name:` changes; junction-based discovery in `Setup-CopilotSettings.ps1` means the workspace `Skills/` tree is the single source of truth for both surfaces, so no resync needed.
+
 ### Setup script: junction-based discovery for both VS Code Copilot and Copilot CLI
 
 - `Setup-CopilotSettings.ps1` no longer writes the four `chat.agentFilesLocations` / `chat.instructionsFilesLocations` / `chat.agentSkillsLocations` / `chat.promptFilesLocations` settings. The four `Merge-LocationSetting` calls were removed; the helper function itself is retained for any future location-style setting.

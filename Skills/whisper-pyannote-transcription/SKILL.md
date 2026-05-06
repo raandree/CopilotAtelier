@@ -1,26 +1,7 @@
 ---
 name: whisper-pyannote-transcription
 description: >-
-  Transcribe long audio/video on Windows with GPU acceleration using
-  faster-whisper (CTranslate2) and add speaker labels with pyannote.audio.
-  Covers ffmpeg audio extraction, Python 3.12 venv isolation, CUDA-matched
-  PyTorch wheel selection, faster-whisper large-v3 inference, pyannote 3.1
-  speaker diarization with Hugging Face gated-model access, and merging
-  speaker turns into Whisper segments to produce speaker-labeled SRT, JSON,
-  and grouped transcript text. Includes the Windows-specific torchcodec
-  bypass (preload waveform via torchaudio) and the Tee-Object exit-code
-  trap.
-  USE FOR: transcribe video, transcribe audio, faster-whisper, whisper GPU,
-  large-v3, ctranslate2, pyannote.audio, speaker diarization, speaker
-  labels, who spoke when, RTTM, SRT subtitles, transcribe MP4, transcribe
-  WAV, German transcription, mixed language transcription, ffmpeg audio
-  extract, 16 kHz mono WAV, Hugging Face gated model, HF_TOKEN, HF 403
-  Forbidden, GatedRepoError, pyannote/speaker-diarization-3.1, RTX 4080
-  transcription, CUDA torch wheel, cu128, Python 3.12 venv, torchcodec
-  Windows, torchcodec libtorchcodec_core, CPU torch fallback bug.
-  DO NOT USE FOR: real-time streaming transcription, dictation UIs, cloud
-  transcription APIs (Azure Speech, AWS Transcribe), audio editing, audio
-  enhancement / denoising, voice cloning, TTS.
+  Transcribe long audio/video on Windows with GPU acceleration using faster-whisper (CTranslate2) and add speaker labels with pyannote.audio. Covers ffmpeg audio extraction, Python 3.12 venv, CUDA-matched PyTorch wheel selection, faster-whisper large-v3 inference, pyannote 3.1 diarization with Hugging Face gated-model access, and merging speaker turns into Whisper segments to produce speaker-labeled SRT, JSON, and grouped transcript text. Includes the Windows torchcodec bypass (preload via torchaudio) and Tee-Object exit-code trap. USE FOR: transcribe video/audio, faster-whisper, whisper GPU, large-v3, ctranslate2, pyannote.audio, speaker diarization, who spoke when, RTTM, SRT, German transcription, ffmpeg audio extract, 16 kHz mono WAV, Hugging Face gated model, HF_TOKEN, GatedRepoError, pyannote/speaker-diarization-3.1, CUDA torch wheel, cu128, torchcodec Windows. DO NOT USE FOR: real-time streaming, dictation UIs, cloud transcription APIs, audio editing/denoising, voice cloning, TTS.
 ---
 
 # Whisper + Pyannote Transcription with Speaker Labels
