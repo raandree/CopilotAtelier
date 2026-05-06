@@ -7,6 +7,10 @@ This project does not currently use versioned releases; tagged releases will fol
 
 ## [Unreleased]
 
+### Fixed
+
+- **Skill descriptions exceeded the GitHub Copilot CLI 1024-char limit.** 11 `SKILL.md` files (`authenticated-web-extraction`, `automatedlab-deployment`, `datum-configuration`, `dsc-troubleshooting`, `german-legal-research`, `marp-slide-overflow`, `mecm-dsc-deployment`, `pdf-to-markdown`, `sampler-framework`, `whisper-pyannote-transcription`, `winrm-troubleshooting`) failed to load in `gh copilot` with `description: Skill description must be at most 1024 characters`. The VS Code Copilot chat extension does not enforce this cap, so the same files loaded there. Trimmed each YAML frontmatter `description:` folded scalar — kept the summary sentence and USE FOR / DO NOT USE FOR signals, condensed verbose keyword lists, removed redundant qualifiers. All 23 skill descriptions now ≤ 1024 chars (max 1010). Author rule going forward: target ≤ 1000 chars on `description:` for CLI compatibility.
+
 ### Changed
 
 - **Pre-flight: probe directly for `.memory-bank/`, do not trust the workspace summary.** [`Instructions/preflight.instructions.md`](Instructions/preflight.instructions.md) and the embedded pre-flight blocks in all 10 agents now explicitly require an active probe (`list_dir`, `file_search`, or `Test-Path .memory-bank`) to detect the Memory Bank. The `<workspace_info>` listing surfaced at session start frequently omits dotfile folders (`.memory-bank`, `.git`, `.vscode`), and treating that summary as authoritative has caused agents to silently skip Memory Bank reads. This codifies the rule against that failure mode.

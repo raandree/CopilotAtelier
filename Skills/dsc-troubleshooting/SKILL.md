@@ -1,25 +1,7 @@
 ---
 name: dsc-troubleshooting
 description: >-
-  Debug and troubleshoot PowerShell DSC (Desired State Configuration) resource failures
-  on target nodes. Covers LCM diagnostics, event log analysis, resource debugging with
-  Wait-Debugger and Enter-PSHostProcess, cache clearing, common exit codes, installer
-  log analysis, patching third-party DSC resources, and remote troubleshooting via
-  AutomatedLab Invoke-LabCommand. Includes Windows Server 2025 specific issues like
-  Start-Process UNC path hangs and class-based resource ForceModuleImport failures.
-  USE FOR: DSC error, DSC resource failed, DSC troubleshooting, debug DSC resource,
-  Wait-Debugger, Enter-PSHostProcess, Debug-Runspace, InBreakpoint, LCM state,
-  Get-DscConfigurationStatus, DSC event log, exit code, 30066, 3010, 17022,
-  ProviderOperationExecutionFailure, Set-TargetResource failed, Test-TargetResource,
-  DSC cache, WmiPrvSE, DebugMode, ForceModuleImport, Enable-DscDebug, xDscDiagnostics,
-  Trace-xDscOperation, Get-xDscOperation, DSC verbose log, setup.exe exit code,
-  MSI installer DSC, PsDscRunAsCredential debug, DSC resource not working,
-  Start-DscConfiguration error, config.xml not found, working directory DSC,
-  Start-Process hang, UseShellExecute, UNC path hang, Windows Server 2025 DSC,
-  class-based DSC resource, SYSTEM profile logs.
-  DO NOT USE FOR: writing new DSC resources from scratch (use DSC resource authoring docs),
-  DSC pull server setup (use pull server docs), Azure Automation DSC (use azure-diagnostics),
-  building Sampler modules (use sampler-build-debug).
+  Debug PowerShell DSC resource failures on target nodes: LCM diagnostics, event log analysis, debugging with Wait-Debugger and Enter-PSHostProcess, cache clearing, exit codes, installer log analysis, patching third-party DSC resources, and remote troubleshooting via AutomatedLab Invoke-LabCommand. Includes Windows Server 2025 issues (Start-Process UNC hangs, class-based ForceModuleImport failures). USE FOR: DSC error, DSC resource failed, debug DSC resource, Wait-Debugger, Enter-PSHostProcess, Debug-Runspace, LCM state, Get-DscConfigurationStatus, DSC event log, exit codes 30066/3010/17022, ProviderOperationExecutionFailure, Set-TargetResource failed, DSC cache, WmiPrvSE, ForceModuleImport, Enable-DscDebug, xDscDiagnostics, MSI installer DSC, PsDscRunAsCredential debug, Start-DscConfiguration error, UNC hang, Windows Server 2025 DSC. DO NOT USE FOR: writing new DSC resources, pull server setup, Azure Automation DSC, Sampler builds.
 ---
 
 # DSC Resource Troubleshooting

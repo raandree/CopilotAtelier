@@ -1,26 +1,7 @@
 ---
 name: pdf-to-markdown
 description: >-
-  Convert PDF files to well-structured Markdown using .NET-native PDF parsing
-  in PowerShell — no external tools (Python, pdftotext, Word COM) required.
-  Decompresses zlib/deflate content streams, decodes hex-encoded text operators
-  (BT/ET, Td, Tj), reconstructs lines by Y-coordinate positioning, and produces
-  clean Markdown with tables and formatting. Handles German-locale PDFs
-  (ISO-8859-1 encoding, umlauts, ß, special chars). Best suited for structured
-  documents like payslips, invoices, reports. Also includes an OCR fallback
-  (Recipe 4) using pymupdf + Tesseract for scanned / image-only PDFs with a
-  two-pass heuristic and Windows installation guide (winget + tessdata_best +
-  user-scope TESSDATA_PREFIX).
-  USE FOR: convert PDF to markdown, PDF to md, extract text from PDF, parse PDF,
-  PDF text extraction, PDF to text, Entgeltabrechnung PDF, payslip PDF, invoice
-  PDF, read PDF in PowerShell, decode PDF hex, PDF content stream, deflate PDF
-  stream, structured PDF extraction, German PDF, Gehaltsabrechnung, scanned
-  PDF, image-only PDF, Microsoft Lens scan, Office Lens, OCR PDF, Tesseract,
-  tesseract deu, tessdata_best, pymupdf OCR, TESSDATA_PREFIX, winget Tesseract,
-  UB-Mannheim.TesseractOCR, OCR German documents, PDF needs OCR, empty PDF
-  text extraction, pdf zu text OCR, Bescheid scannen OCR.
-  DO NOT USE FOR: PDFs with complex vector graphics, PDF form filling, PDF
-  editing, PDF creation.
+  Convert PDF files to well-structured Markdown using .NET-native PDF parsing in PowerShell — no external tools (Python, pdftotext, Word COM) required. Decompresses zlib/deflate content streams, decodes hex-encoded text operators (BT/ET, Td, Tj), reconstructs lines by Y-coordinate, and produces Markdown with tables. Handles German-locale PDFs (ISO-8859-1, umlauts, ß). Best for structured documents like payslips, invoices, reports. Includes an OCR fallback (Recipe 4) using pymupdf + Tesseract for scanned PDFs with Windows install guide (winget + tessdata_best + TESSDATA_PREFIX). USE FOR: convert PDF to markdown, extract text from PDF, parse PDF, Entgeltabrechnung PDF, payslip/invoice PDF, German PDF, Gehaltsabrechnung, scanned PDF, image-only PDF, OCR PDF, Tesseract, tesseract deu, tessdata_best, pymupdf OCR, TESSDATA_PREFIX, UB-Mannheim.TesseractOCR, empty PDF text extraction, Bescheid scannen OCR. DO NOT USE FOR: complex vector graphics, PDF form filling, PDF editing, PDF creation.
 ---
 
 # PDF to Markdown Conversion

@@ -1,32 +1,7 @@
 ---
 name: datum-configuration
 description: >-
-  Comprehensive reference for the Datum PowerShell DSC configuration data module.
-  Covers hierarchical data composition, Datum.yml configuration, resolution
-  precedence, merge strategies (MostSpecific, hash, deep, UniqueKeyValTuples,
-  DeepTuple), knockout prefix, lookup_options, DatumStructure, store providers,
-  Datum handlers (InvokeCommand, ProtectedData), RSOP computation, Roles and
-  Configurations pattern, variable substitution in paths, and the DscWorkshop
-  reference implementation. Includes ProjectDagger-specific patterns: 15-layer
-  hierarchy, Scenario-based overrides (Tiny/Normal/Extended), ServiceTag-scoped
-  roles, TinyAdditionalRole mechanism, cross-domain references, and conditional
-  resolution precedence entries.
-  USE FOR: Datum, Datum.yml, ResolutionPrecedence, lookup_options, merge strategy,
-  MostSpecific, deep merge, hash merge, UniqueKeyValTuples, DeepTuple, tuple_keys,
-  knockout prefix, RSOP, Resultant Set of Policy, Get-DatumRsop, Resolve-NodeProperty,
-  Lookup, New-DatumStructure, DatumHandlers, InvokeCommand, ProtectedData, encrypted
-  credentials, Protect-Datum, DSC configuration data, hierarchical data, Roles pattern,
-  Configurations key, DscWorkshop, DscConfig.Demo, CommonTasks, Sampler.DscPipeline,
-  Scenario override, Tiny override, ServiceTag role, TinyAdditionalRole, data layers,
-  node data, role data, baseline data, environment data, location data, cross-datum
-  reference, conditional precedence, composite resource, DSC composite, WindowsFeatures,
-  ComputerSettings, NetworkIpConfiguration, FilesAndFolders, SoftwarePackages,
-  ScomComponents, SqlServer, SharePointProvisioning, RenameNetworkAdapters, DscTagging,
-  Get-DscSplattedResource, RootConfiguration, build pipeline, MOF compilation,
-  GPO to DSC migration, DSC pull server, release pipeline model.
-  DO NOT USE FOR: Sampler build framework (use sampler-framework), debugging Sampler
-  builds (use sampler-build-debug), AutomatedLab deployments (use automatedlab-deployment),
-  general Pester testing (use pester-patterns), DSC resource development.
+  Reference for the Datum PowerShell DSC configuration data module: hierarchical data composition, Datum.yml, resolution precedence, merge strategies (MostSpecific, hash, deep, UniqueKeyValTuples, DeepTuple), knockout prefix, lookup_options, DatumStructure, store providers, Datum handlers (InvokeCommand, ProtectedData), RSOP, Roles/Configurations pattern, and the DscWorkshop reference. Includes ProjectDagger patterns: 15-layer hierarchy, Scenario overrides (Tiny/Normal/Extended), ServiceTag-scoped roles, TinyAdditionalRole, cross-domain refs, conditional precedence. USE FOR: Datum, Datum.yml, ResolutionPrecedence, lookup_options, merge strategy, MostSpecific, deep/hash merge, UniqueKeyValTuples, DeepTuple, knockout prefix, RSOP, Get-DatumRsop, Resolve-NodeProperty, Lookup, New-DatumStructure, DatumHandlers, Protect-Datum, DSC config data, Roles pattern, DscWorkshop, Sampler.DscPipeline, Scenario/Tiny override, ServiceTag role. DO NOT USE FOR: Sampler build framework, build debugging, AutomatedLab.
 ---
 
 # Datum — Hierarchical DSC Configuration Data
