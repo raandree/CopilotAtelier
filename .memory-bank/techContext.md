@@ -14,19 +14,16 @@
 
 ### File location settings
 
-```jsonc
-// Local copies, always registered
-"chat.agentFilesLocations":        { "~/CopilotAtelier/Agents": true }
-"chat.instructionsFilesLocations": { "~/CopilotAtelier/Instructions": true }
-"chat.agentSkillsLocations":       { "~/CopilotAtelier/Skills": true }
-"chat.promptFilesLocations":       { "~/CopilotAtelier/Prompts": true }
+The setup script does **not** write `chat.agentFilesLocations`, `chat.instructionsFilesLocations`, `chat.agentSkillsLocations`, or `chat.promptFilesLocations`. Instead, after copying customization files to the canonical target (`~/OneDrive/CopilotAtelier/` when OneDrive is installed, otherwise `~/CopilotAtelier/`), it creates NTFS junctions under `%USERPROFILE%\.copilot\` so both the VS Code Copilot chat extension and the GitHub Copilot CLI discover the same tree via the well-known path:
 
-// OneDrive mirror, registered additionally when OneDrive is detected
-"chat.agentFilesLocations":        { "~/OneDrive/CopilotAtelier/Agents": true }
-"chat.instructionsFilesLocations": { "~/OneDrive/CopilotAtelier/Instructions": true }
-"chat.agentSkillsLocations":       { "~/OneDrive/CopilotAtelier/Skills": true }
-"chat.promptFilesLocations":       { "~/OneDrive/CopilotAtelier/Prompts": true }
+```text
+%USERPROFILE%\.copilot\agents       -> <target>\Agents
+%USERPROFILE%\.copilot\instructions -> <target>\Instructions
+%USERPROFILE%\.copilot\skills       -> <target>\Skills
+%USERPROFILE%\.copilot\prompts      -> <target>\Prompts
 ```
+
+Existing junctions are recreated on every run. Pre-existing real folders at the link paths are removed silently when empty; when non-empty the script prompts the user, and on consent merges their contents into the target (without overwriting newer files there) before removing the folder and creating the junction.
 
 ### Feature flags
 

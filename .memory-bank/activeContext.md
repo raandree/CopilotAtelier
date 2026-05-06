@@ -2,7 +2,20 @@
 
 ## Current work focus
 
-The project is post-1.1.0 release. As of May 5, 2026 the repository contains 10 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 23 skills, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+The project is post-1.1.0 release. As of May 6, 2026 the repository contains 10 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 23 skills, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (May 6, 2026)
+
+### Setup script: junction-based discovery for both VS Code Copilot and Copilot CLI
+
+- `Setup-CopilotSettings.ps1` no longer writes the four `chat.agentFilesLocations` / `chat.instructionsFilesLocations` / `chat.agentSkillsLocations` / `chat.promptFilesLocations` settings. The four `Merge-LocationSetting` calls were removed; the helper function itself is retained for any future location-style setting.
+- After the existing copy step (which still copies repo contents into the OneDrive target when present, otherwise into `~/<repoName>`), the script now creates NTFS junctions under `%USERPROFILE%\.copilot\` so both the VS Code Copilot chat extension and the GitHub Copilot CLI discover the same tree via the well-known `~/.copilot` path:
+  - `~/.copilot/agents`       → `<target>/Agents`
+  - `~/.copilot/instructions` → `<target>/Instructions`
+  - `~/.copilot/skills`       → `<target>/Skills`
+  - `~/.copilot/prompts`      → `<target>/Prompts`
+- For each link path: existing junctions/symlinks are deleted and recreated so they always point at the current target. Real (non-link) directories are removed silently when empty. When a real directory is non-empty, the script prompts `[y/N]`; on `y` it copies the directory's contents into the target without overwriting newer files there, then removes the directory and creates the junction; on `n` the junction is skipped with a warning.
+- README "Purpose", "File Locations", and the setup-walkthrough paragraph rewritten to describe junction-based discovery and dual GHCP chat + CLI support. `techContext.md` and `productContext.md` updated to match. `systemPatterns.md` Decision 3 carries a May 6 note that `Merge-LocationSetting` is no longer called for the `chat.*FilesLocations` keys. `[Unreleased]` block in `CHANGELOG.md` has a new `### Changed` entry.
 
 ## Recent changes (May 5, 2026)
 

@@ -2,11 +2,13 @@
 
 ## Purpose
 
-VS Code's GitHub Copilot supports custom agents, instructions, skills, and prompt files — but by default these are stored locally in your VS Code profile or workspace. This means they don't follow you across machines.
+VS Code's GitHub Copilot — and the GitHub Copilot CLI — both look for custom agents, instructions, skills, and prompt files under `%USERPROFILE%\.copilot\{agents,instructions,skills,prompts}`. By default these stay local to a single machine and never sync.
 
-CopilotAtelier solves that by redirecting all four Copilot customization locations to a single, repo-derived folder. When OneDrive is available the script targets the OneDrive-synced folder (`~/OneDrive/CopilotAtelier/`) so changes propagate automatically to every signed-in machine; otherwise it falls back to a plain user-profile folder (`~/CopilotAtelier/`). Either way you get one source of truth — write an agent once, use it everywhere.
+CopilotAtelier solves that by storing the canonical files in a single, repo-derived folder (preferring OneDrive for cross-machine sync) and then linking the well-known `~/.copilot/*` discovery folders to that target with NTFS junctions. Write an agent once, use it from both the VS Code Copilot chat extension and the Copilot CLI, on every machine.
 
-Only one location is populated per machine (no duplicate mirror), so there is no risk of drift between two copies. If a previous version of the script left a stale local mirror behind, the new run cleans it up automatically when OneDrive is present.
+No `chat.*FilesLocations` settings are written: discovery is unified through the junctions, which keeps the chat extension and the CLI in lock-step automatically.
+
+Only one canonical location is populated per machine (no duplicate mirror). If a previous version of the script left a stale local mirror behind, the new run cleans it up automatically when OneDrive is present.
 
 ## Folder Structure
 
@@ -68,21 +70,23 @@ The setup script configures the following in `settings.json`:
 
 ### File Locations
 
-Exactly one set of locations is registered per machine: the OneDrive paths when OneDrive is detected, otherwise the local-profile paths. Existing entries from previous runs are preserved (`Merge-LocationSetting`), so user-added paths are never removed.
+No `chat.*FilesLocations` keys are written. Instead, the script copies the four customization folders to a single canonical target and creates NTFS junctions under `%USERPROFILE%\.copilot\` so both the VS Code Copilot chat extension and the GitHub Copilot CLI discover the same files:
 
-```jsonc
-// When OneDrive is detected (preferred)
-"chat.agentFilesLocations":        { "~/OneDrive/CopilotAtelier/Agents": true }
-"chat.instructionsFilesLocations": { "~/OneDrive/CopilotAtelier/Instructions": true }
-"chat.agentSkillsLocations":       { "~/OneDrive/CopilotAtelier/Skills": true }
-"chat.promptFilesLocations":       { "~/OneDrive/CopilotAtelier/Prompts": true }
-
-// Fallback when OneDrive is not installed
-"chat.agentFilesLocations":        { "~/CopilotAtelier/Agents": true }
-"chat.instructionsFilesLocations": { "~/CopilotAtelier/Instructions": true }
-"chat.agentSkillsLocations":       { "~/CopilotAtelier/Skills": true }
-"chat.promptFilesLocations":       { "~/CopilotAtelier/Prompts": true }
+```text
+%USERPROFILE%\.copilot\agents       --> <target>\Agents
+%USERPROFILE%\.copilot\instructions --> <target>\Instructions
+%USERPROFILE%\.copilot\skills       --> <target>\Skills
+%USERPROFILE%\.copilot\prompts      --> <target>\Prompts
 ```
+
+Where `<target>` is `%USERPROFILE%\OneDrive\CopilotAtelier` when OneDrive is installed, otherwise `%USERPROFILE%\CopilotAtelier`.
+
+If one of the `~/.copilot\<name>` folders already exists as a real directory:
+
+- Empty → removed silently and replaced with the junction.
+- Non-empty → the script prompts before deleting. On `y`, its contents are merged into the target (existing target files are not overwritten) and then the directory is removed and replaced with the junction. On `n`, the junction is skipped and a warning is printed.
+
+Existing junctions are recreated on every run so they always point at the current target.
 
 ### Feature Flags
 
@@ -128,7 +132,7 @@ The setup script merges the bindings in [`Keybindings/keybindings.json`](Keybind
 & "$env:USERPROFILE\OneDrive\CopilotAtelier\Setup-CopilotSettings.ps1"
 ```
 
-The script copies the contents of the clone into `~/OneDrive/CopilotAtelier/` when OneDrive is detected, or into `~/CopilotAtelier/` otherwise, and patches your VS Code `settings.json` and `keybindings.json` idempotently with timestamped backups. If a stale `~/CopilotAtelier/` mirror exists from a previous dual-copy run, the script removes it when OneDrive is now used.
+The script copies the contents of the clone into `~/OneDrive/CopilotAtelier/` when OneDrive is detected, or into `~/CopilotAtelier/` otherwise, then creates NTFS junctions at `~/.copilot/{agents,instructions,skills,prompts}` pointing to that target so both the VS Code Copilot chat extension and the GitHub Copilot CLI pick up the same files. It also patches your VS Code `settings.json` and `keybindings.json` idempotently with timestamped backups. If a stale `~/CopilotAtelier/` mirror exists from a previous dual-copy run, the script removes it when OneDrive is now used. If a pre-existing non-empty folder is found at any of the `~/.copilot/*` link paths, the script asks before deleting it (and copies its contents into the target first).
 
 3. Restart VS Code.
 
