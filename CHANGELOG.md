@@ -7,6 +7,10 @@ This project does not currently use versioned releases; tagged releases will fol
 
 ## [Unreleased]
 
+### Changed
+
+- **Setup script now uses NTFS junctions under `~/.copilot/` instead of `chat.*FilesLocations` settings.** `Setup-CopilotSettings.ps1` no longer writes `chat.agentFilesLocations`, `chat.instructionsFilesLocations`, `chat.agentSkillsLocations`, or `chat.promptFilesLocations`. After copying the four customization folders to the canonical target (`~/OneDrive/CopilotAtelier/` when OneDrive is installed, otherwise `~/CopilotAtelier/`), the script creates junctions `~/.copilot/agents`, `~/.copilot/instructions`, `~/.copilot/skills`, and `~/.copilot/prompts` pointing to the matching target subfolders. This unifies discovery for both the VS Code Copilot chat extension and the GitHub Copilot CLI through a single well-known path. Existing junctions are recreated to track the current target. Pre-existing real folders at the link paths are removed silently if empty; if non-empty the script prompts the user, and on consent merges the contents into the target (without overwriting newer files there) before removing the folder and creating the junction. README updated accordingly.
+
 ### Added
 
 - **New instruction: `preflight`** — [`Instructions/preflight.instructions.md`](Instructions/preflight.instructions.md). Workspace-wide (`applyTo: "**"`) pre-flight compliance hook that auto-loads on every chat turn and forces Memory Bank reads, instruction/skill discovery, `promptHistory.md` append, and a UTC-timestamped PRE-FLIGHT acknowledgment before the first tool call. Acts as the de facto pre-prompt hook for the default (non-agent) chat mode and as a backstop for all agent modes.
