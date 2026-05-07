@@ -2,7 +2,17 @@
 
 ## Current work focus
 
-The project is post-1.1.0 release. As of May 6, 2026 the repository contains 10 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 23 skills, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+The project is post-1.1.0 release. As of May 7, 2026 the repository contains 10 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 23 skills, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (May 7, 2026)
+
+### Pre-flight: probe is now a separate numbered step; acknowledgment must report it
+
+- The earlier May 6 attempt at this rule kept the probe as a sub-bullet of "Read the Memory Bank" framed as advisory. In practice agents still skipped the probe and announced "no Memory Bank" based on the `<workspace_info>` workspace listing alone (which omits dotfile folders such as `.memory-bank`, `.git`, `.vscode`, `.github`). The failure recurred in this workspace despite the prior sub-bullet warning, which is the trigger for this stronger fix.
+- [`Instructions/preflight.instructions.md`](../Instructions/preflight.instructions.md) restructured into 7 numbered steps: **(1) probe** (`list_dir` on workspace root, or `file_search` for `.memory-bank/**`, or `Test-Path .memory-bank`) — the workspace summary is explicitly labelled **not authoritative** for hidden folders, and concluding "no Memory Bank" without a probe is a process violation; **(2) read** the Memory Bank if the probe finds it; **(3) match instructions**; **(4) match skills**; **(5) append `promptHistory.md`**; **(6) UTC timestamp**; **(7) acknowledgment** — must name the probe and its result, what was read (or "no Memory Bank"), which instructions matched, and which skills matched.
+- Same structural fix applied to the embedded pre-flight block in all 10 agents (`career-coach`, `DevOps Training Writer`, `legal-researcher`, `QC Inspector`, `Security & Quality Assurance`, `Software Engineer`, `tax-researcher`, `Technical Troubleshooter`, `Technical Writer & Documentation`, `Training Content Writer`). Each agent's pre-flight is renumbered from 5 to 6 steps with the probe as step 1; step 6 (acknowledgment) is reworded to require naming the probe result alongside the matched instructions / skills.
+- `[Unreleased]` block in `CHANGELOG.md` updated: replaced the earlier May 6 "probe directly" entry under `### Changed` with the stronger structural-fix entry (supersedes the prior wording).
+- The change is content-only on instruction / agent files; no script changes. To propagate to the user-level `~/.copilot/instructions` junction target, the user must re-run `Setup-CopilotSettings.ps1` so the canonical target folder receives the updated content.
 
 ## Recent changes (May 6, 2026)
 
