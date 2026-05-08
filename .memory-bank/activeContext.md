@@ -4,13 +4,29 @@
 
 The project is post-1.1.0 release. As of May 7, 2026 the repository contains 10 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 23 skills, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
 
+## Recent changes (May 8, 2026)
+
+### All 10 agent `tools:` arrays normalized and expanded
+
+- Three classes of pre-existing breakage were resolved: (1) `legal-researcher` used 25 invalid namespaced IDs (`execute/runNotebookCell`, `com.microsoft/azure/search`, `todo`, ...) that did not resolve; (2) `career-coach` and `tax-researcher` used look-alike names (`readFile`, `findFiles`, `grep`, `semanticSearch`, `runInTerminal`) that the resolver silently dropped; (3) `qc-inspector` shipped with only 4 tools and could not edit files or run anything. Every bare name was then migrated to the fully-qualified form introduced in VS Code 1.105 (`changes` → `search/changes`, `editFiles` → `edit/editFiles`, `fetch` → `web/fetch`, `vscodeAPI` → `vscode/vscodeAPI`, `problems` → `read/problems`, `terminalLastCommand` → `read/terminalLastCommand`, `runCommands` → `execute/runInTerminal`, `runTasks` → `execute/createAndRunTask`, `new` → `vscode/newWorkspace`).
+- Universal additions across all 10 agents: `read/readFile`, `search/fileSearch`, `search/listDirectory`, `search/textSearch`, `read/viewImage`, `vscode/askQuestions`, `todo`, `execute/getTerminalOutput`. Engineering preset adds `web/githubTextSearch`, `vscode/runCommand`, `vscode/installExtension`, and (sw-eng + troubleshooter) `vscode/getProjectSetupInfo`. Software-engineer also gets the Jupyter set (`edit/editNotebook`, `execute/runNotebookCell`, `read/getNotebookSummary`, `read/readNotebookCellOutput`). The `agent` tool was added to the 5 files that declare an `agents:` list (lint requirement).
+- Discovery method: the canonical names came from the Copilot extension's `package.json` `languageModelToolSets` (which defines the `search/`, `edit/`, `web/`, `vscode/`, `read/`, `agent/`, `execute/` namespaces) plus the `legacyToolReferenceFullNames:["runCommands/X"]` aliases in `workbench.desktop.main.js` (which gave `runCommands/terminalLastCommand` → `read/terminalLastCommand`, `runCommands/runInTerminal` → `execute/runInTerminal`, `runTasks/createAndRunTask` → `execute/createAndRunTask`). Tools registered programmatically without a containing toolset (`runTests`, `search`, `agent`, `github`, `thinking`, `useMcp`, `codeInterpreter`, `openSimpleBrowser`) remain bare — they have no rename in the registry and the bare form continues to resolve.
+- Verified by `get_errors` on every `.agent.md`: zero diagnostics.
+
 ## Recent changes (May 7, 2026)
+
+### Setup script: re-add `chat.promptFilesLocations` for the prompts junction
+
+- The May 6 cleanup removed all four `chat.*FilesLocations` writers and switched to junction-based discovery under `~/.copilot/`. That works for agents, instructions, and skills (the VS Code Copilot chat extension natively auto-discovers `~/.copilot/{agents,instructions,skills}` as well-known paths) but **not** for prompts: the chat extension only reads prompt files from `%APPDATA%\Code\User\prompts` and from any path listed in the `chat.promptFilesLocations` setting. The CLI is the only surface that auto-discovers `~/.copilot/prompts`. With the May 6 change in place, repo prompts under the junction were invisible to GH Copilot Chat in VS Code.
+- `Setup-CopilotSettings.ps1` now writes a single `chat.promptFilesLocations` entry pointing at `${userHome}/.copilot/prompts` via the existing `Merge-LocationSetting` helper (merge, do not overwrite — user-added prompt locations are preserved). The other three `chat.*FilesLocations` keys remain unwritten because junction discovery covers them. Header comment block before the OneDrive log line was rewritten to call out the asymmetry explicitly.
+- Verified by AST-parsing the script: `[Parser]::ParseFile()` returns no errors. `${userHome}` is a VS Code variable substitution (resolves to `%USERPROFILE%`), so the same settings.json value works on every Windows machine.
 
 ### Setup script: persist `COPILOT_ALLOW_ALL=1` for the GitHub Copilot CLI
 
 - Without `COPILOT_ALLOW_ALL=1` the `gh copilot` CLI blocks on per-tool confirmation prompts and the custom agents/skills shipped from this repo cannot run non-interactively. Adding the flag is now part of bootstrap rather than a manual post-setup step the user has to remember.
 - [`Setup-CopilotSettings.ps1`](../Setup-CopilotSettings.ps1) now sets `COPILOT_ALLOW_ALL=1` at User scope via `[Environment]::SetEnvironmentVariable($name, '1', 'User')` and mirrors it into the current `Process` scope so the value is visible without opening a new shell. The block is idempotent — it reads the existing User-scope value first and logs a no-op message when it already equals `1`. Placed immediately after the `~/.copilot/{agents,instructions,skills,prompts}` junction creation so all CLI-discovery wiring sits together.
 - `[Unreleased]` block in [`CHANGELOG.md`](../CHANGELOG.md) gets a new `### Added` entry at the top of that section.
+
 ### Pre-flight: probe is now a separate numbered step; acknowledgment must report it
 
 - The earlier May 6 attempt at this rule kept the probe as a sub-bullet of "Read the Memory Bank" framed as advisory. In practice agents still skipped the probe and announced "no Memory Bank" based on the `<workspace_info>` workspace listing alone (which omits dotfile folders such as `.memory-bank`, `.git`, `.vscode`, `.github`). The failure recurred in this workspace despite the prior sub-bullet warning, which is the trigger for this stronger fix.

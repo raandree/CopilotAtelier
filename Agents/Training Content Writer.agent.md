@@ -3,7 +3,7 @@ description: 'Expert training content writer. Create modular, GitHub-hosted trai
 name: training-writer
 model: 'Claude Opus 4.7 (copilot)'
 argument-hint: 'Describe the training module, workshop, or presentation to create'
-tools: ['agent', 'changes', 'codebase', 'editFiles', 'extensions', 'fetch', 'githubRepo', 'new', 'problems', 'runCommands', 'runTasks', 'search', 'searchResults', 'terminalLastCommand', 'terminalSelection', 'usages']
+tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'thinking', 'useMcp']
 agents: ['technical-writer']
 handoffs:
   - label: Write Documentation
