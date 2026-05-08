@@ -112,9 +112,12 @@ if ($oneDriveCandidates.Count -gt 1) {
 # --- File location strategy ---
 # Prefer OneDrive when available so a single synced copy serves every machine.
 # Fall back to ~/<repoName> only when OneDrive is not installed. Discovery for
-# both the VS Code Copilot chat extension and the GitHub Copilot CLI is wired
-# up later via NTFS junctions under $env:USERPROFILE\.copilot, so no
-# chat.*FilesLocations settings are written.
+# agents, instructions, and skills is wired up later via NTFS junctions under
+# $env:USERPROFILE\.copilot, which the VS Code Copilot chat extension and the
+# GitHub Copilot CLI both auto-discover. Prompts are the exception: VS Code
+# Copilot Chat reads them from %APPDATA%\Code\User\prompts plus any path in
+# `chat.promptFilesLocations`, and does NOT auto-discover ~/.copilot/prompts
+# (only the CLI does), so that single setting is still written below.
 if ($oneDriveRoot) {
     Write-Host "OneDrive detected at: $oneDriveRoot - target tree will live there."
 } else {
@@ -139,6 +142,16 @@ $settings | Add-Member -NotePropertyName 'github.copilot.chat.search.semanticTex
 
 # --- Copilot request limits ---
 $settings | Add-Member -NotePropertyName 'github.copilot.chat.agent.maxRequests' -NotePropertyValue 500 -Force
+
+# --- Prompt-file discovery for VS Code Copilot Chat ---
+# Unlike agents/instructions/skills, the chat extension does not auto-discover
+# ~/.copilot/prompts as a well-known path - it only reads from the per-profile
+# %APPDATA%\Code\User\prompts folder plus paths listed in this setting.
+# Pointing it at the same junction the CLI uses keeps both surfaces in sync.
+# Merge (do not overwrite) so any user-added prompt locations are preserved.
+Merge-LocationSetting -Settings $settings -PropertyName 'chat.promptFilesLocations' -NewEntries @{
+    '${userHome}/.copilot/prompts' = $true
+}
 
 # Write back
 $settings | ConvertTo-Json -Depth 10 | Set-Content $settingsPath -Encoding UTF8

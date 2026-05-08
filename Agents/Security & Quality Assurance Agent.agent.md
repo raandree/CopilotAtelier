@@ -3,7 +3,7 @@ description: 'Expert-level Security & Quality Assurance agent. Validate producti
 name: security-reviewer
 model: 'Claude Opus 4.7 (copilot)'
 argument-hint: 'Specify code, files, or scope to audit'
-tools: ['changes', 'codebase', 'fetch', 'findTestFiles', 'githubRepo', 'openSimpleBrowser', 'problems', 'runCommands', 'runTasks', 'runTests', 'search', 'searchResults', 'terminalLastCommand', 'terminalSelection', 'testFailure', 'usages', 'vscodeAPI', 'github']
+tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/testFailure', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/vscodeAPI', 'vscode/runCommand', 'vscode/installExtension', 'vscode/askQuestions', 'todo', 'runTests', 'search', 'openSimpleBrowser', 'github', 'thinking', 'useMcp', 'codeInterpreter']
 agents: []
 handoffs:
   - label: Fix Issues Found
