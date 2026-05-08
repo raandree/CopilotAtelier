@@ -2,7 +2,15 @@
 
 ## Current work focus
 
-The project is post-1.1.0 release. As of May 6, 2026 the repository contains 10 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 23 skills, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+The project is post-1.1.0 release. As of May 7, 2026 the repository contains 10 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 23 skills, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (May 7, 2026)
+
+### Setup script: re-add `chat.promptFilesLocations` for the prompts junction
+
+- The May 6 cleanup removed all four `chat.*FilesLocations` writers and switched to junction-based discovery under `~/.copilot/`. That works for agents, instructions, and skills (the VS Code Copilot chat extension natively auto-discovers `~/.copilot/{agents,instructions,skills}` as well-known paths) but **not** for prompts: the chat extension only reads prompt files from `%APPDATA%\Code\User\prompts` and from any path listed in the `chat.promptFilesLocations` setting. The CLI is the only surface that auto-discovers `~/.copilot/prompts`. With the May 6 change in place, repo prompts under the junction were invisible to GH Copilot Chat in VS Code.
+- `Setup-CopilotSettings.ps1` now writes a single `chat.promptFilesLocations` entry pointing at `${userHome}/.copilot/prompts` via the existing `Merge-LocationSetting` helper (merge, do not overwrite — user-added prompt locations are preserved). The other three `chat.*FilesLocations` keys remain unwritten because junction discovery covers them. Header comment block before the OneDrive log line was rewritten to call out the asymmetry explicitly.
+- Verified by AST-parsing the script: `[Parser]::ParseFile()` returns no errors. `${userHome}` is a VS Code variable substitution (resolves to `%USERPROFILE%`), so the same settings.json value works on every Windows machine.
 
 ## Recent changes (May 6, 2026)
 
