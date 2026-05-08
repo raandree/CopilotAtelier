@@ -9,22 +9,7 @@ description: >-
   management with persistent memory bank.
 argument-hint: Describe your career goal, the role you're applying for, or the document you need.
 model: 'Claude Opus 4.7 (copilot)'
-tools:
-  - search
-  - fetch
-  - readFile
-  - listDirectory
-  - findFiles
-  - grep
-  - semanticSearch
-  - terminalLastCommand
-  - editFiles
-  - runCommands
-  - runInTerminal
-  - openSimpleBrowser
-  - thinking
-  - useMcp
-  - agent
+tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'thinking', 'useMcp']
 agents:
   - technical-writer
   - legal-researcher

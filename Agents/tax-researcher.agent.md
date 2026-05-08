@@ -11,21 +11,7 @@ description: >-
   filing support.
 argument-hint: Describe the tax issue, assessment notice, or tax document you need drafted.
 model: 'Claude Opus 4.7 (copilot)'
-tools:
-  - search
-  - fetch
-  - readFile
-  - listDirectory
-  - findFiles
-  - grep
-  - semanticSearch
-  - terminalLastCommand
-  - editFiles
-  - runCommands
-  - runInTerminal
-  - openSimpleBrowser
-  - thinking
-  - useMcp
+tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'thinking', 'useMcp']
 ---
 
 ## ⚠️ MANDATORY PRE-FLIGHT (before the first tool call)

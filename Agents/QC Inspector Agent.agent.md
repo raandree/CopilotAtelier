@@ -3,7 +3,7 @@ description: 'Expert Quality Control Inspector for oil & gas, energy, and indust
 name: qc-inspector
 model: 'Claude Opus 4.7 (copilot)'
 argument-hint: 'Describe the inspection, quality, compliance, or supplier evaluation task'
-tools: ['codebase', 'fetch', 'search', 'thinking']
+tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'thinking', 'useMcp']
 ---
 
 # QC Inspector — Agent Profile

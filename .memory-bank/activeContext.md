@@ -4,6 +4,15 @@
 
 The project is post-1.1.0 release. As of May 7, 2026 the repository contains 10 agents, 13 instruction files, 1 reference doc (Copilot CLI model routing), 23 skills, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
 
+## Recent changes (May 8, 2026)
+
+### All 10 agent `tools:` arrays normalized and expanded
+
+- Three classes of pre-existing breakage were resolved: (1) `legal-researcher` used 25 invalid namespaced IDs (`execute/runNotebookCell`, `com.microsoft/azure/search`, `todo`, ...) that did not resolve; (2) `career-coach` and `tax-researcher` used look-alike names (`readFile`, `findFiles`, `grep`, `semanticSearch`, `runInTerminal`) that the resolver silently dropped; (3) `qc-inspector` shipped with only 4 tools and could not edit files or run anything. Every bare name was then migrated to the fully-qualified form introduced in VS Code 1.105 (`changes` → `search/changes`, `editFiles` → `edit/editFiles`, `fetch` → `web/fetch`, `vscodeAPI` → `vscode/vscodeAPI`, `problems` → `read/problems`, `terminalLastCommand` → `read/terminalLastCommand`, `runCommands` → `execute/runInTerminal`, `runTasks` → `execute/createAndRunTask`, `new` → `vscode/newWorkspace`).
+- Universal additions across all 10 agents: `read/readFile`, `search/fileSearch`, `search/listDirectory`, `search/textSearch`, `read/viewImage`, `vscode/askQuestions`, `todo`, `execute/getTerminalOutput`. Engineering preset adds `web/githubTextSearch`, `vscode/runCommand`, `vscode/installExtension`, and (sw-eng + troubleshooter) `vscode/getProjectSetupInfo`. Software-engineer also gets the Jupyter set (`edit/editNotebook`, `execute/runNotebookCell`, `read/getNotebookSummary`, `read/readNotebookCellOutput`). The `agent` tool was added to the 5 files that declare an `agents:` list (lint requirement).
+- Discovery method: the canonical names came from the Copilot extension's `package.json` `languageModelToolSets` (which defines the `search/`, `edit/`, `web/`, `vscode/`, `read/`, `agent/`, `execute/` namespaces) plus the `legacyToolReferenceFullNames:["runCommands/X"]` aliases in `workbench.desktop.main.js` (which gave `runCommands/terminalLastCommand` → `read/terminalLastCommand`, `runCommands/runInTerminal` → `execute/runInTerminal`, `runTasks/createAndRunTask` → `execute/createAndRunTask`). Tools registered programmatically without a containing toolset (`runTests`, `search`, `agent`, `github`, `thinking`, `useMcp`, `codeInterpreter`, `openSimpleBrowser`) remain bare — they have no rename in the registry and the bare form continues to resolve.
+- Verified by `get_errors` on every `.agent.md`: zero diagnostics.
+
 ## Recent changes (May 7, 2026)
 
 ### Setup script: re-add `chat.promptFilesLocations` for the prompts junction
