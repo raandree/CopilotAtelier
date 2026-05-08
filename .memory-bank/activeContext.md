@@ -6,6 +6,11 @@ The project is post-1.1.0 release. As of May 7, 2026 the repository contains 10 
 
 ## Recent changes (May 7, 2026)
 
+### Setup script: persist `COPILOT_ALLOW_ALL=1` for the GitHub Copilot CLI
+
+- Without `COPILOT_ALLOW_ALL=1` the `gh copilot` CLI blocks on per-tool confirmation prompts and the custom agents/skills shipped from this repo cannot run non-interactively. Adding the flag is now part of bootstrap rather than a manual post-setup step the user has to remember.
+- [`Setup-CopilotSettings.ps1`](../Setup-CopilotSettings.ps1) now sets `COPILOT_ALLOW_ALL=1` at User scope via `[Environment]::SetEnvironmentVariable($name, '1', 'User')` and mirrors it into the current `Process` scope so the value is visible without opening a new shell. The block is idempotent — it reads the existing User-scope value first and logs a no-op message when it already equals `1`. Placed immediately after the `~/.copilot/{agents,instructions,skills,prompts}` junction creation so all CLI-discovery wiring sits together.
+- `[Unreleased]` block in [`CHANGELOG.md`](../CHANGELOG.md) gets a new `### Added` entry at the top of that section.
 ### Pre-flight: probe is now a separate numbered step; acknowledgment must report it
 
 - The earlier May 6 attempt at this rule kept the probe as a sub-bullet of "Read the Memory Bank" framed as advisory. In practice agents still skipped the probe and announced "no Memory Bank" based on the `<workspace_info>` workspace listing alone (which omits dotfile folders such as `.memory-bank`, `.git`, `.vscode`, `.github`). The failure recurred in this workspace despite the prior sub-bullet warning, which is the trigger for this stronger fix.
