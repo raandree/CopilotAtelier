@@ -277,6 +277,24 @@ foreach ($entry in $junctionMap.GetEnumerator()) {
     Write-Host "Junction: $linkPath -> $targetPath"
 }
 
+# --- Set environment variable required by the GitHub Copilot CLI ---
+# `gh copilot` consults COPILOT_ALLOW_ALL=1 to bypass the per-tool confirmation
+# prompts that otherwise block non-interactive use of the custom agents and
+# skills shipped from this repo. Persisted at User scope so every new shell
+# session picks it up automatically; the current process variable is also set
+# so the change is visible without opening a new shell.
+$copilotEnvName  = 'COPILOT_ALLOW_ALL'
+$copilotEnvValue = '1'
+$existingValue   = [Environment]::GetEnvironmentVariable($copilotEnvName, 'User')
+if ($existingValue -eq $copilotEnvValue) {
+    Write-Host "Environment variable already set: $copilotEnvName=$copilotEnvValue (User)"
+} else {
+    [Environment]::SetEnvironmentVariable($copilotEnvName, $copilotEnvValue, 'User')
+    Write-Host "Environment variable set: $copilotEnvName=$copilotEnvValue (User)"
+    Write-Host "  Open a new shell to pick up the change in other sessions."
+}
+[Environment]::SetEnvironmentVariable($copilotEnvName, $copilotEnvValue, 'Process')
+
 # --- Merge keybindings into %APPDATA%\Code\User\keybindings.json ---
 # Idempotent: match on (key, command, when) tuple so re-runs do not duplicate
 # entries and user-added bindings are preserved. Creates a timestamped backup
