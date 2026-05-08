@@ -6,7 +6,7 @@ VS Code's GitHub Copilot — and the GitHub Copilot CLI — both look for custom
 
 CopilotAtelier solves that by storing the canonical files in a single, repo-derived folder (preferring OneDrive for cross-machine sync) and then linking the well-known `~/.copilot/*` discovery folders to that target with NTFS junctions. Write an agent once, use it from both the VS Code Copilot chat extension and the Copilot CLI, on every machine.
 
-No `chat.*FilesLocations` settings are written: discovery is unified through the junctions, which keeps the chat extension and the CLI in lock-step automatically.
+No `chat.*FilesLocations` settings are written for agents, instructions, or skills — those three are auto-discovered by both clients via the junctions. Prompts are the exception: the VS Code chat extension does not auto-discover `~/.copilot/prompts`, so the script writes a single `chat.promptFilesLocations` entry for that one path. The CLI auto-discovers it on its own.
 
 Only one canonical location is populated per machine (no duplicate mirror). If a previous version of the script left a stale local mirror behind, the new run cleans it up automatically when OneDrive is present.
 
@@ -70,7 +70,7 @@ The setup script configures the following in `settings.json`:
 
 ### File Locations
 
-No `chat.*FilesLocations` keys are written. Instead, the script copies the four customization folders to a single canonical target and creates NTFS junctions under `%USERPROFILE%\.copilot\` so both the VS Code Copilot chat extension and the GitHub Copilot CLI discover the same files:
+Discovery is junction-based for agents, instructions, and skills — the script does not write `chat.agentFilesLocations`, `chat.instructionsFilesLocations`, or `chat.agentSkillsLocations` because both the VS Code Copilot chat extension and the GitHub Copilot CLI auto-discover the well-known `~/.copilot/{agents,instructions,skills}` paths. Prompts are the exception: VS Code Copilot Chat reads prompts only from `%APPDATA%\Code\User\prompts` and from paths listed in `chat.promptFilesLocations` (only the CLI auto-discovers `~/.copilot/prompts`), so the script writes a single `chat.promptFilesLocations` entry for `${userHome}/.copilot/prompts` via a merge that preserves any user-added prompt locations. The script copies the four customization folders to a single canonical target and creates NTFS junctions under `%USERPROFILE%\.copilot\` so both clients see the same files:
 
 ```text
 %USERPROFILE%\.copilot\agents       --> <target>\Agents
