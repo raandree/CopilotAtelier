@@ -150,7 +150,7 @@ $settings | Add-Member -NotePropertyName 'github.copilot.chat.agent.maxRequests'
 # Pointing it at the same junction the CLI uses keeps both surfaces in sync.
 # Merge (do not overwrite) so any user-added prompt locations are preserved.
 Merge-LocationSetting -Settings $settings -PropertyName 'chat.promptFilesLocations' -NewEntries @{
-    '${userHome}/.copilot/prompts' = $true
+    '~/.copilot/prompts' = $true
 }
 
 # Write back
