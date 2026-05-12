@@ -1,7 +1,26 @@
 ---
 name: authenticated-web-extraction
 description: >-
-  Extract data from sites that require login (LinkedIn, GitHub, Sessionize, Microsoft 365, X, Meetup) using a persistent Playwright + Microsoft Edge profile. Covers profile setup, interactive sign-in capture, session-cookie re-injection (Chromium drops session-only auth cookies on shutdown), cookie-based auth detection, OAuth callback flags, and a generic task harness pattern. USE FOR: scrape LinkedIn/GitHub/Sessionize, authenticated scraping, persistent browser profile, Playwright Edge msedge channel, headless authenticated extraction, session cookie persistence, OAuth callback cookie, ASP.NET ApplicationCookie, li_at, user_session, login status check, launchPersistentContext, Edge tracking-prevention third-party cookie OAuth, FedCm SSO, profile lock orphan msedge, CV/resume extraction from web. DO NOT USE FOR: posting or mutating accounts, CAPTCHA-heavy targets, scraping at scale, Microsoft Graph API (use microsoft-todo-tasks), Outlook COM (use outlook-* skills).
+  Extract data from sites that require login (LinkedIn, GitHub, Sessionize,
+  Microsoft 365, X, Meetup, etc.) using a persistent Playwright + Microsoft Edge
+  profile. Covers profile setup, interactive sign-in capture, session-cookie
+  re-injection (works around Chromium dropping session-only auth cookies on
+  shutdown), cookie-based auth detection, OAuth callback flags, and a generic
+  task harness pattern. Use this when a user asks for data from an authenticated
+  page and copy/pasting from the browser is too tedious or error-prone.
+  USE FOR: scrape LinkedIn, scrape GitHub, scrape Sessionize, authenticated
+  scraping, persistent browser profile, Playwright Edge profile, Playwright
+  msedge channel, headless authenticated extraction, session cookie persistence,
+  OAuth callback cookie, ASP.NET ApplicationCookie, li_at, user_session,
+  AspNet ApplicationCookie, Sessionize cookie, LinkedIn profile extraction,
+  GitHub profile extraction, sessionize speaker dashboard, login status check,
+  cookie-based auth detection, launchPersistentContext, Edge tracking prevention
+  third-party cookie OAuth, FedCm SSO, profile lock orphan msedge, CV resume
+  data extraction from web.
+  DO NOT USE FOR: posting or mutating user accounts (always extract → propose →
+  user pastes manually), CAPTCHA-heavy targets, scraping at scale (rate limiting
+  not implemented), Microsoft Graph API access (use Graph SDK / device-code flow
+  via microsoft-todo-tasks skill), Outlook COM (use outlook-* skills).
 ---
 
 # Authenticated Web Extraction (CareerAuthBrowser)
