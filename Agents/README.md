@@ -334,6 +334,7 @@ In VS Code with GitHub Copilot:
    - **Tax Research** *(supplementary)*: "tax-researcher"
    - **QC Inspection** *(supplementary)*: "QC Inspector"
    - **Career Coaching** *(supplementary)*: "career-coach"
+   - **Web Research & Investigation** *(supplementary)*: "research-analyst"
 
 ### Example Workflows
 
@@ -556,6 +557,43 @@ training-writer (generic)
 
 ---
 
+### 11. Research Analyst Agent
+
+**Role**: Technical and Scientific Web Research & Investigation  
+**Scope**: Supplementary — research upstream for the SDLC pipeline and the domain-specific agents  
+**File**: `research-analyst.agent.md`
+
+**Responsibilities**:
+
+- Fact-driven web research on technologies, products, scientific claims, vendors, incidents, and standards
+- Source-traced verification with confidence-graded findings (Established / Probable / Contested / Weak / Speculation)
+- Adversarial self-review (active counter-evidence search) before any claim is graded `Established` or `Probable`
+- Persistent investigation files with annotated bibliography and a replication-grade query log
+- Hand-off of research dossiers to `technical-writer` for publication, or of domain questions to `legal-researcher` / `tax-researcher`
+
+**Key Features**:
+
+- Five-phase investigation workflow (SCOPE → SOURCE → VERIFY → SYNTHESIZE → DELIVER) modelled on PRISMA-style systematic-review practice adapted for open-web research
+- Falsifiable research question + explicit inclusion/exclusion criteria + stop condition written **before** searching
+- Strict source hierarchy: standards > primary literature > source code & official docs > regulatory > established secondary > community-curated > vendor marketing > social media (leads only, never citable)
+- Triangulation rule (≥ 3 independent primary sources for any `Established` Tier-1 claim) and lateral-reading discipline (assess sources from outside, not from inside)
+- Per-claim verification recipes for statistical/numeric claims, software-version claims, standards references, CVEs, quotations, images/video, news events, vendor claims, and AI/ML capability claims
+- Anti-hallucination guardrail: citations *generated* by an LLM are treated as unverified hypotheses until the source is fetched and the cited content is confirmed
+- Mandatory archive-snapshot capture (`web.archive.org` / `archive.today`) for every cited URL
+- Persistent memory bank (`investigation-<slug>.md`, `-sources.md`, `-querylog.md`, `-notes.md`) so investigations survive context resets
+- Dossier template with confidence grades, evidence table, divergences and open questions, methodology section, known limits, reference list with archive URLs, and a replication-log link — separated from publication prose
+- Mandatory disclaimer that research alone is not legal, medical, financial, or engineering advice
+
+**When to Use**:
+
+- Verifying a contested technical or scientific claim before relying on it
+- Comparing products, libraries, standards, or vendors with defensible evidence
+- Investigating a security incident, CVE, vendor claim, or regulatory question from open sources
+- Producing a research dossier that a writer (or you) can later turn into an article via `technical-writer`
+- Any task where the failure mode of "plausible-sounding but unsourced" is unacceptable
+
+---
+
 ## Future Agents (Planned)
 
 - **Release Manager Agent**: Deployment orchestration and rollback management
@@ -582,4 +620,4 @@ When creating new agents:
 
 ---
 
-**Remember**: The core agents (Software Engineer, Security & QA, Technical Writer, Technical Troubleshooter) are designed to work together as a cohesive release pipeline. Use them sequentially for best results, with clear handoffs between phases documented in the Memory Bank. The domain-specific agents (Legal Researcher, Tax Researcher, QC Inspector, Training Content Writer, DevOps Training Writer, Career Coach) operate independently for their respective use cases.
+**Remember**: The core agents (Software Engineer, Security & QA, Technical Writer, Technical Troubleshooter) are designed to work together as a cohesive release pipeline. Use them sequentially for best results, with clear handoffs between phases documented in the Memory Bank. The domain-specific agents (Legal Researcher, Tax Researcher, QC Inspector, Training Content Writer, DevOps Training Writer, Career Coach, Research Analyst) operate independently for their respective use cases. The Research Analyst is also a natural upstream for the Technical Writer (research dossier → publication article) and for any engineering decision that needs defensible evidence.
