@@ -1,7 +1,21 @@
 ---
 name: pdf-to-markdown
 description: >-
-  Convert PDF files to well-structured Markdown using .NET-native PDF parsing in PowerShell — no external tools (Python, pdftotext, Word COM) required. Decompresses zlib/deflate content streams, decodes hex-encoded text operators (BT/ET, Td, Tj), reconstructs lines by Y-coordinate, and produces Markdown with tables. Handles German-locale PDFs (ISO-8859-1, umlauts, ß). Best for structured documents like payslips, invoices, reports. Includes an OCR fallback (Recipe 4) using pymupdf + Tesseract for scanned PDFs with Windows install guide (winget + tessdata_best + TESSDATA_PREFIX). USE FOR: convert PDF to markdown, extract text from PDF, parse PDF, Entgeltabrechnung PDF, payslip/invoice PDF, German PDF, Gehaltsabrechnung, scanned PDF, image-only PDF, OCR PDF, Tesseract, tesseract deu, tessdata_best, pymupdf OCR, TESSDATA_PREFIX, UB-Mannheim.TesseractOCR, empty PDF text extraction, Bescheid scannen OCR. DO NOT USE FOR: complex vector graphics, PDF form filling, PDF editing, PDF creation.
+  Read, OCR, create, and manipulate PDF files. Recipe 1: convert PDFs to
+  Markdown via .NET-native parsing in PowerShell. Recipe 4: OCR scanned
+  PDFs with pymupdf + Tesseract `tessdata_best` on Windows. Beyond
+  Extraction: merge, split, rotate, watermark, encrypt, decrypt, create
+  from scratch with reportlab, and fill AcroForm fields via pypdf + qpdf.
+  Handles German-locale PDFs (umlauts, ß) and structured documents
+  (payslips, invoices, Bescheide).
+  USE FOR: convert PDF to markdown, extract text from PDF, parse PDF,
+  Entgeltabrechnung, payslip/invoice PDF, German PDF, Gehaltsabrechnung,
+  scanned PDF, OCR PDF, Tesseract, tesseract deu, pymupdf OCR,
+  TESSDATA_PREFIX, merge PDFs, split PDF, rotate PDF pages, watermark PDF,
+  encrypt PDF, password-protect PDF, decrypt PDF, create PDF from scratch,
+  reportlab PDF, fill PDF form, AcroForm fill, pypdf, qpdf.
+  DO NOT USE FOR: complex vector graphics editing, XFA forms, PDF/A
+  archival conversion, signing PDFs with a hardware token.
 ---
 
 # PDF to Markdown Conversion
@@ -492,3 +506,125 @@ Python); `uv run` sidesteps this entirely.
 For tax/legal documents where a single misread digit (e.g. `7,55` vs. `2,55 €`)
 changes the tax owed, **always use `tessdata_best`** and **spot-check the OCR
 output against the scanned image** for critical amounts.
+
+## Beyond Extraction: Manipulate PDFs (merge / split / rotate / watermark / encrypt / forms)
+
+The extraction recipes above cover reading. When the task is to **produce or modify** a PDF, reach for `pypdf` (pure Python, no native deps) or `qpdf` (CLI, fast, robust). Both install via `winget`/`pip` and work on Windows without administrator rights.
+
+### Install
+
+```powershell
+# Python tooling
+uv pip install pypdf reportlab pdfplumber pypdfium2
+
+# qpdf CLI (alternative for merge/split/encrypt; faster than pypdf for large files)
+winget install --id qpdf.qpdf -e --accept-package-agreements --accept-source-agreements
+```
+
+### Merge
+
+```python
+from pypdf import PdfWriter, PdfReader
+w = PdfWriter()
+for p in ["a.pdf", "b.pdf", "c.pdf"]:
+    for page in PdfReader(p).pages: w.add_page(page)
+with open("merged.pdf", "wb") as f: w.write(f)
+```
+
+or with qpdf: `qpdf --empty --pages a.pdf b.pdf c.pdf -- merged.pdf` (fastest for large inputs).
+
+### Split (one file per page)
+
+```python
+from pypdf import PdfReader, PdfWriter
+r = PdfReader("in.pdf")
+for i, page in enumerate(r.pages, start=1):
+    w = PdfWriter(); w.add_page(page)
+    with open(f"page_{i:03d}.pdf", "wb") as f: w.write(f)
+```
+
+or `qpdf in.pdf --pages . 1-5 -- pages-1-5.pdf` for ranges.
+
+### Rotate
+
+```python
+from pypdf import PdfReader, PdfWriter
+r = PdfReader("in.pdf"); w = PdfWriter()
+for page in r.pages:
+    page.rotate(90)         # multiples of 90 only
+    w.add_page(page)
+with open("rotated.pdf", "wb") as f: w.write(f)
+```
+
+### Watermark (overlay another PDF as a stamp)
+
+```python
+from pypdf import PdfReader, PdfWriter
+stamp = PdfReader("watermark.pdf").pages[0]
+r = PdfReader("in.pdf"); w = PdfWriter()
+for page in r.pages:
+    page.merge_page(stamp)
+    w.add_page(page)
+with open("stamped.pdf", "wb") as f: w.write(f)
+```
+
+For a text watermark, generate `watermark.pdf` first with `reportlab` (one page, transparent fill, large rotated text).
+
+### Encrypt / decrypt
+
+```python
+from pypdf import PdfReader, PdfWriter
+r = PdfReader("in.pdf"); w = PdfWriter()
+for p in r.pages: w.add_page(p)
+w.encrypt(user_password="users-secret", owner_password="owners-secret", algorithm="AES-256")
+with open("locked.pdf", "wb") as f: w.write(f)
+```
+
+Decrypt: `PdfReader("locked.pdf", password="users-secret")`. For removing a known password from many files at once, qpdf is faster: `qpdf --password=users-secret --decrypt locked.pdf out.pdf`.
+
+**Security note.** PDF encryption protects against casual viewers, not motivated attackers. Anyone with the owner password can lift restrictions, and AES-256 PDF keys are derived from the password — weak passwords are brute-forceable. Do not treat PDF encryption as a substitute for transport-layer or at-rest encryption.
+
+### Create a PDF from scratch
+
+```python
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet
+
+doc = SimpleDocTemplate("report.pdf", pagesize=A4)
+styles = getSampleStyleSheet()
+story = [
+    Paragraph("Report Title", styles["Title"]),
+    Spacer(1, 12),
+    Paragraph("Body paragraph here.", styles["Normal"]),
+]
+doc.build(story)
+```
+
+**Gotcha:** reportlab's bundled Helvetica/Times-Roman fonts have no Unicode subscript / superscript glyphs. Use `<sub>` and `<super>` XML tags inside `Paragraph`, not `₂` / `²` characters, or boxes will render in place of the glyphs.
+
+### Fill an existing PDF form (AcroForm)
+
+```python
+from pypdf import PdfReader, PdfWriter
+r = PdfReader("form.pdf"); w = PdfWriter()
+w.append_pages_from_reader(r)
+w.update_page_form_field_values(w.pages[0], {"FirstName": "Ada", "LastName": "Lovelace"})
+# Flatten so the values aren't editable by the recipient:
+w.flatten()
+with open("filled.pdf", "wb") as f: w.write(f)
+```
+
+List field names first with `r.get_fields()` so you know what keys to set. XFA forms (Adobe's older XML-based forms) are not supported by pypdf — convert to AcroForm in Acrobat first, or use Azure AI Document Intelligence to extract values without filling.
+
+### Choosing a tool
+
+| Task | First choice | Why |
+|---|---|---|
+| Merge / split / rotate | `qpdf` CLI | Fastest, no Python startup |
+| Watermark / stamp | `pypdf` | Easier to compose a stamp page in code |
+| Create new PDF | `reportlab` | Mature, scriptable, good typography |
+| Fill AcroForm | `pypdf` | Direct field-value API |
+| Extract text/tables | `pdfplumber` / `pymupdf` | See top of this file |
+| OCR scanned PDF | `pymupdf + tesseract` | See OCR fallback section |
+

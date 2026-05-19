@@ -1,15 +1,19 @@
 ---
 name: docx-to-markdown
 description: >-
-  Convert DOCX (Word) files to Markdown using .NET-native ZIP/XML parsing in
-  PowerShell — no pandoc, Word COM, or Python required. Extracts paragraph
-  text with heading styles, handles both English and German style names.
-  Fallback approach when pandoc is unavailable or broken.
+  Read and edit DOCX (Word) files without Word or pandoc. Recipe 1: convert
+  DOCX to Markdown via .NET-native ZIP/XML parsing in PowerShell (English
+  and German style names). Recipe 2: edit a DOCX in place via OOXML
+  unpack → edit-XML → repack, with tracked changes (`w:ins` / `w:del` with
+  author + date), comments, and accept-all-changes via LibreOffice headless.
   USE FOR: convert docx to markdown, docx to md, extract text from Word,
-  parse docx in PowerShell, read docx without Word, Word document extraction,
-  docx attachment, pandoc unavailable, pandoc broken, docx without pandoc.
-  DO NOT USE FOR: creating DOCX files (use pandoc-docx-export skill),
-  preserving complex formatting, tables, images, or tracked changes.
+  parse docx in PowerShell, read docx without Word, edit docx in place,
+  edit Word file without Word, add tracked changes to docx, redline Word
+  document, add comment to docx programmatically, accept tracked changes,
+  OOXML unpack repack, w:ins, w:del, w:commentReference, docx attachment,
+  pandoc unavailable, pandoc broken, docx without pandoc.
+  DO NOT USE FOR: creating a DOCX from Markdown (use pandoc-docx-export),
+  preserving complex formatting on conversion, images, charts, SmartArt.
 ---
 
 # DOCX to Markdown Conversion (Without Pandoc)
@@ -151,3 +155,84 @@ Do NOT use `New-Object -ComObject Word.Application` for DOCX conversion:
 - Hangs on `Documents.Open()` 
 - Leaves orphaned `WINWORD.EXE` processes
 - Unreliable even in detached processes
+
+## Beyond Reading: Edit a DOCX In Place via OOXML
+
+The markdown-extraction path above is one-way. When you need to **edit an existing DOCX** (insert tracked changes, add comments, fix a few words, accept reviewer changes) without round-tripping through Markdown and losing formatting, use the unpack → edit XML → repack pattern.
+
+A `.docx` is a ZIP archive of XML; `Compress-Archive` / `Expand-Archive` are sufficient on Windows.
+
+### Unpack → edit → repack (PowerShell)
+
+```powershell
+function Edit-Docx {
+    param([string]$InPath, [string]$OutPath, [scriptblock]$EditScript)
+
+    $tmp = Join-Path $env:TEMP "docx-$([guid]::NewGuid().ToString('N'))"
+    Copy-Item $InPath "$tmp.zip"
+    Expand-Archive -Path "$tmp.zip" -DestinationPath $tmp -Force
+    Remove-Item "$tmp.zip"
+
+    # $EditScript receives the unpack directory; it edits XML in place.
+    & $EditScript $tmp
+
+    # Repack. `[System.IO.Compression.ZipFile]` lets us control the inner path
+    # layout exactly; Compress-Archive prepends an extra folder level that Word rejects.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    if (Test-Path $OutPath) { Remove-Item $OutPath }
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($tmp, $OutPath)
+    Remove-Item -Recurse -Force $tmp
+}
+```
+
+The edit happens against `<unpack>/word/document.xml`. Element names are namespaced (`w:` for the main WordprocessingML namespace). Use `Select-Xml` with a namespace manager or string-replace for surgical changes.
+
+### Tracked changes
+
+Insertions and deletions are explicit XML elements wrapping the affected `<w:r>` (run). Replace `30 days` with `60 days` as a tracked edit:
+
+```xml
+<w:r><w:t>The term is </w:t></w:r>
+<w:del w:id="1" w:author="AI Assistant" w:date="2026-05-19T00:00:00Z">
+  <w:r><w:delText>30</w:delText></w:r>
+</w:del>
+<w:ins w:id="2" w:author="AI Assistant" w:date="2026-05-19T00:00:00Z">
+  <w:r><w:t>60</w:t></w:r>
+</w:ins>
+<w:r><w:t> days.</w:t></w:r>
+```
+
+Key rules:
+
+- Inside `<w:del>`, text is `<w:delText>`, not `<w:t>`.
+- Each `w:id` must be unique within the document. Use `Get-Random` or a counter.
+- Use `w:author="AI Assistant"` so a human reviewer can see what the assistant proposed and accept/reject deliberately.
+- Preserve the original `<w:rPr>` (run properties — bold, font, size) inside the new runs to keep formatting intact.
+- When deleting an entire paragraph, also mark the paragraph mark deleted (`<w:del>` inside `<w:pPr><w:rPr>`) or accepting changes leaves an empty paragraph.
+
+### Accept all tracked changes
+
+There is no pure-PowerShell way to accept tracked changes. Three options:
+
+- **LibreOffice headless** (preferred): `soffice --headless --convert-to docx:"MS Word 2007 XML" --outdir out\ in.docx` after setting the LibreOffice option `Edit → Track Changes → Manage → Accept All`. Scriptable via a small `.bas` macro or the `unoconv` wrapper.
+- **Word COM** — only acceptable when no other Word automation runs in the same script (still subject to the hang/orphan issues above). Use `$doc.Revisions.AcceptAll()` and dispose with `Marshal::ReleaseComObject`.
+- **Manual XML pass** — walk `document.xml`, replace every `<w:ins>...</w:ins>` with its inner runs, delete every `<w:del>...</w:del>`. Works for simple docs; breaks on nested rejections.
+
+### Comments
+
+Comments live in `word/comments.xml` (the comment bodies) and are referenced from `document.xml` with `<w:commentRangeStart/>`, `<w:commentRangeEnd/>`, and `<w:commentReference/>`. To add a comment programmatically: append a `<w:comment>` to `comments.xml`, then wrap the target run(s) in the three reference elements with the same `w:id`. If `comments.xml` does not exist (no comments yet), create it and add a `Relationship` to `word/_rels/document.xml.rels` plus a `Content-Type` entry to `[Content_Types].xml`.
+
+### Validation
+
+After repacking, open in Word once before shipping. Word's "file is corrupt" dialog is the only reliable validator on Windows. For CI, install `libreoffice` and run `soffice --headless --cat out.docx > $null` — a non-zero exit means the file is invalid.
+
+### When to use this vs. pandoc
+
+| Goal | Tool |
+|---|---|
+| DOCX → Markdown | `pandoc` (see top of this file) |
+| Markdown → DOCX | `pandoc-docx-export` skill |
+| Edit a few words in an existing DOCX without losing formatting | OOXML unpack/repack (this section) |
+| Add tracked changes or comments programmatically | OOXML unpack/repack (this section) |
+| Bulk accept reviewer changes | LibreOffice headless |
+
