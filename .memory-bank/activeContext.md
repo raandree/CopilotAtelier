@@ -38,6 +38,10 @@ Post-1.1.0 release. As of May 13, 2026 the repository contains 11 agents, 13 ins
 - **Setup script**: re-added `chat.promptFilesLocations` writer for the prompts junction (VS Code Copilot chat does not auto-discover `~/.copilot/prompts`, only the CLI does); persists `COPILOT_ALLOW_ALL=1` at User scope so `gh copilot` does not block on per-tool confirmation prompts.
 - **Pre-flight contract hardened**: probe for `.memory-bank/` is now a separate numbered step (step 1) in [`Instructions/preflight.instructions.md`](../Instructions/preflight.instructions.md) and in the embedded block in every agent. The workspace summary is explicitly labelled **not authoritative** for hidden folders. The acknowledgment must name the probe used and its result. Triggered by an agent in this very workspace announcing "no Memory Bank" from the workspace listing alone.
 
+## Recent changes (May 19, 2026)
+
+- **`marp-slide-overflow` skill expanded** — added mermaid pre-render section (Option B with `mermaid-cli`, content-hash SVG cache, relative-path image substitution, label-quoting gotchas, `section img { max-height }` cap, prefer `graph LR`) and **Recipe 0** (mandatory PNG-based visual verification: render all slides via `marp --images png`, flag at-risk slides by heuristic, hand-check three invariants — title, footer page number, no half-cut rows; iterate). Text heuristics and HTML preview are explicitly demoted to smoke alarms, not gates. README and techContext updated.
+
 ## Recent changes (May 6, 2026)
 
 - **Junction-based discovery**: `Setup-CopilotSettings.ps1` no longer writes `chat.agentFilesLocations` / `chat.instructionsFilesLocations` / `chat.agentSkillsLocations`. After copying customizations to the canonical target it creates NTFS junctions at `%USERPROFILE%\.copilot\{agents,instructions,skills,prompts}` so both the VS Code Copilot chat extension and the GitHub Copilot CLI discover the same tree.
