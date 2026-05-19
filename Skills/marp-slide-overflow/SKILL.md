@@ -219,6 +219,41 @@ If any invariant fails, the fix is one of:
 
 Iterate until clean. Never claim "fits the slide" without a fresh PNG.
 
+### Step 3b — Hand the PNGs to a fresh subagent for visual QA
+
+After you've stared at the deck for an hour, your eyes see what you expect, not what's there. Spawn a subagent with the at-risk PNGs and a deliberately adversarial prompt. The fresh-eyes pass routinely catches issues the author missed.
+
+Use `runSubagent` (when available) with a prompt along these lines:
+
+```
+Visually inspect these slide PNGs. Assume there are problems — your job is to find them.
+
+For EACH PNG, check:
+  1. Title visible at the top? (not pushed off-screen, not clipped)
+  2. Footer page number visible at the bottom-right?
+  3. Bottom row of any table / list / code block fully drawn? (no half-cut rows)
+  4. Any element overlapping another? (text through shapes, citations on top of content)
+  5. Any text overflow at the right edge of the slide?
+  6. Mermaid SVG fully inside the slide frame, with readable node labels?
+  7. Low-contrast text or icons against the background?
+  8. Inconsistent gaps (large empty area beside cramped content)?
+
+Report ALL issues found, including minor ones. Group by slide number.
+Do not declare a slide clean if you found zero issues on first inspection — look again more critically.
+
+Images:
+  - dist/png/slide.012.png  (expected: title "Hyper-V vs Proxmox", 4-row comparison table)
+  - dist/png/slide.018.png  (expected: mermaid diagram + 3 bullets)
+  - ...
+```
+
+When no subagent is available, fall back to opening the PNGs side-by-side and walking the same checklist yourself, slide by slide.
+
+**Verification loop.** Fix → re-render only the affected slides (`marp --images png ... --slides 12,18`) → re-run the same QA prompt on the new PNGs. One fix often creates another problem (a split slide pushes everything down by one). Do **not** declare success until a full clean pass yields no new issues.
+
+**Anti-pattern: subagent rubber-stamping.** If the subagent reports "all clean" on the first pass, treat it as a smoke alarm, not a clean bill of health. Either the prompt was too soft or the PNGs were too few. Add the adversarial framing ("assume there are problems") and re-run.
+
+
 ### Anti-pattern: trusting the build-script heuristic
 
 A naïve overflow check that counts `<li>` and character length will pass slides that are catastrophically broken (a single oversized SVG, or a 4-row table that wraps to 12 visual rows). Treat such heuristics as **smoke alarms, not gates** — they catch some failures but never certify "fits". The PNG review in steps 1–3 is the only gate.

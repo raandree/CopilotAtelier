@@ -2,7 +2,18 @@
 
 ## Current work focus
 
-Post-1.1.0 release. As of May 13, 2026 the repository contains 11 agents, 13 instruction files, 1 reference doc, 23 skills, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+Post-1.1.0 release. As of May 19, 2026 the repository contains 11 agents, 13 instruction files, 1 reference doc, **26 skills**, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (May 19, 2026 — skill expansion pass)
+
+- **3 new skills** added: [`skill-creator`](../Skills/skill-creator/SKILL.md) (meta-skill: how to author/iterate `SKILL.md` files, progressive disclosure, trigger-keyword pattern, 1024-char cap, lightweight evals), [`mcp-builder`](../Skills/mcp-builder/SKILL.md) (build MCP servers end-to-end with tool naming, schemas, pagination, MCP Inspector testing, 10-question eval rubric, Windows stdio gotchas), [`doc-coauthoring`](../Skills/doc-coauthoring/SKILL.md) (three-stage workflow: context gathering → section-by-section refinement → reader testing with a fresh subagent).
+- **4 existing skills broadened**:
+  - [`docx-to-markdown`](../Skills/docx-to-markdown/SKILL.md) now also covers OOXML in-place edits, tracked changes (`<w:ins>` / `<w:del>`), comments, and LibreOffice-headless accept-all.
+  - [`pdf-to-markdown`](../Skills/pdf-to-markdown/SKILL.md) now also covers merge/split/rotate/watermark/encrypt/decrypt/create-from-scratch (reportlab)/AcroForm-fill via `pypdf` + `qpdf`.
+  - [`xlsx-to-markdown`](../Skills/xlsx-to-markdown/SKILL.md) now also covers create/edit with `openpyxl` + `pandas`, the "always write Excel formulas, never hardcoded computed values" rule, and a LibreOffice-headless recalc + `#REF!`/`#DIV/0!`/`#VALUE!`/`#N/A`/`#NAME?` scan.
+  - [`marp-slide-overflow`](../Skills/marp-slide-overflow/SKILL.md) Recipe 0 gains a Step 3b that hands at-risk PNGs to a fresh subagent for adversarial visual QA (8-point checklist).
+- **6 skill descriptions audited against the 1024-char CLI cap** after the broadening pass; all six finalised between 952 and 1016 chars. (Marp's pre-existing 1619-char description is a separate, known issue tracked from May 6.)
+- **Skill count: 23 → 26.**
 
 ## Recent changes (May 13, 2026)
 

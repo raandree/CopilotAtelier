@@ -1,16 +1,21 @@
 ---
 name: xlsx-to-markdown
 description: >-
-  Convert XLSX (Excel) files to Markdown tables using .NET-native ZIP/XML
-  parsing in PowerShell — no Excel COM, ImportExcel module, or Python required.
-  Handles shared strings, cell references, multi-sheet workbooks, inline
-  strings, and column letter-to-index conversion.
+  Read, create, and edit XLSX (Excel) files. Recipe 1: convert XLSX to
+  Markdown tables via .NET-native ZIP/XML parsing in PowerShell — no Excel
+  COM, ImportExcel, or Python required. Beyond Extraction: create new
+  workbooks and edit existing ones with openpyxl + pandas (no Excel
+  install), the cardinal rule "write Excel formulas, never hardcoded
+  computed values", header formatting / freeze panes / number formats, and
+  a recalc + error-scan pass via LibreOffice headless that catches every
+  #REF! / #DIV/0! / #VALUE! / #N/A / #NAME?.
   USE FOR: convert xlsx to markdown, Excel to markdown, xlsx to md, parse
-  Excel in PowerShell, read xlsx without Excel, xlsx to table, spreadsheet
-  to text, extract Excel data, xlsx extraction, Excel attachment, costing
-  sheet, Excel export.
-  DO NOT USE FOR: creating XLSX files, Excel formulas, charts, pivot tables,
-  Excel COM automation, or files requiring format/style preservation.
+  Excel in PowerShell, read xlsx without Excel, Excel attachment, create
+  xlsx, write xlsx with formulas, openpyxl, pandas to_excel, edit xlsx,
+  recalc xlsx, scan xlsx for formula errors, #REF! in xlsx, financial
+  model in Excel, freeze header row.
+  DO NOT USE FOR: Excel charts and pivot tables, Excel COM automation,
+  files requiring style preservation that openpyxl drops.
 ---
 
 # XLSX to Markdown Conversion
@@ -246,3 +251,90 @@ When multiple conversion processes run simultaneously, `WriteAllText` may fail
 with "file in use" errors if two processes try to write the same `.md` file.
 This is harmless — the file was already written by the other process. Log and
 continue.
+
+## Beyond Extraction: Create and Edit XLSX with Formulas
+
+The ZIP/XML reader above is one-way. When the task is to **produce or modify** an XLSX (add a sheet, write formulas, fix a value, add formatting), use `openpyxl` for cell-level work and `pandas` for bulk data. Both install via pip; no Excel installation required.
+
+```powershell
+uv pip install openpyxl pandas
+```
+
+### The cardinal rule: write formulas, not computed values
+
+A spreadsheet's whole point is recalculation. The most common failure mode when an assistant generates a sheet is computing totals / averages / growth rates in Python and writing the *result* as a hardcoded number. When the user changes an input, the totals don't update. Always write the formula and let Excel recalculate.
+
+```python
+import openpyxl
+wb = openpyxl.Workbook(); ws = wb.active
+ws.append(["Item", "Qty", "Price", "Line total"])
+ws.append(["Pen", 3, 2.50, "=B2*C2"])      # ✅ formula — reacts to changes
+ws.append(["Pad", 5, 4.00, "=B3*C3"])
+ws["D4"] = "=SUM(D2:D3)"                       # ✅ not Python's sum()
+# ws["D4"] = 22.5                              # ❌ hardcoded total; breaks the moment a price changes
+wb.save("order.xlsx")
+```
+
+### Edit an existing workbook in place
+
+```python
+from openpyxl import load_workbook
+wb = load_workbook("existing.xlsx")          # preserves formulas, formatting, charts
+ws = wb["Sheet1"]
+ws["B5"] = 42                                # change a value
+ws.insert_rows(2); ws.delete_cols(7)         # structural edits
+new = wb.create_sheet("Notes")
+new["A1"] = "Generated 2026-05-19"
+wb.save("existing.xlsx")
+```
+
+**Trap:** `load_workbook(..., data_only=True)` reads the *last cached* calculated values and **strips formulas on save**. Use it only for reading; never for round-trip edits.
+
+### Recalculate formulas (openpyxl does not compute)
+
+openpyxl writes formula strings but never evaluates them. The saved file's cached values stay stale until something opens it. To force recalculation in CI / a script:
+
+```powershell
+# Requires LibreOffice (winget install TheDocumentFoundation.LibreOffice)
+soffice --headless --calc --convert-to xlsx --outdir recalc\ in.xlsx
+```
+
+LibreOffice opens the file, recomputes every formula, and writes the result. Then scan for errors:
+
+```python
+from openpyxl import load_workbook
+wb = load_workbook("recalc/in.xlsx", data_only=True)
+ERRORS = {"#REF!", "#DIV/0!", "#VALUE!", "#N/A", "#NAME?", "#NULL!", "#NUM!"}
+found = []
+for ws in wb.worksheets:
+    for row in ws.iter_rows():
+        for c in row:
+            if isinstance(c.value, str) and c.value in ERRORS:
+                found.append((ws.title, c.coordinate, c.value))
+if found:
+    raise SystemExit(f"Formula errors: {found}")
+```
+
+Fix every `#REF!` / `#DIV/0!` before declaring the workbook ready. A `#REF!` is a deleted-row/column footprint; `#DIV/0!` means a denominator hits zero and needs an `IFERROR` wrapper.
+
+### Common formatting (when the user asks for it)
+
+```python
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils import get_column_letter
+ws["A1"].font = Font(bold=True, color="FFFFFF")
+ws["A1"].fill = PatternFill("solid", fgColor="1F4E79")
+ws["A1"].alignment = Alignment(horizontal="center")
+ws.column_dimensions["A"].width = 22
+ws.freeze_panes = "A2"                       # freeze header row
+```
+
+For data analysts: use pandas (`df.to_excel("out.xlsx", index=False)`) when the deliverable is just data; switch to openpyxl when formulas, formatting, or multiple sheets matter.
+
+### Verification checklist before handing off a workbook
+
+- [ ] Every calculation is a formula, not a hardcoded value.
+- [ ] LibreOffice recalc pass ran; no `#REF!` / `#DIV/0!` / `#VALUE!` remain.
+- [ ] Currency / percentage / date columns have explicit number formats (`ws.cell(...).number_format = "#,##0.00"`).
+- [ ] Header row is frozen and bold (matches the convention of pre-existing templates when editing one).
+- [ ] Test by changing an input cell in Excel/LibreOffice and confirming dependent cells update.
