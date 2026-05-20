@@ -1,17 +1,23 @@
 ---
-applyTo: "**/docs/glossary.md,**/glossary.md,**/memory-bank/glossary.md,**/*.md,**/*.ps1,**/*.py,**/*.cs,**/*.ts,**/*.js"
-description: "Enforces the Ubiquitous Language (DDD) pattern: when a glossary.md exists in the workspace, use only canonical terms in code, comments, tests, docs, and commits; never introduce forbidden synonyms."
+applyTo: "**/.memory-bank/glossary.md,**/memory-bank/glossary.md,**/docs/glossary.md,**/glossary.md,**/*.ps1,**/*.psm1,**/*.psd1,**/*.py,**/*.cs,**/*.ts,**/*.js"
+description: "Enforces the Ubiquitous Language (DDD) pattern: when a glossary.md exists in the workspace (memory-bank first), use only canonical terms in code, comments, tests, docs, and commits; never introduce forbidden synonyms."
 ---
 
 # Ubiquitous Language
 
 Enforce the **Ubiquitous Language** pattern from Eric Evans' *Domain-Driven Design* (2003): the team, the code, and the documents speak the same vocabulary. The repository's `glossary.md` is the single source of truth for that vocabulary.
 
-This instruction is active whenever a glossary file is present at one of the canonical locations:
+The glossary lives in the **memory bank** by preference, so the pre-flight hook loads it automatically alongside `projectbrief.md` and friends. This instruction is the reminder of the *rules*; the memory bank is the discovery mechanism. Canonical locations, in priority order:
 
-- `docs/glossary.md`
-- `glossary.md` (repo root)
-- `memory-bank/glossary.md` (or `.memory-bank/glossary.md`)
+1. `.memory-bank/glossary.md` (preferred — sits in the always-loaded memory-bank set)
+2. `memory-bank/glossary.md` (legacy / non-hidden variant)
+3. `docs/glossary.md`
+4. `glossary.md` (repo root)
+
+The first one found wins; the others are ignored to avoid drift.
+
+> [!NOTE]
+> `applyTo` deliberately omits `**/*.md` to avoid loading this instruction on every markdown turn in workspaces that have no glossary. The instruction triggers when the agent reads/edits the glossary itself or any governed code file (`.ps1`, `.psm1`, `.psd1`, `.py`, `.cs`, `.ts`, `.js`). For markdown artefacts the rules are enforced through the memory-bank-loaded glossary, not through `applyTo`.
 
 ## What a Ubiquitous Language file looks like
 

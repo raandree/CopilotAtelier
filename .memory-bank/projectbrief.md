@@ -33,3 +33,18 @@ CopilotAtelier is a portable GitHub Copilot customization framework that synchro
 1. Running `Setup-CopilotSettings.ps1` on a fresh machine configures VS Code in under 30 seconds.
 2. All custom agents, instructions, skills, and prompts are discoverable in Copilot Chat immediately after restart.
 3. Adding a new instruction or agent to OneDrive propagates to all machines automatically.
+
+## Memory-bank always-loaded set
+
+The pre-flight hook reads the following files from `.memory-bank/` when present. New files added here are loaded by every agent on every turn — keep the set small and curated.
+
+| File | Purpose |
+|---|---|
+| `projectbrief.md` | This file. Scope, requirements, success criteria. |
+| `activeContext.md` | Current focus and next steps. |
+| `techContext.md` | Technology choices, agent registry. |
+| `progress.md` | What works, dated change log. |
+| `systemPatterns.md` | Recurring architectural patterns. |
+| `productContext.md` | Why the project exists, UX intent. |
+| `glossary.md` *(optional)* | **Ubiquitous Language** table (`Term \| Means \| Don't say`). Loaded automatically when present; governs canonical terminology repo-wide. See [`Instructions/ubiquitous-language.instructions.md`](../Instructions/ubiquitous-language.instructions.md). |
+| `promptHistory.md` *(optional)* | Per-turn prompt log. Created on demand. |
