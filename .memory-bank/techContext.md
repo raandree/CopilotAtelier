@@ -104,7 +104,9 @@ Opus 4.7 is GA in Copilot since 2026-04-16 and is the announced replacement for 
 |---|---|---|
 | `automatedlab-deployment` | `Skills/automatedlab-deployment/` | Build and deploy Hyper-V lab environments using AutomatedLab |
 | `authenticated-web-extraction` | `Skills/authenticated-web-extraction/` | Persistent Playwright + Microsoft Edge profile at `%LOCALAPPDATA%\CareerAuthBrowser\` for authenticated extraction (LinkedIn, GitHub, Sessionize, M365, X, Meetup). Bundled `bootstrap/` (`package.json`, `open.mjs`, `extract.mjs`, `check-logins`, `dump-cookies`); documents per-site auth cookie names, session-cookie re-injection workaround, OAuth tracking-prevention flags, and the profile-lock orphan-`msedge.exe` failure mode |
+| `citation-integrity` | `Skills/citation-integrity/` | Verify every external claim, quote, statistic, and reference against a fetched source. Six-class failure taxonomy (F1 fabricated → F6 anchorless), three-layer anchor (locator + ≤25-word quote + stable ID), `VERIFIED` / `MISMATCH` / `NOT_FOUND` verdicts (no gray zone), cross-index triangulation for contamination signals |
 | `create-outlook-draft` | `Skills/create-outlook-draft/` | Create Outlook email drafts from Markdown via COM automation |
+| `devils-advocate-review` | `Skills/devils-advocate-review/` | Argue against a proposal, design, claim, or draft from a hostile-but-fair position with anti-sycophancy safeguards. 1–5 rebuttal rubric (concession only at ≥ 4, no consecutive concessions, attack-intensity preservation), named deflection classes, frame-lock self-check, closing report with sycophancy log |
 | `datum-configuration` | `Skills/datum-configuration/` | Reference for Datum hierarchical DSC configuration data module |
 | `docx-to-markdown` | `Skills/docx-to-markdown/` | Convert DOCX to Markdown via .NET-native ZIP/XML parsing (no pandoc/Word) |
 | `dsc-troubleshooting` | `Skills/dsc-troubleshooting/` | Debug and troubleshoot PowerShell DSC resource failures on target nodes |
@@ -138,6 +140,7 @@ Opus 4.7 is GA in Copilot since 2026-04-16 and is the announced replacement for 
 | Export Emails | `Prompts/export-emails.prompt.md` | `legal-researcher` |
 | Sync Project Emails | `Prompts/sync-project-emails.prompt.md` | `legal-researcher` |
 | Deadline Action Handoff | `Prompts/deadline-action-handoff.prompt.md` | `legal-researcher` |
+| Peer Review (Multi-Perspective Panel) | `Prompts/peer-review.prompt.md` | any (EIC + 3 reviewers + Devil's Advocate; uses `devils-advocate-review` and `citation-integrity` skills) |
 
 ## Development setup
 

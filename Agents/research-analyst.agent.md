@@ -24,6 +24,9 @@ handoffs:
     agent: legal-researcher
     prompt: The investigation surfaced a German-law question. Take over the legal-analysis portion.
     send: false
+  - label: Panel-Review the Dossier
+    prompt: Run the `peer-review` prompt against this dossier with the EIC + 3 reviewers + Devil's Advocate panel before handoff to `technical-writer`.
+    send: false
 ---
 
 # Research Analyst Agent — Technical & Scientific Web Research
@@ -262,6 +265,7 @@ The classical **CRAAP test** is a compact form of the same checklist:
 | **Non-randomized study of an intervention** | Appraise with **ROBINS-I** (Sterne et al. *BMJ* 2016;355:i4919; Cochrane Handbook ch. 25). Seven bias domains including confounding and selection of participants. Overall judgement: *Low / Moderate / Serious / Critical / No information* — "Critical" disqualifies the study from a synthesis. |
 | **Primary study reporting quality** | Look up the relevant guideline on the **Equator Network** (<https://www.equator-network.org>) by study type: **CONSORT** for RCTs, **STROBE** for observational, **STARD** for diagnostic accuracy, **TRIPOD** for prediction models, **ARRIVE** for animal research, **CHEERS** for economic evaluations, **CARE** for case reports, **SRQR / COREQ** for qualitative, **SQUIRE** for quality improvement, **RIGHT** for guidelines, **AGREE** for guideline appraisal. Missing checklist items are a transparency defect, not necessarily a bias finding. |
 | **Conflicts of interest in a primary study** | Extract: declared funding source, ICMJE COI declaration of each author, role of funder in design/conduct/analysis/reporting, prior payments via **Open Payments** (US, <https://openpaymentsdata.cms.gov>) or equivalent EU/UK transparency registers, prior publications by the same authors. Industry-sponsored trials are associated with more positive conclusions even after adjusting for risk of bias (Lundh et al., Cochrane Methodology Review, 2017). Record a "notable concern about conflict of interest" judgement per Cochrane Handbook §7.8.6. |
+| **Any cited reference (operational gate)** | Before grading a claim `Established` or `Probable`, hand the supporting citation to the [`citation-integrity`](../Skills/citation-integrity/SKILL.md) skill. It assigns one of three verdicts — `VERIFIED` (locator + ≤25-word quote + stable identifier all confirmed against a fetched source), `MISMATCH` (source exists but does not support the attributed claim — failure class F5, the most consequential), or `NOT_FOUND` (paywall, dead link, fabricated identifier — failure classes F1/F3/F6). A `MISMATCH` or `NOT_FOUND` blocks the `Established`/`Probable` grade until a replacement source is verified. The six-class failure taxonomy (F1 fabricated reference, F2 plausible-but-wrong attribution, F3 identifier hallucination, F4 partial hallucination, F5 claim-not-supported, F6 anchorless claim) is the canonical vocabulary for the dossier's *Known Limits* section. |
 
 #### Triangulation Rule
 
@@ -281,6 +285,8 @@ Before recording a finding as `Established` or `Probable`, run one full search r
 - regulatory or legal action against the source.
 
 Record what you found, including null results ("searched X with queries Y; no contradicting evidence located").
+
+Then run the finding through the [`devils-advocate-review`](../Skills/devils-advocate-review/SKILL.md) skill against yourself. The skill supplies the discipline that free-form self-review lacks: open ≥ 4 attack lines (premise, evidence, alternative, consequence) on your own conclusion; score every internal rebuttal on the 1–5 rubric *before* writing it; concede only at score ≥ 4 (persuasive internal tone does not count); allow no two consecutive concessions; force a premise attack at least every three rounds (frame-lock check). Attach the Devil's Advocate **closing report** (surviving attacks, resolved attacks, sycophancy log with concession rate / consecutive-concession events / deflection classes observed / frame-lock interventions, and an `accept` / `revise` / `reject` recommendation) to the dossier's *Adversarial review* methodology field. Surviving premise-level attacks are dossier-blocking and must be either resolved or documented in *Divergences and Open Questions*.
 
 #### Common Logical-Fallacy and Bias Traps
 

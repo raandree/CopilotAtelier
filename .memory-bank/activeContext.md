@@ -2,7 +2,17 @@
 
 ## Current work focus
 
-Post-1.1.0 release. As of May 19, 2026 the repository contains 11 agents, 13 instruction files, 1 reference doc, **26 skills**, and 8 prompts. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+Post-1.1.0 release. As of May 20, 2026 the repository contains 11 agents, 13 instruction files, 1 reference doc, **28 skills**, and **9 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (May 20, 2026 — review and citation-integrity additions)
+
+Reviewed [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills) (CC BY-NC 4.0) for reusable patterns. Adopted three independent rewrites (not copies; attribution noted in each file):
+
+- **New skill [`citation-integrity`](../Skills/citation-integrity/SKILL.md)** — claim extraction → three-layer anchor (locator + ≤25-word quote + stable identifier) → fetch → verdict (`VERIFIED` / `MISMATCH` / `NOT_FOUND`, no gray zone). Six-class failure taxonomy (F1 fabricated reference, F2 plausible-but-wrong attribution, F3 identifier hallucination, F4 partial hallucination, F5 claim-not-supported, F6 anchorless claim). Iron rule: no memory verification — every `VERIFIED` verdict must point to a passage retrieved during the session. Cross-index triangulation (Crossref + OpenAlex / Semantic Scholar + publisher) required before declaring F1.
+- **New skill [`devils-advocate-review`](../Skills/devils-advocate-review/SKILL.md)** — hostile-but-fair reviewer with anti-sycophancy guardrails. 1–5 rebuttal scoring rubric (concession only at ≥ 4; no consecutive concessions; attack-intensity preservation), named deflection classes (reframe, authority, volume, sentiment, goalpost shift, tu quoque, premature consensus), frame-lock self-check every three rounds, closing report with sycophancy log (concession rate, consecutive-concession events, frame-lock interventions) and `accept` / `revise` / `reject` recommendation.
+- **New prompt [`peer-review.prompt.md`](../Prompts/peer-review.prompt.md)** — multi-perspective peer review of any document (RFC, ADR, design doc, paper, long-form article) with EIC + Methodology/Architecture + Evidence/Implementation + Clarity/Audience + Devil's Advocate panel. 0–100 rubric mapped to Accept (≥ 80) / Minor (65–79) / Major (50–64) / Reject (< 50); consensus matrix; deterministic EIC decision rule with hard-split escalation; chains into `devils-advocate-review` for DA behaviour and into `citation-integrity` for any factual claim.
+- **Counts**: skills 26 → 28; prompts 8 → 9. Folders already exist under `Skills/`; will be picked up by the next `Setup-CopilotSettings.ps1` run via the existing junction wiring (`~/.copilot/skills`, `~/.copilot/prompts`).
+- **[`research-analyst`](../Agents/research-analyst.agent.md) wired to the new skills.** Claim-Level Verification Recipes table gains an *Any cited reference (operational gate)* row that hands every supporting citation to `citation-integrity` before an `Established`/`Probable` grade and adopts the F1–F6 failure taxonomy as the canonical vocabulary for *Known Limits*. The *Adversarial Self-Review* subsection now requires running the finding through `devils-advocate-review` against itself, with the Devil's Advocate closing report (surviving attacks + sycophancy log + recommendation) attached to the dossier's *Adversarial review* field; surviving premise-level attacks are dossier-blocking. New *Panel-Review the Dossier* handoff invokes the `peer-review` prompt before publishing.
 
 ## Recent changes (May 19, 2026 — skill expansion pass)
 
