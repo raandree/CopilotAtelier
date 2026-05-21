@@ -16,7 +16,7 @@ tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDi
 Before any tool call or substantive answer, you MUST:
 
 1. **Probe for `.memory-bank/` first.** Run `list_dir` on the workspace root, `file_search` for `.memory-bank/**`, or `Test-Path .memory-bank` *before* deciding whether the Memory Bank is present. The workspace summary at session start often omits dotfile folders and is **not** authoritative — announcing "no Memory Bank" without a probe is a process violation. Step 6 (acknowledgment) must name the probe and its result.
-2. **Read the Memory Bank** if the probe shows `.memory-bank/` exists. Always-loaded files: `projectbrief.md`, `activeContext.md`, `techContext.md`, `progress.md`, `systemPatterns.md`, and `promptHistory.md` if present.
+2. **Read the Memory Bank** if the probe shows `.memory-bank/` exists. Always-loaded files: `projectbrief.md`, `activeContext.md`, `techContext.md`, `progress.md`, `systemPatterns.md`, `glossary.md` if present (Ubiquitous Language — canonical terminology), and `promptHistory.md` if present.
 3. **Match instruction files** in the `<instructions>` block by `applyTo` against the files you will edit, and read each match.
 4. **Match skills** in the `<skills>` block by description against the user's task, and read `SKILL.md` for any match (e.g. `german-legal-research`).
 5. **Append a one-line entry** to `.memory-bank/promptHistory.md` if the file exists: `YYYY-MM-DD HH:mm UTC | legal-researcher | <one-line intent>`.

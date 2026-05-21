@@ -2,7 +2,15 @@
 
 ## Current work focus
 
-Post-1.1.0 release. As of May 20, 2026 the repository contains 11 agents, 13 instruction files, 1 reference doc, **28 skills**, and **9 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+Post-1.1.0 release. As of May 20, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **29 skills**, and **9 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (May 20, 2026 — grill-me + ubiquitous-language)
+
+Added the repo-side anchors for slide 31 of the AgenticOperatingModel deck (*Two Patterns for Context — Grill-Me + Ubiquitous Language*):
+
+- **New skill [`Skills/grill-me/SKILL.md`](../Skills/grill-me/SKILL.md)** — adversarial requirements interview, 40–100 questions across twelve mandatory categories, refuses to produce code/designs until a fixed-layout Design Concept is signed off (`SIGNED OFF`). Two-strike push-back protocol: refuse first override politely, comply on the second but log it in `Override log:`. Inspired by but independent of <https://github.com/mattpocockuk/skills>; grounded in Brooks, *The Design of Design* (2010). Pairs with `skill-creator`, `doc-coauthoring`, `ubiquitous-language`.
+- **New instruction [`Instructions/ubiquitous-language.instructions.md`](../Instructions/ubiquitous-language.instructions.md)** — activates when `docs/glossary.md`, `glossary.md`, or `(.)memory-bank/glossary.md` is present; `applyTo` also covers `**/*.md`, `**/*.ps1`, `**/*.py`, `**/*.cs`, `**/*.ts`, `**/*.js`. Three-column glossary `Term | Means | Don't say`; five rules (read first; canonical terms only; never use forbidden synonyms; propose new rows instead of inventing; flag drift without silent rewrites). Out-of-scope: UI copy, third-party API field names.
+- Counts: skills 28 → 29; instructions 13 → 14.
 
 ## Recent changes (May 20, 2026 — review and citation-integrity additions)
 
