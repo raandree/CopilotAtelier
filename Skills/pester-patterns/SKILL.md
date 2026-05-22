@@ -803,6 +803,58 @@ Benefits:
 - Test file stays short and focused on assertions.
 - Agents/tools can write the fixture and the test in two small, non-nested operations.
 
+## Pattern 14: Helpers Used Inside `It` Must Live in `BeforeAll`
+
+### The problem
+
+Pester 5 runs each `It` block in an **isolated runspace**. Helper functions defined as siblings of `It` blocks inside `Describe` are not visible inside `It`. The symptom is the same on every test:
+
+```text
+CommandNotFoundException: The term 'Get-MarpSlide' is not recognized as a name
+of a cmdlet, function, script file, or executable program.
+```
+
+It looks like a typo or a missing dot-source. It's neither — it's runspace isolation.
+
+### The broken pattern
+
+```powershell
+Describe 'X' {
+    # WRONG — not visible inside It
+    function Get-Thing { ... }
+    function Test-Thing { ... }
+
+    It 'works' {
+        Get-Thing | Should -Not -BeNullOrEmpty   # CommandNotFoundException
+    }
+}
+```
+
+### The fix
+
+Define helpers inside `BeforeAll`. The `BeforeAll` block runs once and its definitions are available to every `It` in the `Describe`. Use `$script:` scope for any state the tests should share.
+
+```powershell
+Describe 'X' {
+    BeforeAll {
+        $script:fixtureDir = $PSScriptRoot
+
+        function Get-Thing { ... }
+        function Test-Thing { ... }
+    }
+
+    It 'works' {
+        Get-Thing | Should -Not -BeNullOrEmpty   # works
+    }
+}
+```
+
+### Related gotchas
+
+- Same rule for variables — use `$script:foo` in `BeforeAll`, not bare `$foo`, or it won't survive into `It`.
+- For data needed by `-ForEach` on `It`, define it in `BeforeDiscovery`, not `BeforeAll` — `-ForEach` is resolved at discovery time, before `BeforeAll` runs.
+- Don't avoid the issue by writing helpers as inline scriptblocks inside every `It` — that's the cargo-cult workaround, not the fix.
+
 ## Quick Reference: Mock Cheat Sheet
 
 | What to Mock | Mock Command | Key Detail |
