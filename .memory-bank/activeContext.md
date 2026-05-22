@@ -2,7 +2,14 @@
 
 ## Current work focus
 
-Post-1.1.0 release. As of May 20, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **29 skills**, and **9 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+Post-1.1.0 release. As of May 22, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **29 skills**, and **9 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (May 22, 2026 — marp + pester skill expansions)
+
+Two skill expansions triggered by real findings while auditing Marp deck speaker-note coverage:
+
+- **[`marp-slide-overflow`](../Skills/marp-slide-overflow/SKILL.md) — Recipe 5 added.** Speaker-note coverage gotchas and a drop-in Pester guard. Three gotchas: (A) `---` inside a code fence creates phantom slides — auditors must mirror the build's code-fence-aware slide splitter; (B) Marp directives (`version:`, `_class:`, `_paginate:`, `_color:`, `_backgroundColor:`, `fit`, `_split_`) are HTML comments too — filter by prefix blocklist plus inner-text length > 40 chars; (C) section-divider slides typically have per-module appendix notes, not per-slide notes — assert them separately. Includes a title-drift / merge pattern with a `notes-title-map.psd1` alias file for multi-file decks. Explains the editorial marker `<!-- _split_ -->`.
+- **[`pester-patterns`](../Skills/pester-patterns/SKILL.md) — Pattern 14 added.** Pester 5 isolates each `It` in its own runspace; helper functions defined as `Describe` siblings of `It` blocks are invisible inside `It` (symptom: misleading `CommandNotFoundException`). Fix: define helpers in `BeforeAll`, share state via `$script:`. Three related gotchas: bare `$foo` in `BeforeAll` won't survive into `It`; `-ForEach` data must go in `BeforeDiscovery`, not `BeforeAll`; inlining helpers in every `It` is the cargo-cult workaround.
 
 ## Recent changes (May 20, 2026 — grill-me + ubiquitous-language)
 
