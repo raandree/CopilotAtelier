@@ -4,6 +4,14 @@
 
 Post-1.1.0 release. As of May 22, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **29 skills**, and **9 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
 
+## Recent changes (May 22, 2026 — skill-creator rewrite + Pass-B skill splits)
+
+Rework of `skill-creator` and the three largest skills, driven by the Anthropic Agent Skills [overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) + [authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) and Simon Scrapes' six-step framework video.
+
+- **`skill-creator` rewritten** ([`Skills/skill-creator/SKILL.md`](../Skills/skill-creator/SKILL.md), 296 lines, description 1014/1024 chars). New material: six-step authoring frame (Name / Trigger / Outcome / Dependencies / Step-by-step / Edge cases), third-person description rule, degrees-of-freedom calibration (high/medium/low), one-level-deep references rule, `## Contents` TOC for refs >100 lines, six-pattern catalogue, evaluation-driven development with Claude-A/Claude-B loop, "solve don't punt" for scripts, plan-validate-execute, cross-skill overlap-audit recipe, mechanical "splitting an oversized SKILL.md" recipe.
+- **Pass B — three oversized skills split into `references/`**: `sampler-framework` 2656 → 372 lines (12 refs), `automatedlab-deployment` 1815 → 353 lines (7 refs), `datum-configuration` 927 → 389 lines (4 refs). All references one level deep from SKILL.md; references >100 lines headed with `## Contents` TOC. SKILL.md bodies are now navigation maps: When-To-Use, recipe summaries, 1–2-line pointers to deep references.
+- **Remaining Pass-B candidates** (>500 lines, no references): `pester-patterns` 872, `german-legal-research` 785, `marp-slide-overflow` 746, `sampler-migration` 729, `pandoc-docx-export` 718, `winrm-troubleshooting` 694, `mecm-dsc-deployment` 662, `outlook-email-export` 644, `pdf-to-markdown` 630, `dsc-troubleshooting` 627, `whisper-pyannote-transcription` 565. Tracked for follow-up.
+
 ## Recent changes (May 22, 2026 — marp + pester skill expansions)
 
 Two skill expansions triggered by real findings while auditing Marp deck speaker-note coverage:
