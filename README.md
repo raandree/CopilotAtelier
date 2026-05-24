@@ -222,6 +222,7 @@ If a skill doesn't appear, open the ellipsis (**…**) menu in the Chat view and
 ## Reference
 
 - [`Reference/copilot-cli-model-routing.md`](Reference/copilot-cli-model-routing.md) — 4-tier model-routing policy for the GitHub Copilot CLI (Executors / Implementers / Tech Leads / Architects). Reference-only; not auto-attached. The document was written against the early-2026 lineup; a banner at the top maps the older model IDs (Opus 4.5 / 4.6, GPT-5.1) to the current ones (Opus 4.7, GPT-5.4 / 5.5). A full rewrite is planned post-1.1.0.
+- [`Reference/howto-write-skills.md`](Reference/howto-write-skills.md) — condensed two-page primer for authoring `Skills/**/SKILL.md` files: the six-step frame (Name/Trigger/Outcome/Dependencies/Step-by-step/Edge cases), five high-leverage rules, hard limits (1024-char description, 500-line body), description shape, degrees of freedom, eval-driven development, anti-patterns, and links to the canonical Anthropic Agent Skills docs/PDF/engineering blog plus the `anthropics/skills` repo. Pairs with [`Skills/skill-creator/SKILL.md`](Skills/skill-creator/SKILL.md) (the full operating manual, auto-loaded when a skill-authoring task triggers).
 
 ## Featured In
 
