@@ -65,6 +65,7 @@ Each file type uses a distinct frontmatter shape. Values must be strings unless 
 
 - `name` (required): kebab-case identifier matching the folder name.
 - `description` (required): block scalar. Start with a one-paragraph summary, then `USE FOR:` keyword list, then optional `DO NOT USE FOR:` list. Keywords drive skill auto-selection.
+- For authoring guidance see [`Reference/howto-write-skills.md`](../Reference/howto-write-skills.md) (condensed primer + canonical Anthropic links) and [`Skills/skill-creator/SKILL.md`](../Skills/skill-creator/SKILL.md) (full operating manual).
 
 ## Emphasis Rule (All Files)
 

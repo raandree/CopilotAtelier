@@ -23,6 +23,8 @@ description: >-
 
 Author and iteratively improve `Skills/**/SKILL.md` files for CopilotAtelier following Anthropic's canonical [Agent Skills overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills) and [authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices). The same loop applies to brand-new skills, skills that under-trigger, and skills whose body has grown past the 500-line budget.
 
+For a condensed two-page primer with links to the canonical external sources, see [`Reference/howto-write-skills.md`](../../Reference/howto-write-skills.md).
+
 ## When to Use
 
 - The user says "turn this into a skill", "save this workflow", "package this for reuse", "why isn't this skill triggering", or "this skill is too long".
