@@ -104,7 +104,7 @@ Rules:
 
 ### 7a — Write the handoff payload (always)
 
-Write `memory-bank/session/deadline-handoff-<yyyy-MM-dd-HH-mm>.md` with this exact structure:
+Write `.memory-bank/session/deadline-handoff-<yyyy-MM-dd-HH-mm>.md` with this exact structure:
 
 ```markdown
 ---
@@ -121,7 +121,7 @@ renumber phases — the resuming agent re-reads the prompt from disk.
 
 ## Context
 
-- Memory Bank root: `memory-bank/`
+- Memory Bank root: `.memory-bank/`
 - Email index folder(s): <list of input/emails/<Topic>_Emails/ touched this sync>
 - Last sync timestamp: <yyyy-MM-dd HH:mm>
 
@@ -149,12 +149,12 @@ Rules:
 After writing the payload, emit exactly this message (substitute the real file path):
 
 > **Context budget reached.** Handoff payload written to
-> `memory-bank/session/deadline-handoff-<yyyy-MM-dd-HH-mm>.md`.
+> `.memory-bank/session/deadline-handoff-<yyyy-MM-dd-HH-mm>.md`.
 >
 > To execute Phase 7 (Outlook drafts + To Do tasks), **start a new chat** and run:
 >
 > ```
-> Attach memory-bank/session/deadline-handoff-<yyyy-MM-dd-HH-mm>.md
+> Attach .memory-bank/session/deadline-handoff-<yyyy-MM-dd-HH-mm>.md
 > and invoke Prompts/deadline-action-handoff.prompt.md
 > ```
 >

@@ -79,6 +79,14 @@
 - **Rationale**: Opus 4.7 is GA in Copilot since 2026-04-16 and is Anthropic's announced replacement for Opus 4.5 / 4.6. The previous default (`claude-opus-4.6-fast`) was retired on 2026-04-10.
 - **Trade-off**: Opus 4.7 requires Copilot Pro+, Business, or Enterprise; other plans fall back to the VS Code default.
 
+### Decision 8: Session-handoff document convention
+
+- **Choice**: Cross-session handoff documents are written to `.memory-bank/session/handoff-<UTC>.md` and excluded from version control.
+- **Rationale**: Fresh agents in new sessions need a portable, self-contained continuation pointer when the original session ends (context saturation, model switch, machine handover). `.memory-bank/` is already on every agent's pre-flight read path; the `session/` subfolder isolates ephemera from curated knowledge. Gitignore keeps per-session artifacts out of project history — `progress.md` and `CHANGELOG.md` remain the canonical record.
+- **Naming**: `handoff-YYYY-MM-DDTHHmmZ.md` (UTC, ISO-8601 compact) so multiple handoffs in one day sort. Sibling artifact `deadline-handoff-<yyyy-MM-dd-HH-mm>.md` is the older payload produced by `sync-project-emails` Phase 7a (same folder, same gitignore policy).
+- **Disambiguation vs Decision 4**: "Agent-to-agent handoff" (Decision 4) is the in-session UI transfer between custom agents in the same chat (declared via `handoffs:` in agent frontmatter). "Session-handoff" is a cross-session document. Both share the word — use the qualified form when ambiguity matters.
+- **Producer**: [`Prompts/session-handoff.prompt.md`](../Prompts/session-handoff.prompt.md). The folder is documented in [`.memory-bank/session/README.md`](session/README.md).
+
 ## Component relationships
 
 ```mermaid
@@ -123,6 +131,7 @@ Prompt files use the `agent:` frontmatter attribute to specify which custom agen
 | `module-scaffold` | `software-engineer` |
 | `pr-description` | `software-engineer` |
 | `refactor` | `software-engineer` |
+| `session-handoff` | any (writes `.memory-bank/session/handoff-<UTC>.md`) |
 
 ## File naming conventions
 

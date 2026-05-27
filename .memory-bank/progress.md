@@ -43,6 +43,7 @@ The CopilotAtelier project reached functional completeness on February 24, 2026 
 | Sync Project Emails prompt | Done | Sync emails, update index/MB, show deadlines (agent: `legal-researcher`) |
 | Deadline Action Handoff prompt | Done | Create Outlook drafts + To Do tasks from deadline tables (agent: `legal-researcher`) |
 | Lab Deploy prompt | Done | Deploy and validate Hyper-V lab with AutomatedLab (agent: `software-engineer`) |
+| Session Handoff prompt | Done | Cross-session continuation document; writes `.memory-bank/session/handoff-<UTC>.md` (gitignored); `agent: agent` so any persona can produce one |
 | Pester instructions | Done | ~620 lines: Pester 5 conventions, mocking, data-driven tests, migration |
 | Git instructions | Done | ~380 lines: Conventional Commits, branch naming, .gitignore/.gitattributes |
 | JSON instructions | Done | ~350 lines: JSON/JSONC formatting, PowerShell JSON handling, schemas |
