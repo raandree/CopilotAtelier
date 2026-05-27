@@ -2,7 +2,17 @@
 
 ## Current work focus
 
-Post-1.1.0 release. As of May 22, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **29 skills**, and **9 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+Post-1.1.0 release. As of May 27, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **29 skills**, and **10 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (May 27, 2026 — session-handoff prompt + storage convention)
+
+New cross-session handoff workflow plus the storage convention it implies.
+
+- **New prompt [`Prompts/session-handoff.prompt.md`](../Prompts/session-handoff.prompt.md)** — `agent: agent` (any active agent can produce one); writes a compact, pointer-based handoff document so a fresh session can resume without re-investigating context (context saturation, model switch, machine handover). Seven required sections: Header (UTC, **pattern: `closing` / `forward` / `return`**, source agent, model, branch, worktree, last SHA, dirty files, parent-handoff path for `return` only), Mission, State pointers (paths only — never inline duplicated content from Memory Bank / `plan.md` / `CHANGELOG.md` / commits), Suggested next agent (in-repo agent, `agent` / `ask`, **or a different harness/tool — `Claude Code` / `Codex` / `Copilot CLI` / `Cursor`**), Suggested skills (loaded-this-session + pre-load-for-next), Open questions, Redaction note (API keys, tokens, mailbox content, `%LOCALAPPDATA%\CareerAuthBrowser\` profile data). Three explicit patterns shape document content: closing (this session ends), forward (this session continues; child takes an out-of-scope sub-task), return (child reports learnings back to parent). Focus statement is mandatory: arguments → unambiguous derivation from `activeContext.md` → otherwise Mission empty + "Next-session focus undefined" becomes the first Open question (no fabricated missions). One handoff per invocation; never overwrites a prior file.
+- **Storage convention**: `.memory-bank/session/handoff-<UTC>.md` where `<UTC>` is `YYYY-MM-DDTHHmmZ`. The folder also hosts `deadline-handoff-<yyyy-MM-dd-HH-mm>.md` produced by `sync-project-emails` Phase 7a. New repo-root [`.gitignore`](../.gitignore) excludes both patterns; the folder's [`README.md`](session/README.md) is tracked and documents purpose, lifecycle, and how the next session consumes a handoff.
+- **`systemPatterns.md` Decision 8** disambiguates the two meanings of "handoff" in this repo: Decision 4 = in-session agent-to-agent UI transfer (`handoffs:` in agent frontmatter); Decision 8 = cross-session document. Same word, different problems.
+- **Path fix in two legacy prompts** ([`deadline-action-handoff`](../Prompts/deadline-action-handoff.prompt.md), [`sync-project-emails`](../Prompts/sync-project-emails.prompt.md)) — the four references to `memory-bank/session/...` (no leading dot) were writing to a non-existent untracked folder at repo root. Corrected to `.memory-bank/session/...` so both prompts now share the canonical location with the new `session-handoff` prompt. The other `memory-bank/...` references in those prompts (for `activeContext.md`, `progress.md`, `projectbrief.md`) remain a separate pre-existing dot-prefix bug not in scope here.
+- **Counts**: prompts 9 → 10.
 
 ## Recent changes (May 22, 2026 — skill-creator rewrite + Pass-B skill splits)
 
