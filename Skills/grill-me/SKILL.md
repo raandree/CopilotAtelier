@@ -61,6 +61,19 @@ Never dump 40 questions in a single message. A "tight cluster" is 2–4 question
 
 When a category is exhausted, announce the move: *"Moving from Inputs & outputs to Failure modes."*
 
+#### Rendering: prefer the interactive question UI
+
+When the `vscode_askQuestions` tool (a.k.a. `vscode/askQuestions`) is available in the current session, the agent MUST use it to render each question or cluster instead of plain markdown checkboxes. Rationale: markdown checkboxes are not interactive — the user cannot click them and is forced to retype answers in prose. The interactive UI lets the user tick options, multi-select, or type freeform and returns structured answers.
+
+Rules:
+
+- One `vscode_askQuestions` call per cluster (1–4 related questions). Do not batch a whole category into one call.
+- Use `options` with `multiSelect: true` for "pick all that apply"; `multiSelect: false` (default) for single-choice.
+- Omit `options` entirely for genuinely freeform questions (e.g. "describe the money-shot command").
+- Keep `allowFreeformInput` at its default (true) so the user can always override the options with a typed answer — except for strict either/or gates (e.g. `SIGNED OFF` / `revise`).
+- Fall back to markdown checkboxes only when `vscode_askQuestions` is not available (e.g. CLI mode, headless eval, or the tool is disabled).
+- If the user cancels the question UI, fall back to a plain-text version of the same cluster in the next message rather than re-prompting with the UI.
+
 ### 4. Emit the Design Concept
 
 When all twelve categories are covered and no surviving open questions block the design, write a single markdown document with this exact section layout:
