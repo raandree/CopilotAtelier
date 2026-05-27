@@ -1,0 +1,4 @@
+# Session-scoped ephemera produced by per-session prompts.
+# Curated project knowledge lives in the rest of .memory-bank/ and stays tracked.
+.memory-bank/session/handoff-*.md
+.memory-bank/session/deadline-handoff-*.md

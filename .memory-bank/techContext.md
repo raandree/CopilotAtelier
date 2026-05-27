@@ -141,6 +141,7 @@ Opus 4.7 is GA in Copilot since 2026-04-16 and is the announced replacement for 
 | Sync Project Emails | `Prompts/sync-project-emails.prompt.md` | `legal-researcher` |
 | Deadline Action Handoff | `Prompts/deadline-action-handoff.prompt.md` | `legal-researcher` |
 | Peer Review (Multi-Perspective Panel) | `Prompts/peer-review.prompt.md` | any (EIC + 3 reviewers + Devil's Advocate; uses `devils-advocate-review` and `citation-integrity` skills) |
+| Session Handoff | `Prompts/session-handoff.prompt.md` | any (`agent: agent`; writes `.memory-bank/session/handoff-<UTC>.md`) |
 
 ## Development setup
 

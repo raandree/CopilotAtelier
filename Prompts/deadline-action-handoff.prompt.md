@@ -29,7 +29,7 @@ If the conversation is compacted mid-run:
 
 1. Do not trust any summary of "pending tasks". It may be incomplete.
 2. Re-read this prompt file from disk before any further action.
-3. Re-read the handoff payload from `memory-bank/session/*.md` (if any).
+3. Re-read the handoff payload from `.memory-bank/session/deadline-handoff-*.md` (if any).
 4. Resume from the first unticked item in the Execution contract.
 
 ## Phase 0 — Dedup preflight (REQUIRED FIRST STEP)
