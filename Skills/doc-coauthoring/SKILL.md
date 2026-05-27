@@ -42,6 +42,10 @@ On first invocation, surface the workflow and let the user opt in:
 
 If the user declines, write freeform. If accepted, run Stage 1.
 
+## Interaction style
+
+When interviewing the user (clarifying questions in Stage 1, section-choice prompts in Stage 2, reader-test questions in Stage 3), follow the shared convention in [`Reference/interactive-questions.md`](../../Reference/interactive-questions.md): prefer `vscode_askQuestions` over markdown checkboxes when the tool is available.
+
 ## Stage 1 — Context Gathering
 
 Goal: close the gap between what the user knows and what you know.
