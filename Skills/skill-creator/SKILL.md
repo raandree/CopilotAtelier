@@ -48,6 +48,10 @@ Skills/<kebab-name>/
 
 Folder name MUST match the `name:` field. Anything beyond `SKILL.md` is opt-in.
 
+## Interaction style
+
+When interviewing the user about a new or existing skill (scope, triggers, dependencies, edge cases), follow the shared convention in [`Reference/interactive-questions.md`](../../Reference/interactive-questions.md): prefer `vscode_askQuestions` over markdown checkboxes when the tool is available.
+
 ## The six-step authoring frame
 
 Use this frame before writing a single line of SKILL.md. If any step is unclear, the skill scope is wrong — stop and refine.
