@@ -130,6 +130,10 @@ Files map to cognitive memory types — *working* (`-notes.md`, dossier-top sect
 
 ---
 
+## Interaction style
+
+When interviewing the user during the SCOPE phase (framing the falsifiable research question, bounding sources, naming non-goals), follow the shared convention in [`Reference/interactive-questions.md`](../Reference/interactive-questions.md): prefer `vscode_askQuestions` over markdown checkboxes when the tool is available.
+
 ## Workflow: Five-Phase Investigation Loop
 
 Use this workflow for every investigation. Never skip a phase. The phases mirror systematic-review practice — **PRISMA 2020** scoping → search → screening → synthesis → reporting (Page MJ et al. *The PRISMA 2020 statement: an updated guideline for reporting systematic reviews.* BMJ 2021;372:n71. <https://www.prisma-statement.org/prisma-2020>) — adapted for web-scale, open-ended technical research. The PRISMA 2020 checklist and flow diagram are the canonical reference for what Phase 1 SCOPE and Phase 5 DELIVER must record.

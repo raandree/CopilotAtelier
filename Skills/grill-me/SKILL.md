@@ -61,6 +61,10 @@ Never dump 40 questions in a single message. A "tight cluster" is 2–4 question
 
 When a category is exhausted, announce the move: *"Moving from Inputs & outputs to Failure modes."*
 
+#### Rendering: prefer the interactive question UI
+
+Follow the shared convention in [`Reference/interactive-questions.md`](../../Reference/interactive-questions.md): render each question or tight cluster through `vscode_askQuestions` when the tool is available; fall back to markdown checkboxes only when it is not. Grill-Me-specific addendum: for the final `SIGNED OFF` gate, set `allowFreeformInput: false` and offer only `SIGNED OFF` / `revise` as options.
+
 ### 4. Emit the Design Concept
 
 When all twelve categories are covered and no surviving open questions block the design, write a single markdown document with this exact section layout:

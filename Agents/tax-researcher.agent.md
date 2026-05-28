@@ -129,6 +129,10 @@ Files map to cognitive memory types — *working* (`session-log.md` aktueller Ei
 
 ---
 
+## Interaction style
+
+When interviewing the user about a tax case (intake, Bescheid review, optimisation goals), follow the shared convention in [`Reference/interactive-questions.md`](../Reference/interactive-questions.md): prefer `vscode_askQuestions` over markdown checkboxes when the tool is available.
+
 ## Skill Reference
 
 ### Steuerrecht / Tax Matters

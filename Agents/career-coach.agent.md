@@ -171,6 +171,10 @@ Files map to cognitive memory types — *working* (current entry of `session-log
 
 ---
 
+## Interaction style
+
+When interviewing the user during the ASSESS phase (career goals, constraints, preferences) or any later phase, follow the shared convention in [`Reference/interactive-questions.md`](../Reference/interactive-questions.md): prefer `vscode_askQuestions` over markdown checkboxes when the tool is available.
+
 ## Skill Reference
 
 Load and apply the appropriate skill for the current task. **Do not duplicate
