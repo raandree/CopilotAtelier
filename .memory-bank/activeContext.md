@@ -2,7 +2,11 @@
 
 ## Current work focus
 
-Post-1.1.0 release. As of May 27, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **29 skills**, and **10 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+Post-1.1.0 release. As of May 28, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **29 skills**, and **10 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+
+## Recent changes (May 28, 2026 — marp editable-PPTX Recipe 4b + Pass-B split)
+
+- **[`marp-slide-overflow`](../Skills/marp-slide-overflow/SKILL.md) — Recipe 4b added and skill split into `references/`.** New **Recipe 4b: Selectable-Text PPTX (`--pptx-editable`)** sits between Recipe 4 and the Phantom-Leading-Section gotcha: `--pptx` rasterises slides (text not selectable); `--pptx-editable` shells to LibreOffice (`soffice`) for real text shapes. Covers `SOFFICE_PATH` discovery, `<a:t>` verification via `System.IO.Compression`, and `lessmsi` MSI extraction when `winget` returns exit 1618. Description gains editable-PPTX keywords (now 983/1024 chars). Body trimmed 746 → 397 lines by extracting four recipes into one-level-deep references: [`mermaid-prerender.md`](../Skills/marp-slide-overflow/references/mermaid-prerender.md) (116), [`png-verification.md`](../Skills/marp-slide-overflow/references/png-verification.md) (112), [`overflow-detector.md`](../Skills/marp-slide-overflow/references/overflow-detector.md) (90), [`speaker-note-guard.md`](../Skills/marp-slide-overflow/references/speaker-note-guard.md) (157); each left as a 1–2-line pointer. Removes `marp-slide-overflow` from the Pass-B candidate list.
 
 ## Recent changes (May 27, 2026 — session-handoff prompt + storage convention)
 
@@ -20,7 +24,7 @@ Rework of `skill-creator` and the three largest skills, driven by the Anthropic 
 
 - **`skill-creator` rewritten** ([`Skills/skill-creator/SKILL.md`](../Skills/skill-creator/SKILL.md), 296 lines, description 1014/1024 chars). New material: six-step authoring frame (Name / Trigger / Outcome / Dependencies / Step-by-step / Edge cases), third-person description rule, degrees-of-freedom calibration (high/medium/low), one-level-deep references rule, `## Contents` TOC for refs >100 lines, six-pattern catalogue, evaluation-driven development with Claude-A/Claude-B loop, "solve don't punt" for scripts, plan-validate-execute, cross-skill overlap-audit recipe, mechanical "splitting an oversized SKILL.md" recipe.
 - **Pass B — three oversized skills split into `references/`**: `sampler-framework` 2656 → 372 lines (12 refs), `automatedlab-deployment` 1815 → 353 lines (7 refs), `datum-configuration` 927 → 389 lines (4 refs). All references one level deep from SKILL.md; references >100 lines headed with `## Contents` TOC. SKILL.md bodies are now navigation maps: When-To-Use, recipe summaries, 1–2-line pointers to deep references.
-- **Remaining Pass-B candidates** (>500 lines, no references): `pester-patterns` 872, `german-legal-research` 785, `marp-slide-overflow` 746, `sampler-migration` 729, `pandoc-docx-export` 718, `winrm-troubleshooting` 694, `mecm-dsc-deployment` 662, `outlook-email-export` 644, `pdf-to-markdown` 630, `dsc-troubleshooting` 627, `whisper-pyannote-transcription` 565. Tracked for follow-up.
+- **Remaining Pass-B candidates** (>500 lines, no references): `pester-patterns` 872, `german-legal-research` 785, `sampler-migration` 729, `pandoc-docx-export` 718, `winrm-troubleshooting` 694, `mecm-dsc-deployment` 662, `outlook-email-export` 644, `pdf-to-markdown` 630, `dsc-troubleshooting` 627, `whisper-pyannote-transcription` 565. Tracked for follow-up. (`marp-slide-overflow` split May 28, 2026.)
 
 ## Recent changes (May 22, 2026 — marp + pester skill expansions)
 
