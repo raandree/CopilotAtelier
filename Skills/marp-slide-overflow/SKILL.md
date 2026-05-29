@@ -185,12 +185,48 @@ Key facts:
 - **Ship both.** Keep the image PPTX when pixel fidelity matters; ship the editable PPTX
   when the audience needs to copy text, search, or re-style. They are different artefacts,
   not a replacement.
-- **Fidelity caveat — code blocks reflow.** Prose, titles, headings, footers, and slide
-  numbers render near-identically to the image deck. **Code/monospace blocks reflow and
-  wrap** because LibreOffice does not embed the deck's monospace webfont. This is inherent
-  to the experimental feature, not a bug you can fix in CSS.
+- **Never mutate the canonical deck.** The two LibreOffice fixes below inject editable-only
+  CSS. Feed the editable export its **own assembled copy** of the markdown (e.g.
+  `dist/deck.editable.assembled.md`) and leave the canonical deck untouched, so the image
+  PPTX and HTML preview keep their original bold tables and webfont code styling.
 - **Size tell.** The editable PPTX is typically ~40x smaller than the image PPTX (text
   shapes vs. embedded bitmaps) — a quick sanity check that the editable path actually ran.
+- **Silent exit 1 when the target is open.** If the destination `.pptx` is open in
+  PowerPoint, marp exits with code `1` and **no error text** — the LibreOffice file lock
+  fails the write. Close the deck (or write to a fresh filename) before re-running.
+
+### Fix LibreOffice rendering bugs (editable path only)
+
+LibreOffice's multi-slide HTML→PPTX conversion is **not** simply lower fidelity — it has two
+concrete, fixable corruption bugs. Both are fixed by injecting CSS into the editable-only
+assembled markdown; do **not** apply these to the canonical deck.
+
+**Bug 1 — digit glyphs dropped from bold numeric table cells.** LibreOffice silently drops
+digits from **bold** numeric cells during the HTML→PPTX pass: `Haiku 4.5` renders as
+`Haiku .`, `$1.618455` as `$ .`. The fix is to render table text **non-bold** so the cells
+use a glyph set LibreOffice keeps intact:
+
+```css
+table th, table strong, table b { font-weight: normal !important; }
+```
+
+> **Rejected workaround — wider substitute font.** Forcing a wider substitute font onto the
+> table does *not* fix it: it clips **leading** digits from dense cells instead
+> (`101,747` → `0 ,747`). Non-bold is the only reliable fix; do not chase the font swap.
+
+**Bug 2 — inline code falls back to an ugly font.** The deck's monospace **webfont cannot
+be embedded** by LibreOffice, so inline code and code blocks render in an arbitrary fallback.
+Pin them to fonts LibreOffice ships with:
+
+```css
+code, pre, pre code {
+  font-family: "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace !important;
+}
+```
+
+Combine both rules into a single `<style>` block in the editable-only assembled markdown,
+then verify the result with the `<a:t>` run inspection below — confirm the numeric cells
+survived (search the extracted runs for the digits that were being dropped).
 
 ### Verify the text really is selectable (not just a relabeled image PPTX)
 
