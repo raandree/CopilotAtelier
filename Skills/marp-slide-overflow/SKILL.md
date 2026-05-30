@@ -197,8 +197,8 @@ Key facts:
 
 ### Fix LibreOffice rendering bugs (editable path only)
 
-LibreOffice's multi-slide HTML→PPTX conversion is **not** simply lower fidelity — it has two
-concrete, fixable corruption bugs. Both are fixed by injecting CSS into the editable-only
+LibreOffice's multi-slide HTML→PPTX conversion is **not** simply lower fidelity — it has
+three concrete, fixable corruption bugs. All are fixed by injecting CSS into the editable-only
 assembled markdown; do **not** apply these to the canonical deck.
 
 **Bug 1 — digit glyphs dropped from bold numeric table cells.** LibreOffice silently drops
@@ -224,9 +224,30 @@ code, pre, pre code {
 }
 ```
 
-Combine both rules into a single `<style>` block in the editable-only assembled markdown,
+**Bug 3 — inline code sits below the body baseline.** Themes (including Marp's `default`)
+shrink inline code to ~`0.9em` and add padding/background. LibreOffice renders that smaller
+inline run **dropped below the surrounding text's baseline** instead of centring it, so
+`Get-LabAzureAvailableSku` floats low against the sentence around it. Normalise inline code
+to the body text's metrics — full size, baseline alignment, no padding — and leave code
+**blocks** (`pre code`) alone:
+
+```css
+:not(pre) > code {
+  font-size: 1em !important;
+  vertical-align: baseline !important;
+  line-height: inherit !important;
+  padding: 0 !important;
+}
+```
+
+> Confirm via the `<a:t>` run inspection below: the inline-code run's `sz` (font size, in
+> hundredths of a point) should now equal the adjacent body run's `sz`, with no `baseline`
+> offset attribute — equal size on a shared baseline is what makes them line up.
+
+Combine all three rules into a single `<style>` block in the editable-only assembled markdown,
 then verify the result with the `<a:t>` run inspection below — confirm the numeric cells
-survived (search the extracted runs for the digits that were being dropped).
+survived (search the extracted runs for the digits that were being dropped) and the inline
+code size matches the body.
 
 ### Verify the text really is selectable (not just a relabeled image PPTX)
 
