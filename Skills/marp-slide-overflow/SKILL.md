@@ -1,7 +1,7 @@
 ---
 name: marp-slide-overflow
 description: >-
-  Detect and fix silent content overflow in Marp slide decks before exporting to PPTX/PDF/PNG (anything taller than the 1280x720 viewBox is clipped with no warning). Also covers pre-rendering mermaid fences to SVG, a PNG-based visual verification workflow, a Puppeteer overflow detector, dense/compact CSS density tiers, a fillRatio decision table, and selectable-text PPTX export. USE FOR: Marp overflow, slide content clipped, content cut off in PPTX, slide overflow detection, Marp scrollHeight, dense/compact class, fillRatio, marp-cli overflow, Marp backgroundColor frontmatter, Marp mermaid not rendering, mermaid-cli mmdc, pre-render mermaid SVG, mermaid missing in PDF/PPTX, verify slide fits PNG, marp --images png, split slide vs shrink, editable PPTX, selectable text PPTX, marp pptx-editable, SOFFICE_PATH, LibreOffice PPTX, searchable PPTX, lessmsi MSI extract, winget 1618. DO NOT USE FOR: Reveal.js, Slidev, PowerPoint authoring, generic CSS layout, font rendering bugs.
+  Detect and fix silent content overflow in Marp slide decks before exporting to PPTX/PDF/PNG (anything taller than the 1280x720 viewBox is clipped with no warning). Also covers pre-rendering mermaid fences to SVG, a PNG-based visual verification workflow, a Puppeteer overflow detector, dense/compact CSS density tiers, a fillRatio decision table, and selectable-text PPTX export. USE FOR: Marp overflow, slide content clipped, content cut off in PPTX, slide overflow detection, Marp scrollHeight, dense/compact class, fillRatio, marp-cli overflow, Marp backgroundColor frontmatter, Marp mermaid not rendering, mermaid-cli mmdc, pre-render mermaid SVG, mermaid missing in PDF/PPTX, verify slide fits PNG, split slide vs shrink, editable PPTX, selectable text PPTX, marp pptx-editable, SOFFICE_PATH, LibreOffice PPTX, editable PPTX notes, speaker notes dropped, pptx-editable notes missing, copy pptx notes, python-pptx notes. DO NOT USE FOR: Reveal.js, Slidev, PowerPoint authoring, generic CSS layout, font rendering bugs.
 ---
 
 # Marp Slide Overflow — Detect, Fix, Verify
@@ -198,8 +198,10 @@ Key facts:
 ### Fix LibreOffice rendering bugs (editable path only)
 
 LibreOffice's multi-slide HTML→PPTX conversion is **not** simply lower fidelity — it has
-three concrete, fixable corruption bugs. All are fixed by injecting CSS into the editable-only
-assembled markdown; do **not** apply these to the canonical deck.
+four concrete, fixable corruption bugs. The first three are fixed by injecting CSS into the
+editable-only assembled markdown (do **not** apply these to the canonical deck); the fourth
+(dropped speaker notes) cannot be fixed in CSS and is repaired by a post-export graft,
+covered last.
 
 **Bug 1 — digit glyphs dropped from bold numeric table cells.** LibreOffice silently drops
 digits from **bold** numeric cells during the HTML→PPTX pass: `Haiku 4.5` renders as
@@ -248,6 +250,98 @@ Combine all three rules into a single `<style>` block in the editable-only assem
 then verify the result with the `<a:t>` run inspection below — confirm the numeric cells
 survived (search the extracted runs for the digits that were being dropped) and the inline
 code size matches the body.
+
+**Bug 4 — speaker notes dropped.** Marp's native `--pptx` export writes each slide's
+HTML-comment speaker notes (`<!-- ... -->`) as PowerPoint notes. The `--pptx-editable`
+export round-trips through LibreOffice, which emits a PPTX with **no `ppt/notesSlides/`
+parts and no notes master** — every slide's notes are gone, silently, with no warning.
+Unlike Bugs 1–3 this is **not** fixable with editable-only CSS: the notes never reach the
+slide body, so there is no markup to restyle. Repair it with a post-export graft instead.
+
+**Detect** — a PPTX is a ZIP; native decks contain `ppt/notesSlides/notesSlideN.xml` parts,
+the editable deck contains none:
+
+```powershell
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path 'deck.editable.pptx').Path)
+($zip.Entries.FullName -like 'ppt/notesSlides/notesSlide*.xml').Count   # 0 => notes dropped
+$zip.Dispose()
+```
+
+**Fix — graft notes from a native render.** Render a throwaway **native** PPTX from the
+*same editable assembled markdown* (guarantees identical slide count and order), then copy
+its notes into the editable deck slide-by-slide with `python-pptx`, which recreates the
+notes slides, notes master, relationships, and `[Content_Types].xml` overrides
+automatically:
+
+```powershell
+$assembled = 'dist/deck.editable.assembled.md'
+# editable deck (built above) has no notes; render a throwaway NATIVE deck from the SAME
+# assembled markdown so slide order matches 1:1, then graft its notes onto the editable deck.
+npx @marp-team/marp-cli@latest $assembled --pptx --allow-local-files -o dist/deck.notes.pptx
+python build/Copy-PptxNotes.py dist/deck.notes.pptx dist/deck.editable.pptx
+```
+
+`Copy-PptxNotes.py` loads both decks, zips `src.slides` with `dst.slides`, and assigns the
+notes text for every source slide that has non-empty notes (accessing `notes_slide` on the
+destination creates the notes slide, notes master, and relationships on demand):
+
+```python
+#!/usr/bin/env python3
+"""Copy speaker notes from a native Marp PPTX into the editable (LibreOffice) PPTX.
+
+Usage: python Copy-PptxNotes.py <src-native.pptx> <dst-editable.pptx>
+The --pptx-editable export drops all notes; the native --pptx export keeps them. Both decks
+must be rendered from the SAME assembled markdown so slide order matches 1:1.
+"""
+import sys
+
+try:
+    from pptx import Presentation
+except ImportError:  # auto-install, consistent with the build already needing internet
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "python-pptx"])
+    from pptx import Presentation
+
+
+def main(src_path, dst_path):
+    src = Presentation(src_path)
+    dst = Presentation(dst_path)
+    if len(src.slides) != len(dst.slides):
+        print(f"WARNING: slide count differs (src={len(src.slides)}, "
+              f"dst={len(dst.slides)}); notes may be misaligned", file=sys.stderr)
+    grafted = 0
+    for s, d in zip(src.slides, dst.slides):
+        if not s.has_notes_slide:
+            continue
+        text = s.notes_slide.notes_text_frame.text
+        if text.strip():
+            d.notes_slide.notes_text_frame.text = text   # creates the notes slide on demand
+            grafted += 1
+    dst.save(dst_path)
+    print(f"Grafted notes onto {grafted} slide(s)")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        sys.exit("Usage: python Copy-PptxNotes.py <src-native.pptx> <dst-editable.pptx>")
+    main(sys.argv[1], sys.argv[2])
+```
+
+> **Dependencies:** Python 3 + `python-pptx`. The script auto-installs `python-pptx` on first
+> run, consistent with the build already needing internet access for `npx` / marp-cli.
+
+**Verify** — count the editable slides that now carry non-empty notes:
+
+```powershell
+python -c "from pptx import Presentation; p=Presentation('deck.editable.pptx'); print(sum(1 for s in p.slides if s.has_notes_slide and s.notes_slide.notes_text_frame.text.strip()),'slides with notes')"
+```
+
+> Proven end-to-end in [`raandree/PSConfProxmoxSession`](https://github.com/raandree/PSConfProxmoxSession)
+> — `build.ps1` region *"3b — Restore speaker notes in the editable PPTX"* plus
+> `build/Copy-PptxNotes.py`: 41/41 slides carry notes after the graft, while the canonical
+> image deck and HTML preview stay untouched. The editable deck remains a second artefact;
+> this fix just makes it notes-complete (ship both / never mutate the canonical deck).
 
 ### Verify the text really is selectable (not just a relabeled image PPTX)
 
@@ -451,4 +545,5 @@ A complete reference implementation (Puppeteer detector, side-by-side report gen
 - `Test-SlideOverflow.ps1` — PowerShell wrapper (orchestrates render → check → report)
 - `New-SlideReviewReport.ps1` — Side-by-side HTML report generator (Recipe 4)
 - `Build-MarpVersions.ps1` — Build script with `-CheckOverflow` and `-Report` switches
+- `Copy-PptxNotes.py` — python-pptx notes graft that restores speaker notes dropped by the `--pptx-editable` LibreOffice round-trip (Recipe 4b, Bug 4)
 - The `compact` and `dense` CSS variants are in `content/slides/marp-presentation.md` frontmatter (Recipe 2)
