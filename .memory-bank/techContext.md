@@ -124,6 +124,7 @@ Opus 4.7 is GA in Copilot since 2026-04-16 and is the announced replacement for 
 | `sampler-framework` | `Skills/sampler-framework/` | Comprehensive Sampler PowerShell module build framework reference |
 | `sampler-migration` | `Skills/sampler-migration/` | Migrate legacy PowerShell modules to Sampler framework |
 | `send-outlook-email` | `Skills/send-outlook-email/` | Send emails via the Outlook COM API from PowerShell |
+| `social-signal-sweep` | `Skills/social-signal-sweep/` | Recency-bounded (default 30-day) multi-platform sweep of public discussion (GitHub / Hacker News / Reddit / Stack Overflow + browser tier for YouTube/X) returning a tier-8 lead sheet — leads only, never citable. No engine, API keys, or cookies; uses `web/fetch`, the GitHub tools, and `openSimpleBrowser`. Feeds the `research-analyst` SOURCE phase |
 | `whisper-pyannote-transcription` | `Skills/whisper-pyannote-transcription/` | GPU-accelerated audio/video transcription with speaker labels: faster-whisper large-v3 (CUDA float16) + pyannote 3.1 diarization, merged into speaker-labeled SRT/JSON/text. Includes `transcribe.py` and `diarize.py`; documents Windows `torchcodec` bypass and HF gated-model setup |
 | `winrm-troubleshooting` | `Skills/winrm-troubleshooting/` | Debug WinRM connectivity failures, auth issues, PowerShell Direct fallback |
 | `xlsx-to-markdown` | `Skills/xlsx-to-markdown/` | Convert XLSX to Markdown via .NET-native ZIP/XML parsing (no Excel/ImportExcel) |
