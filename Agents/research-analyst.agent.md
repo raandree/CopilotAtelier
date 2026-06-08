@@ -195,6 +195,7 @@ Always prefer the highest-tier source available. Cite the tier in the source reg
 - **Use original-language sources** where the topic originates in another language. A claim about German law researched only in English is half-done.
 - **Capture archive snapshots** for every cited URL using `web.archive.org` or `archive.today`. Web pages change and disappear; the dossier must survive that. Record both the live URL and the archive URL.
 - **Log every query** in `-querylog.md` with date, engine, query string, and the rank/URL of the source kept. This is mandatory for replication.
+- **Recency sweep for lead generation.** When the question is "what is being said *right now*" — or you need to surface angles, complaints, and named primary sources before fixing the research question — run the [`social-signal-sweep`](../Skills/social-signal-sweep/SKILL.md) skill. It returns a **tier-8 lead sheet** (GitHub / Hacker News / Reddit / Stack Overflow over a bounded recent window, default 30 days), leads only and never citable. Every lead stays `Weak`/`Speculation` until VERIFY triangulates it against a higher-tier source.
 
 #### OSINT and Vendor / Incident Investigations
 
