@@ -1,7 +1,7 @@
 ---
 name: marp-slide-overflow
 description: >-
-  Detect and fix content overflow in Marp slide decks before exporting to PPTX/PDF/PNG. Marp silently clips any content taller than the 1280x720 viewBox — tables, code blocks, long paragraphs disappear with zero warning. Also covers pre-rendering ```mermaid``` fences to SVG (Marp has no native mermaid support; client-side mermaid.js fails in PDF/PPTX). Includes a mandatory PNG-based visual verification workflow (Recipe 0) because text heuristics (li/char counts) and the HTML preview both miss image and table overflow. Provides a Puppeteer-based overflow detector, a side-by-side HTML review report, a two-tier CSS density pattern (`dense`/`compact`), and a fillRatio decision table. USE FOR: Marp overflow, slide content clipped, slide too tall, content cut off in PPTX, slide overflow detection, Puppeteer slide check, Marp scrollHeight, marpit-svg viewBox, Marp dense/compact class, fit content to slide, slide overflow CI gate, fillRatio Marp, marp-cli overflow, headless Chromium slide measurement, Marp backgroundColor frontmatter, Marp class background ignored, Marp gradient not rendered, Marp _class directive background, Marp mermaid not rendering, mermaid in Marp deck, mermaid-cli mmdc, pre-render mermaid SVG, mermaid fence in PPTX, mermaid diagram missing in PDF, broken image Marp mermaid, mermaid parse error braces, verify slide fits PNG, marp --images png verification, per-slide PNG review, slide visual review, PNG overflow gate, table wrapping slide, table cell wrap PPTX, split slide vs shrink. DO NOT USE FOR: Reveal.js, Slidev, PowerPoint authoring, generic CSS layout, font rendering bugs.
+  Detect and fix silent content overflow in Marp slide decks before exporting to PPTX/PDF/PNG (anything taller than the 1280x720 viewBox is clipped with no warning). Also covers pre-rendering mermaid fences to SVG, a PNG-based visual verification workflow, a Puppeteer overflow detector, dense/compact CSS density tiers, a fillRatio decision table, and selectable-text PPTX export. USE FOR: Marp overflow, slide content clipped, content cut off in PPTX, slide overflow detection, Marp scrollHeight, dense/compact class, fillRatio, marp-cli overflow, Marp backgroundColor frontmatter, Marp mermaid not rendering, mermaid-cli mmdc, pre-render mermaid SVG, mermaid missing in PDF/PPTX, verify slide fits PNG, split slide vs shrink, editable PPTX, selectable text PPTX, marp pptx-editable, SOFFICE_PATH, LibreOffice PPTX, editable PPTX notes, speaker notes dropped, pptx-editable notes missing, copy pptx notes, python-pptx notes. DO NOT USE FOR: Reveal.js, Slidev, PowerPoint authoring, generic CSS layout, font rendering bugs.
 ---
 
 # Marp Slide Overflow — Detect, Fix, Verify
@@ -61,105 +61,9 @@ For each <section>:
 
 ## Gotcha: Marp does not render ` ```mermaid ` fences
 
-Marp CLI has **no built-in mermaid support**. A ` ```mermaid ` fenced code block in the markdown is emitted into the rendered HTML/PDF/PPTX as a literal `<pre><code class="language-mermaid">…</code></pre>` block — it is never converted to a diagram. There is no warning, no error, no `[WARN]` in the CLI output.
+Marp CLI has **no built-in mermaid support**. A ` ```mermaid ` fenced code block is emitted into the rendered HTML/PDF/PPTX as a literal `<pre><code class="language-mermaid">…</code></pre>` block — never a diagram, and with no warning. Client-side mermaid.js plugins only work in `--html` output; they leave a static `<pre>` in `--pdf`/`--pptx`. The reliable fix is to **pre-render every ` ```mermaid ` fence to an SVG on disk** during deck assembly (via `mermaid-cli` / `mmdc`) and replace the fence with a `![](…)` image reference, then constrain image height in CSS so the SVG fits the 720 px viewBox.
 
-There are two reliable workarounds; the second is the recommended one.
-
-### Option A — `marp-cli` with a custom engine plugin
-
-Marp exposes `--engine` and Marpit plugins. A community plugin like `markdown-it-textual-uml` or `markdown-it-mermaid` can be wired in, but they all rely on **client-side mermaid.js running in the rendered HTML**, which:
-
-- works only in `--html` output (mermaid.js needs a browser to execute);
-- still produces a static `<pre>` in `--pdf` and `--pptx` because marp-cli runs Chromium *before* mermaid.js initialises — the screenshot/PDF is taken too early;
-- requires `--allow-local-files` and inlined CDN scripts.
-
-In practice this means mermaid blocks **never appear correctly in PPTX or PDF** with this approach. Do not waste time on it for slide decks that need to export.
-
-### Option B — Pre-render to SVG via `mermaid-cli` (recommended)
-
-Convert every ` ```mermaid ` block to an SVG file on disk during the deck-assembly step, then replace the fence with a plain `![](…)` image reference. Marp embeds SVGs reliably in all three export formats.
-
-```powershell
-# Inside build.ps1, after sections are concatenated but before marp is invoked.
-$mermaidPattern = '(?ms)^```mermaid\r?\n(.*?)\r?\n```'
-$matches = [regex]::Matches($content, $mermaidPattern)
-
-if ($matches.Count -gt 0)
-{
-    $diagramsDir = Join-Path $Dist 'diagrams'
-    $null = New-Item -ItemType Directory -Force -Path $diagramsDir
-    $sha = [System.Security.Cryptography.SHA1]::Create()
-    $replacements = @{}
-
-    foreach ($m in $matches)
-    {
-        $src  = $m.Groups[1].Value
-        # Content-hash the source so unchanged diagrams are cached between builds.
-        $hash = [System.BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($src))).Replace('-','').Substring(0,12).ToLower()
-        $svg  = Join-Path $diagramsDir "mmd-$hash.svg"
-        if (-not (Test-Path $svg))
-        {
-            $mmd = Join-Path $diagramsDir "mmd-$hash.mmd"
-            Set-Content -Path $mmd -Value $src -Encoding utf8
-            & npx --yes -p @mermaid-js/mermaid-cli mmdc -i $mmd -o $svg -b transparent -q 2>$null | Out-Null
-            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $svg))
-            {
-                throw "mermaid-cli failed (hash $hash). Ensure puppeteer can launch Chromium."
-            }
-        }
-        # CRITICAL: use a forward-slash *relative* path, not the Windows absolute path.
-        # The Markdown image parser silently fails on backslashed absolute paths and
-        # the HTML output shows a broken-image icon (PDF/PPTX may differ).
-        $replacements[$m.Value] = "![diagram](diagrams/mmd-$hash.svg)"
-    }
-    foreach ($k in $replacements.Keys) { $content = $content.Replace($k, $replacements[$k]) }
-}
-```
-
-### Mermaid syntax gotchas that only surface during pre-render
-
-mermaid-cli will **abort the entire build** on a parse error. The most common offenders in slide content:
-
-- **`{` and `}` inside a node label** — mermaid's flowchart parser treats `{` as the start of a diamond shape. Wrap the label in double quotes: `C["Add-LabMachineDefinition -ProxmoxProperties @{...}"]`.
-- **`(` `)` `[` `]` in labels** — same rule; quote the label.
-- **Backticks for inline code** — not supported in node labels; use plain text or HTML entities.
-- **`<br/>` for line breaks** — works *only* inside quoted labels in recent mermaid versions; quote the label to be safe.
-
-A label that works in GitHub's mermaid renderer may still fail in `mermaid-cli` because GitHub runs a more permissive client-side build. Always render through `mmdc` before shipping.
-
-### Detecting the regression
-
-If a deck previously rendered mermaid (e.g. via a different tool) and now shows code blocks where diagrams should be, grep the rendered HTML:
-
-```powershell
-Select-String -Path dist\deck.html -Pattern 'class="language-mermaid"'
-```
-
-Any match means the fence survived into the output — pre-rendering is missing or skipped that block.
-
-### Sizing pre-rendered diagrams so they don't dominate the slide
-
-`mmdc` emits SVGs at their **intrinsic** size — a `graph TB` with 4 nodes and 3 subgraphs easily renders 1200 px tall and pushes everything else off the 720 px viewBox. The fix has two parts:
-
-1. **Constrain image height in the deck CSS** so any SVG (or PNG) auto-scales to fit:
-
-   ```yaml
-   style: |
-     section img { max-width: 100%; max-height: 380px; height: auto; display: block; margin: 0.2em auto; }
-     section.dense img, section.compact img { max-height: 320px; }
-   ```
-
-   `max-height: 380px` leaves room for a title + footer + 2–3 lines of body text on a 720 px slide. Adjust per layout.
-
-2. **Prefer landscape (`graph LR`) over portrait (`graph TB`)** for slide decks. A landscape diagram uses the wide aspect ratio of 16:9 slides and stays short. If you must use `TB`, keep it to ≤ 4 nodes or split across two slides.
-
-3. **Always verify with per-slide PNGs**, not just the HTML preview — the HTML preview scales the viewport and hides clipping:
-
-   ```powershell
-   npx --yes @marp-team/marp-cli@latest --allow-local-files --images png -o dist\png\slide.png dist\deck.assembled.md
-   ```
-
-   Then open the PNGs of every slide that contains a diagram or table and confirm the title, body text, and footer page number are all visible. If a diagram + table can't both fit, split into two slides — don't shrink the diagram below readable size.
+> **Full recipe** — `mmdc` pre-render script, mermaid syntax gotchas (`{}`/`()`/`[]` in labels, `<br/>`, backticks), regression detection, and diagram-sizing CSS: [`references/mermaid-prerender.md`](references/mermaid-prerender.md).
 
 ### Gotcha — `section img { display: block }` pushes inline emoji onto their own line
 
@@ -175,191 +79,20 @@ img.emoji { display: inline; height: 1em; width: 1em; vertical-align: -0.12em; m
 
 ## Recipe 0: PNG-based visual verification (mandatory before claiming "fixed")
 
-Text-heuristic overflow checks (counting `<li>` elements, total character length, raw `scrollHeight`) **miss the cases that matter most**: oversized images, tables with wrapped cells, code blocks with long lines. The only reliable signal that a slide actually fits is a rendered PNG of that slide. Bake this into the workflow:
+Text-heuristic overflow checks (counting `<li>` elements, total character length, raw `scrollHeight`) **miss the cases that matter most**: oversized images, tables with wrapped cells, code blocks with long lines. The **only** reliable signal that a slide actually fits is a rendered PNG of that slide:
 
-### Step 1 — Render every slide to PNG
+1. Render every slide to PNG (`marp --images png --image-scale 1`) — one 1280×720 PNG per slide.
+2. Flag at-risk slides programmatically (tables, images/SVGs, code blocks > ~6 lines, lists > ~7 bullets).
+3. For each at-risk PNG check three invariants: **title visible** at top, **footer page number visible** at bottom-right, **no half-cut rows** at the bottom edge.
+4. Fix (`dense`/`compact` class, content trim, or split), re-render, re-check until clean. Hand the PNGs to a fresh subagent with an adversarial prompt for a final pass.
 
-```powershell
-# After the normal HTML/PDF/PPTX render
-npx --yes @marp-team/marp-cli@latest --allow-local-files `
-    --images png --image-scale 1 `
-    -o dist\png\slide.png dist\deck.assembled.md
-```
-
-Produces `dist\png\slide.001.png`, `slide.002.png`, … one 1280×720 PNG per slide. `--image-scale 1` keeps file sizes small; bump to `2` only when you need to read sub-pixel detail.
-
-### Step 2 — List slides worth a hand-check
-
-Not every slide needs a visual review. Programmatically pick the ones that historically overflow: anything containing a table, an image (mermaid SVG), a code block of more than ~6 lines, or a list of more than ~7 bullets.
-
-```powershell
-$assembled = 'dist\deck.assembled.md'
-$lines = Get-Content $assembled
-$slide = 1; $atRisk = @(); $tableRows = 0; $codeLen = 0; $bullets = 0; $hasImg = $false; $inCode = $false
-foreach ($l in $lines) {
-    if ($l -match '^---\s*$' -and -not $inCode) {
-        if ($hasImg -or $tableRows -ge 4 -or $codeLen -ge 7 -or $bullets -ge 7) { $atRisk += $slide }
-        $slide++; $tableRows = 0; $codeLen = 0; $bullets = 0; $hasImg = $false; continue
-    }
-    if ($l -match '^```')         { $inCode = -not $inCode; continue }
-    if ($inCode)                  { $codeLen++; continue }
-    if ($l -match '^\s*\|.*\|')   { $tableRows++ }
-    if ($l -match '^\s*[-*]\s')   { $bullets++ }
-    if ($l -match '!\[')          { $hasImg = $true }
-}
-Write-Host "At-risk slides: $($atRisk -join ', ')"
-```
-
-Subtract any frontmatter `---` blocks from the count — the deck's YAML header opens and closes with `---` and adds 2 to the slide index if you don't strip it. Easiest fix: start counting from the first `<!-- _class: -->` directive or the first H1.
-
-### Step 3 — Inspect each at-risk PNG and check three invariants
-
-For every PNG flagged in step 2, confirm:
-
-1. **Title visible** at the top (H1/H2 not pushed off-screen by a tall image above it).
-2. **Footer page number visible** at the bottom-right (proves the bottom edge isn't clipped).
-3. **No half-cut rows** at the bottom — last table row, last bullet, last line of a code block must be fully drawn, not sliced through the middle.
-
-If any invariant fails, the fix is one of:
-
-- Add `<!-- _class: dense -->` (~20 px font) or `compact` (~22 px font) — gives ~25–35% more vertical space.
-- Tighten the content (collapse bullets, glob cmdlet names, shorten paths).
-- Split the slide. **Splitting beats shrinking** below readable size — at 18 px the audience can't read it from row 5 anyway.
-- For oversized images: cap with the `section img { max-height: ... }` CSS rule and prefer `graph LR` over `graph TB`.
-
-### Step 4 — Re-render PNGs and re-check the same invariants
-
-Iterate until clean. Never claim "fits the slide" without a fresh PNG.
-
-### Step 3b — Hand the PNGs to a fresh subagent for visual QA
-
-After you've stared at the deck for an hour, your eyes see what you expect, not what's there. Spawn a subagent with the at-risk PNGs and a deliberately adversarial prompt. The fresh-eyes pass routinely catches issues the author missed.
-
-Use `runSubagent` (when available) with a prompt along these lines:
-
-```
-Visually inspect these slide PNGs. Assume there are problems — your job is to find them.
-
-For EACH PNG, check:
-  1. Title visible at the top? (not pushed off-screen, not clipped)
-  2. Footer page number visible at the bottom-right?
-  3. Bottom row of any table / list / code block fully drawn? (no half-cut rows)
-  4. Any element overlapping another? (text through shapes, citations on top of content)
-  5. Any text overflow at the right edge of the slide?
-  6. Mermaid SVG fully inside the slide frame, with readable node labels?
-  7. Low-contrast text or icons against the background?
-  8. Inconsistent gaps (large empty area beside cramped content)?
-
-Report ALL issues found, including minor ones. Group by slide number.
-Do not declare a slide clean if you found zero issues on first inspection — look again more critically.
-
-Images:
-  - dist/png/slide.012.png  (expected: title "Hyper-V vs Proxmox", 4-row comparison table)
-  - dist/png/slide.018.png  (expected: mermaid diagram + 3 bullets)
-  - ...
-```
-
-When no subagent is available, fall back to opening the PNGs side-by-side and walking the same checklist yourself, slide by slide.
-
-**Verification loop.** Fix → re-render only the affected slides (`marp --images png ... --slides 12,18`) → re-run the same QA prompt on the new PNGs. One fix often creates another problem (a split slide pushes everything down by one). Do **not** declare success until a full clean pass yields no new issues.
-
-**Anti-pattern: subagent rubber-stamping.** If the subagent reports "all clean" on the first pass, treat it as a smoke alarm, not a clean bill of health. Either the prompt was too soft or the PNGs were too few. Add the adversarial framing ("assume there are problems") and re-run.
-
-
-### Anti-pattern: trusting the build-script heuristic
-
-A naïve overflow check that counts `<li>` and character length will pass slides that are catastrophically broken (a single oversized SVG, or a 4-row table that wraps to 12 visual rows). Treat such heuristics as **smoke alarms, not gates** — they catch some failures but never certify "fits". The PNG review in steps 1–3 is the only gate.
-
-### Anti-pattern: trusting the HTML/VS Code preview
-
-The browser preview rescales the viewport to fit the window, so a slide that overflows by 200 px in the actual 1280×720 frame looks fine in the preview. PDF/PPTX/PNG exports use the fixed frame and reveal the clipping. Always verify against the rendered PNG, never against the preview.
+> **Full recipe** — render/at-risk-detection scripts, the three-invariant checklist, the adversarial subagent QA prompt, and the "smoke alarm vs. gate" anti-patterns (heuristics and the HTML preview both lie): [`references/png-verification.md`](references/png-verification.md).
 
 ## Recipe 1: Minimal Overflow Detector (Node + Puppeteer)
 
-`overflow-check.mjs`:
+The only reliable programmatic overflow check renders the deck to HTML and measures each `<section>`'s `scrollHeight` against the `viewBox` height in headless Chromium (`scrollHeight` includes the clipped overflow). A ~60-line `overflow-check.mjs` Puppeteer script emits per-slide `overflowY` / `overflowX` / `fillRatio` and exits non-zero when any slide overflows — wire it into the build as a gate.
 
-```js
-#!/usr/bin/env node
-import { resolve } from 'node:path';
-import { existsSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
-
-const args = process.argv.slice(2);
-const jsonMode = args.includes('--json');
-const htmlPath = resolve(args.find(a => !a.startsWith('--')));
-if (!existsSync(htmlPath)) { console.error('not found:', htmlPath); process.exit(2); }
-
-const puppeteer = (await import('puppeteer')).default;
-const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
-const page = await browser.newPage();
-await page.setViewport({ width: 1600, height: 900 });
-await page.goto(pathToFileURL(htmlPath).href, { waitUntil: 'networkidle0' });
-await page.evaluate(async () => { if (document.fonts) await document.fonts.ready; });
-
-const results = await page.evaluate(() => {
-    return Array.from(document.querySelectorAll('section')).map((section, idx) => {
-        const svg = section.closest('svg[data-marpit-svg]');
-        let frameW = 1280, frameH = 720;
-        if (svg) {
-            const vb = (svg.getAttribute('viewBox') || '').split(/\s+/).map(Number);
-            if (vb.length === 4) { frameW = vb[2]; frameH = vb[3]; }
-        }
-        const contentH = section.scrollHeight;
-        const contentW = section.scrollWidth;
-        const titleEl = section.querySelector('h1, h2, h3');
-        return {
-            slide: idx + 1,
-            title: titleEl ? titleEl.textContent.replace(/\s+/g, ' ').trim() : '',
-            frameWidth: frameW, frameHeight: frameH,
-            contentWidth: contentW, contentHeight: contentH,
-            overflowX: Math.max(0, contentW - frameW),
-            overflowY: Math.max(0, contentH - frameH),
-            fillRatio: Number((contentH / frameH).toFixed(3)),
-            overflows: (contentW - frameW) > 1 || (contentH - frameH) > 1
-        };
-    });
-});
-
-await browser.close();
-const overflowing = results.filter(r => r.overflows);
-if (jsonMode) {
-    process.stdout.write(JSON.stringify(results, null, 2));
-} else {
-    console.log(`${results.length} slides: ${results.length - overflowing.length} fit, ${overflowing.length} overflow`);
-    for (const o of overflowing) {
-        console.log(`  Slide ${o.slide} "${o.title}"  Y=${o.overflowY}px X=${o.overflowX}px fill=${o.fillRatio}`);
-    }
-}
-process.exit(overflowing.length > 0 ? 1 : 0);
-```
-
-Companion `package.json`:
-
-```json
-{
-  "name": "marp-overflow-tools",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "dependencies": { "puppeteer": "^23.10.4" }
-}
-```
-
-Wire it into the build:
-
-```powershell
-# 1. Render the deck once to HTML
-npx --yes @marp-team/marp-cli@latest deck.md --html --allow-local-files -o _check.html
-
-# 2. Measure
-node overflow-check.mjs _check.html
-# exit 0 = all fit, 1 = at least one overflows, 2 = error
-
-# 3. Cleanup
-Remove-Item _check.html
-```
-
-> **First run only**: `npm install` pulls Puppeteer (~150 MB Chromium). Subsequent runs are fast. Bake the install check into your wrapper script so users don't have to know.
+> **Full recipe** — the complete `overflow-check.mjs` detector, its `package.json`, and the render → measure → cleanup build wiring: [`references/overflow-detector.md`](references/overflow-detector.md).
 
 ## Recipe 2: Two-Tier CSS Density Pattern
 
@@ -439,6 +172,215 @@ The detector tells you **which** slide overflows, but not **what** is being clip
 4. Add a sticky toolbar at the top with one-click links to the overflowing slides.
 
 Open the HTML in any browser and scroll. Overflowing slides get a red left-border and a striped clip-marker bar across the bottom of the PNG, making them obvious at a glance. This is far faster than opening the PPTX, especially for decks with > 50 slides.
+
+## Recipe 4b: Selectable-Text PPTX (`--pptx-editable`)
+
+Marp's default `--pptx` export rasterises **one image per slide** — pixel-perfect but the
+text is not selectable, searchable, or editable in PowerPoint. marp-cli's experimental
+`--pptx-editable` flag instead emits **real text shapes** by shelling out to LibreOffice
+(`soffice`).
+
+```powershell
+# Image PPTX (default): every slide is a bitmap, ~MBs, text NOT selectable
+npx @marp-team/marp-cli@latest deck.md --allow-local-files -o deck.pptx
+
+# Editable PPTX: real text shapes, ~KBs, selectable/searchable
+$env:SOFFICE_PATH = 'C:\Program Files\LibreOffice\program\soffice.exe'  # if not on PATH
+npx @marp-team/marp-cli@latest deck.md --pptx --pptx-editable --allow-local-files -o deck.editable.pptx
+```
+
+Key facts:
+
+- **Requires LibreOffice.** marp shells out to `soffice`; it honours the `SOFFICE_PATH`
+  env var, otherwise it must be on `PATH`. No LibreOffice = the flag silently does nothing
+  useful or errors.
+- **Ship both.** Keep the image PPTX when pixel fidelity matters; ship the editable PPTX
+  when the audience needs to copy text, search, or re-style. They are different artefacts,
+  not a replacement.
+- **Never mutate the canonical deck.** The two LibreOffice fixes below inject editable-only
+  CSS. Feed the editable export its **own assembled copy** of the markdown (e.g.
+  `dist/deck.editable.assembled.md`) and leave the canonical deck untouched, so the image
+  PPTX and HTML preview keep their original bold tables and webfont code styling.
+- **Size tell.** The editable PPTX is typically ~40x smaller than the image PPTX (text
+  shapes vs. embedded bitmaps) — a quick sanity check that the editable path actually ran.
+- **Silent exit 1 when the target is open.** If the destination `.pptx` is open in
+  PowerPoint, marp exits with code `1` and **no error text** — the LibreOffice file lock
+  fails the write. Close the deck (or write to a fresh filename) before re-running.
+
+### Fix LibreOffice rendering bugs (editable path only)
+
+LibreOffice's multi-slide HTML→PPTX conversion is **not** simply lower fidelity — it has
+four concrete, fixable corruption bugs. The first three are fixed by injecting CSS into the
+editable-only assembled markdown (do **not** apply these to the canonical deck); the fourth
+(dropped speaker notes) cannot be fixed in CSS and is repaired by a post-export graft,
+covered last.
+
+**Bug 1 — digit glyphs dropped from bold numeric table cells.** LibreOffice silently drops
+digits from **bold** numeric cells during the HTML→PPTX pass: `Haiku 4.5` renders as
+`Haiku .`, `$1.618455` as `$ .`. The fix is to render table text **non-bold** so the cells
+use a glyph set LibreOffice keeps intact:
+
+```css
+table th, table strong, table b { font-weight: normal !important; }
+```
+
+> **Rejected workaround — wider substitute font.** Forcing a wider substitute font onto the
+> table does *not* fix it: it clips **leading** digits from dense cells instead
+> (`101,747` → `0 ,747`). Non-bold is the only reliable fix; do not chase the font swap.
+
+**Bug 2 — inline code falls back to an ugly font.** The deck's monospace **webfont cannot
+be embedded** by LibreOffice, so inline code and code blocks render in an arbitrary fallback.
+Pin them to fonts LibreOffice ships with:
+
+```css
+code, pre, pre code {
+  font-family: "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace !important;
+}
+```
+
+**Bug 3 — inline code sits below the body baseline.** Themes (including Marp's `default`)
+shrink inline code to ~`0.9em` and add padding/background. LibreOffice renders that smaller
+inline run **dropped below the surrounding text's baseline** instead of centring it, so
+`Get-LabAzureAvailableSku` floats low against the sentence around it. Normalise inline code
+to the body text's metrics — full size, baseline alignment, no padding — and leave code
+**blocks** (`pre code`) alone:
+
+```css
+:not(pre) > code {
+  font-size: 1em !important;
+  vertical-align: baseline !important;
+  line-height: inherit !important;
+  padding: 0 !important;
+}
+```
+
+> Confirm via the `<a:t>` run inspection below: the inline-code run's `sz` (font size, in
+> hundredths of a point) should now equal the adjacent body run's `sz`, with no `baseline`
+> offset attribute — equal size on a shared baseline is what makes them line up.
+
+Combine all three rules into a single `<style>` block in the editable-only assembled markdown,
+then verify the result with the `<a:t>` run inspection below — confirm the numeric cells
+survived (search the extracted runs for the digits that were being dropped) and the inline
+code size matches the body.
+
+**Bug 4 — speaker notes dropped.** Marp's native `--pptx` export writes each slide's
+HTML-comment speaker notes (`<!-- ... -->`) as PowerPoint notes. The `--pptx-editable`
+export round-trips through LibreOffice, which emits a PPTX with **no `ppt/notesSlides/`
+parts and no notes master** — every slide's notes are gone, silently, with no warning.
+Unlike Bugs 1–3 this is **not** fixable with editable-only CSS: the notes never reach the
+slide body, so there is no markup to restyle. Repair it with a post-export graft instead.
+
+**Detect** — a PPTX is a ZIP; native decks contain `ppt/notesSlides/notesSlideN.xml` parts,
+the editable deck contains none:
+
+```powershell
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path 'deck.editable.pptx').Path)
+($zip.Entries.FullName -like 'ppt/notesSlides/notesSlide*.xml').Count   # 0 => notes dropped
+$zip.Dispose()
+```
+
+**Fix — graft notes from a native render.** Render a throwaway **native** PPTX from the
+*same editable assembled markdown* (guarantees identical slide count and order), then copy
+its notes into the editable deck slide-by-slide with `python-pptx`, which recreates the
+notes slides, notes master, relationships, and `[Content_Types].xml` overrides
+automatically:
+
+```powershell
+$assembled = 'dist/deck.editable.assembled.md'
+# editable deck (built above) has no notes; render a throwaway NATIVE deck from the SAME
+# assembled markdown so slide order matches 1:1, then graft its notes onto the editable deck.
+npx @marp-team/marp-cli@latest $assembled --pptx --allow-local-files -o dist/deck.notes.pptx
+python build/Copy-PptxNotes.py dist/deck.notes.pptx dist/deck.editable.pptx
+```
+
+`Copy-PptxNotes.py` loads both decks, zips `src.slides` with `dst.slides`, and assigns the
+notes text for every source slide that has non-empty notes (accessing `notes_slide` on the
+destination creates the notes slide, notes master, and relationships on demand):
+
+```python
+#!/usr/bin/env python3
+"""Copy speaker notes from a native Marp PPTX into the editable (LibreOffice) PPTX.
+
+Usage: python Copy-PptxNotes.py <src-native.pptx> <dst-editable.pptx>
+The --pptx-editable export drops all notes; the native --pptx export keeps them. Both decks
+must be rendered from the SAME assembled markdown so slide order matches 1:1.
+"""
+import sys
+
+try:
+    from pptx import Presentation
+except ImportError:  # auto-install, consistent with the build already needing internet
+    import subprocess
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", "python-pptx"])
+    from pptx import Presentation
+
+
+def main(src_path, dst_path):
+    src = Presentation(src_path)
+    dst = Presentation(dst_path)
+    if len(src.slides) != len(dst.slides):
+        print(f"WARNING: slide count differs (src={len(src.slides)}, "
+              f"dst={len(dst.slides)}); notes may be misaligned", file=sys.stderr)
+    grafted = 0
+    for s, d in zip(src.slides, dst.slides):
+        if not s.has_notes_slide:
+            continue
+        text = s.notes_slide.notes_text_frame.text
+        if text.strip():
+            d.notes_slide.notes_text_frame.text = text   # creates the notes slide on demand
+            grafted += 1
+    dst.save(dst_path)
+    print(f"Grafted notes onto {grafted} slide(s)")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        sys.exit("Usage: python Copy-PptxNotes.py <src-native.pptx> <dst-editable.pptx>")
+    main(sys.argv[1], sys.argv[2])
+```
+
+> **Dependencies:** Python 3 + `python-pptx`. The script auto-installs `python-pptx` on first
+> run, consistent with the build already needing internet access for `npx` / marp-cli.
+
+**Verify** — count the editable slides that now carry non-empty notes:
+
+```powershell
+python -c "from pptx import Presentation; p=Presentation('deck.editable.pptx'); print(sum(1 for s in p.slides if s.has_notes_slide and s.notes_slide.notes_text_frame.text.strip()),'slides with notes')"
+```
+
+> Proven end-to-end in [`raandree/PSConfProxmoxSession`](https://github.com/raandree/PSConfProxmoxSession)
+> — `build.ps1` region *"3b — Restore speaker notes in the editable PPTX"* plus
+> `build/Copy-PptxNotes.py`: 41/41 slides carry notes after the graft, while the canonical
+> image deck and HTML preview stay untouched. The editable deck remains a second artefact;
+> this fix just makes it notes-complete (ship both / never mutate the canonical deck).
+
+### Verify the text really is selectable (not just a relabeled image PPTX)
+
+A PPTX is a ZIP; slide text lives in `<a:t>` runs inside `ppt/slides/slideN.xml`. Zero
+`<a:t>` runs means you got an image deck.
+
+```powershell
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path 'deck.editable.pptx').Path)
+$slide1 = ($zip.Entries | Where-Object FullName -like 'ppt/slides/slide*.xml' | Sort-Object FullName)[0]
+$sr = New-Object IO.StreamReader($slide1.Open()); $xml = $sr.ReadToEnd(); $sr.Close(); $zip.Dispose()
+([regex]::Matches($xml, '<a:t>(.*?)</a:t>')).Count   # > 0 => selectable text
+```
+
+### Visually diff editable vs. image (reuse the PNG workflow)
+
+1. Reference PNGs from marp: `npx @marp-team/marp-cli@latest deck.md --images png --allow-local-files -o ref/slide.png`.
+2. Render the editable PPTX to PDF, then to PNG: `soffice --headless --convert-to pdf --outdir ed deck.editable.pptx`, then `pdftoppm -png -r 96 ed/deck.editable.pdf ed/slide` (pdftoppm ships with poppler / MiKTeX).
+3. Pair `ref/slide.NNN.png` against `ed/slide-NN.png` in a two-column HTML report (Recipe 4) and scroll. Expect prose to match and code blocks to differ.
+
+> **Provisioning LibreOffice on a locked/non-admin box:** if `winget install
+> TheDocumentFoundation.LibreOffice` fails with MSI error **1618** ("another installation
+> is already in progress") and you cannot elevate, download the LibreOffice MSI and extract
+> it portably with `lessmsi x <msi> C:\LO_portable\` — no Windows Installer engine, no
+> admin. Point `SOFFICE_PATH` at `C:\LO_portable\SourceDir\LibreOffice\program\soffice.exe`.
+> First headless run self-initialises; isolate its profile with
+> `-env:UserInstallation=file:///C:/LO_portable/profile`.
 
 ## Critical Gotcha: The Phantom Leading Section
 
@@ -583,163 +525,9 @@ Wire `overflow-check` into your build script so the build **exits non-zero** on 
 
 ## Recipe 5: Speaker-Note Coverage — Gotchas and a Pester Guard
 
-Marp speaker notes are HTML comments inside a slide:
+Marp speaker notes are HTML comments inside a slide; they render in presenter mode and export as PPTX slide notes, but are invisible in the rendered slide. Auditing "does every slide have notes?" has three traps: (A) `---` inside a code fence creates phantom slides — the auditor must be **code-fence-aware** and mirror the build's slide-splitter; (B) Marp directives (`version:`, `_class:`, `_paginate:`, `_color:`, `_backgroundColor:`, `fit`, `_split_`) are HTML comments too — filter by prefix blocklist plus inner-text length > 40 chars; (C) section-divider slides typically carry a per-module *appendix* note, so assert them separately.
 
-```markdown
-# My Slide
-
-Body content.
-
-<!--
-Speaker notes go here. Multi-line is fine.
-- Bullet points work too.
--->
-```
-
-They render in **presenter mode** (`marp --preview`) and export as **PPTX slide notes** on `marp --pptx`. Invisible in the rendered slide itself.
-
-Two problems show up the moment you try to audit "does every slide have notes?":
-
-### Gotcha A — the `---`-inside-a-code-fence trap
-
-Many decks show YAML or markdown frontmatter as code examples (`.agent.md`, `SKILL.md`, etc.):
-
-````markdown
-# Custom Agents
-
-```markdown
----
-name: software-engineer
-tools: ['editFiles', 'runTests']
----
-# Software Engineer Agent
-```
-````
-
-A naive separator counter that splits on `^---$` will mis-count those inner `---` delimiters as slide breaks and produce phantom "slides" whose H1 is `name: software-engineer`. Any coverage audit must be **code-fence-aware**: track a boolean `inCode` that toggles on every line matching `^\x60{3}` and ignore `---` while `inCode` is true. Mirror what your build script's slide-splitter does — mismatch between auditor and builder is the bug.
-
-### Gotcha B — distinguishing real notes from Marp directives
-
-Marp uses HTML comments for everything: `<!-- version: 4h -->`, `<!-- _class: dense -->`, `<!-- _paginate: false -->`, `<!-- _backgroundColor: #fff -->`, `<!-- _color: ... -->`, plus any editorial markers your build understands (`<!-- _split_ -->` is a common one). A comment-block-presence check that doesn't filter these will falsely report **every** slide as having notes.
-
-The working filter:
-
-- Treat as a *directive* (not a note) any comment whose trimmed inner text matches `^(version:|_class:|_paginate:|_color:|_backgroundColor:|fit|_split_)`.
-- Require the inner text to be **> 40 chars** so single-line directives never count as a note.
-
-### Gotcha C — section-divider slides are a separate category
-
-If your deck splits source into per-module files and synthesises section-divider slides (`<!-- _class: section-divider --># Module N`), those usually receive a per-module *appendix* block (`Speaker notes — Module N appendix…`) instead of a per-slide note. Test dividers separately, with their own assertion.
-
-### Gotcha D — a premature `-->` leaks the rest of the note onto the slide
-
-A presenter note is an HTML comment, and HTML comments **cannot nest**. The *first* `-->` closes the block — everything after it up to the next `<!--` renders as visible body text. This bites when a long note is hand-split into paragraphs and one paragraph accidentally ends with `-->`, e.g.:
-
-```markdown
-<!--
-Land this slide and the deck reads as one argument.
---> This is the opposite of PowerCLI's Connect-VIServer …   ← leaks onto the slide
-More notes …
--->                                                         ← now a stray --> also leaks
-```
-
-The symptom on the rendered PNG is a wall of "presenter-voice" prose under the real content, often ending in a literal `-->`. Fix: keep each note in **one** comment block with exactly one opening `<!--` and one closing `-->`; never put `-->` mid-note. A cheap guard: assert that within every slide body the count of `<!--` equals the count of `-->`, and that no `-->` precedes its matching `<!--`.
-
-### Pester guard (drop-in)
-
-This is a complete, working pair of `It` blocks. Helpers go in `BeforeAll` (see also `pester-patterns` skill — Pester 5 isolates each `It` in its own runspace, helpers defined as `Describe` siblings are invisible inside `It`).
-
-```powershell
-Describe 'Built MARP outputs have speaker notes on every slide' {
-    BeforeAll {
-        $script:pptxDir = $PSScriptRoot
-
-        function Get-MarpSlide {
-            param([Parameter(Mandatory)][string]$Path)
-            $lines  = Get-Content -Path $Path -Encoding UTF8
-            $sepIdx = [System.Collections.Generic.List[int]]::new()
-            $inCode = $false; $sawFm = $false; $inFm = $false
-            for ($i = 0; $i -lt $lines.Count; $i++) {
-                $t = $lines[$i].TrimEnd()
-                if ($t -match '^```') { $inCode = -not $inCode; continue }
-                if ($inCode) { continue }
-                if ($t -ne '---') { continue }
-                if (-not $sawFm) {
-                    if ($inFm) { $sawFm = $true; $inFm = $false; continue }
-                    $inFm = $true; continue
-                }
-                [void]$sepIdx.Add($i)
-            }
-            $slides = [System.Collections.Generic.List[object]]::new()
-            for ($n = 0; $n -lt $sepIdx.Count; $n++) {
-                $start = $sepIdx[$n] + 1
-                $end   = if (($n + 1) -lt $sepIdx.Count) { $sepIdx[$n + 1] - 1 } else { $lines.Count - 1 }
-                $body  = if ($start -le $end) { $lines[$start..$end] -join "`n" } else { '' }
-                $title = ($lines[$start..$end] | Where-Object { $_ -match '^#\s+(.+)$' } | Select-Object -First 1)
-                if ($title) { $title = ($title -replace '^#\s+', '').Trim() }
-                [void]$slides.Add([pscustomobject]@{
-                    Number    = $n + 1
-                    Title     = $title
-                    Body      = $body
-                    IsDivider = ($body -match '(?s)<!--\s*_class:\s*section-divider\s*-->')
-                })
-            }
-            return , $slides.ToArray()
-        }
-
-        function Test-SlideHasNote {
-            param([Parameter(Mandatory)][string]$Body)
-            foreach ($m in [regex]::Matches($Body, '(?s)<!--(.*?)-->')) {
-                $inner = $m.Groups[1].Value.Trim()
-                if ($inner -match '^(version:|_class:|_paginate:|_color:|_backgroundColor:|fit|_split_)') { continue }
-                if ($inner.Length -gt 40) { return $true }
-            }
-            return $false
-        }
-    }
-
-    It 'every slide in <File> has a speaker-note HTML comment block' -ForEach @(
-        @{ File = 'marp-1h-keynote.md'   }
-        @{ File = 'marp-2h-standard.md'  }
-        @{ File = 'marp-4h-workshop.md'  }
-    ) {
-        $path = Join-Path $script:pptxDir $File
-        if (-not (Test-Path $path)) {
-            Set-ItResult -Skipped -Because "$File not built yet"; return
-        }
-        $slides  = Get-MarpSlide -Path $path
-        $missing = foreach ($s in $slides) {
-            if ($s.IsDivider) { continue }
-            if (-not (Test-SlideHasNote -Body $s.Body)) {
-                ('  Slide {0}: {1}' -f $s.Number, $(if ($s.Title) { $s.Title } else { '(no H1)' }))
-            }
-        }
-        $missing | Should -BeNullOrEmpty
-    }
-}
-```
-
-### Title-drift / merge pattern (multi-file decks)
-
-If your build assembles a monolith from per-module split files and merges speaker notes by matching the H1 between split and monolith, **titles will drift**. Ship a `notes-title-map.psd1` next to the build script that aliases split-file H1s to monolith H1s:
-
-```powershell
-@{
-    'Knowing What AI Changed'  = 'Git Provides Traceability'
-    'Rollback When Needed'     = 'Checkpoint System — Rollback When Needed'
-    'When AI Validates Its Own Lies' = 'The Cheating-Agent Trap'
-}
-```
-
-When the coverage test catches a slide with no notes, the three remediation paths in order of preference are:
-
-1. **Add the alias** in `notes-title-map.psd1` (if a split-file slide already has the note under a different H1).
-2. **Add notes in the split file** (if the slide has a split-file equivalent that's never had notes).
-3. **Add notes inline in the monolith** (only for monolith-only slides — cleanest fix because no merge logic involved).
-
-### What the editorial marker `<!-- _split_ -->` is
-
-It's a comment some teams use to mark "this is where the split was made" or "this slide was generated by splitting an oversized parent." Marp ignores it (any HTML comment is invisible in the rendered slide). The build pipeline ignores it too. Include it in the directive blocklist so it never falsely registers as a speaker note.
+> **Full recipe** — the four gotchas in depth (including a premature `-->` leaking the rest of a note onto the slide), a drop-in Pester 5 guard (`Get-MarpSlide` + `Test-SlideHasNote` in `BeforeAll`), the `notes-title-map.psd1` title-drift pattern for multi-file decks, and the `<!-- _split_ -->` marker explanation: [`references/speaker-note-guard.md`](references/speaker-note-guard.md).
 
 ## Critical Gotcha: `@import` Globs Inside Comments Re-Trigger the Assembler
 
@@ -789,4 +577,5 @@ A complete reference implementation (Puppeteer detector, side-by-side report gen
 - `Test-SlideOverflow.ps1` — PowerShell wrapper (orchestrates render → check → report)
 - `New-SlideReviewReport.ps1` — Side-by-side HTML report generator (Recipe 4)
 - `Build-MarpVersions.ps1` — Build script with `-CheckOverflow` and `-Report` switches
+- `Copy-PptxNotes.py` — python-pptx notes graft that restores speaker notes dropped by the `--pptx-editable` LibreOffice round-trip (Recipe 4b, Bug 4)
 - The `compact` and `dense` CSS variants are in `content/slides/marp-presentation.md` frontmatter (Recipe 2)
