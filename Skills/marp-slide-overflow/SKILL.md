@@ -65,6 +65,18 @@ Marp CLI has **no built-in mermaid support**. A ` ```mermaid ` fenced code block
 
 > **Full recipe** — `mmdc` pre-render script, mermaid syntax gotchas (`{}`/`()`/`[]` in labels, `<br/>`, backticks), regression detection, and diagram-sizing CSS: [`references/mermaid-prerender.md`](references/mermaid-prerender.md).
 
+### Gotcha — `section img { display: block }` pushes inline emoji onto their own line
+
+The diagram-sizing rule above (`section img { … display: block; … }`) is a **broad selector**: it matches *every* `<img>` Marp emits, not just your mermaid SVGs. If the theme renders emoji as images (Twemoji — the default on many Marp themes turns `☕`, `🐢`, `🌐` into `<img class="emoji">`), `display: block` forces each emoji onto its own line, so a bullet like `… at 2 a.m. ☕` wraps the coffee cup to a new line and a one-line contact row (`🌐 site  🐙 github  🐦 x`) collapses into a vertical stack.
+
+Fix: scope a counter-rule for the emoji class, on the affected slide (`<style scoped>`) or globally:
+
+```css
+img.emoji { display: inline; height: 1em; width: 1em; vertical-align: -0.12em; margin: 0 0.15em 0 0; max-height: none; }
+```
+
+`max-height: none` is required — the diagram rule's `max-height` otherwise still applies and distorts the glyph. This only surfaces in the PNG/PPTX render, not always in the live preview, so catch it in Recipe 0.
+
 ## Recipe 0: PNG-based visual verification (mandatory before claiming "fixed")
 
 Text-heuristic overflow checks (counting `<li>` elements, total character length, raw `scrollHeight`) **miss the cases that matter most**: oversized images, tables with wrapped cells, code blocks with long lines. The **only** reliable signal that a slide actually fits is a rendered PNG of that slide:
@@ -515,7 +527,27 @@ Wire `overflow-check` into your build script so the build **exits non-zero** on 
 
 Marp speaker notes are HTML comments inside a slide; they render in presenter mode and export as PPTX slide notes, but are invisible in the rendered slide. Auditing "does every slide have notes?" has three traps: (A) `---` inside a code fence creates phantom slides — the auditor must be **code-fence-aware** and mirror the build's slide-splitter; (B) Marp directives (`version:`, `_class:`, `_paginate:`, `_color:`, `_backgroundColor:`, `fit`, `_split_`) are HTML comments too — filter by prefix blocklist plus inner-text length > 40 chars; (C) section-divider slides typically carry a per-module *appendix* note, so assert them separately.
 
-> **Full recipe** — the three gotchas in depth, a drop-in Pester 5 guard (`Get-MarpSlide` + `Test-SlideHasNote` in `BeforeAll`), the `notes-title-map.psd1` title-drift pattern for multi-file decks, and the `<!-- _split_ -->` marker explanation: [`references/speaker-note-guard.md`](references/speaker-note-guard.md).
+> **Full recipe** — the four gotchas in depth (including a premature `-->` leaking the rest of a note onto the slide), a drop-in Pester 5 guard (`Get-MarpSlide` + `Test-SlideHasNote` in `BeforeAll`), the `notes-title-map.psd1` title-drift pattern for multi-file decks, and the `<!-- _split_ -->` marker explanation: [`references/speaker-note-guard.md`](references/speaker-note-guard.md).
+
+## Critical Gotcha: `@import` Globs Inside Comments Re-Trigger the Assembler
+
+Multi-file decks usually have a build step that inlines partials by matching `@import "…"` lines (Marpit's `@import` syntax, or a custom assembler in `build.ps1`). That matcher is almost always a **plain text/regex scan** — it does **not** know it is inside an HTML comment, a code fence, or a presenter note. So a line like this, written as a harmless reminder…
+
+```markdown
+<!--
+Build note: the @import "sections/*.md" lines above are resolved by build.ps1.
+-->
+```
+
+…gets matched by the assembler, which expands the **glob** and re-imports every section file. The deck **silently doubles** (e.g. 49 → 82 slides, 2 → 4 mermaid diagrams, with a burst of "new" overflows that are really duplicated slides).
+
+Diagnosis: the slide-count and mermaid-count both jump after an edit that only touched a comment. Confirm by A/B build — `git stash` the change, rebuild, compare counts.
+
+Rules:
+
+- **Never write a literal `@import "…"` (especially a glob like `*.md`) inside any comment, note, or code fence** in a deck the assembler will scan. Paraphrase it ("the section partials are inlined by the build") instead.
+- If you must show the syntax, break the token so it can't match — e.g. `@​import` with a zero-width space, or describe it without quotes.
+- Make the assembler ignore commented/fenced regions if you control it, but treat that as defence-in-depth, not the primary fix.
 
 ## Operational Gotchas
 

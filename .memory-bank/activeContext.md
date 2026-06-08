@@ -2,7 +2,19 @@
 
 ## Current work focus
 
-Post-1.1.0 release. As of May 28, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **29 skills**, and **10 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`.
+Post-1.1.0 release. As of June 8, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **30 skills**, and **10 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`. Branch `feature/marp-pptx-editable` was merged with `origin/main` on June 8 — the marp Recipe 4b editable-PPTX work and the `social-signal-sweep` skill now coexist. **Next step**: open a PR into `main` (push only on explicit request).
+
+## Recent changes (June 8, 2026 — merged origin/main into feature/marp-pptx-editable)
+
+- **Merge resolution.** Integrated `origin/main` (2 commits: the `social-signal-sweep` skill #17 + Marp emoji / HTML-comment gotchas) into the 4-commit `feature/marp-pptx-editable` branch. Three conflicts resolved: (1) [`marp-slide-overflow/SKILL.md`](../Skills/marp-slide-overflow/SKILL.md) Recipe 5 — kept this branch's reference-pointer architecture and carried main's new **Gotcha D** (a premature `-->` leaking the rest of a note onto the slide) into [`references/speaker-note-guard.md`](../Skills/marp-slide-overflow/references/speaker-note-guard.md); main's emoji `display: block` gotcha auto-merged cleanly into the SKILL body; (2) `activeContext.md` and (3) `progress.md` — history unions (both branches' dated entries kept, chronological). Adopted main's June 8 / 30-skill counts. Not pushed.
+
+## Recent changes (June 8, 2026 — social-signal-sweep skill)
+
+New skill for recency-bounded social lead generation, plus a pointer wiring it into the research pipeline.
+
+- **New skill [`Skills/social-signal-sweep/SKILL.md`](../Skills/social-signal-sweep/SKILL.md)** — surveys what people publicly say about a topic over a bounded recent window (default 30 days) across GitHub (native GitHub tools), Hacker News (Algolia API), Reddit (public JSON), Stack Overflow (Stack Exchange API), plus a browser-only tier (YouTube, X). Returns a **tier-8 lead sheet** (platform, date, engagement signal, link, what-to-verify) under a hard *leads-only, never citable* contract — engagement measures attention, not accuracy, and no sweep result may raise a claim above `Weak` on its own. No bundled engine, no API keys, no scraping cookies — uses only `web/fetch`, the GitHub tools, and `openSimpleBrowser`. Body 221 lines; description 1000 chars.
+- **`research-analyst` wired** — new SOURCE-phase *Recency sweep for lead generation* bullet in [`Agents/research-analyst.agent.md`](../Agents/research-analyst.agent.md) points at the skill and reaffirms tier-8 leads stay `Weak`/`Speculation` until VERIFY triangulates against a higher-tier source. No `tools:` change needed — the agent already declares `web/fetch`, `github`, `web/githubTextSearch`, and `openSimpleBrowser`.
+- **Counts**: skills 29 → 30.
 
 ## Recent changes (May 31, 2026 — marp Recipe 4b Bug 4: speaker notes dropped)
 

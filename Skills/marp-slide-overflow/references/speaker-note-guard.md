@@ -8,6 +8,7 @@
 - [Gotcha A — the ---inside-a-code-fence trap](#gotcha-a--the----inside-a-code-fence-trap)
 - [Gotcha B — distinguishing real notes from Marp directives](#gotcha-b--distinguishing-real-notes-from-marp-directives)
 - [Gotcha C — section-divider slides are a separate category](#gotcha-c--section-divider-slides-are-a-separate-category)
+- [Gotcha D — a premature --> leaks the rest of the note onto the slide](#gotcha-d--a-premature----leaks-the-rest-of-the-note-onto-the-slide)
 - [Pester guard (drop-in)](#pester-guard-drop-in)
 - [Title-drift / merge pattern (multi-file decks)](#title-drift--merge-pattern-multi-file-decks)
 - [What the editorial marker _split_ is](#what-the-editorial-marker-----split-----is)
@@ -59,6 +60,20 @@ The working filter:
 ## Gotcha C — section-divider slides are a separate category
 
 If your deck splits source into per-module files and synthesises section-divider slides (`<!-- _class: section-divider --># Module N`), those usually receive a per-module *appendix* block (`Speaker notes — Module N appendix…`) instead of a per-slide note. Test dividers separately, with their own assertion.
+
+## Gotcha D — a premature `-->` leaks the rest of the note onto the slide
+
+A presenter note is an HTML comment, and HTML comments **cannot nest**. The *first* `-->` closes the block — everything after it up to the next `<!--` renders as visible body text. This bites when a long note is hand-split into paragraphs and one paragraph accidentally ends with `-->`, e.g.:
+
+```markdown
+<!--
+Land this slide and the deck reads as one argument.
+--> This is the opposite of PowerCLI's Connect-VIServer …   ← leaks onto the slide
+More notes …
+-->                                                         ← now a stray --> also leaks
+```
+
+The symptom on the rendered PNG is a wall of "presenter-voice" prose under the real content, often ending in a literal `-->`. Fix: keep each note in **one** comment block with exactly one opening `<!--` and one closing `-->`; never put `-->` mid-note. A cheap guard: assert that within every slide body the count of `<!--` equals the count of `-->`, and that no `-->` precedes its matching `<!--`.
 
 ## Pester guard (drop-in)
 
