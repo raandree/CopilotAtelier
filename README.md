@@ -9,8 +9,6 @@
 </picture>
 <!-- markdownlint-enable MD033 -->
 
-# Copilot Atelier
-
 Portable GitHub Copilot customization — agents, instructions, skills, and
 prompts — synced across machines via OneDrive and linked into the well-known
 `~/.copilot/` folders that VS Code and the Copilot CLI both read.
