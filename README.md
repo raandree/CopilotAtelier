@@ -9,7 +9,7 @@
 </picture>
 <!-- markdownlint-enable MD033 -->
 
-Portable GitHub Copilot customization — agents, instructions, skills, and
+**Portable GitHub Copilot customization** — agents, instructions, skills, and
 prompts — synced across machines via OneDrive and linked into the well-known
 `~/.copilot/` folders that VS Code and the Copilot CLI both read.
 
