@@ -2,7 +2,17 @@
 
 ## Current work focus
 
-Post-1.1.0 release. As of June 8, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **30 skills**, and **10 prompts**. Current focus: incremental skill and agent additions tracked under `[Unreleased]` in `CHANGELOG.md`. Branch `feature/marp-pptx-editable` was merged with `origin/main` on June 8 — the marp Recipe 4b editable-PPTX work and the `social-signal-sweep` skill now coexist. **Next step**: open a PR into `main` (push only on explicit request).
+Post-1.1.0 release. As of June 11, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **30 skills**, and **10 prompts**, plus a new `assets/` brand-kit folder. Current focus: brand integration — a theme-aware Copilot Atelier logo now lives in the README header, generated on branch `ai/brand-docs`. Incremental skill/agent additions remain tracked under `[Unreleased]` in `CHANGELOG.md`; the `feature/marp-pptx-editable` merge (June 8) is still awaiting a PR into `main`. **Next step**: review `ai/brand-docs` on github.com in both colour schemes, then open the relevant PR(s) into `main` (push only on explicit request).
+
+## Recent changes (June 11, 2026 — brand assets + README logo)
+
+Integrated a Copilot Atelier brand kit into the docs via the `brand-docs` prompt; branch `ai/brand-docs` (from `main`), not pushed.
+
+- **Four transparent brand PNGs in [`assets/`](../assets/)**, generated with the prompt's .NET colour-to-alpha helper from the Desktop design-board export (`CA #0…#10`). Logo source = board tile #1 (navy "Copilot" + teal "Atelier"); the dark-theme variant lifts the navy ink to near-white `#EAF1F8` and keeps the teal accent. Glyphs use the darker teal (#3) for light backgrounds and the brighter teal (#4) for dark. All four are `Format32bppArgb`, corner alpha 0, auto-cropped: `CA-logo-on-light.png` (1399×364), `CA-logo-on-dark.png` (1399×364), `CA-glyph-on-light.png` (692×816), `CA-glyph-on-dark.png` (684×808). Verified by compositing each on `#0d1117` and `#ffffff`.
+- **README header rebranded.** [`README.md`](../README.md) H1 changed from "Copilot Customization via OneDrive" to "Copilot Atelier"; a `prefers-color-scheme` `<picture>` floats the logo left (width 300) with the intro wrapping right and `<br clear="left">` after it. No bordered box. Inline HTML wrapped in `markdownlint-disable MD033 MD041`.
+- **[`Agents/README.md`](../Agents/README.md)** gains a right-floated glyph corner mark (`../assets/CA-glyph-on-*.png`, width 96).
+- **New [`.gitattributes`](../.gitattributes)** (repo had none) per [`Instructions/git.instructions.md`](../Instructions/git.instructions.md): `* text=auto`, EOL pins for PS/MD/YAML/JSON, and `binary` for png/jpg/jpeg/gif/ico/webp/zip/nupkg.
+- Throwaway `.work/` generator and `_chk-*` composites deleted; `git status` shows only `README.md`, `Agents/README.md` (modified) plus `.gitattributes`, `assets/` (new). Design-board sources not shipped.
 
 ## Recent changes (June 8, 2026 — merged origin/main into feature/marp-pptx-editable)
 

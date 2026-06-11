@@ -1,4 +1,23 @@
-# Copilot Customization via OneDrive
+<!-- markdownlint-disable MD033 MD041 -->
+<!-- Logo floated left; two transparent variants switch by theme via <picture>.
+     Judge on github.com — some in-editor previews mis-resolve prefers-color-scheme. -->
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="assets/CA-logo-on-dark.png">
+  <img align="left" width="300" alt="Copilot Atelier logo"
+       src="assets/CA-logo-on-light.png">
+</picture>
+<!-- markdownlint-enable MD033 -->
+
+# Copilot Atelier
+
+Portable GitHub Copilot customization — agents, instructions, skills, and
+prompts — synced across machines via OneDrive and linked into the well-known
+`~/.copilot/` folders that VS Code and the Copilot CLI both read.
+
+<!-- markdownlint-disable MD033 -->
+<br clear="left">
+<!-- markdownlint-enable MD033 -->
 
 ## Purpose
 

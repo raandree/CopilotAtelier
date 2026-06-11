@@ -1,3 +1,10 @@
+<!-- markdownlint-disable MD033 MD041 -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../assets/CA-glyph-on-dark.png">
+  <img align="right" width="96" alt="Copilot Atelier glyph" src="../assets/CA-glyph-on-light.png">
+</picture>
+<!-- markdownlint-enable MD033 MD041 -->
+
 # Software Release Pipeline Agents
 
 This directory contains AI agents that represent different roles in a structured software development lifecycle (SDLC) and release pipeline.

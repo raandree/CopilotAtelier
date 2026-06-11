@@ -1,0 +1,32 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# PowerShell files
+*.ps1    text eol=crlf
+*.psm1   text eol=crlf
+*.psd1   text eol=crlf
+
+# Shell scripts
+*.sh     text eol=lf
+
+# Markdown
+*.md     text eol=lf
+
+# YAML
+*.yml    text eol=lf
+*.yaml   text eol=lf
+
+# JSON
+*.json   text eol=lf
+
+# Binary image assets
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.webp   binary
+
+# Archive files
+*.zip    binary
+*.nupkg  binary
