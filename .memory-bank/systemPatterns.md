@@ -73,11 +73,11 @@
 - **Choice**: Every `SKILL.md` must start with YAML frontmatter containing `name` and `description`.
 - **Rationale**: VS Code cannot discover or register skills without this metadata. The `description` field should include `USE FOR` and `DO NOT USE FOR` trigger phrases.
 
-### Decision 7: Claude Opus 4.7 as default model
+### Decision 7: Claude Opus 4.8 as the agents' current model
 
-- **Choice**: All agents declare `Claude Opus 4.7 (copilot)` and the setup script configures GitLens and inline completions to use `claude-opus-4.7`.
-- **Rationale**: Opus 4.7 is GA in Copilot since 2026-04-16 and is Anthropic's announced replacement for Opus 4.5 / 4.6. The previous default (`claude-opus-4.6-fast`) was retired on 2026-04-10.
-- **Trade-off**: Opus 4.7 requires Copilot Pro+, Business, or Enterprise; other plans fall back to the VS Code default.
+- **Choice**: All 11 agents declare `Claude Opus 4.8 (copilot)` (bumped 2026-07-02, superseding 4.7). The `Setup-CopilotSettings.ps1` global default (`gitlens.ai.vscode.model`, `github.copilot.advanced.model`), `README.md`, and `.memory-bank/techContext.md` were bumped to Opus 4.8 in the same session, so per-agent and global-default model ids are now aligned.
+- **Rationale**: Opus 4.8 is the mid-2026 current release. Keeping every model reference current avoids drift between what agents declare and what the setup script writes.
+- **Trade-off**: Opus 4.8 requires a Copilot plan that offers it; other plans fall back to the VS Code default. The `Reference/copilot-cli-model-routing.md` lineup is also current: Opus → 4.8 and the deprecated GPT-5.1 family → GPT-5.5, with Sonnet 4.6 / Haiku 4.5 / gpt-5.2-5.3 / Gemini left pending the planned full rewrite.
 
 ### Decision 8: Session-handoff document convention
 
@@ -86,6 +86,12 @@
 - **Naming**: `handoff-YYYY-MM-DDTHHmmZ.md` (UTC, ISO-8601 compact) so multiple handoffs in one day sort. Sibling artifact `deadline-handoff-<yyyy-MM-dd-HH-mm>.md` is the older payload produced by `sync-project-emails` Phase 7a (same folder, same gitignore policy).
 - **Disambiguation vs Decision 4**: "Agent-to-agent handoff" (Decision 4) is the in-session UI transfer between custom agents in the same chat (declared via `handoffs:` in agent frontmatter). "Session-handoff" is a cross-session document. Both share the word — use the qualified form when ambiguity matters.
 - **Producer**: [`Prompts/session-handoff.prompt.md`](../Prompts/session-handoff.prompt.md). The folder is documented in [`.memory-bank/session/README.md`](session/README.md).
+
+### Decision 9: markdownlint config codifies the markdown house style
+
+- **Choice**: A repo-root [`.markdownlint.jsonc`](../.markdownlint.jsonc) disables the stylistic rules the repo intentionally violates (long lines, compact pipe tables, bare code fences, blank-line spacing, `**bold**` lead-ins, mixed list numbering, duplicate generic headings) and keeps MD047 (single trailing newline) enforced.
+- **Rationale**: The repo predated any lint config and relied on each machine's lenient editor settings. Under default rules `markdownlint-cli2` reported ~5,300 violations (3383 MD013, 1208 MD060, and so on) — almost all deliberate style. Codifying the policy in one committed file makes linting deterministic in the editor, CLI, and CI, and avoids reformatting 1200+ tables.
+- **Trade-off**: A few genuine correctness rules (MD051 link fragments, MD056 table-column count, MD041, MD038) are disabled-but-flagged in the config for a future fix pass rather than reformatted now.
 
 ## Component relationships
 

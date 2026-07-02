@@ -9,7 +9,7 @@ description: >-
   upstream for `technical-writer` (which turns dossiers into articles)
   and for engineering decisions that need defensible evidence.
 argument-hint: Describe the research question, claim to verify, or topic to investigate.
-model: 'Claude Opus 4.7 (copilot)'
+model: 'Claude Opus 4.8 (copilot)'
 tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/testFailure', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/vscodeAPI', 'vscode/runCommand', 'vscode/askQuestions', 'todo', 'runTests', 'search', 'openSimpleBrowser', 'github', 'thinking', 'useMcp', 'codeInterpreter', 'agent']
 agents:
   - technical-writer

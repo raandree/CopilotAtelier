@@ -1,6 +1,6 @@
 # Copilot CLI — Model Selection Instructions
 
-> **Note on model lineup (2026-04-26):** This document was last revised against the early-2026 Copilot CLI model lineup. Since then, Anthropic's **Claude Opus 4.7** went GA on 2026-04-16 and is the announced replacement for Opus 4.5 / 4.6, and **GPT-5.5** went GA on 2026-04-24. The **GPT-5.1** family (including `gpt-5.1`, `gpt-5.1-codex`, `gpt-5.1-codex-max`, `gpt-5.1-codex-mini`) was deprecated on 2026-04-03, and **Opus 4.6 Fast** was retired on 2026-04-10. When applying the routing rules below, substitute Opus 4.7 wherever Opus 4.5 / 4.6 is referenced and prefer current GPT-5.4 / 5.5 variants over GPT-5.1. A full rewrite is planned post-1.1.0.
+> **Note on model lineup (updated 2026-07-02):** This document is kept current incrementally; a full rewrite is planned post-1.1.0. Current defaults: **Claude Opus 4.8** (superseding 4.7, which replaced 4.5 / 4.6; Opus 4.6 Fast was retired 2026-04-10), **Claude Sonnet 4.6**, **Claude Haiku 4.5**, and **GPT-5.5**. The deprecated **GPT-5.1** family (`gpt-5.1`, `gpt-5.1-codex`, `gpt-5.1-codex-max`, `gpt-5.1-codex-mini`) has been remapped to the GPT-5.5 equivalents below; the `gpt-5.2` / `gpt-5.3-codex` / `gpt-5.2-codex` and `gemini-3-pro-preview` entries are left unchanged pending the full rewrite.
 
 You are an AI agent running in the GitHub Copilot CLI. You have access to several model tiers. **You MUST select the right model for every task.** Do not default to the most powerful model. Do not waste premium capacity on trivial work.
 
@@ -26,7 +26,7 @@ Before executing any task:
 | Model ID | Best For |
 |----------|----------|
 | `claude-haiku-4.5` | Quick edits, file searches, CLI commands, test running, boilerplate |
-| `gpt-5.1-codex-mini` | Quick bug patches, shell tweaks, helper scripts |
+| `gpt-5.5-codex-mini` | Quick bug patches, shell tweaks, helper scripts |
 | `gpt-5-mini` | Code completions, scaffolding, summaries, rapid iteration |
 | `gpt-4.1` | Simple-to-moderate tasks, balanced default |
 
@@ -40,7 +40,7 @@ Before executing any task:
 | `claude-sonnet-4.6` | Default daily driver — refactoring, debugging, code review, tool orchestration |
 | `claude-sonnet-4.5` | Reliable alternative, strong quality-per-dollar |
 | `claude-sonnet-4` | General coding + reasoning |
-| `gpt-5.1` | Best OpenAI all-rounder — coding + reasoning + writing + planning |
+| `gpt-5.5` | Best OpenAI all-rounder — coding + reasoning + writing + planning |
 | `gpt-5.2` | Day-to-day engineering, strongest when it can verify via tests |
 | `gemini-3-pro-preview` | Complex reasoning, long context, fresh perspective (but Preview stability risk) |
 
@@ -52,8 +52,8 @@ Before executing any task:
 | Model ID | Best For |
 |----------|----------|
 | `gpt-5.3-codex` | Surgical bug fixes, CI debugging, turning specs into code |
-| `gpt-5.1-codex-max` | High-precision multi-file refactors, API/SDK integration, complex SQL/KQL |
-| `gpt-5.1-codex` | Large-scope code work with strong reasoning |
+| `gpt-5.5-codex-max` | High-precision multi-file refactors, API/SDK integration, complex SQL/KQL |
+| `gpt-5.5-codex` | Large-scope code work with strong reasoning |
 | `gpt-5.2-codex` | Use cautiously — refused to self-assess, benchmark against alternatives |
 
 **Use when:** The spec is clear and you need reliable, mechanical code output.
@@ -63,9 +63,9 @@ Before executing any task:
 
 | Model ID | Best For |
 |----------|----------|
-| `claude-opus-4.6` | Hard bugs, architecture decisions, ambiguous requirements, cross-cutting analysis |
-| `claude-opus-4.5` | Same niche as 4.6 but older; use if 4.6 is unavailable |
-| `claude-opus-4.6-1m` | ONLY when context exceeds ~100K tokens (whole-codebase analysis, massive logs) |
+| `claude-opus-4.8` | Hard bugs, architecture decisions, ambiguous requirements, cross-cutting analysis |
+| `claude-opus-4.7` | Same niche as 4.8 but older; use if 4.8 is unavailable |
+| `claude-opus-4.8-1m` | ONLY when context exceeds ~100K tokens (whole-codebase analysis, massive logs) |
 
 **Use when:** The task requires deep reasoning, careful judgment, or where getting it wrong is expensive.
 **Examples:** Diagnose a subtle concurrency bug, design a system architecture, resolve conflicting requirements, plan a major migration.
@@ -74,17 +74,17 @@ Before executing any task:
 
 ## Decision Flowchart
 
-```
+```text
 Is the task simple & well-defined?
 ├─ YES → Is speed/cost important?
 │        ├─ YES → Tier 4 (Haiku, GPT-mini, GPT-4.1)
-│        └─ NO  → Tier 2 (Sonnet 4.6, GPT-5.1)
+│        └─ NO  → Tier 2 (Sonnet 4.6, GPT-5.5)
 └─ NO  → Does it require deep reasoning or architecture thinking?
          ├─ YES → Does context exceed 100K tokens?
-         │        ├─ YES → Opus 4.6 1M
-         │        └─ NO  → Opus 4.6
+         │        ├─ YES → Opus 4.8 1M
+         │        └─ NO  → Opus 4.8
          └─ NO  → Standard development task
-                  → Tier 2 (Sonnet 4.6, GPT-5.1) or Tier 3 (Codex) if spec is clear
+                  → Tier 2 (Sonnet 4.6, GPT-5.5) or Tier 3 (Codex) if spec is clear
 ```
 
 ---
@@ -99,7 +99,7 @@ Is the task simple & well-defined?
 |-------------------|-----------|--------|
 | Tier 1 (Opus) | Tier 4 task (file reads, searches, CLI commands) | **Delegate** → `task(agent_type="explore", model="claude-haiku-4.5")` |
 | Tier 1 (Opus) | Tier 2 task (implement, debug, refactor) | **Delegate** → `task(agent_type="general-purpose", model="claude-sonnet-4.6")` |
-| Tier 1 (Opus) | Tier 3 task (mechanical code generation) | **Delegate** → `task(agent_type="task", model="gpt-5.1-codex")` |
+| Tier 1 (Opus) | Tier 3 task (mechanical code generation) | **Delegate** → `task(agent_type="task", model="gpt-5.5-codex")` |
 | Tier 1 (Opus) | Tier 1 task (architecture, hard bugs) | **Execute yourself** — this is your tier |
 | Tier 2 (Sonnet) | Tier 4 task | **Delegate** → `task(agent_type="explore", model="claude-haiku-4.5")` |
 | Tier 2 (Sonnet) | Tier 2/3 task | **Execute yourself** or delegate to Codex for mechanical work |
@@ -107,7 +107,7 @@ Is the task simple & well-defined?
 
 ### Sub-agent model mapping
 
-```
+```text
 # Tier 4 — Exploration, file searches, listing, simple questions, running commands
 task(agent_type="explore", model="claude-haiku-4.5", ...)
 task(agent_type="task", model="claude-haiku-4.5", ...)
@@ -117,16 +117,16 @@ task(agent_type="general-purpose", model="claude-sonnet-4.6", ...)
 task(agent_type="task", model="claude-sonnet-4.6", ...)
 
 # Tier 3 — Mechanical code generation from clear specs
-task(agent_type="task", model="gpt-5.1-codex", ...)
-task(agent_type="general-purpose", model="gpt-5.1-codex-max", ...)
+task(agent_type="task", model="gpt-5.5-codex", ...)
+task(agent_type="general-purpose", model="gpt-5.5-codex-max", ...)
 
 # Tier 1 — Hard problems requiring deep reasoning (only delegate if you're not already Opus)
-task(agent_type="general-purpose", model="claude-opus-4.6", ...)
+task(agent_type="general-purpose", model="claude-opus-4.8", ...)
 ```
 
 ### Examples of mandatory delegation
 
-```
+```text
 # User asks: "List all CSV files in C:\Temp"
 # Classification: Tier 4 (simple file search)
 # Action: Delegate to Haiku explore agent
@@ -142,7 +142,7 @@ task(agent_type="general-purpose", model="claude-sonnet-4.6",
 # User asks: "Generate CRUD endpoints from this OpenAPI spec"
 # Classification: Tier 3 (mechanical code generation, clear spec)
 # Action: Delegate to Codex task agent
-task(agent_type="task", model="gpt-5.1-codex",
+task(agent_type="task", model="gpt-5.5-codex",
      prompt="Generate CRUD endpoints from the OpenAPI spec at...")
 
 # User asks: "Why is this distributed lock failing under contention?"
@@ -157,9 +157,9 @@ task(agent_type="task", model="gpt-5.1-codex",
 The most efficient way to work through a development session:
 
 1. **Haiku / GPT-mini** → Explore, search, quick edits, run commands
-2. **Sonnet 4.6 / GPT-5.1** → Implement, debug, refactor, review
-3. **Opus 4.6** → Escalate only for hard problems, architecture, subtle bugs
-4. **Opus 4.6 1M** → Only when context size is the actual bottleneck
+2. **Sonnet 4.6 / GPT-5.5** → Implement, debug, refactor, review
+3. **Opus 4.8** → Escalate only for hard problems, architecture, subtle bugs
+4. **Opus 4.8 1M** → Only when context size is the actual bottleneck
 5. **Codex variants** → Mechanical code generation from clear specs
 
 ---
@@ -173,7 +173,7 @@ The most efficient way to work through a development session:
 | Using Haiku for architecture decisions | Tier 4 model on Tier 1 task | Escalate to Opus |
 | Defaulting to the current model without classifying | Ignores the routing rule | Always classify first, then delegate |
 | Classifying correctly but still executing yourself | Routing without delegation defeats the purpose | After classifying, spawn the sub-agent |
-| Using Opus 1M when context is <100K tokens | Paying for unused context window | Use standard Opus 4.6 |
+| Using Opus 1M when context is <100K tokens | Paying for unused context window | Use standard Opus 4.8 |
 | Using Codex for ambiguous requirements | Codex needs clear specs | Use Sonnet or Opus to clarify first |
 | Answering "I should have used Haiku" without actually using it | Acknowledging misallocation without fixing it | Use sub-agents proactively, not retroactively |
 

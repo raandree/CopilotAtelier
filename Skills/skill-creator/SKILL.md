@@ -107,7 +107,7 @@ A description that contains the exact phrase the user typed gets selected. A des
 
 ## Progressive disclosure: point, don't dump
 
-Three loading tiers. Respect them or the skill bloats context on every invocation.
+Three loading tiers. Respect them or the skill bloats context on every invocation. Progressive disclosure is **context engineering** applied to skills — curate what reaches the model's finite context window and when, paying the token cost of a body or reference only when the task needs it.
 
 | Tier | What loads | When | Budget |
 |---|---|---|---|

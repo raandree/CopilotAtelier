@@ -5,7 +5,7 @@
 | Layer | Technology | Purpose |
 |---|---|---|
 | IDE | VS Code | Primary development environment |
-| AI assistant | GitHub Copilot (Claude Opus 4.7) | Code generation, review, documentation |
+| AI assistant | GitHub Copilot (Claude Opus 4.8) | Code generation, review, documentation |
 | Sync | OneDrive | Cross-machine file synchronization |
 | Setup script | PowerShell 5.1+ | Automated VS Code configuration |
 | Version control | Git | Repository management |
@@ -51,10 +51,10 @@ The setup script also merges `Keybindings/keybindings.json` into `%APPDATA%\Code
 
 | Setting | Value |
 |---|---|
-| `gitlens.ai.vscode.model` | `copilot:claude-opus-4.7` |
-| `github.copilot.advanced.model` | `claude-opus-4.7` |
+| `gitlens.ai.vscode.model` | `copilot:claude-opus-4.8` |
+| `github.copilot.advanced.model` | `claude-opus-4.8` |
 
-Opus 4.7 is GA in Copilot since 2026-04-16 and is the announced replacement for Opus 4.5 / 4.6. Opus 4.6 Fast (the previous default) was retired on 2026-04-10.
+Opus 4.8 is the mid-2026 current Copilot release, superseding Opus 4.7 (which replaced Opus 4.5 / 4.6; Opus 4.6 Fast was retired 2026-04-10). As of 2026-07-02 all 11 agents and both global-default settings declare Opus 4.8.
 
 ## Agents inventory
 
@@ -102,6 +102,8 @@ Opus 4.7 is GA in Copilot since 2026-04-16 and is the announced replacement for 
 
 | Skill | Directory | Purpose |
 |---|---|---|
+| `agent-evals` | `Skills/agent-evals/` | Build evals for skills/prompts/agents: capability vs regression sets, deterministic/LLM-as-judge/human graders, pass@k vs pass^k, `scripts/run-evals.ps1` harness |
+| `agent-security-review` | `Skills/agent-security-review/` | On-demand agentic-security checklist: lethal-trifecta test, OWASP Top 10 for LLM Applications quick checks, containment-first checklist, MCP/tool-permission review. Loaded by `security-reviewer` + `software-engineer` |
 | `automatedlab-deployment` | `Skills/automatedlab-deployment/` | Build and deploy Hyper-V lab environments using AutomatedLab |
 | `authenticated-web-extraction` | `Skills/authenticated-web-extraction/` | Persistent Playwright + Microsoft Edge profile at `%LOCALAPPDATA%\CareerAuthBrowser\` for authenticated extraction (LinkedIn, GitHub, Sessionize, M365, X, Meetup). Bundled `bootstrap/` (`package.json`, `open.mjs`, `extract.mjs`, `check-logins`, `dump-cookies`); documents per-site auth cookie names, session-cookie re-injection workaround, OAuth tracking-prevention flags, and the profile-lock orphan-`msedge.exe` failure mode |
 | `citation-integrity` | `Skills/citation-integrity/` | Verify every external claim, quote, statistic, and reference against a fetched source. Six-class failure taxonomy (F1 fabricated → F6 anchorless), three-layer anchor (locator + ≤25-word quote + stable ID), `VERIFIED` / `MISMATCH` / `NOT_FOUND` verdicts (no gray zone), cross-index triangulation for contamination signals |

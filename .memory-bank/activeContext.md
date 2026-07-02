@@ -2,7 +2,24 @@
 
 ## Current work focus
 
-Post-1.1.0 release. As of June 11, 2026 the repository contains 11 agents, **14 instruction files**, 1 reference doc, **30 skills**, and **10 prompts**, plus a new `assets/` brand-kit folder. Current focus: brand integration — a theme-aware Copilot Atelier logo now lives in the README header, generated on branch `ai/brand-docs`. Incremental skill/agent additions remain tracked under `[Unreleased]` in `CHANGELOG.md`; the `feature/marp-pptx-editable` merge (June 8) is still awaiting a PR into `main`. **Next step**: review `ai/brand-docs` on github.com in both colour schemes, then open the relevant PR(s) into `main` (push only on explicit request).
+Agentic-AI security + currency pass on branch `ai/agentic-security-updates` (from `main`, **uncommitted** — the user said "dont commit!"). Closed the mid-2026 gaps against the OWASP LLM Top 10, the lethal-trifecta prompt-injection framing, containment-first sandboxing, and Agent Skills as an open standard. As of 2026-07-02 the repo has 11 agents, **14 instruction files**, 1 reference doc, **32 skills**, **10 prompts**, plus a new repo-root `AGENTS.md`. **Next step**: review the working-tree changes on `ai/agentic-security-updates`; commit + PR only on explicit request (nothing committed or pushed this turn).
+
+## Recent changes (2026-07-02 — agentic-security updates, uncommitted)
+
+- **Security & QA agent — new Layer 6: LLM & Agentic Systems Security.** [`Agents/Security & Quality Assurance Agent.agent.md`](../Agents/Security%20&%20Quality%20Assurance%20Agent.agent.md): OWASP LLM Top 10 (LLM01/02/05/06/08 in depth, the rest screened), the lethal-trifecta blocking check (break a leg, not a guardrail; "95% = failing grade"; prompt injection ≠ jailbreaking), prompt-injection-via-tool-output, and a containment-first review (sandbox / egress allow-list / scoped least-privilege identity / no blanket PATs; ~93% approval fatigue). Added a flowchart node, two compliance-checklist lines, an *LLM & Agentic Systems Compliance Report Template*, OWASP GenAI + Simon Willison references, and a pointer to the new `agent-security-review` skill. Model → 4.8.
+- **`mcp-builder` — new *Tool security* section.** Lethal trifecta per server, least-privilege / scoped creds, untrusted tool output, egress allow-listing, "audited connector ≠ audited data", confused-deputy; cross-links `agent-security-review`.
+- **Two new skills (30 → 32).** `agent-security-review` (reusable agentic-review checklist; loaded by security-reviewer + software-engineer) and `agent-evals` (capability vs regression sets; deterministic / LLM-as-judge / human graders; pass@k vs pass^k; `scripts/run-evals.ps1`; `assets/evals.sample.json`; "start from 20–50 real failures").
+- **software-engineer wired** to `agent-security-review` (Security design principle) and `agent-evals` (Testing Strategy).
+- **Context engineering + AAIF.** `howto-write-skills.md` + `skill-creator` name context engineering as the discipline behind progressive disclosure; AAIF (Linux Foundation) added beside agentskills.io.
+- **New repo-root `AGENTS.md`** — portable house rules (pre/post-flight, never push, approved-verb PS, Pester-first, authoring, current model) for cross-tool use.
+- **Model sweep 4.7 → 4.8** across all 11 agents plus the global default (`Setup-CopilotSettings.ps1` gitlens + completions), `README.md`, `techContext.md`, and the `copilot-authoring` / `session-handoff` examples. The CLI routing reference was also updated (Opus → 4.8 with 4.7 fallback + 4.8-1m; deprecated GPT-5.1 family → GPT-5.5; Sonnet 4.6 / Haiku 4.5 / gpt-5.2-5.3 / Gemini left per the confirmed lineup).
+- **Markdown lint policy codified.** New [`.markdownlint.jsonc`](../.markdownlint.jsonc) — repo now lints clean (0 violations under `markdownlint-cli2`; editor confirmed clean). Disables the stylistic rules the repo intentionally uses (long lines, compact tables, bare fences, blank-line spacing, duplicate generic headings, etc.), keeps + auto-fixes MD047 trailing newline. Also fixed 4 bare fences (`text`) and 5 trailing newlines.
+
+## Known follow-ups from this pass
+
+- **CLI routing reference lineup updated (2026-07-02).** [`Reference/copilot-cli-model-routing.md`](../Reference/copilot-cli-model-routing.md) bumped: Opus → 4.8 (4.7 fallback, 4.8-1m long-context) and the deprecated GPT-5.1 family → GPT-5.5. Per the confirmed lineup, Sonnet 4.6, Haiku 4.5, `gpt-5.2` / `gpt-5.3-codex` / `gpt-5.2-codex`, and `gemini-3-pro-preview` are left as-is pending the planned full rewrite.
+- **Markdown correctness follow-up (deferred).** [`.markdownlint.jsonc`](../.markdownlint.jsonc) disables (but flags) genuine issues for a future pass: MD051 link fragments (×5), MD056 table-column count (×1), MD041 first-line heading (×1), MD038 spaces-in-code (×4). Everything else lints clean.
+- **This work is uncommitted** on `ai/agentic-security-updates` per "dont commit!" — commit/push on explicit request only.
 
 ## Recent changes (June 11, 2026 — brand assets + README logo)
 
@@ -169,7 +186,7 @@ Earlier entries (March 4 – March 31, 2026) are preserved in `progress.md` unde
 
 ## Active decisions and considerations
 
-- **Model choice**: Claude Opus 4.7 is the current default for agents and the model id configured in `Setup-CopilotSettings.ps1`. The Copilot CLI model-routing reference (`Reference/copilot-cli-model-routing.md`) still describes the pre-4.7 lineup and is flagged for a fuller refresh post-1.1.0.
+- **Model choice**: `Claude Opus 4.8 (copilot)` is the current model across all 11 agents and both global-default settings (`gitlens.ai.vscode.model`, `github.copilot.advanced.model` in `Setup-CopilotSettings.ps1`), plus `README.md`, `techContext.md`, the `copilot-authoring` example, and the `session-handoff` example (all bumped 2026-07-02). `Reference/copilot-cli-model-routing.md` is also current (Opus → 4.8, GPT-5.1 family → 5.5; Sonnet 4.6 / Haiku 4.5 / gpt-5.2-5.3 / Gemini unchanged per the confirmed lineup, pending its planned full rewrite).
 - **OneDrive path**: Optional. When present, `~/OneDrive/CopilotAtelier/` is registered in addition to the mandatory `~/CopilotAtelier/` local mirror.
 - **No CI/CD**: This is a configuration repository. Markdown linting could be added.
 

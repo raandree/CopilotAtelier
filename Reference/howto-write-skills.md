@@ -6,6 +6,8 @@ A two-page primer for authoring `Skills/**/SKILL.md` files in this repository. T
 
 A folder with a `SKILL.md` (YAML frontmatter + markdown body) plus optional `references/`, `scripts/`, and `assets/`. Claude pre-loads only the `name` + `description` from every installed skill; it reads the body when the skill triggers, and reads `references/` files only when the body points to them. This is the **progressive disclosure** model — three loading tiers, three context-cost tiers.
 
+Progressive disclosure is the skills-level application of **context engineering** — the discipline of curating what enters the model's finite context window and when, so the agent sees exactly the information a step needs and nothing more. On-demand reference loading, tight descriptions, and the 500-line body cap are all context engineering: they keep dozens of skills available at a near-zero idle cost and pay the token price only when a skill actually fires.
+
 ```text
 Skills/<kebab-name>/
 ├── SKILL.md         (required — ≤ 500 lines, description ≤ 1024 chars)
@@ -104,8 +106,9 @@ External sources, in order of authority:
 4. **Anthropic — Equipping agents for the real world with Agent Skills (engineering blog).** Design rationale, real-world deployment patterns. <https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills>
 5. **Anthropic — Claude apps Skills launch announcement.** Product-level framing, plugin marketplace context. <https://claude.com/blog/skills>
 6. **anthropics/skills (GitHub).** Anthropic's own reference skills (`pptx`, `xlsx`, `docx`, `pdf`, Claude API). Reading these is the fastest way to see canonical structure in practice. <https://github.com/anthropics/skills>
-7. **Agent Skills as an open standard.** Cross-platform skill portability spec. <https://agentskills.io/>
-8. **Simon Scrapes — "The 1% way to use Claude Skills" (video).** Source of the six-step authoring frame summarised above; argues that 20–30 well-built curated skills beat 500 generic ones. <https://www.youtube.com/watch?v=6-D3fg3JUL4>
+7. **Agent Skills as an open standard.** Cross-platform skill portability spec (originally developed by Anthropic, released open). <https://agentskills.io/>
+8. **Agentic AI Foundation (AAIF).** Vendor-neutral [Linux Foundation](https://www.linuxfoundation.org/) initiative consolidating stewardship of open agent standards (skills, tools, protocols). Sits alongside the agentskills.io spec as the neutral home for cross-tool agent portability. Search "Agentic AI Foundation" for the current project page.
+9. **Simon Scrapes — "The 1% way to use Claude Skills" (video).** Source of the six-step authoring frame summarised above; argues that 20–30 well-built curated skills beat 500 generic ones. <https://www.youtube.com/watch?v=6-D3fg3JUL4>
 
 ## In-repo references
 

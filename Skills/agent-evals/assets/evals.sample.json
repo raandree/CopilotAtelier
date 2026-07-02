@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "id": "pdf-basic",
+      "set": "capability",
+      "prompt": "convert report.pdf to markdown",
+      "expect": "## ",
+      "match": "contains"
+    },
+    {
+      "id": "pdf-german",
+      "set": "regression",
+      "prompt": "extract text from Bescheid.pdf",
+      "expect": "Grüße|Straße",
+      "match": "regex"
+    },
+    {
+      "id": "skill-triggers",
+      "set": "capability",
+      "prompt": "why isn't my skill triggering",
+      "expect": "description",
+      "match": "contains"
+    }
+  ]
+}

@@ -109,6 +109,17 @@ Store questions and expected answers in `evals/eval.xml` (or `evals.json`):
 
 Run the eval by handing the question + the MCP server to a clean agent session. Failures reveal exactly which tools are mis-described, mis-named, or missing.
 
+## Tool security
+
+An MCP server is an attack surface: its tools run with whatever credentials you hand them, and their return values flow straight into an LLM's context. Design for the case where the model driving them has already been prompt-injected. For a full agentic-system review, load the [`agent-security-review`](../agent-security-review/SKILL.md) skill.
+
+- **Don't build the lethal trifecta into one server.** The trifecta is (1) access to private data + (2) exposure to untrusted content + (3) an outbound network channel. A single server that reads private data, ingests untrusted content (fetched pages, issues, emails), *and* can make arbitrary outbound calls lets an injected instruction exfiltrate — no server bug required. Split these across servers, or remove one leg (e.g. no arbitrary `http_get`; pin egress to the API you wrap).
+- **Least privilege, scoped credentials.** Give each server the narrowest, shortest-lived token that covers its tools. No god-mode PATs, no org-wide OAuth scopes, no ambient cloud credentials. A `list_issues` server does not need `repo:write`.
+- **Every tool return value is untrusted.** Tool output is an injection vector: a fetched page, a file, or an issue body can carry `# SYSTEM: …` instructions aimed at the agent. Validate and segregate return values; never present them as trusted instructions. Prefer structured output the host renders as data over prose the model treats as directives.
+- **Egress allow-listing.** Default-deny outbound from the server process; permit only the hosts the wrapped API needs. This is the cheapest way to break trifecta leg 3.
+- **An audited connector ≠ audited data.** Vetting the server's code says nothing about the trustworthiness of the data it returns. That data still crosses a trust boundary and must be treated as hostile.
+- **Confused-deputy risk.** The server holds privileged credentials and acts on the model's behalf; if the model is steered by untrusted input, the server becomes a confused deputy executing the attacker's intent with your privileges. Add per-tool authorization, set `destructiveHint` and human-in-the-loop gates on irreversible tools, and scope tokens so a hijacked call can do only limited damage.
+
 ## Project layout (TypeScript)
 
 ```

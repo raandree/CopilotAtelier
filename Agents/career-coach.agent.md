@@ -8,7 +8,7 @@ description: >-
   STAR/CAR/XYZ achievement framing, and end-to-end application pipeline
   management with persistent memory bank.
 argument-hint: Describe your career goal, the role you're applying for, or the document you need.
-model: 'Claude Opus 4.7 (copilot)'
+model: 'Claude Opus 4.8 (copilot)'
 tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'thinking', 'useMcp']
 agents:
   - technical-writer

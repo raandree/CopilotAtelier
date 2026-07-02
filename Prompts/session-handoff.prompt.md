@@ -37,7 +37,7 @@ In order. Skip a section only when it has no content; do not pad.
 - Produced (UTC)
 - Pattern (`closing` / `forward` / `return`)
 - Source agent (current persona, e.g. `software-engineer`)
-- Source model (id, e.g. `claude-opus-4.7-xhigh`)
+- Source model (id, e.g. `claude-opus-4.8-xhigh`)
 - Branch (`git rev-parse --abbrev-ref HEAD`)
 - Worktree (`git rev-parse --show-toplevel`)
 - Last commit (short SHA, `git rev-parse --short HEAD`)

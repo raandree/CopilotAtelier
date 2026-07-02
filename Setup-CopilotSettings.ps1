@@ -129,12 +129,12 @@ $settings | Add-Member -NotePropertyName 'chat.includeApplyingInstructions' -Not
 $settings | Add-Member -NotePropertyName 'chat.includeReferencedInstructions' -NotePropertyValue $true -Force
 
 # --- GitLens AI model ---
-# Claude Opus 4.7 is GA in Copilot since April 16, 2026 and is the announced
-# replacement for Opus 4.5 / 4.6. (Opus 4.6 Fast was retired April 10, 2026.)
-$settings | Add-Member -NotePropertyName 'gitlens.ai.vscode.model' -NotePropertyValue 'copilot:claude-opus-4.7' -Force
+# Claude Opus 4.8 is the current Copilot release, superseding Opus 4.7
+# (which replaced Opus 4.5 / 4.6; Opus 4.6 Fast was retired April 10, 2026).
+$settings | Add-Member -NotePropertyName 'gitlens.ai.vscode.model' -NotePropertyValue 'copilot:claude-opus-4.8' -Force
 
 # --- Copilot completions model ---
-$settings | Add-Member -NotePropertyName 'github.copilot.advanced.model' -NotePropertyValue 'claude-opus-4.7' -Force
+$settings | Add-Member -NotePropertyName 'github.copilot.advanced.model' -NotePropertyValue 'claude-opus-4.8' -Force
 
 # --- Copilot chat enhancements ---
 $settings | Add-Member -NotePropertyName 'github.copilot.chat.agent.thinkingTool' -NotePropertyValue $true -Force
