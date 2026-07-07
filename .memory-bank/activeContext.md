@@ -2,7 +2,18 @@
 
 ## Current work focus
 
-Agentic-AI security + currency pass on branch `ai/agentic-security-updates` (from `main`, **uncommitted** — the user said "dont commit!"). Closed the mid-2026 gaps against the OWASP LLM Top 10, the lethal-trifecta prompt-injection framing, containment-first sandboxing, and Agent Skills as an open standard. As of 2026-07-02 the repo has 11 agents, **14 instruction files**, 1 reference doc, **32 skills**, **10 prompts**, plus a new repo-root `AGENTS.md`. **Next step**: review the working-tree changes on `ai/agentic-security-updates`; commit + PR only on explicit request (nothing committed or pushed this turn).
+Added a new on-demand skill, `pswritehtml-reporting` (PowerShell objects → interactive HTML reports / dashboards / tables / charts / network diagrams / email bodies via the MIT-licensed, dependency-free, cross-platform PSWriteHTML module), following a review of whether that module was worth integrating. **Uncommitted** — the user said "Don't commit." As of 2026-07-07 the repo has 11 agents, **14 instruction files**, 1 reference doc, **33 skills**, **10 prompts**. The earlier agentic-security pass on `ai/agentic-security-updates` also remains **uncommitted** (see below). **Next step (optional)**: add the reciprocal `DO NOT USE FOR` cross-reference into [`send-outlook-email`](../Skills/send-outlook-email/SKILL.md) and a one-line pointer into the QC Inspector agent's Digital-QC section; commit only on explicit request (nothing committed or pushed this turn).
+
+## Recent changes (2026-07-07 — pswritehtml-reporting skill, uncommitted)
+
+New skill answering "is PSWriteHTML worth integrating?" — verdict was yes as a skill (not an instruction), so the skill was authored.
+
+- **New skill [`Skills/pswritehtml-reporting/SKILL.md`](../Skills/pswritehtml-reporting/SKILL.md)** — turns PowerShell objects into self-contained interactive HTML via [PSWriteHTML](https://github.com/EvotecIT/PSWriteHTML). Covers the `New-HTML { }` container (offline-inlined by default, `-Online` for CDN; returns a string or writes via `-FilePath`/`-ShowHTML`) and seven recipes: `New-HTMLTable` (DataTables filtering/paging/`-SearchBuilder`), `New-HTMLTableCondition` (conditional formatting, `-Inline` for email), `New-HTMLSection`/`Panel`/`Tab` layout, `New-HTMLChart` + `New-ChartBar`/`Line`/`Pie`/`Donut`, `New-HTMLDiagram` + `New-DiagramNode -To`/`New-DiagramLink`, `Out-HtmlView`, and an HTML email-body recipe that delegates sending to `send-outlook-email`. Includes `New-HTMLTableOption -DataStore JavaScript` large-dataset tuning, a gotchas list, and a `Test-Path`/`Select-String` verification step.
+- **Security guardrail baked in.** A `> [!WARNING]` block steers away from the module's plaintext `-PasswordFromFile` SMTP pattern toward `[PSCredential]`/Mailozaurr OAuth2, per the repo's PowerShell security rules.
+- **Accuracy.** PSWriteHTML is not installed locally; every command name was verified against Evotec's published examples (advanced-reporting, all-your-html-tables, emailimo, diagrams blogs) before authoring — no invented parameters.
+- **Overlap fences.** `DO NOT USE FOR` delegates sending to `send-outlook-email`, Markdown-to-Outlook drafts to `create-outlook-draft`, slide decks to `marp-slide-overflow`, Word/PDF to `pandoc-docx-export`, and document conversion to the `*-to-markdown` skills.
+- **Verified**: markdownlint clean (0 problems); description 1005/1024 chars; body 192/500 lines.
+- **Counts**: skills 32 → 33. Not yet wired into `send-outlook-email` (reciprocal cross-ref) or the QC Inspector agent — offered as follow-ups.
 
 ## Recent changes (2026-07-02 — agentic-security updates, uncommitted)
 
