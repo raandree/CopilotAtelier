@@ -122,6 +122,7 @@ Opus 4.8 is the mid-2026 current Copilot release, superseding Opus 4.7 (which re
 | `pandoc-docx-export` | `Skills/pandoc-docx-export/` | Export Markdown to DOCX via pandoc (Lua filters, landscape tables) |
 | `pdf-to-markdown` | `Skills/pdf-to-markdown/` | Convert PDF to Markdown via .NET-native PDF parsing (no external tools) |
 | `pester-patterns` | `Skills/pester-patterns/` | Ready-to-use Pester 5 test patterns and recipes |
+| `pswritehtml-reporting` | `Skills/pswritehtml-reporting/` | Generate interactive HTML reports, dashboards, tables, charts, and network diagrams from PowerShell objects via PSWriteHTML (MIT, dependency-free, cross-platform); `New-HTML` container, DataTables, ApexCharts, Section/Panel/Tab layout, `New-HTMLDiagram`, `Out-HtmlView`, and HTML email bodies (sending delegated to `send-outlook-email`) |
 | `sampler-build-debug` | `Skills/sampler-build-debug/` | Debug Sampler builds and Pester 5 test failures |
 | `sampler-framework` | `Skills/sampler-framework/` | Comprehensive Sampler PowerShell module build framework reference |
 | `sampler-migration` | `Skills/sampler-migration/` | Migrate legacy PowerShell modules to Sampler framework |
