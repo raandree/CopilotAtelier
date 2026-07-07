@@ -93,6 +93,13 @@
 - **Rationale**: The repo predated any lint config and relied on each machine's lenient editor settings. Under default rules `markdownlint-cli2` reported ~5,300 violations (3383 MD013, 1208 MD060, and so on) — almost all deliberate style. Codifying the policy in one committed file makes linting deterministic in the editor, CLI, and CI, and avoids reformatting 1200+ tables.
 - **Trade-off**: A few genuine correctness rules (MD051 link fragments, MD056 table-column count, MD041, MD038) are disabled-but-flagged in the config for a future fix pass rather than reformatted now.
 
+### Decision 10: Long-running command execution (agent reliability)
+
+- **Choice**: Commands that run for minutes to tens of minutes (live tests, integration suites, installers, deployments) are launched so they *survive and self-notify* instead of the agent busy-waiting. Two modes: **sync with no timeout** (preferred) — the terminal tool blocks, returns full output on completion, and auto-degrades to a background id plus a completion notification if it exceeds the internal cap; **async** — only for truly indefinite processes (servers, watchers, daemons, or a monitoring sidecar).
+- **Rule**: The agent must **never `Start-Sleep` in its own foreground command to wait for a job**, and never hand-roll a poll loop for completion — it cannot self-schedule a timer and relies on the tool's completion notification (and on-demand checks). `Start-Sleep` is legitimate only *inside a backgrounded sidecar process*.
+- **Foundation vs extension**: This is the execution foundation. [`Instructions/powershell-execution-safety.instructions.md`](../Instructions/powershell-execution-safety.instructions.md) is the narrower VS Code-freeze remedy for detached Sampler/Pester runs. The [`long-running-job-monitor`](../Skills/long-running-job-monitor/SKILL.md) skill **extends** this note with the monitoring layer: self-timestamping instrumented logs, heartbeats, out-of-band target verification, a ~5-minute status cadence, a stuck-vs-working heuristic, and completion/cleanup.
+- **Rationale**: Long jobs buffer stdout and print only at the end; without instrumentation plus out-of-band checks the agent cannot tell "still working" from "hung", and without the never-self-sleep rule it burns turns blocking on timers it cannot schedule.
+
 ## Component relationships
 
 ```mermaid
