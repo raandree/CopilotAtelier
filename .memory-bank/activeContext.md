@@ -2,7 +2,19 @@
 
 ## Current work focus
 
-Resolved the `git pull` merge on `main` that combined two independently authored skills: **`long-running-job-monitor`** (HEAD, `software-engineer`) and **`pswritehtml-reporting`** (origin/main, `devops-training-writer`). Both skills are kept — the repo now has **34** skills (32 → 34). Conflicts in `activeContext.md`, `promptHistory.md`, and `CHANGELOG.md` were resolved as unions; `progress.md`, `techContext.md`, and the two new `SKILL.md` files merged cleanly. **Next step**: none outstanding — merge completed locally, nothing pushed this turn.
+Hardened the **`long-running-job-monitor`** skill so its "timestamp + elapsed on every status line" rule is actually followed. The rule is now a triggered, checkable gate at the top of the body — a `## The one rule (non-negotiable)` section (right after `## Outcome`) with an `> [!IMPORTANT]` callout, a per-turn trigger, and a STATUS LINE checkbox gate — plus an anti-pattern ❌/✅ block under "Reporting format", rather than mid-body prose only. Body-only change: `description` frontmatter untouched (discovery already works). Body 221/500 lines; markdownlint clean; repo still has **34** skills. **Next step**: none outstanding — committed locally on a topic branch, nothing pushed this turn.
+
+## Recent changes (2026-07-08 — long-running-job-monitor status-line enforcement)
+
+Fixed a real failure where an agent that had loaded the skill emitted the START timestamp then went silent, giving status updates with no timestamp/elapsed — including on off-topic turns. Root cause: the rule lived only as descriptive prose in "Reporting format"/"Outcome" with no per-turn trigger and no definition-of-done gate. Body-only fix in [`Skills/long-running-job-monitor/SKILL.md`](../Skills/long-running-job-monitor/SKILL.md):
+
+- **New `## The one rule (non-negotiable)` section** immediately after `## Outcome` — a `> [!IMPORTANT]` callout making the status line `[YYYY-MM-DD HH:mm UTC] elapsed=Xm | phase=… | status=WORKING|STALLED|DONE|FAILED | next=…` the mandatory first line of every in-flight reply; opening without it is a process violation.
+- **Per-turn trigger** — the rule fires even when the user's turn is about something else; silence or "it's still going" with no timestamp/elapsed is a missing heartbeat, not "waiting correctly".
+- **STATUS LINE checkbox gate** (mirrors pre/post-flight): UTC timestamp, elapsed since the pinned START, phase + status, next milestone, out-of-band target evidence.
+- **Supersedes the generic opener** — a bare `[… UTC]` per-turn timestamp is insufficient while a job is in flight.
+- **Elapsed-friction removal** — pin START once from the log's `START` line; copy the `.status` sidecar's latest line into the reply.
+- **Anti-patterns block** under "Reporting format" (❌ off-topic answer with no status line; ❌ "still going" with no timestamp/elapsed; ✅ lead with the status line then answer); Reporting-format timestamps harmonized to `HH:mm UTC`; section 5 + bottom checklist now point at the gate (progressive disclosure).
+- **Verification**: `description` unchanged; body 173 → 221 lines (≤ 500); markdownlint-cli2 0 errors.
 
 ## Recent changes (2026-07-07 — long-running-job-monitor skill)
 
