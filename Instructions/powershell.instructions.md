@@ -76,6 +76,22 @@ function Get-Example {
 }
 ```
 
+### Classes Referenced Across Dot-Sourced Module Files
+- A module that defines `class X` in its `.psm1` and dot-sources a separate `.ps1` referencing `[X]` (in `[OutputType([X])]` or parameter types) throws `Unable to find type [X]` during **command autoloading** and editor IntelliSense. PowerShell's parse-only module analysis parses the dot-sourced file in isolation, so the sibling-file class is unresolvable. Explicit `Import-Module` (which executes the `.psm1`) succeeds; autoload does not.
+- Authoring: keep a class and the functions that reference it in the same parse unit (one `.psm1`, or `using module`). Do not split class-referencing functions into a dot-sourced file.
+- Consuming an affected third-party module (e.g. `Corsinvest.ProxmoxVE.Api` >= 9.2.0): before any of its commands can autoload, load it execute-based and register its classes as type accelerators so parse-only analysis resolves them.
+
+```powershell
+Import-Module -Name TheModule -ErrorAction Stop *>$null
+$module = Get-Module -Name TheModule
+$accelerators = [psobject].Assembly.GetType('System.Management.Automation.TypeAccelerators')
+foreach ($typeName in 'X', 'Y') {
+    if (-not ([System.Management.Automation.PSTypeName]$typeName).Type) {
+        $accelerators::Add($typeName, (& $module ([scriptblock]::Create("[$typeName]"))))
+    }
+}
+```
+
 ### Parameter Best Practices
 
 #### Mandatory Parameters
