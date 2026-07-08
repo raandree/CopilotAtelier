@@ -47,6 +47,33 @@ Whenever the agent starts a long job, it:
 3. checks progress on a **~5-minute** cadence, and
 4. **verifies the real end-state** on the target and cleans up throwaway resources on completion.
 
+## The one rule (non-negotiable)
+
+> [!IMPORTANT]
+> While a monitored job is in flight, the **first line of every reply** — at start, on every turn while waiting, on completion, and whenever asked — MUST be the status line below. A reply that touches the job but does not open with it is a **process violation**.
+
+```text
+[YYYY-MM-DD HH:mm UTC] elapsed=Xm | phase=… | status=WORKING|STALLED|DONE|FAILED | next=…
+```
+
+That is the minimum opener; the complete form (heartbeat age + the out-of-band target read) lives in [Reporting format](#reporting-format) and also satisfies the rule.
+
+**Supersedes the generic opener.** While a job is in flight this status line replaces any plain per-turn timestamp — a bare `[YYYY-MM-DD HH:mm UTC]` is not sufficient. Extend that same opening timestamp into the full status line.
+
+**Per-turn trigger — the real failure mode.** The rule fires on every turn the job is still running, not only on status turns. When the user's turn is about something else, still open with the status line, then answer their question. Silence between turns — or "it's still going" with no timestamp and no elapsed — is a missing heartbeat, not "waiting correctly".
+
+**Make leading with status nearly free.** Pin the start time once from the log's `START` line (step 1); `elapsed` is now-minus-START, never recomputed from scratch. When the `.status` sidecar (step 4) exists, copy its latest line straight into the reply — leading with status then costs one file read, not a fresh investigation.
+
+### STATUS LINE — every in-flight reply
+
+Enforce this the way pre/post-flight is enforced. Before sending any reply while the job runs:
+
+- [ ] Opens with a UTC timestamp `[YYYY-MM-DD HH:mm UTC]`.
+- [ ] States `elapsed` since the pinned START — not "a while", not omitted.
+- [ ] Names the current `phase` and a `status` of WORKING / STALLED / DONE / FAILED.
+- [ ] Names the `next` milestone.
+- [ ] Cites out-of-band evidence — a target probe (step 3), not just "still running" from the log.
+
 ## Workflow
 
 ### 1. Instrument the job into a self-describing, timestamped log
@@ -113,7 +140,7 @@ The sidecar is [`scripts/Start-JobMonitor.ps1`](scripts/Start-JobMonitor.ps1); p
 
 ### 5. Stuck-vs-working heuristic + strict timestamps
 
-Every status report opens with the current timestamp and elapsed-since-start, then classifies:
+Every status report opens with the mandatory status line ([The one rule](#the-one-rule-non-negotiable)), then classifies:
 
 | Status | Definition | Agent action |
 |---|---|---|
@@ -126,16 +153,37 @@ Set the STALLED threshold to ~2x the expected time of the current phase, not a g
 
 ## Reporting format
 
-Open every status line with a timestamp and elapsed time:
+The **complete status line** — the mandatory opener from [The one rule](#the-one-rule-non-negotiable) with heartbeat age and the out-of-band target read added. Prefer this fuller form; it satisfies the gate:
 
 ```text
-[YYYY-MM-DD HH:mm:ss] elapsed=Xm | phase=… | last-heartbeat=Ns ago | target: <one-line> | status=WORKING|STALLED|DONE|FAILED | next=<milestone>
+[YYYY-MM-DD HH:mm UTC] elapsed=Xm | phase=… | last-heartbeat=Ns ago | target: <one-line> | status=WORKING|STALLED|DONE|FAILED | next=<milestone>
 ```
 
 Worked example:
 
 ```text
-[2026-07-07 14:32:10] elapsed=12m | phase=guest-provisioning | last-heartbeat=40s ago | target: VM 101 running, guest-agent responding | status=WORKING | next=service-up on :443
+[2026-07-07 14:32 UTC] elapsed=12m | phase=guest-provisioning | last-heartbeat=40s ago | target: VM 101 running, guest-agent responding | status=WORKING | next=service-up on :443
+```
+
+### Anti-patterns to match against
+
+❌ Answering an unrelated question mid-job with no status line at all:
+
+```text
+Sure — to rename the branch, run: git branch -m new-name
+```
+
+❌ A status update with no timestamp and no elapsed:
+
+```text
+It's still going, looks fine so far.
+```
+
+✅ Lead with the status line, then answer the unrelated question:
+
+```text
+[2026-07-07 14:37 UTC] elapsed=17m | phase=service-start | last-heartbeat=15s ago | target: HTTP 200 on :443 | status=WORKING | next=smoke tests
+To rename the branch, run: git branch -m new-name
 ```
 
 ### 6. Completion + cleanup
@@ -169,5 +217,5 @@ Four eval prompts (Claude-A/Claude-B loop) live in [`notes-evals.md`](notes-eval
 - [ ] Run sync-no-timeout (or async if indefinite); no agent-side `Start-Sleep`/poll loop.
 - [ ] An out-of-band, read-only target probe is chosen for step 3.
 - [ ] Remote jobs: detached on the remote, log + liveness on the remote, and a channel drop is treated as reconnect-and-recheck (not FAILED).
-- [ ] Status reports open with timestamp + elapsed and classify WORKING/STALLED/DONE/FAILED.
+- [ ] Every in-flight reply opens with the mandatory status line — timestamp + elapsed + phase + status + next + out-of-band evidence ([The one rule](#the-one-rule-non-negotiable)); a bare `[… UTC]` opener is not sufficient.
 - [ ] On completion: full log read, end-state verified on target, throwaway resources cleaned up.
