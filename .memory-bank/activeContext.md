@@ -2,7 +2,16 @@
 
 ## Current work focus
 
-Hardened the **`long-running-job-monitor`** skill so its "timestamp + elapsed on every status line" rule is actually followed. The rule is now a triggered, checkable gate at the top of the body — a `## The one rule (non-negotiable)` section (right after `## Outcome`) with an `> [!IMPORTANT]` callout, a per-turn trigger, and a STATUS LINE checkbox gate — plus an anti-pattern ❌/✅ block under "Reporting format", rather than mid-body prose only. Body-only change: `description` frontmatter untouched (discovery already works). Body 221/500 lines; markdownlint clean; repo still has **34** skills. **Next step**: none outstanding — committed locally on a topic branch, nothing pushed this turn.
+Began adopting the highest-value authoring patterns identified in the 2026-07-09 external skills-repo review (logged in `promptHistory.md`) into [`skill-creator`](../Skills/skill-creator/SKILL.md). This turn added a **Behavioural enforcement** section (anti-rationalization table, red-flags list, evidence/verification close) plus a matching required authoring-checklist item, so every future skill that encodes a skippable discipline pins the agent to its own process rather than letting it take the shortest path. Body 302 → 345 lines (≤ 500); `description` untouched at 1014/1024 chars (triggering unchanged); markdownlint clean; **not committed** (user: "Dont commit"). **Next step (offered, not started)**: the remaining section-2 item — a project-wide `definition-of-done` reference in [`Reference/`](../Reference/) — then the domain-neutral skill gaps (general TDD, debugging-triage, code-review).
+
+## Recent changes (2026-07-09 — skill-creator behavioural-enforcement patterns)
+
+From the review of a public agent-skills pack, folded its strongest transferable authoring patterns into [`skill-creator`](../Skills/skill-creator/SKILL.md) as original, rephrased guidance (no content copied; source not credited in the deliverable per user instruction):
+
+- **New `## Behavioural enforcement: rationalizations, red flags, evidence` section** (after the Pattern catalogue, before "Scripts: solve, don't punt"). Three body patterns for skills that encode a discipline an agent tends to abandon: (1) an **anti-rationalization table** — excuse → rebuttal, so the model meets its own justification already answered; (2) a **red-flags** list — observable symptoms of drift phrased as symptoms not rules, whose firing means stop-and-re-enter; (3) an **evidence / verification (non-negotiable close)** — name the artifact and command that prove success, "looks right" is never enough — mirroring the repo's turn-level post-flight gate at the skill level.
+- **Authoring checklist item added** requiring the three sections where a skill encodes a skippable discipline (tests, security, verification, destructive-op guards); explicitly waived for purely subjective-output skills (writing style, summarisation).
+- **Deliberately not touched**: the `description` (already 1014/1024, no headroom; triggering unaffected) and `howto-write-skills.md` (the condensed primer — propagation offered as a follow-up).
+- **Verification**: body 302 → 345 lines (≤ 500); `markdownlint-cli2` → 0 errors.
 
 ## Recent changes (2026-07-08 — long-running-job-monitor status-line enforcement)
 

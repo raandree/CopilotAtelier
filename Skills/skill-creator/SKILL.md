@@ -180,6 +180,48 @@ Task Progress:
 
 When output quality depends on style or format, include two or three input/output pairs in SKILL.md. Examples beat descriptions when the user wants a specific shape.
 
+## Behavioural enforcement: rationalizations, red flags, evidence
+
+Structural patterns keep a skill readable; these three sections keep the *agent on process* when the shortest path tempts it to skip a step. Add them to any skill that encodes a discipline an agent tends to abandon — tests, security checks, verification, destructive-operation guards. Skip them only for skills with purely subjective output (writing style, summarisation) where there is no step to enforce.
+
+### Anti-rationalization table
+
+Agents invent plausible excuses to drop the expensive step. Pre-empt each one so that when the model reaches for the excuse, the rebuttal is already on the page. Two columns: the excuse, and why it does not hold in this skill's context.
+
+| Rationalization | Reality |
+|---|---|
+| "I'll add the tests afterwards." | Untested code is unverified code. Write the test in the same change or the behaviour is unproven. |
+| "This edit is too small to verify." | Small edits cause outsized breakage. Run the check regardless of diff size. |
+| "The check is slow, skip it this once." | A missed defect costs more than the check. Speed is not a waiver. |
+
+Keep entries specific to the skill's real failure modes; generic platitudes cost tokens without changing behaviour.
+
+### Red flags
+
+A short list of observable symptoms that the skill is going wrong *right now*, so the agent or a reviewer catches drift before it ships. Phrase each as a symptom, not a rule.
+
+- About to report success without having run the verification step.
+- Editing the canonical artifact directly instead of a working copy for a destructive operation.
+- Switching tools because the first one "seems" broken, with no error message captured.
+
+The instruction when a red flag fires is to stop and re-enter the process, never to push through.
+
+### Evidence / verification (non-negotiable close)
+
+Every skill with a checkable output ends with an explicit evidence requirement. "Looks right" is never enough — name the artifact that proves it and the check that produces it: passing test output, a clean parse, a `Test-Path` result, a rendered file, a byte count. State the command and what a pass looks like.
+
+```markdown
+## Verification
+
+Confirm before reporting done:
+
+- `markdownlint-cli2 SKILL.md` → 0 errors.
+- `(Get-Content SKILL.md).Count` → ≤ 500.
+- Skill triggered by name on the PRE-FLIGHT line of a fresh eval run.
+```
+
+This mirrors the repo's turn-level post-flight gate at the skill level: the skill refuses to declare success without proof.
+
 ## Scripts: solve, don't punt
 
 When a skill bundles executable code (`scripts/`):
@@ -270,6 +312,7 @@ Before committing a skill:
 - [ ] Folder name == `name:` (kebab-case, ≤ 64 chars, no `anthropic`/`claude`).
 - [ ] Description ≤ 1024 chars, third-person, contains `USE FOR:` and (where adjacent skills exist) `DO NOT USE FOR:`.
 - [ ] Body ≤ 500 lines (`(Get-Content SKILL.md).Count`).
+- [ ] Behavioural enforcement present where the skill encodes a skippable discipline: anti-rationalization table + red-flags list + verification/evidence close (skip only for purely subjective-output skills).
 - [ ] Deep material in `references/<topic>.md`, one level deep from SKILL.md.
 - [ ] Reference files > 100 lines start with a `## Contents` TOC.
 - [ ] Scripts ≥ ~30 lines extracted to `scripts/`.
