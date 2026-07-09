@@ -195,6 +195,7 @@ E2E Tests (few, critical user journeys) → Integration Tests (focused, service 
 - **Documentation**: All test results must be logged. Failures require a root cause analysis.
 - **Performance**: Establish performance baselines and track regressions.
 - **Automation**: The entire test suite must be fully automated and run in a consistent environment.
+- **Test-first for code**: For conventional code, follow the [`test-driven-development`](../Skills/test-driven-development/SKILL.md) skill — write a failing Pester test before the code (red-green-refactor), assert behaviour not internals, and add a regression test for every bug fix.
 - **Agent / skill / prompt deliverables**: When the deliverable is a skill, prompt, or agent (not conventional code), measure it with the [`agent-evals`](../Skills/agent-evals/SKILL.md) skill — capability vs regression eval sets, deterministic + LLM-as-judge graders, pass@k vs pass^k — instead of a single manual check.
 
 ## Subagent Delegation
@@ -204,7 +205,7 @@ Subagents run in their own context window and report back summaries. Use them to
 ### When to Delegate
 
 - **Investigation**: When understanding a problem requires reading many files across the codebase, spawn a subagent to explore and summarize findings.
-- **Code Review**: After implementing a feature, use a subagent to review your changes for edge cases, security issues, or inconsistencies (Writer/Reviewer pattern).
+- **Code Review**: After implementing a feature, use a subagent to review your changes for edge cases, security issues, or inconsistencies (Writer/Reviewer pattern), applying the [`code-review-and-quality`](../Skills/code-review-and-quality/SKILL.md) skill — five axes (design, correctness, complexity, tests, clarity) with severity-labelled findings.
 - **Parallel Exploration**: When multiple independent areas need analysis, delegate each to a separate subagent.
 - **Test Writing**: Have a subagent write tests for code you just implemented — a fresh context reduces bias toward the implementation.
 
@@ -245,7 +246,7 @@ Subagents run in their own context window and report back summaries. Use them to
 
 ### Implementation-Level Recovery
 
-When code changes fail tests, builds, or produce unexpected behavior:
+When code changes fail tests, builds, or produce unexpected behavior, follow the [`debugging-and-error-recovery`](../Skills/debugging-and-error-recovery/SKILL.md) loop (reproduce → localize → reduce → fix the root cause → guard with a regression test):
 
 1. **Analyze the failure**: Read the full error output. Identify root cause vs. symptoms.
 2. **Fix the root cause**: Never suppress errors, disable tests, or add workarounds to make failures disappear.
