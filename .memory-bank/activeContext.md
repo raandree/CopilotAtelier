@@ -2,7 +2,15 @@
 
 ## Current work focus
 
-Began adopting the highest-value authoring patterns identified in the 2026-07-09 external skills-repo review (logged in `promptHistory.md`) into [`skill-creator`](../Skills/skill-creator/SKILL.md). This turn added a **Behavioural enforcement** section (anti-rationalization table, red-flags list, evidence/verification close) plus a matching required authoring-checklist item, so every future skill that encodes a skippable discipline pins the agent to its own process rather than letting it take the shortest path. Body 302 → 345 lines (≤ 500); `description` untouched at 1014/1024 chars (triggering unchanged); markdownlint clean; **not committed** (user: "Dont commit"). **Next step (offered, not started)**: the remaining section-2 item — a project-wide `definition-of-done` reference in [`Reference/`](../Reference/) — then the domain-neutral skill gaps (general TDD, debugging-triage, code-review).
+Wrapped the section-2 adoption from the 2026-07-09 external skills-repo review (logged in `promptHistory.md`): [`Reference/definition-of-done.md`](../Reference/definition-of-done.md) (the project-wide standing bar vs per-task acceptance criteria) now exists and the per-turn [post-flight hook](../Instructions/postflight.instructions.md) links to it; the behavioural-enforcement patterns are in [`skill-creator`](../Skills/skill-creator/SKILL.md). All changes are **not committed** (user: "Dont commit"). **Next step (offered, not started)**: the domain-neutral skill gaps identified in the review — general `test-driven-development`, `debugging-and-error-recovery`, `code-review-and-quality` (rewritten PowerShell/DSC-flavored, no external source credited).
+
+## Recent changes (2026-07-09 — definition-of-done reference)
+
+- **New reference [`Reference/definition-of-done.md`](../Reference/definition-of-done.md)** (70 lines) — a non-auto-attached, concise standing bar every change clears, explicitly distinguished from per-task acceptance criteria (ship only when both are met). Six cross-linked groups: Process (per-turn pre/post-flight), Verification (proof by file type — PS AST + PSScriptAnalyzer + approved verbs + Pester; Markdown `markdownlint-cli2` 0; YAML/JSON/C#), Authored content (Skills/Instructions/Agents/Prompts caps), Repository hygiene (Memory Bank + CHANGELOG + `ai/<slug>` commit + never-push), Security (no plaintext secrets, `[PSCredential]`, lethal-trifecta + OWASP LLM screen), Ubiquitous Language. Plus a "criterion does not apply → skip only with a stated reason" rule and a point-don't-inline usage note.
+- **Created via terminal** (no create-file tool available), normalised to LF + UTF-8 no-BOM per [`.gitattributes`](../.gitattributes) (`*.md text eol=lf`).
+- **Verification**: LF-only, no BOM, 70 lines, `markdownlint-cli2` → 0 errors; internal relative links resolve to existing files.
+- **Post-flight pointer wired** — [`Instructions/postflight.instructions.md`](../Instructions/postflight.instructions.md) scope note now links to the Definition of Done as the full standing bar it partially enforces (reciprocal to the DoD's own reference to the pre/post-flight hooks); `markdownlint-cli2` → 0 errors.
+- **Not committed** (user: "Dont commit").
 
 ## Recent changes (2026-07-09 — skill-creator behavioural-enforcement patterns)
 

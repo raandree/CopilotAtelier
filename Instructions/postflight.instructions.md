@@ -32,4 +32,4 @@ Skipping any step without an explicit reason in the checklist is a process viola
 
 ## Scope note
 
-This hook is intentionally short. Per-agent specializations (e.g. extra build/test commands, extra memory files) live in each `Agents/*.agent.md`. This file guarantees the *minimum* closure pass on every turn, including the default (non-agent) chat mode.
+This hook is intentionally short. Per-agent specializations (e.g. extra build/test commands, extra memory files) live in each `Agents/*.agent.md`. This file guarantees the *minimum* closure pass on every turn, including the default (non-agent) chat mode. The full standing bar it partially enforces — verification by file type, authoring caps, security, and Ubiquitous Language, versus per-task acceptance criteria — is [`Reference/definition-of-done.md`](../Reference/definition-of-done.md).
