@@ -3,7 +3,7 @@ description: 'Specialized DevOps/Ops training content writer. Inherits all gener
 name: devops-training-writer
 model: 'Claude Opus 4.8 (copilot)'
 argument-hint: 'Describe the DevOps/Ops training module, workshop, or lab to create'
-tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'thinking', 'useMcp']
+tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'thinking', 'useMcp']
 agents: ['training-writer', 'technical-writer']
 handoffs:
   - label: Use Generic Training Writer

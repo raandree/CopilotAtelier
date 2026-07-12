@@ -118,6 +118,7 @@ The CopilotAtelier project reached functional completeness on February 24, 2026 
 26. **Pandoc DOCX export skill** → New `Skills/pandoc-docx-export/SKILL.md` for Markdown-to-Word export with Lua filters. Enhanced with content-aware column optimization.
 27. **Timestamped agent responses** → All 8 agents now require UTC timestamp at the start of every response.
 28. **Git instructions: AI-assisted commits** → Added commit attribution and branch naming conventions.
+29. **Agent tool-sets repaired for file creation** (2026-07-11) → All 11 `Agents/*.agent.md` gained `edit/createFile` + `edit/createDirectory` (none could create files or folders before — each declared only `edit/editFiles`). The four engineering/troubleshooting agents also gained `execute/runTask`; Software Engineer and Troubleshooter additionally gained `edit/rename`. The `browser/*` Playwright group was withheld to avoid the lethal trifecta. Verified via JSON-array parse (no duplicates, `edit/editFiles` retained), full YAML frontmatter parse, and `markdownlint-cli2` (0 errors). Committed on `ai/fix-agent-tools`; not pushed. User must re-run `Setup-CopilotSettings.ps1` to deploy.
 29. **Markdown instructions: anti-ASCII box art** → Added guideline against using ASCII art for structured data.
 30. **Pester instructions: detached execution** → Emphasized using `Start-Process` to avoid VSCode hangs.
 31. **README skills inventory expanded** → Available Skills table updated from 12 to 15 entries.

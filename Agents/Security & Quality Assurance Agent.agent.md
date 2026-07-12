@@ -3,7 +3,7 @@ description: 'Expert-level Security & Quality Assurance agent. Validate producti
 name: security-reviewer
 model: 'Claude Opus 4.8 (copilot)'
 argument-hint: 'Specify code, files, or scope to audit'
-tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/testFailure', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/vscodeAPI', 'vscode/runCommand', 'vscode/installExtension', 'vscode/askQuestions', 'todo', 'runTests', 'search', 'openSimpleBrowser', 'github', 'thinking', 'useMcp', 'codeInterpreter']
+tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'execute/runTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/testFailure', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/vscodeAPI', 'vscode/runCommand', 'vscode/installExtension', 'vscode/askQuestions', 'todo', 'runTests', 'search', 'openSimpleBrowser', 'github', 'thinking', 'useMcp', 'codeInterpreter']
 agents: []
 handoffs:
   - label: Fix Issues Found

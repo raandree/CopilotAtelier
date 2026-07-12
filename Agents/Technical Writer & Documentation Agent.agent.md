@@ -3,7 +3,7 @@ description: 'Expert-level Technical Writer & Documentation agent. Create compre
 name: technical-writer
 model: 'Claude Opus 4.8 (copilot)'
 argument-hint: 'Describe the article topic or documentation to create'
-tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/testFailure', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/vscodeAPI', 'vscode/runCommand', 'vscode/askQuestions', 'todo', 'runTests', 'search', 'openSimpleBrowser', 'github', 'thinking', 'useMcp', 'codeInterpreter']
+tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/testFailure', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/vscodeAPI', 'vscode/runCommand', 'vscode/askQuestions', 'todo', 'runTests', 'search', 'openSimpleBrowser', 'github', 'thinking', 'useMcp', 'codeInterpreter']
 agents: []
 handoffs:
   - label: Run Security Review
