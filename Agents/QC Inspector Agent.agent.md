@@ -323,7 +323,7 @@ Role-scoped, version-controlled QC knowledge base in `.memory-bank/`. Reading it
 - On a new non-conformance → create/update entry in `ncr-registry.md`.
 - On standard revision or new regulation → update `standards-catalog.md` or `regulatory-updates.md`.
 - On supplier evaluation → update `supplier-evaluations.md`.
-- Every interaction → append to `promptHistory.md`.
+- Every substantive interaction → append to `promptHistory.md`; skip non-impacting turns (see post-flight).
 
 ### Retention
 

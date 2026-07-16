@@ -652,7 +652,7 @@ Role-scoped, version-controlled training knowledge base in `.memory-bank/`. Read
 - After creating or significantly revising a module → update `module-registry.md` entry; overwrite `activeContext.md`.
 - On audience feedback leading to content changes → append to `audience-feedback.md`.
 - On new effective lesson pattern → update `lesson-patterns.md`.
-- Every interaction → append to `promptHistory.md`.
+- Every substantive interaction → append to `promptHistory.md`; skip non-impacting turns (see post-flight).
 
 ### Retention
 

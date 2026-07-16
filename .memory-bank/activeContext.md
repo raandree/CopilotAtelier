@@ -2,44 +2,40 @@
 
 ## Current work focus
 
-The AutomatedLab Proxmox knowledge port now includes the supplied-template
-failure mode diagnosed from vmid 131. During validation, the repository moved
-externally to `main` at `a819777` (`origin/main`), which already contains the
-updated skill body and E10. The remaining reference and record refinements are
-deliberately unstaged and uncommitted.
+Adopted the **Non-Impacting Turn (NIT) post-flight exemption**. A turn is now
+classified in hindsight at post-flight: **substantive** (a file changed, a
+durable decision emerged, the user asked to record, a bug/root-cause was found,
+or a git tag was cut) runs the full post-flight; **non-impacting** (pure Q&A,
+read-only investigation, self-documenting git commits/merges) skips
+verification, CHANGELOG, progress, the local commit, and the promptHistory
+append, emitting only `POST-FLIGHT: n/a — non-impacting turn (<reason>)`.
+Ambiguity biases to substantive.
 
-## Final implementation state
+## What changed this session
 
-- The skill separates AutomatedLab's deploy-time AppX `0x80073cf2` cleanup
-  from a pre-generalized or failed-Sysprep source template.
-- The Proxmox provider contract now states that AutomatedLab clones a
-  specialized, non-sysprepped golden image, injects its answer file, runs its
-  own Sysprep, and gates on `IMAGE_STATE_COMPLETE`.
-- Template diagnosis reads powered-off configuration, boots only a throwaway
-  clone, captures `ImageState` and Panther logs through the QEMU Guest Agent,
-  then destroys the probe while confirming the source template is untouched.
-- The Windows reference records the vmid 131 structural preconditions and
-  `BiExportStoreAlterationsToEfi failed c000000d` UEFI/BCD evidence.
-- Remediation installs VirtIO drivers and QEMU Guest Agent but does not run
-  Sysprep before tagging and `qm template`; exactly one template may match each
-  operating system.
-- External scripts poll public `Get-LWProxmoxVM ... -NoCache` state rather than
-  calling internal `Wait-LWProxmoxTasksStatus`.
-- E10 deterministically requires contract identification, safe clone probing,
-  failed-VM evidence preservation, and specialized-template rebuilding.
+- [postflight.instructions.md](../Instructions/postflight.instructions.md): new
+  "Classify the turn first" + "Non-impacting turn" + "Substantive turn"
+  structure; the promptHistory append is now owned by post-flight; misclassifying
+  substantive-as-non-impacting is a stated violation.
+- [preflight.instructions.md](../Instructions/preflight.instructions.md): step 5
+  no longer appends promptHistory (moved to post-flight, gated on substantive).
+- All 7 agents with an "Every interaction → append to promptHistory.md" write
+  trigger softened to "Every substantive interaction …"; the Software Engineer
+  and Technical Troubleshooter CORE MANDATE lines softened likewise.
+- [AGENTS.md](../AGENTS.md): pre-flight item 5 and the post-flight intro updated
+  to match.
+- Created `.memory-bank/promptHistory.md` as a substantive-turn log.
+- systemPatterns Decision 11 records the policy; CHANGELOG `[Unreleased]` entry added.
 
 ## Verification
 
-- The five requested skill files lint with zero errors.
-- The description is third-person and 834 characters; `SKILL.md` is 223 total
-  lines with a 207-line body.
-- Every reference over 100 lines has a direct `Contents` map.
-- Deterministic semantic assertions cover all requested contract, evidence,
-  safety, remediation, scope, trigger, and eval requirements.
-- Fresh read-only review reports no Blocker or Major findings; its duplicated
-  state-definition minor was resolved by giving the exact table one owner.
+- markdownlint-cli2 clean across all changed files.
+- Pre-flight WORK (probe + read Memory Bank) is unchanged and still mandatory;
+  only the pre-flight banner rule (substantive emit / trivial may skip) is retained.
 
 ## Next step
 
-The user reviews the remaining uncommitted diff. Do not switch branches, stage,
-commit, or push without a new explicit request.
+Re-run [Setup-CopilotSettings.ps1](../Setup-CopilotSettings.ps1) to propagate the
+updated Instructions/Agents to `~/OneDrive/CopilotAtelier` and the `.copilot`
+junctions. Local commit made on an `ai/` branch; not pushed. Applying the same
+NIT framing to `Reference/definition-of-done.md` was declined this round.

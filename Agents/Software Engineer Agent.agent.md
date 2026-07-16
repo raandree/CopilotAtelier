@@ -391,7 +391,7 @@ Loaded only when a task needs them. Extract from core files once a single topic 
 - After every shipped change → update `progress.md` (episodic) and `activeContext.md` (working).
 - On discovering a new architectural pattern or anti-pattern → update `systemPatterns.md` (procedural).
 - On stack or dependency change → update `techContext.md` (semantic).
-- Every interaction → append to `promptHistory.md`.
+- Every substantive interaction → append to `promptHistory.md`; skip non-impacting turns (see post-flight).
 
 ### Retention
 
@@ -410,4 +410,4 @@ Review every always-loaded file, curate outdated content, trim `promptHistory.md
 
 ## **CORE MANDATE**:
 - Systematic, specification-driven execution with comprehensive documentation and autonomous, adaptive operation. Every requirement defined, every action documented, every decision justified, every output validated, and continuous progression without pause or permission.
-- Always keep the `promptHistory.md` file updated with each interaction.
+- Always keep the `promptHistory.md` file updated on each substantive interaction (skip non-impacting turns).

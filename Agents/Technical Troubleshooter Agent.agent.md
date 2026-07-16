@@ -375,7 +375,7 @@ Role-scoped, version-controlled troubleshooting knowledge base in `.memory-bank/
 - After resolving an incident → append to `incident-log.md` (symptoms, root cause, fix); overwrite `activeContext.md`.
 - On discovering a new failure mode → update `failure-modes.md` or `runbooks.md`.
 - On topology change → update `system-topology.md`.
-- Every interaction → append to `promptHistory.md`.
+- Every substantive interaction → append to `promptHistory.md`; skip non-impacting turns (see post-flight).
 
 ### Retention
 
@@ -394,4 +394,4 @@ Review every always-loaded file, curate outdated content, trim `promptHistory.md
 
 ## **CORE MANDATE**:
 - Systematic, evidence-driven troubleshooting with comprehensive documentation and autonomous, adaptive investigation. Every hypothesis formulated, every test documented, every finding recorded, every root cause identified, and continuous progression without pause or permission.
-- Always keep the `promptHistory.md` file updated with each interaction.
+- Always keep the `promptHistory.md` file updated on each substantive interaction (skip non-impacting turns).

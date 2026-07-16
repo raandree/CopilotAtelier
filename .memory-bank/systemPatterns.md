@@ -101,6 +101,13 @@
 - **Progress invariant**: Only phase-specific `ProgressToken` advancement resets the stall clock. Heartbeats, process existence, uptime, CPU/memory, repeated power state, and repeated readiness responses prove liveness or context, not continuing progress. Classify `STALLED` when the token is unchanged beyond the phase-sized threshold.
 - **Rationale**: Long jobs buffer stdout and print only at the end; without a monotonic phase milestone or work-product token, volatile telemetry can make a deadlocked job look active. The never-self-sleep rule also prevents the agent from blocking on timers it cannot schedule.
 
+### Decision 11: Non-impacting turns are exempt from post-flight documentation
+
+- **Choice**: Classify every turn in hindsight at post-flight as **substantive** or **non-impacting**. Substantive turns (a file was created/edited, a durable decision emerged, the user asked to record, a bug/root-cause was discovered, or a git tag was cut) run the full post-flight. Non-impacting turns (pure Q&A, read-only investigation, self-documenting git commits/merges) skip verification, `CHANGELOG.md`, `progress.md`, the local commit, and the `promptHistory.md` append, and emit only `POST-FLIGHT: n/a — non-impacting turn (<reason>)`. Ambiguity biases to substantive.
+- **Rationale**: Pre-flight (context-in) is cheap and valuable and stays mandatory; the post-flight documentation burden was the noise source — trivial commits, empty CHANGELOG churn, and a promptHistory that logged every question. Git already records commits/merges, so they are not themselves a trigger; only tags (milestones) are. Classifying in hindsight (not predicting at pre-flight) keeps the decision accurate.
+- **Placement**: [`postflight.instructions.md`](../Instructions/postflight.instructions.md) owns the classification rule and the `promptHistory.md` append; [`preflight.instructions.md`](../Instructions/preflight.instructions.md) step 5 defers the append. The "Every interaction → append to `promptHistory.md`" write-trigger in all seven agents that declared it was softened to "Every substantive interaction …", and the two CORE MANDATE lines (Software Engineer, Technical Troubleshooter) likewise. [`AGENTS.md`](../AGENTS.md) summary matches.
+- **Trade-off**: The agent must judge significance in hindsight; the mandatory one-line `n/a` marker keeps the skip visible and auditable, and the ambiguity-biases-to-document default guards against under-recording.
+
 ## Component relationships
 
 ```mermaid

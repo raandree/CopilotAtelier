@@ -826,7 +826,7 @@ Role-scoped, version-controlled writing knowledge base in `.memory-bank/`. Readi
 - After publishing an article → append entry to `article-registry.md`; overwrite `activeContext.md`.
 - On new editorial decision → update `style-guide.md` or `style-decisions.md`.
 - On reusable source discovered → append to `research-sources.md`.
-- Every interaction → append to `promptHistory.md`.
+- Every substantive interaction → append to `promptHistory.md`; skip non-impacting turns (see post-flight).
 
 ### Retention
 

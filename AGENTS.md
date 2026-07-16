@@ -14,10 +14,12 @@ This repo enforces a discovery-first, close-out-clean contract on every substant
 2. Read the Memory Bank always-loaded set (`projectbrief`, `activeContext`, `techContext`, `progress`, `systemPatterns`, `productContext`, `glossary` if present, `promptHistory` if present).
 3. Match `Instructions/*.instructions.md` by `applyTo` against files you will touch; read each match.
 4. Match `Skills/**/SKILL.md` by description against the task; read each match.
-5. Append a line to `.memory-bank/promptHistory.md` if it exists.
+5. Do not append `promptHistory.md` at pre-flight — that append moved to post-flight and fires only on substantive turns; reading it in step 2 is enough.
 6. Open the reply with a UTC timestamp `[YYYY-MM-DD HH:mm UTC]` plus a one-line PRE-FLIGHT acknowledgment.
 
 **Post-flight** (before ending the reply) — see [`Instructions/postflight.instructions.md`](Instructions/postflight.instructions.md):
+
+Classify the turn first. A **non-impacting** turn (pure Q&A, read-only investigation, a self-documenting git commit/merge) skips steps 1–4 and emits only `POST-FLIGHT: n/a — non-impacting turn (<reason>)`. A **substantive** turn (a file changed, a durable decision emerged, the user asked to record, a bug was found, or a tag was cut) runs all steps:
 
 1. Verify the change (parse / lint / build / tests). Markdown-only edits: state "no executable verification required."
 2. Update the Memory Bank (`activeContext.md`, `progress.md`, `promptHistory.md`).

@@ -443,7 +443,7 @@ Role-scoped, version-controlled DevOps-training knowledge base in `.memory-bank/
 - After creating or revising a DevOps module/lab → update `module-registry.md`; overwrite `activeContext.md`.
 - On tool version bump or new platform → update `platform-matrix.md` (or `tool-version-matrix.md`).
 - On new effective pipeline or lab recipe → update `pipeline-patterns.md`.
-- Every interaction → append to `promptHistory.md`.
+- Every substantive interaction → append to `promptHistory.md`; skip non-impacting turns (see post-flight).
 
 ### Retention
 

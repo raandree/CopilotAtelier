@@ -796,7 +796,7 @@ Role-scoped, version-controlled security knowledge base in `.memory-bank/`. Read
 - After every assessment → append verdict + top findings to `assessment-log.md`; overwrite summary in `activeContext.md`.
 - On new vulnerability pattern discovered → update `security-playbooks.md` or `security-findings.md`.
 - On architecture change affecting attack surface → update `threat-model.md`.
-- Every interaction → append to `promptHistory.md`.
+- Every substantive interaction → append to `promptHistory.md`; skip non-impacting turns (see post-flight).
 
 ### Retention
 
