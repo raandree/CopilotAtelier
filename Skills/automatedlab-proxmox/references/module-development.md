@@ -3,6 +3,16 @@
 Use this workflow when source is patched locally and the installed
 AutomatedLab module must be exercised by a live deployment.
 
+## Contents
+
+- [Detect stale in-memory dependencies](#detect-stale-in-memory-dependencies)
+- [Capability guards](#capability-guards)
+- [External script scope and task waits](#external-script-scope-and-task-waits)
+- [Build without the full toolchain](#build-without-the-full-toolchain)
+- [Artifact validation](#artifact-validation)
+- [Test layers](#test-layers)
+- [Common failure modes](#common-failure-modes)
+
 ## Detect stale in-memory dependencies
 
 `Import-Module AutomatedLab -Force` does not guarantee that already-loaded

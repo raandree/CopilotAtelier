@@ -2,50 +2,44 @@
 
 ## Current work focus
 
-The AutomatedLab Proxmox knowledge port into the canonical Copilot Atelier
-repository is complete on `ai/port-proxmox-knowledge`. The final refinement
-keeps `Invoke-Pester`, `Invoke-Build`, and build entry points fully detached on
-Windows and non-Windows systems without foreground polling. The working tree is
-deliberately uncommitted and unstaged per the user's instruction.
+The AutomatedLab Proxmox knowledge port now includes the supplied-template
+failure mode diagnosed from vmid 131. During validation, the repository moved
+externally to `main` at `a819777` (`origin/main`), which already contains the
+updated skill body and E10. The remaining reference and record refinements are
+deliberately unstaged and uncommitted.
 
 ## Final implementation state
 
-- `Start-DetachedPowerShell.ps1` is the single launch implementation:
-  `Start-Process` on Windows and `sh` plus `nohup` on non-Windows systems.
-- A detached supervisor runs the encoded payload in an inner `pwsh`, writes
-  `ResultPath` as `0` for success or `1` for failure, and preserves explicit
-  nonzero exits as well as thrown failures.
-- Detached callers return `ProcessId`, `LogPath`, and `ResultPath`; an absent
-  result file means no completion result is available yet. Status is read only
-  on demand, with no agent-side sleep or polling loop.
-- Direct and configured Pester payloads propagate `FailedCount`; tagged runs
-  use `TagFilter`; configuration runs use `Run.PassThru` and `Run.Exit`.
-- Sampler and VS Code wrappers use GUID-scoped logs, preserve apostrophe/space
-  paths, log full child errors, and delegate launch semantics to the helper.
-- Encoded monitor probes contain the PowerShell body without surrounding
-  script-block braces. The sidecar rejects the ambiguous outer-braced form with
-  a targeted error and enforces one `Summary` / `Liveness` / `ProgressToken`
-  object.
+- The skill separates AutomatedLab's deploy-time AppX `0x80073cf2` cleanup
+  from a pre-generalized or failed-Sysprep source template.
+- The Proxmox provider contract now states that AutomatedLab clones a
+  specialized, non-sysprepped golden image, injects its answer file, runs its
+  own Sysprep, and gates on `IMAGE_STATE_COMPLETE`.
+- Template diagnosis reads powered-off configuration, boots only a throwaway
+  clone, captures `ImageState` and Panther logs through the QEMU Guest Agent,
+  then destroys the probe while confirming the source template is untouched.
+- The Windows reference records the vmid 131 structural preconditions and
+  `BiExportStoreAlterationsToEfi failed c000000d` UEFI/BCD evidence.
+- Remediation installs VirtIO drivers and QEMU Guest Agent but does not run
+  Sysprep before tagging and `qm template`; exactly one template may match each
+  operating system.
+- External scripts poll public `Get-LWProxmoxVM ... -NoCache` state rather than
+  calling internal `Wait-LWProxmoxTasksStatus`.
+- E10 deterministically requires contract identification, safe clone probing,
+  failed-VM evidence preservation, and specialized-template rebuilding.
 
 ## Verification
 
-- All 135 Markdown files lint clean; `git diff --check` passes.
-- Both executable scripts have zero AST parse errors, zero ScriptAnalyzer
-  warnings/errors, and CRLF line endings.
-- 530 executable PowerShell fences, four PowerShell files, and 28 JSON task
-  surfaces contain zero foreground Pester/build commands.
-- Helper markers pass success, throw, and explicit-exit cases (`0`, `1`, `1`).
-- Detached direct/configured Pester failures produce `ResultPath=1` and log the
-  failed count.
-- VS Code wrapper success/failure cases produce `ResultPath=0/1`, including an
-  apostrophe path.
-- The Windows helper and Git-sh `nohup` strategy pass; the latter records `1`
-  for intentional `exit 9`.
-- The detached monitor passes shared heartbeat, token, liveness, target,
-  terminal-marker, and `ResultPath=0` checks.
-- Independent security review reports no Blocker or Major findings.
+- The five requested skill files lint with zero errors.
+- The description is third-person and 834 characters; `SKILL.md` is 223 total
+  lines with a 207-line body.
+- Every reference over 100 lines has a direct `Contents` map.
+- Deterministic semantic assertions cover all requested contract, evidence,
+  safety, remediation, scope, trigger, and eval requirements.
+- Fresh read-only review reports no Blocker or Major findings; its duplicated
+  state-definition minor was resolved by giving the exact table one owner.
 
 ## Next step
 
-The user reviews the uncommitted diff and explicitly requests a commit when
-ready. Do not stage, commit, or push before that request.
+The user reviews the remaining uncommitted diff. Do not switch branches, stage,
+commit, or push without a new explicit request.

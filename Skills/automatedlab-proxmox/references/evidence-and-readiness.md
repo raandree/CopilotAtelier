@@ -3,6 +3,16 @@
 Use independent control planes to separate orchestration failures from guest
 failures and transient startup windows.
 
+## Contents
+
+- [Evidence matrix](#evidence-matrix)
+- [QEMU guest execution contract](#qemu-guest-execution-contract)
+- [Proxmox task warnings](#proxmox-task-warnings)
+- [Template image state and non-destructive probing](#template-image-state-and-non-destructive-probing)
+- [Restart-scoped readiness](#restart-scoped-readiness)
+- [Initialization metadata](#initialization-metadata)
+- [Controlled live test](#controlled-live-test)
+
 ## Evidence matrix
 
 | Plane | Evidence | What it proves |
@@ -71,12 +81,9 @@ its OOBE state. Use this evidence pattern instead:
 5. Destroy the throwaway clone, then query the original template again to
    confirm it remained powered off and unchanged.
 
-Interpret the registry signal directly:
-
-- `IMAGE_STATE_COMPLETE`: deployable and usable.
-- `IMAGE_STATE_UNDEPLOYABLE`: failed or incomplete Sysprep; reject it.
-- `IMAGE_STATE_SPECIALIZE_RESEAL_TO_OOBE`: pre-generalized toward OOBE; reject
-  it for AutomatedLab's Proxmox provider.
+Use `IMAGE_STATE_COMPLETE` as the positive deployability gate. Preserve and
+route every other value through the template failure branch; the Windows
+Sysprep reference owns the exact state-value decision table and remediation.
 
 The pass condition is not merely a booting clone. It is a usable image state,
 captured Panther evidence when unusable, cleanup of the disposable probe, and

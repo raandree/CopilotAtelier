@@ -161,7 +161,7 @@ Template VM ID 131, `AL-W10-Sysprepped`, met every discovery precondition:
 - tags `windows10enterprise;template`;
 - `virtio-scsi-single` and a VirtIO `net0`;
 - `agent=1` and `bios=ovmf`;
-- VirtIO drivers ISO still mounted.
+- `virtio-win` ISO still mounted.
 
 A throwaway clone nevertheless reported
 `ImageState = IMAGE_STATE_UNDEPLOYABLE`. Four generalize attempts in

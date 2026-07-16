@@ -4,6 +4,7 @@
 
 - 2026-07-16: Ported the validated AutomatedLab Proxmox troubleshooting skill and durable WinRM/monitoring guidance; retained detached execution for Pester and builds while removing foreground polling. Skill count 37 → 38. Left uncommitted on `ai/port-proxmox-knowledge` per user request.
 - 2026-07-16: Finalized the cross-platform detached Pester/build contract with supervised `ResultPath` completion markers, deterministic throw/explicit-exit failure propagation, centralized Sampler/VS Code wrappers, and an unambiguous encoded monitor-probe body. Full lint, AST, ScriptAnalyzer, policy audits, detached smokes, and independent review pass; changes remain uncommitted and unstaged.
+- 2026-07-16: Expanded `automatedlab-proxmox` with the specialized-versus-generalized template contract, non-destructive throwaway-clone `ImageState`/Panther probe, vmid 131 UEFI/BCD `c000000d` evidence, non-sysprepped golden-image remediation, external task-wait scope warning, and deterministic E10 regression case. Focused lint, authoring limits, semantic assertions, and independent review pass. The repository advanced externally to `main`/`origin/main` at `a819777` during validation; remaining reference and record refinements are unstaged and uncommitted.
 
 The CopilotAtelier project reached functional completeness on February 24, 2026 and has been steadily expanded since. v1.1.0 shipped on April 26, 2026. As of May 13, 2026 the repository contains 11 agents, 13 instruction files, 1 reference doc, 23 skills, and 8 prompts.
 
