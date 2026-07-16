@@ -113,9 +113,10 @@ Invoke-Plaster @invokePlasterParameters
 
 ### First Build
 
-```powershell
-cd C:\source\MyModule
+Use one line as the inner command of the detached build wrapper, with its
+working directory set to `C:\source\MyModule`:
 
+```text
 # Resolve dependencies and build (first run)
 ./build.ps1 -ResolveDependency -Tasks build
 
@@ -183,7 +184,9 @@ How ``build.ps1`` bootstraps dependencies, parameter handling, and customisation
 
 ### Discovering Available Tasks
 
-```powershell
+Use this as the inner command of the detached build wrapper:
+
+```text
 # List all available tasks (dependencies must be resolved first)
 ./build.ps1 -Tasks ?
 ```

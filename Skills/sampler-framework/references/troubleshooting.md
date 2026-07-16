@@ -106,9 +106,16 @@ $result | Should -Match '(?s)^\[ENC=.*\]$'
 **Cause**: `$env:PSModulePath` doesn't include the build output directory.
 
 ```powershell
-# Fix: Run noop to bootstrap the environment
-./build.ps1 -Tasks noop
-Import-Module -Name 'MyModule' -Force
+# Fix: add existing build/dependency roots explicitly; do not run build.ps1
+# in the PowerShell Extension host.
+$separator = [IO.Path]::PathSeparator
+$moduleRoots = @(
+  (Join-Path $PWD 'output')
+  (Join-Path $PWD 'output/RequiredModules')
+  $env:PSModulePath
+)
+$env:PSModulePath = $moduleRoots -join $separator
+Import-Module -Name 'MyModule' -Force -ErrorAction Stop
 ```
 
 ### 8. Removed Dependencies Still Present

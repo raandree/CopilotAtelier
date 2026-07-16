@@ -1,7 +1,7 @@
 ---
 name: automatedlab-deployment
 description: >-
-  Build and manage Hyper-V lab environments with AutomatedLab (AL): installation, lab definitions, roles (AD, File Server, Routing, PKI, SQL), networking (incl. NAT), post-deploy configuration, VM status, snapshots, file transfer, DSC, certificates, firewall, and teardown. USE FOR: AutomatedLab, Hyper-V lab, deploy/create lab, domain controller, lab VMs, ISO images, LabSources, Install-Lab, New-LabDefinition, Add-LabMachineDefinition, Remove-Lab, Get-LabVM*, Wait-LabVM, Wait-LabADReady, Restart-LabVM, Save-LabVM, Copy-LabFileItem, Get-LabInternetFile, Invoke-LabDscConfiguration, Test-LabMachineInternetConnectivity, Join-LabVMDomain, Enable/Disable-LabVMFirewallGroup, Add-LabVMUserRight, Request-LabCertificate, Mount-LabIsoImage, Connect-Lab, Enable-LabInternalRouting, Add-LabVirtualNetworkDefinition -UseNat, NetNat, HyperVUseNAT, CredSSP double-hop, Enable-LabHostRemoting. DO NOT USE FOR: Azure VM deployment, production infrastructure, non-Hyper-V virtualisation.
+    Build and manage Hyper-V lab environments with AutomatedLab (AL): installation, lab definitions, roles (AD, File Server, Routing, PKI, SQL), networking (incl. NAT), post-deploy configuration, VM status, snapshots, file transfer, DSC, certificates, firewall, and teardown. USE FOR: AutomatedLab, Hyper-V lab, deploy/create lab, domain controller, lab VMs, ISO images, LabSources, Install-Lab, New-LabDefinition, Add-LabMachineDefinition, Remove-Lab, Get-LabVM*, Wait-LabVM, Wait-LabADReady, Restart-LabVM, Save-LabVM, Copy-LabFileItem, Get-LabInternetFile, Invoke-LabDscConfiguration, Test-LabMachineInternetConnectivity, Join-LabVMDomain, Enable/Disable-LabVMFirewallGroup, Add-LabVMUserRight, Request-LabCertificate, Mount-LabIsoImage, Connect-Lab, Enable-LabInternalRouting, Add-LabVirtualNetworkDefinition -UseNat, NetNat, HyperVUseNAT, CredSSP double-hop, Enable-LabHostRemoting. DO NOT USE FOR: AutomatedLab on Proxmox/QEMU (use automatedlab-proxmox), Azure VM deployment, production infrastructure.
 ---
 
 # AutomatedLab — Hyper-V Lab Deployment
@@ -17,6 +17,9 @@ using [AutomatedLab](https://automatedlab.org).
 - Post-deployment tasks (shares, software installation, DSC)
 - Troubleshooting lab deployment issues
 - Tearing down and recreating labs
+
+For Proxmox/QEMU-backed AutomatedLab failures, use
+`automatedlab-proxmox`; recipes in this skill assume Hyper-V.
 
 ## Pre-flight Checks
 

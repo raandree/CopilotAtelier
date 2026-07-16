@@ -487,7 +487,7 @@ BeforeAll {
 
     if (-not (Get-Module -Name $script:moduleName -ListAvailable))
     {
-        & "$PSScriptRoot/../../build.ps1" -Tasks 'noop' 2>&1 4>&1 5>&1 6>&1 > $null
+      throw "Module '$script:moduleName' is unavailable. Run the detached build workflow first."
     }
 
     Import-Module -Name $script:moduleName -Force -ErrorAction 'Stop'
@@ -515,7 +515,7 @@ BeforeAll {
 
     if (-not (Get-Module -Name $script:moduleName -ListAvailable))
     {
-        & "$PSScriptRoot/../../build.ps1" -Tasks 'noop' 2>&1 4>&1 5>&1 6>&1 > $null
+      throw "Module '$script:moduleName' is unavailable. Run the detached build workflow first."
     }
 
     Import-Module -Name $script:moduleName -Force -ErrorAction 'Stop'
@@ -565,11 +565,14 @@ Remove all legacy files:
 
 ### Phase 8: Verification
 
-```powershell
-# First run (resolves all dependencies):
+Use one line as the inner command of the detached wrapper below; never run it in
+the current PowerShell session:
+
+```text
+# First run (resolves all dependencies)
 ./build.ps1 -ResolveDependency -Tasks test
 
-# Subsequent runs (skip dependency resolution):
+# Subsequent runs (skip dependency resolution)
 ./build.ps1 -Tasks test
 ```
 
@@ -587,24 +590,43 @@ Running `./build.ps1` directly in the integrated terminal can freeze VSCode
 when the build takes a long time. Use a detached process:
 
 ```powershell
-$logPath = Join-Path $PWD 'output\test.log'
-if (Test-Path $logPath) { Remove-Item $logPath -Force }
+$runId = [guid]::NewGuid().ToString('N')
+$logPath = Join-Path $env:TEMP "sampler-migration-$runId.log"
 
-Start-Process pwsh -ArgumentList @(
-    '-NoProfile', '-NonInteractive', '-Command',
-    "Set-Location '$PWD'; .\build.ps1 -Tasks test *>&1 | Out-File '$logPath' -Encoding utf8"
+$workingDirectory = $PWD.Path.Replace("'", "''")
+$escapedLogPath = $logPath.Replace("'", "''")
+$payload = @"
+Set-Location -LiteralPath '$workingDirectory'
+`$ErrorActionPreference = 'Stop'
+try {
+  & {
+    .\build.ps1 -Tasks test
+  } *>&1 | Out-File -LiteralPath '$escapedLogPath' -Encoding utf8
+}
+catch {
+  `$_ | Format-List * -Force | Out-String |
+    Out-File -LiteralPath '$escapedLogPath' -Encoding utf8 -Append
+  throw
+}
+"@
+$encodedPayload = [Convert]::ToBase64String(
+  [Text.Encoding]::Unicode.GetBytes($payload)
 )
+$launcherPath = Join-Path $HOME (
+  '.copilot/skills/long-running-job-monitor/scripts/Start-DetachedPowerShell.ps1'
+)
+$launch = & $launcherPath -EncodedCommand $encodedPayload
 
-# Poll for completion:
-do {
-    Start-Sleep -Seconds 3
-    if (Test-Path $logPath) {
-        $content = Get-Content $logPath -Raw -ErrorAction SilentlyContinue
-    }
-} while ($content -notmatch 'Build (FAILED|succeeded)')
-
-Get-Content $logPath -Tail 30
+[pscustomobject]@{
+  ProcessId = $launch.ProcessId
+  LogPath   = $logPath
+  Platform  = $launch.Platform
+  ResultPath = $launch.ResultPath
+}
 ```
+
+Inspect the returned result marker, PID, and log only on demand; do not poll with
+`Start-Sleep`.
 
 Skip `-ResolveDependency` if `output/RequiredModules/` already exists.
 

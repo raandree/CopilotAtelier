@@ -39,7 +39,7 @@ This repo enforces a discovery-first, close-out-clean contract on every substant
 ## Pester-first
 
 - Tests are **Pester 5**. Write or update the test alongside the code — do not ship script changes without covering tests.
-- Run Pester in a separate process to avoid freezing the editor (see [`Instructions/powershell-execution-safety.instructions.md`](Instructions/powershell-execution-safety.instructions.md)); helper functions used inside `It` live in `BeforeAll`.
+- Run Pester through the fully detached cross-platform launcher to avoid freezing the editor (see [`Instructions/powershell-execution-safety.instructions.md`](Instructions/powershell-execution-safety.instructions.md)); helper functions used inside `It` live in `BeforeAll`.
 - Patterns: [`Skills/pester-patterns/`](Skills/pester-patterns/); conventions: [`Instructions/pester.instructions.md`](Instructions/pester.instructions.md).
 
 ## Authoring agents, skills, instructions, prompts

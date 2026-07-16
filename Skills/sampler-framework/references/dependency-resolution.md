@@ -44,7 +44,9 @@ Controls which method resolves dependencies:
 
 Override the configured method from the command line:
 
-```powershell
+Use one line as the inner command of the detached build wrapper:
+
+```text
 # Force PSResourceGet
 ./build.ps1 -ResolveDependency -Tasks noop -UsePSResourceGet
 

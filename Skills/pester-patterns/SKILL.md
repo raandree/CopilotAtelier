@@ -26,114 +26,50 @@ Ready-to-use test patterns for common PowerShell testing scenarios using Pester 
 - You need to test credential handling, DSC resources, or async operations
 - You need to run Pester tests without hanging VS Code
 
-## Pattern 0: Run Tests via Start-Process (Detached)
+## Pattern 0: Run Tests via the Fully Detached Launcher
 
 > **CRITICAL**: Running Pester inside VS Code's integrated PowerShell session — **or even
 > via `pwsh -NoProfile -Command { ... }`** — can cause VS Code to hang or become completely
 > unresponsive. The terminal synchronously waits for the child process and Pester output
-> can stall the pipe. **Always use `Start-Process` (fully detached)**.
+> can stall the pipe. Always use the canonical fully detached launcher.
 
-### Quick Start — Run All Tests
+Use the encoded cross-platform wrapper in
+[`powershell-execution-safety.instructions.md`](../../Instructions/powershell-execution-safety.instructions.md).
+It creates GUID-scoped `$env:TEMP` log/result files and returns `ProcessId`,
+`LogPath`, and `ResultPath`.
 
-```powershell
-$logPath = Join-Path $PWD 'output\test.log'
-New-Item -Path (Split-Path $logPath) -ItemType Directory -Force | Out-Null
-Remove-Item $logPath -ErrorAction SilentlyContinue
+Choose one of these as the inner child payload; never run a fragment in the
+current PowerShell session:
 
-Start-Process -FilePath pwsh -ArgumentList @(
-    '-NoProfile', '-NonInteractive', '-Command',
-    "Set-Location '$PWD'; Invoke-Pester -Path './tests' -Output Detailed *>&1 | Out-File -FilePath '$logPath' -Encoding utf8"
-) -WindowStyle Hidden -PassThru
+```text
+# All tests
+$result = Invoke-Pester -Path './tests' -Output Detailed -PassThru
+if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
 
-# Poll for completion
-for ($i = 0; $i -lt 60; $i++) {
-    Start-Sleep 3
-    if (Test-Path $logPath) {
-        $c = Get-Content $logPath -Raw -ErrorAction SilentlyContinue
-        if ($c -match 'Tests Passed|Tests Failed|Invoke-Pester.*completed') {
-            Get-Content $logPath -Tail 30
-            break
-        }
-    }
-}
+# One file
+$result = Invoke-Pester -Path './tests/Unit/Get-Widget.Tests.ps1' -Output Detailed -PassThru
+if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
+
+# One tag
+$result = Invoke-Pester -TagFilter 'Unit' -Output Detailed -PassThru
+if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
+
+# Sampler test workflow
+.\build.ps1 -Tasks test
 ```
 
-### With Full Configuration
-
-```powershell
-$logPath = Join-Path $PWD 'output\test.log'
-New-Item -Path (Split-Path $logPath) -ItemType Directory -Force | Out-Null
-Remove-Item $logPath -ErrorAction SilentlyContinue
-
-$pesterCmd = @"
-Set-Location '$PWD'
-`$config = New-PesterConfiguration
-`$config.Run.Path = './tests'
-`$config.Run.Exit = `$true
-`$config.Output.Verbosity = 'Detailed'
-`$config.CodeCoverage.Enabled = `$true
-`$config.CodeCoverage.Path = @('./source/Public/*.ps1', './source/Private/*.ps1')
-`$config.TestResult.Enabled = `$true
-`$config.TestResult.OutputFormat = 'NUnitXml'
-`$config.TestResult.OutputPath = './output/testResults.xml'
-Invoke-Pester -Configuration `$config *>&1 | Out-File -FilePath '$logPath' -Encoding utf8
-"@
-
-Start-Process -FilePath pwsh -ArgumentList @(
-    '-NoProfile', '-NonInteractive', '-Command', $pesterCmd
-) -WindowStyle Hidden -PassThru
-```
-
-### Run a Single Test File
-
-```powershell
-$logPath = Join-Path $PWD 'output\test.log'
-Remove-Item $logPath -ErrorAction SilentlyContinue
-
-Start-Process -FilePath pwsh -ArgumentList @(
-    '-NoProfile', '-NonInteractive', '-Command',
-    "Set-Location '$PWD'; Invoke-Pester -Path './tests/Unit/Get-Widget.Tests.ps1' -Output Detailed *>&1 | Out-File -FilePath '$logPath' -Encoding utf8"
-) -WindowStyle Hidden -PassThru
-```
-
-### Run by Tag
-
-```powershell
-$logPath = Join-Path $PWD 'output\test.log'
-Remove-Item $logPath -ErrorAction SilentlyContinue
-
-$pesterCmd = @"
-Set-Location '$PWD'
-`$config = New-PesterConfiguration
-`$config.Run.Path = './tests'
-`$config.Filter.Tag = @('Unit')
-`$config.Output.Verbosity = 'Detailed'
-`$config.Run.Exit = `$true
-Invoke-Pester -Configuration `$config *>&1 | Out-File -FilePath '$logPath' -Encoding utf8
-"@
-
-Start-Process -FilePath pwsh -ArgumentList @(
-    '-NoProfile', '-NonInteractive', '-Command', $pesterCmd
-) -WindowStyle Hidden -PassThru
-```
-
-### Sampler Projects
-
-```powershell
-$logPath = Join-Path $PWD 'output\test.log'
-Remove-Item $logPath -ErrorAction SilentlyContinue
-
-Start-Process -FilePath pwsh -ArgumentList @(
-    '-NoProfile', '-NonInteractive', '-Command',
-    "Set-Location '$PWD'; .\build.ps1 -Tasks test *>&1 | Out-File -FilePath '$logPath' -Encoding utf8"
-) -WindowStyle Hidden -PassThru
-```
+For a full configuration, set `$config.Run.PassThru = $true` and
+`$config.Run.Exit = $false`, capture `$result = Invoke-Pester -Configuration
+$config`, then throw when `$result.FailedCount` is greater than zero. Do not use
+`-PassThru` with `-Configuration`; they are different parameter sets.
 
 ### Key Rules
 
-- **Log files go to `output/`** (gitignored), never the project root.
+- **Log files go to unique paths under `$env:TEMP`**, never the project root or
+    Sampler `output/`.
 - **Always use `-WindowStyle Hidden`** to prevent a visible console flash.
-- Poll the log for completion markers (`Tests Passed`, `Build succeeded`, etc.).
+- Return `ProcessId`, `LogPath`, and `ResultPath`; inspect them only on demand.
+- Never add a foreground `Start-Sleep` polling loop.
 
 ### Why This Matters
 
@@ -144,6 +80,9 @@ Start-Process -FilePath pwsh -ArgumentList @(
 | Module state leaks between runs | `Import-Module -Force` in-process may not fully unload assemblies |
 | `InModuleScope` deadlocks | Locking conflicts with the language server |
 | Stale `$Error` / breakpoints | Previous debug sessions pollute the session |
+
+Detached-execution regression prompts live in
+[`notes-evals.md`](notes-evals.md).
 
 ## Pattern 1: Mocking the File System
 

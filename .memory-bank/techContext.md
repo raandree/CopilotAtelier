@@ -91,7 +91,7 @@ Opus 4.8 is the mid-2026 current Copilot release, superseding Opus 4.7 (which re
 | `versioning.instructions.md` | `GitVersion.yml, *.psd1, CHANGELOG.md` | ~1,228 lines |
 | `sampler.instructions.md` | `build.yaml, build.ps1, RequiredModules.psd1, ...` | ~150 lines |
 | `copilot-authoring.instructions.md` | `Instructions/*.instructions.md, Prompts/*.prompt.md, Skills/**/SKILL.md, Agents/*.agent.md` | meta-rules for this repo's own content |
-| `powershell-execution-safety.instructions.md` | `*.ps1, *.psm1, *.psd1, *.Tests.ps1, build.yaml, build.ps1, ...` | detached execution + Pester-in-subprocess rules |
+| `powershell-execution-safety.instructions.md` | `*.ps1, *.psm1, *.psd1, *.Tests.ps1, build.yaml, build.ps1, ...` | cross-platform detached Pester/build execution (`Start-Process`/`nohup`), synchronous ordinary one-shots, on-demand status checks, safe persistent logging |
 | `pester.instructions.md` | `*.Tests.ps1, *.tests.ps1` | ~620 lines |
 | `git.instructions.md` | `.gitconfig, .gitignore, .gitattributes, COMMIT_EDITMSG` | ~380 lines |
 | `json.instructions.md` | `*.json, *.jsonc` | ~350 lines |
@@ -105,6 +105,7 @@ Opus 4.8 is the mid-2026 current Copilot release, superseding Opus 4.7 (which re
 | `agent-evals` | `Skills/agent-evals/` | Build evals for skills/prompts/agents: capability vs regression sets, deterministic/LLM-as-judge/human graders, pass@k vs pass^k, `scripts/run-evals.ps1` harness |
 | `agent-security-review` | `Skills/agent-security-review/` | On-demand agentic-security checklist: lethal-trifecta test, OWASP Top 10 for LLM Applications quick checks, containment-first checklist, MCP/tool-permission review. Loaded by `security-reviewer` + `software-engineer` |
 | `automatedlab-deployment` | `Skills/automatedlab-deployment/` | Build and deploy Hyper-V lab environments using AutomatedLab |
+| `automatedlab-proxmox` | `Skills/automatedlab-proxmox/` | Diagnose AutomatedLab Windows provisioning and remoting failures on Proxmox/QEMU; evidence correlation, QEMU command completion, Sysprep/AppX, WinRM restart ordering, module reloads, and live verification |
 | `authenticated-web-extraction` | `Skills/authenticated-web-extraction/` | Persistent Playwright + Microsoft Edge profile at `%LOCALAPPDATA%\CareerAuthBrowser\` for authenticated extraction (LinkedIn, GitHub, Sessionize, M365, X, Meetup). Bundled `bootstrap/` (`package.json`, `open.mjs`, `extract.mjs`, `check-logins`, `dump-cookies`); documents per-site auth cookie names, session-cookie re-injection workaround, OAuth tracking-prevention flags, and the profile-lock orphan-`msedge.exe` failure mode |
 | `citation-integrity` | `Skills/citation-integrity/` | Verify every external claim, quote, statistic, and reference against a fetched source. Six-class failure taxonomy (F1 fabricated → F6 anchorless), three-layer anchor (locator + ≤25-word quote + stable ID), `VERIFIED` / `MISMATCH` / `NOT_FOUND` verdicts (no gray zone), cross-index triangulation for contamination signals |
 | `code-review-and-quality` | `Skills/code-review-and-quality/` | Reusable five-axis code review (design, correctness, complexity, tests, clarity) for PowerShell/DSC; severity labels (Blocker/Major/Minor/Nit), change sizing, author self-review against the Definition of Done |
@@ -116,6 +117,7 @@ Opus 4.8 is the mid-2026 current Copilot release, superseding Opus 4.7 (which re
 | `dsc-troubleshooting` | `Skills/dsc-troubleshooting/` | Debug and troubleshoot PowerShell DSC resource failures on target nodes |
 | `german-legal-research` | `Skills/german-legal-research/` | Legal research for German tenancy/rental law and civil law |
 | `grammar-check` | `Skills/grammar-check/` | Identify grammar, logical, and flow errors in text |
+| `long-running-job-monitor` | `Skills/long-running-job-monitor/` | Monitor long jobs with structured Summary/Liveness/ProgressToken probes; only ProgressToken advancement resets the stall clock |
 | `marp-slide-overflow` | `Skills/marp-slide-overflow/` | Detect and fix silent content overflow in Marp slide decks (Puppeteer detector, `dense`/`compact` density, `fillRatio` decision table, side-by-side review, Recipe 0 PNG visual verification, `mermaid-cli` SVG pre-render with content-hash cache and image-height CSS cap) |
 | `mecm-dsc-deployment` | `Skills/mecm-dsc-deployment/` | Deploy and troubleshoot MECM/SCCM via DSC (ConfigMgrCBDsc, Datum) |
 | `microsoft-todo-tasks` | `Skills/microsoft-todo-tasks/` | Create and manage Microsoft To Do tasks via Graph REST + OAuth2 device flow |
@@ -132,7 +134,7 @@ Opus 4.8 is the mid-2026 current Copilot release, superseding Opus 4.7 (which re
 | `social-signal-sweep` | `Skills/social-signal-sweep/` | Recency-bounded (default 30-day) multi-platform sweep of public discussion (GitHub / Hacker News / Reddit / Stack Overflow + browser tier for YouTube/X) returning a tier-8 lead sheet — leads only, never citable. No engine, API keys, or cookies; uses `web/fetch`, the GitHub tools, and `openSimpleBrowser`. Feeds the `research-analyst` SOURCE phase |
 | `test-driven-development` | `Skills/test-driven-development/` | Test-first workflow: red-green-refactor, failing Pester test before code, test pyramid, DAMP-over-DRY, bug-fix-as-test-first, characterization tests for legacy code |
 | `whisper-pyannote-transcription` | `Skills/whisper-pyannote-transcription/` | GPU-accelerated audio/video transcription with speaker labels: faster-whisper large-v3 (CUDA float16) + pyannote 3.1 diarization, merged into speaker-labeled SRT/JSON/text. Includes `transcribe.py` and `diarize.py`; documents Windows `torchcodec` bypass and HF gated-model setup |
-| `winrm-troubleshooting` | `Skills/winrm-troubleshooting/` | Debug WinRM connectivity failures, auth issues, PowerShell Direct fallback |
+| `winrm-troubleshooting` | `Skills/winrm-troubleshooting/` | Diagnose WinRM connectivity and restart readiness; guarded service recovery, scoped trust/firewall changes, raise-only quotas, and PowerShell Direct fallback |
 | `xlsx-to-markdown` | `Skills/xlsx-to-markdown/` | Convert XLSX to Markdown via .NET-native ZIP/XML parsing (no Excel/ImportExcel) |
 
 ## Prompts inventory

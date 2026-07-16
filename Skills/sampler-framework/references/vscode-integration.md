@@ -12,14 +12,22 @@ Extracted from `Skills/sampler-framework/SKILL.md` to keep the main skill body u
 
 ### Setting Up the Environment
 
-Before running or debugging tests in VSCode, ensure the session is configured:
+Do not run `build.ps1 -Tasks noop` in the PowerShell Extension host. Tests and
+builds use the detached wrapper. For interactive inspection of already-built
+artifacts, configure the current session explicitly:
 
 ```powershell
-# In the PowerShell Integrated Console:
-./build.ps1 -Tasks noop
+$separator = [IO.Path]::PathSeparator
+$moduleRoots = @(
+    (Join-Path $PWD 'output')
+    (Join-Path $PWD 'output/RequiredModules')
+    $env:PSModulePath
+)
+$env:PSModulePath = $moduleRoots -join $separator
 ```
 
-This bootstraps the environment without building or testing. The `noop` task only runs the bootstrap and sets up `$env:PSModulePath`.
+This mirrors the useful path setup without invoking a build in the current
+session.
 
 ### .vscode/settings.json
 
@@ -118,93 +126,109 @@ DSC projects should use `DscResource.AnalyzerRules` instead of (or alongside) `I
 
 ### .vscode/tasks.json
 
-Define build and test tasks with problem matchers for Pester test failures:
+Create `.vscode/Start-DetachedBuild.ps1` from this project-local wrapper. It
+returns immediately with unique process, log, and result metadata:
+
+```powershell
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory)]
+    [ValidateSet('default', 'build', 'test')]
+    [string]$Workflow,
+
+    [ValidateNotNullOrEmpty()]
+    [string]$LauncherPath = (Join-Path $HOME (
+        '.copilot/skills/long-running-job-monitor/scripts/Start-DetachedPowerShell.ps1'
+    ))
+)
+
+$buildCommand = switch ($Workflow) {
+    'default' { '.\build.ps1' }
+    'build'   { '.\build.ps1 -Tasks build' }
+    'test'    { '.\build.ps1 -AutoRestore -Tasks test' }
+}
+$runId = [guid]::NewGuid().ToString('N')
+$logPath = Join-Path $env:TEMP "sampler-$Workflow-$runId.log"
+$workingDirectory = (Split-Path $PSScriptRoot -Parent).Replace("'", "''")
+$escapedLogPath = $logPath.Replace("'", "''")
+$payload = @"
+Set-Location -LiteralPath '$workingDirectory'
+`$ErrorActionPreference = 'Stop'
+try {
+    & {
+        $buildCommand
+    } *>&1 | Out-File -LiteralPath '$escapedLogPath' -Encoding utf8
+}
+catch {
+    `$_ | Format-List * -Force | Out-String |
+        Out-File -LiteralPath '$escapedLogPath' -Encoding utf8 -Append
+    throw
+}
+"@
+$encodedPayload = [Convert]::ToBase64String(
+    [Text.Encoding]::Unicode.GetBytes($payload)
+)
+if (-not (Test-Path -LiteralPath $LauncherPath -PathType Leaf)) {
+    throw "Detached launcher not found: $LauncherPath"
+}
+$launch = & $LauncherPath -EncodedCommand $encodedPayload
+
+[pscustomobject]@{
+    ProcessId = $launch.ProcessId
+    LogPath   = $logPath
+    Platform  = $launch.Platform
+    ResultPath = $launch.ResultPath
+}
+```
+
+Then define tasks that run only the wrapper. Do not attach `build.ps1` directly
+to a shell task; detached output lives in the returned log, so terminal problem
+matchers do not apply to the launcher task.
+
+On a later status check, read `ResultPath`: `0` is success, `1` is failure, and
+an absent file means no completion result is available yet.
 
 ```jsonc
 {
     "version": "2.0.0",
-    "_runner": "terminal",
-    "windows": {
-        "options": {
-            "shell": {
-                "executable": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-                "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
-            }
-        }
-    },
-    "linux": {
-        "options": {
-            "shell": {
-                "executable": "/usr/bin/pwsh",
-                "args": ["-NoProfile", "-Command"]
-            }
-        }
-    },
     "tasks": [
         {
             "label": "build",
-            "type": "shell",
-            "command": "&${cwd}/build.ps1",
-            "args": [],
+            "type": "process",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-NonInteractive",
+                "-File",
+                "${workspaceFolder}/.vscode/Start-DetachedBuild.ps1",
+                "-Workflow",
+                "build"
+            ],
             "presentation": {
                 "echo": true,
                 "reveal": "always",
-                "focus": true,
-                "panel": "new",
-                "clear": false
+                "panel": "new"
             },
-            "problemMatcher": [
-                {
-                    "owner": "powershell",
-                    "fileLocation": ["absolute"],
-                    "severity": "error",
-                    "pattern": [
-                        {
-                            "regexp": "^\\s*(\\[-\\]\\s*.*?)(\\d+)ms\\s*$",
-                            "message": 1
-                        },
-                        { "regexp": "(.*)", "code": 1 },
-                        { "regexp": "" },
-                        {
-                            "regexp": "^.*,\\s*(.*):\\s*line\\s*(\\d+).*",
-                            "file": 1,
-                            "line": 2
-                        }
-                    ]
-                }
-            ]
+            "problemMatcher": []
         },
         {
             "label": "test",
-            "type": "shell",
-            "command": "&${cwd}/build.ps1",
-            "args": ["-AutoRestore", "-Tasks", "test"],
+            "type": "process",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-NonInteractive",
+                "-File",
+                "${workspaceFolder}/.vscode/Start-DetachedBuild.ps1",
+                "-Workflow",
+                "test"
+            ],
             "presentation": {
                 "echo": true,
                 "reveal": "always",
-                "focus": true,
                 "panel": "dedicated"
             },
-            "problemMatcher": [
-                {
-                    "owner": "powershell",
-                    "fileLocation": ["absolute"],
-                    "severity": "error",
-                    "pattern": [
-                        {
-                            "regexp": "^\\s*(\\[-\\]\\s*.*?)(\\d+)ms\\s*$",
-                            "message": 1
-                        },
-                        { "regexp": "(.*)", "code": 1 },
-                        { "regexp": "" },
-                        {
-                            "regexp": "^.*,\\s*(.*):\\s*line\\s*(\\d+).*",
-                            "file": 1,
-                            "line": 2
-                        }
-                    ]
-                }
-            ]
+            "problemMatcher": []
         }
     ]
 }

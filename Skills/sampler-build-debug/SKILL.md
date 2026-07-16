@@ -28,38 +28,56 @@ current PowerShell session. The build process imports modules, invokes Pester, a
 long-lived tasks that can **block the PowerShell extension thread and freeze VS Code**.
 Always invoke `build.ps1` in a **new, isolated `pwsh` process**.
 
-### Recommended: Detached Process with Log Polling
+### Recommended: Detached Process with On-Demand Status
 
 **IMPORTANT**: Even `pwsh -NoProfile -NonInteractive -Command '...'` can still hang the
 VS Code terminal because the terminal synchronously waits for the child process to exit.
 If Pester or the build framework writes output that interacts badly with VS Code's terminal
-renderer or the PowerShell Extension Host's pipe, the terminal freezes. **Always use
-`Start-Process` (fully detached)** — it creates a process with no parent-child pipe, so
-VS Code's terminal never blocks on it.
+renderer or the PowerShell Extension Host's pipe, the terminal freezes. Always
+use the canonical fully detached launcher (`Start-Process` on Windows, `nohup`
+on non-Windows). Return process/log/result metadata and inspect it only when
+status is requested; do not add a foreground polling loop.
 
 ```powershell
 # 1. Start build detached — log MUST go to $env:TEMP (NOT output/!)
 #    Sampler's Clean task deletes everything in output/ and will lock/fail the build.
-$logPath = "$env:TEMP\sampler_build.log"
-Remove-Item $logPath -ErrorAction SilentlyContinue
-Start-Process -FilePath pwsh -ArgumentList @(
-    '-NoProfile', '-NonInteractive', '-Command',
-    "Set-Location '$PWD'; .\build.ps1 -Tasks test *>&1 | Out-File -FilePath '$logPath' -Encoding utf8"
-) -WindowStyle Hidden -PassThru
+$runId = [guid]::NewGuid().ToString('N')
+$logPath = Join-Path $env:TEMP "sampler-build-$runId.log"
 
-# 2. Poll for completion (non-blocking)
-for ($i = 0; $i -lt 120; $i++) {
-    Start-Sleep 3
-    if (Test-Path $logPath) {
-        $c = Get-Content $logPath -Raw -ErrorAction SilentlyContinue
-        if ($c -match 'Build (FAILED|succeeded)') {
-            Get-Content $logPath -Tail 25
-            break
-        }
-    }
-    if ($i % 10 -eq 0) { Write-Host "Waiting... ($($i*3)s)" }
+$workingDirectory = $PWD.Path.Replace("'", "''")
+$escapedLogPath = $logPath.Replace("'", "''")
+$payload = @"
+Set-Location -LiteralPath '$workingDirectory'
+`$ErrorActionPreference = 'Stop'
+try {
+    & {
+        .\build.ps1 -Tasks test
+    } *>&1 | Out-File -LiteralPath '$escapedLogPath' -Encoding utf8
+}
+catch {
+    `$_ | Format-List * -Force | Out-String |
+        Out-File -LiteralPath '$escapedLogPath' -Encoding utf8 -Append
+    throw
+}
+"@
+$encodedPayload = [Convert]::ToBase64String(
+    [Text.Encoding]::Unicode.GetBytes($payload)
+)
+$launcherPath = Join-Path $HOME (
+    '.copilot/skills/long-running-job-monitor/scripts/Start-DetachedPowerShell.ps1'
+)
+$launch = & $launcherPath -EncodedCommand $encodedPayload
+
+[pscustomobject]@{
+    ProcessId = $launch.ProcessId
+    LogPath   = $logPath
+    Platform  = $launch.Platform
+    ResultPath = $launch.ResultPath
 }
 ```
+
+Check the returned result marker, PID, and log only on a later status request. Use
+`long-running-job-monitor` when continuing progress reports are required.
 
 ### Key Rules
 
@@ -132,9 +150,12 @@ $xml.SelectNodes('//test-case[@result="Failed"]') | ForEach-Object {
 ### Step 3: Read the Summary from the Log
 
 ```powershell
-Select-String -Path 'output\test.log' -Pattern 'tests\.ps1|Total run time' |
+Select-String -LiteralPath $logPath -Pattern 'tests\.ps1|Total run time' |
     ForEach-Object { $_.Line.Trim() }
 ```
+
+Use the `$logPath` returned by the detached launcher. Do not infer a fixed log
+location.
 
 ## Common Pester 5 Mock Issues
 

@@ -33,9 +33,9 @@ tests/
 BeforeAll {
     $script:moduleName = 'MyModule'
 
-    # Ensure module is available (build if needed)
+    # Build through the detached wrapper before invoking Pester.
     if (-not (Get-Module -Name $script:moduleName -ListAvailable)) {
-        & "$PSScriptRoot/../../build.ps1" -Tasks 'noop' 2>&1 4>&1 5>&1 6>&1 > $null
+        throw "Module '$script:moduleName' is unavailable. Run the detached build workflow first."
     }
 
     Import-Module -Name $script:moduleName -Force -ErrorAction 'Stop'
@@ -118,7 +118,7 @@ BeforeAll {
     $script:moduleName = 'MyModule'
 
     if (-not (Get-Module -Name $script:moduleName -ListAvailable)) {
-        & "$PSScriptRoot/../../build.ps1" -Tasks 'noop' 2>&1 4>&1 5>&1 6>&1 > $null
+        throw "Module '$script:moduleName' is unavailable. Run the detached build workflow first."
     }
 
     Import-Module -Name $script:moduleName -Force -ErrorAction 'Stop'
@@ -164,7 +164,9 @@ Pester:
 
 ### Running Tests
 
-```powershell
+Use one line as the inner command of the detached build wrapper:
+
+```text
 # Run all tests (unit + QA)
 ./build.ps1 -Tasks test
 

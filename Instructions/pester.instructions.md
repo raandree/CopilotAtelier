@@ -4,7 +4,7 @@ applyTo: "**/*.Tests.ps1,**/*.tests.ps1"
 
 # Pester 5 Best Practices and Standards
 
-## Running Pester Tests — Always Use Start-Process (Detached)
+## Running Pester Tests — Always Use the Fully Detached Launcher
 
 > **CRITICAL**: Never run Pester tests directly inside the VS Code integrated terminal —
 > not even via `pwsh -NoProfile -Command { ... }`. Both in-process invocations **and**
@@ -12,93 +12,92 @@ applyTo: "**/*.Tests.ps1,**/*.tests.ps1"
 > to exit and Pester/module output can stall VS Code's terminal renderer or the
 > PowerShell Extension Host pipe.
 >
-> **Always use `Start-Process` (fully detached)** — it creates a process with no
-> parent-child pipe, so VS Code's terminal never blocks on it.
+> **Always use the canonical detached launcher** — it uses `Start-Process` on
+> Windows and `nohup` on non-Windows systems, so the child outlives the shell.
 
-### Recommended: Start-Process with Log Polling
+### Recommended: Detached Process with Persistent Log
 
 ```powershell
-# 1. Start tests detached — log goes to output/ (gitignored, never project root)
-$logPath = Join-Path $PWD 'output\test.log'
-New-Item -Path (Split-Path $logPath) -ItemType Directory -Force | Out-Null
-Remove-Item $logPath -ErrorAction SilentlyContinue
+$runId = [guid]::NewGuid().ToString('N')
+$logPath = Join-Path $env:TEMP "pester-tests-$runId.log"
 
-Start-Process -FilePath pwsh -ArgumentList @(
-    '-NoProfile', '-NonInteractive', '-Command',
-    "Set-Location '$PWD'; Invoke-Pester -Path './tests' -Output Detailed *>&1 | Out-File -FilePath '$logPath' -Encoding utf8"
-) -WindowStyle Hidden -PassThru
-
-# 2. Poll for completion
-for ($i = 0; $i -lt 60; $i++) {
-    Start-Sleep 3
-    if (Test-Path $logPath) {
-        $c = Get-Content $logPath -Raw -ErrorAction SilentlyContinue
-        if ($c -match 'Tests Passed|Tests Failed|Invoke-Pester.*completed') {
-            Get-Content $logPath -Tail 30
-            break
+$workingDirectory = $PWD.Path.Replace("'", "''")
+$escapedLogPath = $logPath.Replace("'", "''")
+$payload = @"
+Set-Location -LiteralPath '$workingDirectory'
+`$ErrorActionPreference = 'Stop'
+try {
+    & {
+        `$result = Invoke-Pester -Path './tests' -Output Detailed -PassThru
+        if (`$result.FailedCount -gt 0) {
+            throw "Pester failed `$(`$result.FailedCount) test(s)."
         }
-    }
+    } *>&1 | Out-File -LiteralPath '$escapedLogPath' -Encoding utf8
+}
+catch {
+    `$_ | Format-List * -Force | Out-String |
+        Out-File -LiteralPath '$escapedLogPath' -Encoding utf8 -Append
+    throw
+}
+"@
+$encodedPayload = [Convert]::ToBase64String(
+    [Text.Encoding]::Unicode.GetBytes($payload)
+)
+$launcherPath = Join-Path $HOME (
+    '.copilot/skills/long-running-job-monitor/scripts/Start-DetachedPowerShell.ps1'
+)
+$launch = & $launcherPath -EncodedCommand $encodedPayload
+
+[pscustomobject]@{
+    ProcessId = $launch.ProcessId
+    LogPath   = $logPath
+    Platform  = $launch.Platform
+    ResultPath = $launch.ResultPath
 }
 ```
 
 ### Sampler Projects (also detached)
 
-```powershell
-$logPath = Join-Path $PWD 'output\test.log'
-New-Item -Path (Split-Path $logPath) -ItemType Directory -Force | Out-Null
-Remove-Item $logPath -ErrorAction SilentlyContinue
-
-Start-Process -FilePath pwsh -ArgumentList @(
-    '-NoProfile', '-NonInteractive', '-Command',
-    "Set-Location '$PWD'; .\build.ps1 -Tasks test *>&1 | Out-File -FilePath '$logPath' -Encoding utf8"
-) -WindowStyle Hidden -PassThru
-
-# Poll for completion
-for ($i = 0; $i -lt 60; $i++) {
-    Start-Sleep 3
-    if (Test-Path $logPath) {
-        $c = Get-Content $logPath -Raw -ErrorAction SilentlyContinue
-        if ($c -match 'Build (FAILED|succeeded)') {
-            Get-Content $logPath -Tail 30
-            break
-        }
-    }
-}
+```text
+# Use the same detached wrapper and replace the inner Invoke-Pester command:
+.\build.ps1 -Tasks test
 ```
 
-### Why Start-Process (not pwsh -Command)?
+Do not poll with `Start-Sleep`. On a later status check, read `ResultPath`
+(`0` success, `1` failure) and the log tail; use the PID only for liveness while
+the child still exists. Apply `long-running-job-monitor` for continuing reports.
+
+### Why the Detached Launcher (not pwsh -Command)?
 
 | Problem | Cause | Solution |
 |---|---|---|
-| VS Code hangs with `pwsh -Command` | Terminal synchronously waits for child process; Pester output stalls the pipe | `Start-Process` (detached) — no parent-child pipe |
-| VS Code hangs with in-process Pester | Blocks the PowerShell extension thread | `Start-Process` (detached) |
+| VS Code hangs with `pwsh -Command` | Terminal synchronously waits for child process; Pester output stalls the pipe | Canonical detached launcher |
+| VS Code hangs with in-process Pester | Blocks the PowerShell extension thread | Canonical detached launcher |
 | Module state leaks between test runs | `Import-Module -Force` in-process may not fully reload assemblies | A new process starts with a clean module cache |
 | `InModuleScope` deadlocks | Locking conflicts with the language server | Isolated process avoids shared locks |
 | Stale breakpoints or $Error state | Previous debug sessions pollute the session | `-NoProfile` guarantees a clean session |
 
 ### Key Rules
 
-- **Log files go to `output/`** (gitignored), never the project root.
-- **Always use `-WindowStyle Hidden`** to prevent a visible console flash.
-- Poll the log for completion markers (`Tests Passed`, `Build succeeded`, etc.).
+- **Log files go to `$env:TEMP`**, never the project root or Sampler `output/`.
+- The canonical helper hides the child window on Windows and uses `nohup` on
+    non-Windows systems.
+- Return process, log, and result paths; inspect them only on demand.
 - For Sampler projects, skip `-ResolveDependency` if `output/RequiredModules/` already exists.
 
 ### Terminal Commands Generated by Copilot
 
-When generating terminal commands to run Pester tests, **always** use `Start-Process`:
+When generating terminal commands to run Pester tests, always use the canonical
+detached launcher:
 
-```powershell
+```text
 # WRONG — runs in-process, hangs VS Code
 Invoke-Pester -Path './tests'
 
 # WRONG — synchronous child process, still hangs VS Code
 pwsh -NoProfile -NonInteractive -Command { Invoke-Pester -Path './tests' -Output Detailed }
 
-# CORRECT — fully detached, VS Code never blocks
-Start-Process -FilePath pwsh -ArgumentList @(
-    '-NoProfile', '-NonInteractive', '-Command',
-    "Set-Location '$PWD'; Invoke-Pester -Path './tests' -Output Detailed *>&1 | Out-File -FilePath 'output\test.log' -Encoding utf8"
-) -WindowStyle Hidden -PassThru
+# CORRECT — return ProcessId, LogPath, and ResultPath from the detached wrapper.
 ```
 
 ## Pester 5 Fundamentals
@@ -573,25 +572,32 @@ Describe 'Get-Widget' -Tag 'Unit' {
 
 ### Running Tagged Tests
 
-```powershell
-# Run only unit tests
-Invoke-Pester -Tag 'Unit'
+Select one command as the inner child payload of the detached wrapper above;
+never run these fragments in the current session:
 
-# Exclude slow tests
-Invoke-Pester -ExcludeTag 'Slow'
+```text
+$result = Invoke-Pester -TagFilter 'Unit' -Output Detailed -PassThru
+if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
 
-# Run smoke tests only
-Invoke-Pester -Tag 'Smoke'
+$result = Invoke-Pester -ExcludeTagFilter 'Slow' -Output Detailed -PassThru
+if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
+
+$result = Invoke-Pester -TagFilter 'Smoke' -Output Detailed -PassThru
+if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
 ```
 
 ## Pester Configuration
 
 ### Configuration Object (Pester 5)
 
-```powershell
+Replace the inner child body of the canonical detached wrapper with this
+fragment:
+
+```text
 $config = New-PesterConfiguration
 $config.Run.Path = './tests'
-$config.Run.Exit = $true
+$config.Run.PassThru = $true
+$config.Run.Exit = $false
 $config.CodeCoverage.Enabled = $true
 $config.CodeCoverage.Path = @('./source/Public/*.ps1', './source/Private/*.ps1')
 $config.CodeCoverage.OutputFormat = 'JaCoCo'
@@ -603,7 +609,10 @@ $config.Output.Verbosity = 'Detailed'
 $config.Filter.Tag = @('Unit')
 $config.Filter.ExcludeTag = @('Slow')
 
-Invoke-Pester -Configuration $config
+$result = Invoke-Pester -Configuration $config
+if ($result.FailedCount -gt 0) {
+    throw "Pester failed $($result.FailedCount) test(s)."
+}
 ```
 
 ### Sampler Integration
@@ -839,15 +848,24 @@ Pester 5 automatically scopes mocks to the block they are defined in. However, i
 
 ### Enabling Code Coverage
 
-```powershell
+Replace the inner child body of the canonical detached wrapper with this
+fragment:
+
+```text
 $config = New-PesterConfiguration
+$config.Run.Path = './tests'
+$config.Run.PassThru = $true
+$config.Run.Exit = $false
 $config.CodeCoverage.Enabled = $true
 $config.CodeCoverage.Path = @('./source/Public/*.ps1')
 $config.CodeCoverage.OutputFormat = 'JaCoCo'
 $config.CodeCoverage.OutputPath = './output/coverage.xml'
 $config.CodeCoverage.CoveragePercentTarget = 80
 
-Invoke-Pester -Configuration $config
+$result = Invoke-Pester -Configuration $config
+if ($result.FailedCount -gt 0) {
+    throw "Pester failed $($result.FailedCount) test(s)."
+}
 ```
 
 ### Coverage Best Practices

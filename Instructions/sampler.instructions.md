@@ -51,34 +51,52 @@ see the **sampler-framework** skill.
 > VS Code terminal — not even via `pwsh -Command "..."`. The terminal synchronously waits
 > for the child process, which freezes the entire VS Code UI.
 >
-> **ALWAYS** use `Start-Process` (fully detached) with log polling. See the
-> `powershell-execution-safety.instructions.md` file for the full rationale and common mistakes.
+> **ALWAYS** use the canonical fully detached launcher (`Start-Process` on
+> Windows, `nohup` on non-Windows). See
+> `powershell-execution-safety.instructions.md` for the payload pattern.
 > Log files MUST go to `$env:TEMP`, never to `output/` (Sampler's Clean task deletes it).
 
-### Detached Process with Log Polling
+### Detached Process with On-Demand Status
 
 ```powershell
-# Log MUST go to $env:TEMP (NOT output/ — Sampler Clean deletes it mid-build)
-$logPath = "$env:TEMP\sampler_build.log"
-Remove-Item $logPath -ErrorAction SilentlyContinue
-Start-Process -FilePath pwsh -ArgumentList @(
-    '-NoProfile', '-NonInteractive', '-Command',
-    "Set-Location '$PWD'; .\build.ps1 -Tasks test *>&1 | Out-File -FilePath '$logPath' -Encoding utf8"
-) -WindowStyle Hidden -PassThru
+$runId = [guid]::NewGuid().ToString('N')
+$logPath = Join-Path $env:TEMP "sampler-build-$runId.log"
 
-# Poll for completion (non-blocking)
-for ($i = 0; $i -lt 120; $i++) {
-    Start-Sleep 3
-    if (Test-Path $logPath) {
-        $c = Get-Content $logPath -Raw -ErrorAction SilentlyContinue
-        if ($c -match 'Build (FAILED|succeeded)') {
-            Get-Content $logPath -Tail 30
-            break
-        }
-    }
-    if ($i % 10 -eq 0) { Write-Host "Waiting... ($($i*3)s)" }
+$workingDirectory = $PWD.Path.Replace("'", "''")
+$escapedLogPath = $logPath.Replace("'", "''")
+$payload = @"
+Set-Location -LiteralPath '$workingDirectory'
+`$ErrorActionPreference = 'Stop'
+try {
+    & {
+        .\build.ps1 -Tasks test
+    } *>&1 | Out-File -LiteralPath '$escapedLogPath' -Encoding utf8
+}
+catch {
+    `$_ | Format-List * -Force | Out-String |
+        Out-File -LiteralPath '$escapedLogPath' -Encoding utf8 -Append
+    throw
+}
+"@
+$encodedPayload = [Convert]::ToBase64String(
+    [Text.Encoding]::Unicode.GetBytes($payload)
+)
+$launcherPath = Join-Path $HOME (
+    '.copilot/skills/long-running-job-monitor/scripts/Start-DetachedPowerShell.ps1'
+)
+$launch = & $launcherPath -EncodedCommand $encodedPayload
+
+[pscustomobject]@{
+    ProcessId = $launch.ProcessId
+    LogPath   = $logPath
+    Platform  = $launch.Platform
+    ResultPath = $launch.ResultPath
 }
 ```
+
+Do not poll with `Start-Sleep`. Check the returned result marker (`0` success,
+`1` failure), PID, and log only when status is requested, or use
+`long-running-job-monitor` for continuing reports.
 
 ### Common Task Variants
 
@@ -116,11 +134,11 @@ Replace `-Tasks test` in the snippet above with:
 - **DO** use GitVersion for automatic semantic versioning
 - **DO** set `Agent.Source.Git.ShallowFetchDepth: 0` in CI
 - **DO** test on both PowerShell 7 and Windows PowerShell 5.1
-- **DO** run builds via detached `Start-Process` with log polling (see `powershell-execution-safety.instructions.md`)
+- **DO** run builds via the canonical detached launcher and return process/log/result metadata (see `powershell-execution-safety.instructions.md`)
 - **DO** specify `-ModuleName` on all Pester mocks and `Should -Invoke` assertions
 - **DO** use `-RemoveParameterValidation` when mocking commands with `[ValidateScript()]`
 - **DO** start with `CodeCoverageThreshold: 0` and increase after baseline
-- **DO** use `./build.ps1 -Tasks noop` to set up the VSCode session environment
+- **DO** use `-Tasks noop` inside the detached wrapper only for child-process bootstrap work; configure the current VS Code session's module paths explicitly
 - **DO** add `output/` to `.gitignore`
 - **DO** preserve the module GUID when migrating existing modules
 - **DO** list functions explicitly in `FunctionsToExport` (no wildcards)

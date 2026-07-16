@@ -67,7 +67,10 @@ TestBuildAcceptance + TestConfigData (Pester validation)
 
 Filter which nodes to compile during local development:
 
-```powershell
+Use one line as the inner command of the detached build wrapper from
+`powershell-execution-safety.instructions.md`:
+
+```text
 # All nodes in environment T01U01, Tiny scenario
 .\Build.ps1 -Filter { $_.Environment -eq 'T01U01' -and $_.Scenario -contains 'Tiny' }
 

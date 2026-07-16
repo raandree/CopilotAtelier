@@ -1,6 +1,11 @@
 # Out-of-band target verification
 
-Read-only probes that confirm a long-running job is *genuinely progressing* on the target system, independent of the job's own (often buffered) stdout. Each probe returns a **one-line target-state summary** plus a **change-detector** value the agent compares across samples: if the summary or the change-detector moves between two samples, the job is WORKING; if neither moves past the threshold, it is STALLED. All probes are read-only — never mutate the target while checking on it.
+Read-only probes that distinguish genuine target progress from controller or
+target liveness when a job's stdout is buffered. Each probe returns a summary,
+a liveness signal, and a phase-specific progress token. Only progress-token
+advancement resets the stall clock. A changing summary, fresh heartbeat,
+uptime, CPU, memory, or process existence proves liveness or activity, not
+progress. All probes are read-only.
 
 ## Contents
 
@@ -16,31 +21,57 @@ Read-only probes that confirm a long-running job is *genuinely progressing* on t
 
 ## Change-detector pattern
 
-Return a `(summary, token)` pair. `token` is any value that strictly advances while the job progresses — a power state, a provisioning phase, a row count, a max id, an uptime, a ready-replica count. The agent stores the previous token and flags STALLED only when the token has not advanced for longer than the threshold.
+Return `Summary`, `Liveness`, and `ProgressToken` separately.
+
+- `Summary` is human-readable and may contain volatile telemetry. Never compare
+  it to classify progress.
+- `Liveness` records whether the target or observer responds. It does not reset
+  the stall clock.
+- `ProgressToken` is a phase milestone or monotonic work product that can
+  advance toward the expected postcondition: provisioning phase, completed-row
+  count, maximum imported ID, ready-replica count, or a one-time transition to
+  the required service state.
+
+Store the prior progress token and its timestamp. Classify `STALLED` when that
+token remains unchanged beyond the phase threshold, even if liveness and
+volatile telemetry continue changing. Power state is a progress token only
+when the current phase expects a specific transition; repeated `running` is
+static. Uptime is never a progress token.
 
 ```powershell
-# generic shape a -GetTargetState probe should follow
-[pscustomobject]@{ Summary = 'VM 101 running, agent up'; Token = 'running/agent-ok' }
+# Generic shape a -GetTargetState probe should follow.
+[pscustomobject]@{
+  Summary       = 'VM 101 running, agent up'
+  Liveness      = $true
+  ProgressToken = 'guest-agent-ready'
+}
 ```
 
 ## Hypervisor / cloud control plane
 
-Proxmox VE — VM power state across the cluster (change-detector: status):
+Proxmox VE: report power state, but use only an expected state transition as a
+progress token. Exclude CPU, memory, and uptime.
 
 ```powershell
 $base = "https://pve:8006/api2/json"
 $vms  = (Invoke-RestMethod "$base/cluster/resources?type=vm" -Headers $auth).data
 $vm   = $vms | Where-Object vmid -eq 101
-"VM {0} {1} (cpu={2:P0} mem={3:N0}MB)" -f $vm.vmid, $vm.status, $vm.cpu, ($vm.mem / 1MB)
+[pscustomobject]@{
+  Summary       = "VM $($vm.vmid) $($vm.status)"
+  Liveness      = $null -ne $vm
+  ProgressToken = if ($vm.status -eq $expectedVmState) { $vm.status } else { $null }
+}
 ```
 
-Azure — VM power/provisioning state (change-detector: PowerState/ProvisioningState):
+Azure: use provisioning-state transitions for provisioning work. A static power
+state is liveness/context after its expected transition, not continuing
+progress.
 
 ```powershell
 az vm get-instance-view -g $rg -n $vm --query "instanceView.statuses[].code" -o tsv
 ```
 
-AWS — EC2 instance state (change-detector: State.Name):
+AWS: use instance-state changes only when the phase expects that transition.
 
 ```powershell
 aws ec2 describe-instances --instance-ids $id --query "Reservations[].Instances[].State.Name" --output text
@@ -48,7 +79,9 @@ aws ec2 describe-instances --instance-ids $id --query "Reservations[].Instances[
 
 ## Guest via QEMU guest-agent
 
-When SSH/WinRM is not up yet (early boot), the hypervisor guest-agent runs a command inside the guest. Proxmox exec (change-detector: service active / hostname reachable):
+When SSH/WinRM is not up yet, the hypervisor guest agent can verify a required
+service transition. Repeated `active` is a reached milestone, not repeated
+progress.
 
 ```powershell
 $gpid = (Invoke-RestMethod "$base/nodes/$node/qemu/101/agent/exec" -Method Post -Headers $auth -Body @{ command = 'systemctl is-active nginx' }).data.pid
@@ -59,27 +92,36 @@ $gpid = (Invoke-RestMethod "$base/nodes/$node/qemu/101/agent/exec" -Method Post 
 
 > These channels often also *run* the job, not just verify it. To keep the remote job alive when the connection drops and to read its log over the channel, see the "Remote jobs" subsection in [`../SKILL.md`](../SKILL.md).
 
-WinRM (change-detector: service Status / process presence):
+WinRM: service-state transition can satisfy a milestone. Repeated status is
+static.
 
 ```powershell
 Invoke-Command -ComputerName $targetHost -Credential $cred -ScriptBlock { (Get-Service MSSQLSERVER).Status }
 ```
 
-SSH (change-detector: systemctl state):
+SSH: service-state transition can satisfy a milestone. Repeated status is
+static.
 
 ```powershell
 ssh $user@$targetHost 'systemctl is-active nginx && nginx -v 2>&1'
 ```
 
-Local process (change-detector: process alive):
+Local process existence is liveness only. Pair it with a real progress token
+such as a completed-item count or phase marker.
 
 ```powershell
-[bool](Get-CimInstance Win32_Process -Filter "Name='pwsh.exe'" | Where-Object CommandLine -match 'job-deploy-vm01')
+[pscustomobject]@{
+  Summary       = 'Deployment process probe'
+  Liveness      = [bool](Get-CimInstance Win32_Process -Filter "Name='pwsh.exe'" |
+    Where-Object CommandLine -match 'job-deploy-vm01')
+  ProgressToken = $null
+}
 ```
 
 ## Database
 
-Change-detector: a monotonic count / max id / status column (a SELECT, never a mutation):
+Use a monotonic count, maximum ID, or ordered status milestone tied to the job's
+own output rows. A SELECT never mutates the target.
 
 ```powershell
 Invoke-Sqlcmd -ServerInstance $sql -Query "SELECT COUNT(*) AS n, MAX(id) AS lastId FROM dbo.ImportRows"
@@ -87,7 +129,8 @@ Invoke-Sqlcmd -ServerInstance $sql -Query "SELECT COUNT(*) AS n, MAX(id) AS last
 
 ## HTTP health endpoint
 
-Change-detector: status code / readiness field:
+Use a readiness-field transition as a milestone. Repeated HTTP 200 is static
+after readiness is reached.
 
 ```powershell
 try { (Invoke-RestMethod "http://$targetHost/healthz").status } catch { "down: $($_.Exception.Message)" }
@@ -95,7 +138,7 @@ try { (Invoke-RestMethod "http://$targetHost/healthz").status } catch { "down: $
 
 ## Kubernetes
 
-Change-detector: ready replicas / rollout status:
+Use ready-replica or rollout-generation advancement toward the desired state.
 
 ```powershell
 kubectl get deploy $name -o jsonpath='{.status.readyReplicas}/{.status.replicas}'

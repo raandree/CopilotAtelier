@@ -6,16 +6,22 @@ applyTo: "**/*.ps1,**/*.psm1,**/*.psd1"
 
 ## Running Tests & Builds — NEVER Use Direct Execution
 
-> **CRITICAL**: NEVER run `./build.ps1`, `Invoke-Pester`, or `Invoke-Build` directly in any
-> VS Code terminal — not even via `pwsh -Command "..."`. The terminal synchronously waits
-> for the child process, which freezes the entire VS Code UI.
->
-> Also NEVER use the `runTests` tool for PowerShell projects — it runs Pester inside the
-> PS Extension Host and instantly freezes VS Code.
->
-> **ALWAYS** use `Start-Process` (fully detached) with log polling. See the
-> `powershell-execution-safety.instructions.md` file for the exact pattern.
-> Log files MUST go to `$env:TEMP`, never to `output/` (Sampler's Clean task deletes it).
+- Always launch `Invoke-Pester`, `Invoke-Build`, and build entry points such as
+    `build.ps1` with the canonical fully detached helper (`Start-Process` on
+    Windows, `nohup` on non-Windows systems).
+- Never run these commands in the current PowerShell session or through a
+    synchronous nested `pwsh -Command`.
+- Never use the VS Code `runTests` command for PowerShell projects.
+- Write merged child streams to a log under `$env:TEMP`; return the detached
+    process ID and log path.
+- Never block the agent's foreground command with `Start-Sleep` or a manual
+    polling loop. Check the process/log only on demand; a detached monitoring
+    sidecar may sleep between samples.
+- Run ordinary one-shot PowerShell commands synchronously unless another
+    command-specific rule requires isolation.
+- Put persistent logs under `$env:TEMP`, never `output/`.
+- Follow `powershell-execution-safety.instructions.md` for background processes,
+    stream redirection, and interactive prompts.
 
 ## Approved Verbs
 
