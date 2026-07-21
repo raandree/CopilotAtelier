@@ -21,8 +21,8 @@ junctions are unavailable.
   in an isolated Linux home and verifies the XDG files, copied tree, and link.
 - Confirmed the pre-fix failure also flattened customization contents into the
   repository root: `Copy-Item -Destination $null` targets the current directory.
-  The root `README.md` is currently byte-for-byte identical to
-  `Agents/README.md`; generated root-level copies remain pending cleanup.
+  Restored the tracked root `README.md` from `HEAD` and removed all 76 exact,
+  untracked root copies after an exhaustive source-to-root comparison.
 
 ## Verification
 
@@ -38,8 +38,10 @@ junctions are unavailable.
   copies into the current directory. Representative root-level files and skill
   directories are byte-for-byte identical to their canonical sources, and the
   setup-fix commit does not contain `README.md`.
+- Cleanup verification found zero remaining source-to-root counterparts; the
+  worktree was clean, `README.md` matched `HEAD`, and it no longer matched
+  `Agents/README.md`.
 
 ## Next step
 
-Restore the root `README.md` from `HEAD` and remove only flattened root artifacts
-that are proven identical to canonical files after explicit user approval.
+Restart VS Code so the updated settings and discovery links are reloaded.
