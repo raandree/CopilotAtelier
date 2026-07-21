@@ -35,6 +35,9 @@
 - **Choice**: The `Merge-LocationSetting` helper function preserves existing keys and only adds/overwrites the OneDrive paths.
 - **Rationale**: Users may have manually added other custom paths to the location settings. Replacing the entire setting would destroy those entries.
 - **Note (May 6, 2026)**: `Merge-LocationSetting` is retained but no longer called for `chat.*FilesLocations`. Discovery for both the VS Code Copilot chat extension and the GitHub Copilot CLI is now wired through NTFS junctions at `%USERPROFILE%\.copilot\{agents,instructions,skills,prompts}` pointing to the canonical target tree. Empty pre-existing real folders at those paths are removed silently; non-empty ones prompt the user and, on consent, are merged into the target before being removed.
+- **Cross-platform note (July 21, 2026)**: Setup resolves the user home from `USERPROFILE` on Windows and `HOME` elsewhere. VS Code configuration resolves from `APPDATA` on Windows, `~/Library/Application Support` on macOS, and `XDG_CONFIG_HOME` or `~/.config` on Linux. Discovery links remain NTFS junctions on Windows and become symbolic links on Unix; all child paths are built with `Join-Path` rather than embedded separators.
+- **Copy-safety invariant**: Resolve and validate every destination before any state-changing copy. In PowerShell, an explicitly supplied null `Copy-Item -Destination` means the current directory rather than a safe failure, so setup uses terminating errors to prevent a failed path join from flattening source trees into the caller's working directory.
+- **Recovery invariant**: Before removing artifacts from a failed copy, map each destination back to its canonical source, require byte-for-byte or recursive equality, and require untracked status. Restore a tracked overwrite from the current commit only after proving its accidental source; abort cleanup on any mismatch.
 
 ### Decision 4: Agent handoff architecture
 
@@ -107,6 +110,15 @@
 - **Rationale**: Pre-flight (context-in) is cheap and valuable and stays mandatory; the post-flight documentation burden was the noise source — trivial commits, empty CHANGELOG churn, and a promptHistory that logged every question. Git already records commits/merges, so they are not themselves a trigger; only tags (milestones) are. Classifying in hindsight (not predicting at pre-flight) keeps the decision accurate.
 - **Placement**: [`postflight.instructions.md`](../Instructions/postflight.instructions.md) owns the classification rule and the `promptHistory.md` append; [`preflight.instructions.md`](../Instructions/preflight.instructions.md) step 5 defers the append. The "Every interaction → append to `promptHistory.md`" write-trigger in all seven agents that declared it was softened to "Every substantive interaction …", and the two CORE MANDATE lines (Software Engineer, Technical Troubleshooter) likewise. [`AGENTS.md`](../AGENTS.md) summary matches.
 - **Trade-off**: The agent must judge significance in hindsight; the mandatory one-line `n/a` marker keeps the skip visible and auditable, and the ambiguity-biases-to-document default guards against under-recording.
+
+### Decision 12: The Glossary governs the Ubiquitous Language
+
+- **Choice**: [`.memory-bank/glossary.md`](glossary.md) is the authoritative Glossary. Each row defines one Canonical term, its meaning, and comma-separated forbidden phrases.
+- **Initial scope**: The first 20 rows cover Customization types, the Canonical target and Discovery link model, the Setup script, Pre-flight and Post-flight, turn classification, Agent-to-agent handoff, Session handoff, Acceptance criteria, and the Definition of Done.
+- **Collision rule**: A forbidden phrase must be domain-qualified and must not prohibit a general technical word that has a legitimate meaning elsewhere. Audit every new phrase against the repository before adding it.
+- **Enforcement**: Read the Glossary before planning a change, use its Canonical terms in authored artifacts, and do not introduce a forbidden phrase. Propose a new row when a required concept is absent; flag existing drift separately rather than expanding the current task.
+- **Literal exception**: Preserve exact filenames, paths, commands, external API fields, and quoted historical text.
+- **Rationale**: A small, explicit domain vocabulary prevents ambiguous names without turning ordinary technical language into accidental drift.
 
 ## Component relationships
 

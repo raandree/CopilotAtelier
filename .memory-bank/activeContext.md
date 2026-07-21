@@ -2,41 +2,39 @@
 
 ## Current work focus
 
-Authored a new on-demand skill, `windows-gui-screenshot-capture`, packaging the
-reusable capability proven in the `D:\guitest` GUI-screenshot-docs
-proof-of-concept: capture screenshots of a Windows desktop GUI programmatically
-(the right capture API per rendering engine) and assemble them into a
-screenshot-embedded Markdown user manual, generalised to real apps.
+Established `.memory-bank/glossary.md` as the project's Glossary and
+authoritative source for the Ubiquitous Language. Its 20 rows define the core
+Customization, distribution, process, and handoff concepts used by Copilot
+Atelier.
 
 ## What changed this session
 
-- New skill folder `Skills/windows-gui-screenshot-capture/`:
-  - `SKILL.md` — six-step frame; capture-API-per-engine matrix; the
-    GPU-composited-returns-black rule; the self-capturing `-CaptureDir` /
-    `--capture` scene mode; native MessageBox (`#32770`) capture; a gotchas
-    table (STA, WinForms DPI-unaware + `Form.Size` bitmap, WPF `SizeToContent`,
-    Avalonia headless font); anti-rationalization + red-flags + verification.
-  - `references/engine-recipes.md` — six per-engine snippets (WPF / WinForms /
-    Win32 / WebView2 / Avalonia / WinUI 3), `## Contents` TOC, each pointing to
-    the POC file for the full implementation.
-  - `scripts/DialogCapture.ps1` — the POC's native-dialog helper copied
-    verbatim (origin noted), ready to dot-source.
-  - `notes-evals.md` — 6 intended-trigger + 3 decoy eval prompts.
-- Registered in the README Available Skills table and the `techContext.md`
-  Skills inventory; skill count 38 → 39; CHANGELOG `[Unreleased]` Added entry.
+- Added the required `Term | Means | Don't say` table with 20 unique Canonical
+  term entries.
+- Defined the four Customization types, the Canonical target and Discovery link
+  model, the Setup script, Pre-flight, Post-flight, turn classification, both
+  handoff forms, Acceptance criteria, and the Definition of Done.
+- Limited all 40 forbidden phrases to domain-qualified wording so legitimate
+  uses of general technical words remain valid.
+- Preserved literal filenames, paths, commands, external API fields, and quoted
+  historical text exactly as written.
+- Marked the Glossary active in `projectbrief.md` and recorded vocabulary
+  governance as system-pattern Decision 12.
 
 ## Verification
 
-- Description 955/1024 chars; SKILL.md 209 lines (≤ 500); `engine-recipes.md`
-  112 lines with a `## Contents` TOC; references one level deep; folder name ==
-  `name:`.
-- `DialogCapture.ps1` AST parse: 0 errors. `markdownlint-cli2`: 0 issues across
-  the 3 Markdown files. Cross-skill overlap audit: no competing screenshot / GUI
-  skill; `DO NOT USE FOR:` fences mobile, screen-video, and generic tutorials.
+- The structural gate reports 20 unique rows, exactly three populated columns,
+  ASCII content, and a final LF.
+- The forbidden-phrase audit reports zero matches outside the Glossary across
+  151 tracked or unignored text artifacts.
+- VS Code reports no diagnostics for the Glossary.
+- `git diff --check` reports no whitespace errors.
+- `markdownlint-cli2` could not run because this host has no global executable,
+  Node runtime, `npm`, or `npx`; VS Code diagnostics are the available Markdown
+  rendering check.
 
 ## Next step
 
-Optionally run the `skill-creator` Claude-B eval (fresh chat, real catalogue) to
-confirm the skill triggers by name. Not committed per user request
-("Dont commit!"); re-run [Setup-CopilotSettings.ps1](../Setup-CopilotSettings.ps1)
-to deploy the new skill to the `.copilot/skills` junction.
+Use the Glossary on every future change. Propose a new row before naming a domain
+concept that the current 20 rows do not cover, and audit each new forbidden
+phrase for existing drift before adding it.

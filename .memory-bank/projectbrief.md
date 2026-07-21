@@ -46,5 +46,5 @@ The pre-flight hook reads the following files from `.memory-bank/` when present.
 | `progress.md` | What works, dated change log. |
 | `systemPatterns.md` | Recurring architectural patterns. |
 | `productContext.md` | Why the project exists, UX intent. |
-| `glossary.md` *(optional)* | **Ubiquitous Language** table (`Term \| Means \| Don't say`). Loaded automatically when present; governs canonical terminology repo-wide. See [`Instructions/ubiquitous-language.instructions.md`](../Instructions/ubiquitous-language.instructions.md). |
+| `glossary.md` | **Ubiquitous Language** table (`Term \| Means \| Don't say`). Defines each Canonical term and is loaded automatically on every turn. See [`Instructions/ubiquitous-language.instructions.md`](../Instructions/ubiquitous-language.instructions.md). |
 | `promptHistory.md` *(optional)* | Per-turn prompt log. Created on demand. |
