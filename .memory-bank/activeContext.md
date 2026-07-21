@@ -19,6 +19,10 @@ junctions are unavailable.
 - Create NTFS junctions on Windows and symbolic links on Unix.
 - Add `tests/Setup-CopilotSettings.Tests.ps1`, which runs the real script twice
   in an isolated Linux home and verifies the XDG files, copied tree, and link.
+- Confirmed the pre-fix failure also flattened customization contents into the
+  repository root: `Copy-Item -Destination $null` targets the current directory.
+  The root `README.md` is currently byte-for-byte identical to
+  `Agents/README.md`; generated root-level copies remain pending cleanup.
 
 ## Verification
 
@@ -30,7 +34,12 @@ junctions are unavailable.
   `Write-Host` warnings in both).
 - A real `pwsh -NoProfile -File ./Setup-CopilotSettings.ps1` run completed on
   Linux and created all four symbolic links without path errors.
+- A disposable reproduction confirmed that `Copy-Item -Destination $null`
+  copies into the current directory. Representative root-level files and skill
+  directories are byte-for-byte identical to their canonical sources, and the
+  setup-fix commit does not contain `README.md`.
 
 ## Next step
 
-Restart VS Code so the updated settings and discovery links are reloaded.
+Restore the root `README.md` from `HEAD` and remove only flattened root artifacts
+that are proven identical to canonical files after explicit user approval.
