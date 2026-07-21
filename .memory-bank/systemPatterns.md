@@ -111,6 +111,15 @@
 - **Placement**: [`postflight.instructions.md`](../Instructions/postflight.instructions.md) owns the classification rule and the `promptHistory.md` append; [`preflight.instructions.md`](../Instructions/preflight.instructions.md) step 5 defers the append. The "Every interaction → append to `promptHistory.md`" write-trigger in all seven agents that declared it was softened to "Every substantive interaction …", and the two CORE MANDATE lines (Software Engineer, Technical Troubleshooter) likewise. [`AGENTS.md`](../AGENTS.md) summary matches.
 - **Trade-off**: The agent must judge significance in hindsight; the mandatory one-line `n/a` marker keeps the skip visible and auditable, and the ambiguity-biases-to-document default guards against under-recording.
 
+### Decision 12: The Glossary governs the Ubiquitous Language
+
+- **Choice**: [`.memory-bank/glossary.md`](glossary.md) is the authoritative Glossary. Each row defines one Canonical term, its meaning, and comma-separated forbidden phrases.
+- **Initial scope**: The first 20 rows cover Customization types, the Canonical target and Discovery link model, the Setup script, Pre-flight and Post-flight, turn classification, Agent-to-agent handoff, Session handoff, Acceptance criteria, and the Definition of Done.
+- **Collision rule**: A forbidden phrase must be domain-qualified and must not prohibit a general technical word that has a legitimate meaning elsewhere. Audit every new phrase against the repository before adding it.
+- **Enforcement**: Read the Glossary before planning a change, use its Canonical terms in authored artifacts, and do not introduce a forbidden phrase. Propose a new row when a required concept is absent; flag existing drift separately rather than expanding the current task.
+- **Literal exception**: Preserve exact filenames, paths, commands, external API fields, and quoted historical text.
+- **Rationale**: A small, explicit domain vocabulary prevents ambiguous names without turning ordinary technical language into accidental drift.
+
 ## Component relationships
 
 ```mermaid
