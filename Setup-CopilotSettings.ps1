@@ -2,22 +2,59 @@
 .SYNOPSIS
     Configures VS Code settings for Copilot custom agents, instructions, skills, and prompts.
 .DESCRIPTION
-    Derives the folder name from the repository root (e.g. CopilotAtelier)
-    and registers ~/<RepoName>/* as a file location so settings stay stable
-    across machines with and without OneDrive.  When OneDrive is detected the
-    script additionally registers ~/OneDrive/<RepoName>/* and creates those
-    directories.  Creates the target subdirectories if they don't already exist.
-    Idempotent: merges location entries instead of replacing them, strips JSONC
-    comments before parsing, and creates a timestamped backup on every run.
+    Derives the folder name from the repository root (e.g. CopilotAtelier),
+    copies customization files to OneDrive or the user profile, and links the
+    well-known ~/.copilot directories to that target. Resolves the VS Code user
+    directory using the conventions for Windows, macOS, and Linux. Idempotent:
+    merges location entries instead of replacing them, strips JSONC comments
+    before parsing, and creates a timestamped backup on every run.
 #>
+
+$ErrorActionPreference = 'Stop'
 
 # --- Resolve the repo root and derive the folder name used for paths ---
 $repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $repoName = Split-Path -Leaf $repoRoot
 
-$settingsPath = "$env:APPDATA\Code\User\settings.json"
-$settingsDir  = Split-Path -Parent $settingsPath
-$timestamp    = Get-Date -Format 'yyyyMMdd-HHmmss'
+$isWindowsPlatform = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+$isMacOSPlatform = $false
+$isMacOSVariable = Get-Variable -Name IsMacOS -ErrorAction SilentlyContinue
+if ($isMacOSVariable) {
+    $isMacOSPlatform = [bool]$isMacOSVariable.Value
+}
+
+if ($isWindowsPlatform -and -not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+    $userHome = $env:USERPROFILE
+} elseif (-not [string]::IsNullOrWhiteSpace($env:HOME)) {
+    $userHome = $env:HOME
+} else {
+    $userHome = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
+}
+
+if ([string]::IsNullOrWhiteSpace($userHome)) {
+    throw 'Unable to resolve the current user profile directory.'
+}
+
+if ($isWindowsPlatform) {
+    $configRoot = $env:APPDATA
+    if ([string]::IsNullOrWhiteSpace($configRoot)) {
+        $configRoot = [Environment]::GetFolderPath([Environment+SpecialFolder]::ApplicationData)
+    }
+} elseif ($isMacOSPlatform) {
+    $configRoot = Join-Path $userHome 'Library/Application Support'
+} elseif (-not [string]::IsNullOrWhiteSpace($env:XDG_CONFIG_HOME)) {
+    $configRoot = $env:XDG_CONFIG_HOME
+} else {
+    $configRoot = Join-Path $userHome '.config'
+}
+
+if ([string]::IsNullOrWhiteSpace($configRoot)) {
+    throw 'Unable to resolve the VS Code configuration directory.'
+}
+
+$settingsDir = Join-Path (Join-Path $configRoot 'Code') 'User'
+$settingsPath = Join-Path $settingsDir 'settings.json'
+$timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 
 if (-not (Test-Path $settingsDir)) {
     New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null
@@ -103,10 +140,13 @@ if ($oneDriveCandidates.Count -gt 1) {
     $oneDriveRoot = $oneDriveCandidates.Values | Select-Object -First 1
 } elseif ($env:OneDrive -and (Test-Path $env:OneDrive)) {
     $oneDriveRoot = $env:OneDrive
-} elseif (Test-Path "$env:USERPROFILE\OneDrive") {
-    $oneDriveRoot = "$env:USERPROFILE\OneDrive"
 } else {
-    $oneDriveRoot = $null
+    $defaultOneDrivePath = Join-Path $userHome 'OneDrive'
+    if (Test-Path $defaultOneDrivePath) {
+        $oneDriveRoot = $defaultOneDrivePath
+    } else {
+        $oneDriveRoot = $null
+    }
 }
 
 # --- File location strategy ---
@@ -165,13 +205,13 @@ if ($oneDriveRoot) {
     $targetBase = Join-Path $oneDriveRoot $repoName
 
     # Clean up legacy ~/<repoName> tree from earlier dual-copy runs.
-    $legacyLocalBase = Join-Path $env:USERPROFILE $repoName
+    $legacyLocalBase = Join-Path $userHome $repoName
     if (Test-Path $legacyLocalBase) {
         Remove-Item -Path $legacyLocalBase -Recurse -Force
         Write-Host "Removed legacy local copy: $legacyLocalBase"
     }
 } else {
-    $targetBase = Join-Path $env:USERPROFILE $repoName
+    $targetBase = Join-Path $userHome $repoName
 }
 
 foreach ($sub in $subDirs) {
@@ -185,7 +225,8 @@ foreach ($sub in $subDirs) {
 
     $source = Join-Path $repoRoot $sub
     if (Test-Path $source) {
-        Copy-Item -Path "$source\*" -Destination $dest -Recurse -Force
+        $sourceContents = Join-Path $source '*'
+        Copy-Item -Path $sourceContents -Destination $dest -Recurse -Force
         Write-Host "Copied:  $source -> $dest"
     } else {
         Write-Host "Skipped: $source (not found in repo)"
@@ -194,7 +235,7 @@ foreach ($sub in $subDirs) {
 
 # --- Create ~/.copilot/{agents,instructions,skills,prompts} junctions ---
 # Both the VS Code Copilot chat extension and the GitHub Copilot CLI discover
-# customization files under $env:USERPROFILE\.copilot. Pointing those well-known
+# customization files under ~/.copilot. Pointing those well-known
 # folders at our single target tree (OneDrive or local fallback) keeps both
 # clients in sync without writing chat.*FilesLocations settings.
 #
@@ -204,12 +245,14 @@ foreach ($sub in $subDirs) {
 #   - Real directory, non-empty  -> prompt the user. On consent, copy contents
 #     into the target (merge, no overwrite of newer files in the target) and
 #     then remove. On refusal, skip the junction with a warning.
-#   - Missing                    -> just create the junction.
-$copilotRoot = Join-Path $env:USERPROFILE '.copilot'
+#   - Missing                    -> just create the junction or symbolic link.
+$copilotRoot = Join-Path $userHome '.copilot'
 if (-not (Test-Path $copilotRoot)) {
     New-Item -ItemType Directory -Path $copilotRoot -Force | Out-Null
     Write-Host "Created: $copilotRoot"
 }
+
+$linkItemType = if ($isWindowsPlatform) { 'Junction' } else { 'SymbolicLink' }
 
 # Map repo subfolder (PascalCase) -> well-known .copilot link name (lowercase).
 $junctionMap = [ordered]@{
@@ -273,8 +316,8 @@ foreach ($entry in $junctionMap.GetEnumerator()) {
         }
     }
 
-    New-Item -ItemType Junction -Path $linkPath -Target $targetPath | Out-Null
-    Write-Host "Junction: $linkPath -> $targetPath"
+    New-Item -ItemType $linkItemType -Path $linkPath -Target $targetPath | Out-Null
+    Write-Host "${linkItemType}: $linkPath -> $targetPath"
 }
 
 # --- Set environment variable required by the GitHub Copilot CLI ---
@@ -299,8 +342,8 @@ if ($existingValue -eq $copilotEnvValue) {
 # Idempotent: match on (key, command, when) tuple so re-runs do not duplicate
 # entries and user-added bindings are preserved. Creates a timestamped backup
 # before writing.
-$keybindingsSource = Join-Path $repoRoot 'Keybindings\keybindings.json'
-$keybindingsPath   = "$env:APPDATA\Code\User\keybindings.json"
+$keybindingsSource = Join-Path (Join-Path $repoRoot 'Keybindings') 'keybindings.json'
+$keybindingsPath = Join-Path $settingsDir 'keybindings.json'
 
 if (Test-Path $keybindingsSource) {
     if (-not (Test-Path $keybindingsPath)) {
