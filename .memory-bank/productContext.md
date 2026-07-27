@@ -1,3 +1,10 @@
+---
+status: current
+last-verified: 2026-07-24
+owner: shared
+source: README.md
+---
+
 # Product context
 
 ## Why this project exists
@@ -14,9 +21,14 @@ VS Code's GitHub Copilot supports custom agents, instructions, skills, and promp
 ## How it works
 
 1. All customization files live under a single repo-derived folder organized into four subdirectories: Agents, Instructions, Skills, Prompts. When OneDrive is signed in the folder is `~/OneDrive/CopilotAtelier/`; otherwise the script falls back to `~/CopilotAtelier/`. Only one location is populated per machine — no dual mirror.
-2. A PowerShell setup script (`Setup-CopilotSettings.ps1`) copies the repo contents into the chosen target and then creates NTFS junctions at `%USERPROFILE%\.copilot\{agents,instructions,skills,prompts}` pointing to that target. Both the VS Code Copilot chat extension and the GitHub Copilot CLI discover customization files under `~/.copilot`, so a single set of junctions serves both clients without writing any `chat.*FilesLocations` settings.
-3. The script is idempotent: it merges new entries into existing settings, strips JSONC comments before parsing, recreates junctions to track the current target, and creates a timestamped backup on every run. Pre-existing real folders at the junction paths are removed silently when empty; when non-empty the script prompts the user before merging contents into the target and deleting the folder.
-4. The chosen target folder is populated by copying the repo contents on every run. When OneDrive is present, the OneDrive folder is used and changes propagate to every signed-in machine. When OneDrive is absent, the local `~/CopilotAtelier/` folder is used so the library still works on standalone machines. Stale local mirrors from older dual-copy runs are cleaned up automatically.
+2. A PowerShell Setup script copies `Agents/`, `Instructions/`, `Skills/`, and `Prompts/` into the chosen target and creates Discovery links at `%USERPROFILE%\.copilot\{agents,instructions,skills,prompts}`. The repository-local `.memory-bank/`, tests, references, and documentation are not deployed.
+3. Both the VS Code Copilot chat extension and the GitHub Copilot CLI discover Customizations under `~/.copilot`. Prompts additionally require one `chat.promptFilesLocations` entry. Setup removes obsolete repo-owned location aliases so one Instruction cannot be registered through both OneDrive and its Discovery link.
+4. The script is idempotent: it preserves unrelated user locations, strips JSONC comments before parsing, recreates Discovery links to track the Canonical target, and creates a timestamped backup on every run. Pre-existing real folders at the link paths are removed silently when empty; when non-empty the script prompts before merging their contents into the target and deleting the folder.
+5. When OneDrive is present, the OneDrive folder is used and changes propagate to every signed-in machine. Otherwise the local `~/CopilotAtelier/` folder keeps the library usable on standalone machines. Stale local mirrors from older dual-copy runs are cleaned up automatically.
+6. In a working repository, shared Pre-flight reads the Memory Bank index and
+   selects task-relevant files. It initializes missing canonical files only
+   before durable writes, fails open to complete-base loading when routing is
+   unsafe, and creates nothing for read-only or transient tasks.
 
 ## User experience goals
 

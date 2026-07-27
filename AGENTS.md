@@ -11,10 +11,10 @@ This repo enforces a discovery-first, close-out-clean contract on every substant
 **Pre-flight** (before the first tool call) — see [`Instructions/preflight.instructions.md`](Instructions/preflight.instructions.md):
 
 1. Probe for `.memory-bank/` (`list_dir` / `file_search` / `Test-Path`). The workspace summary is not authoritative for dotfolders — do not conclude "no Memory Bank" without probing.
-2. Read the Memory Bank always-loaded set (`projectbrief`, `activeContext`, `techContext`, `progress`, `systemPatterns`, `productContext`, `glossary` if present, `promptHistory` if present).
+2. Read `.memory-bank/index.md`, then apply its task routes. Only the index is unconditional; `promptHistory.md` is local ephemera limited to interaction-history analysis and Memory Bank evals. Fail open to the complete available base when the index says `loading-mode: full` or routing is unsafe. Seven files are required and version-controlled; include local `promptHistory.md` and optional `glossary.md` when present. For durable writes, load the `memory-bank` Skill and create only missing files before the first project edit. Never overwrite existing files. Do not initialize for Q&A, clarification, read-only work, or transient preferences.
 3. Match `Instructions/*.instructions.md` by `applyTo` against files you will touch; read each match.
 4. Match `Skills/**/SKILL.md` by description against the task; read each match.
-5. Do not append `promptHistory.md` at pre-flight — that append moved to post-flight and fires only on substantive turns; reading it in step 2 is enough.
+5. Do not append `promptHistory.md` at pre-flight. Post-flight owns the append for substantive turns; routine pre-flight does not read it.
 6. Open the reply with a UTC timestamp `[YYYY-MM-DD HH:mm UTC]` plus a one-line PRE-FLIGHT acknowledgment.
 
 **Post-flight** (before ending the reply) — see [`Instructions/postflight.instructions.md`](Instructions/postflight.instructions.md):
@@ -24,8 +24,9 @@ Classify the turn first. A **non-impacting** turn (pure Q&A, read-only investiga
 1. Verify the change (parse / lint / build / tests). Markdown-only edits: state "no executable verification required."
 2. Update the Memory Bank (`activeContext.md`, `progress.md`, `promptHistory.md`).
 3. Update `CHANGELOG.md` under `[Unreleased]` for any user-visible change.
-4. Commit locally on an `ai/<slug>` branch with a conventional-commit message plus a `Co-authored-by: AI Assistant <ai@example.com>` trailer.
-5. Emit a `[x]/[ ]` POST-FLIGHT checklist.
+4. Commit locally on an `ai/<slug>` branch with a conventional-commit message plus a `Co-authored-by: AI Assistant <ai@example.com>` trailer, unless the user explicitly requested uncommitted changes.
+5. Clear the deployed Definition of Done gate: acceptance criteria, role-specific gates, focused/final validation, self-review, risk-triggered independent review, security, and residual-risk reporting.
+6. Emit a `[x]/[ ]` POST-FLIGHT checklist.
 
 ## Never push
 

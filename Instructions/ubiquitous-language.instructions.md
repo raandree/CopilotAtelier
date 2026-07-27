@@ -7,9 +7,12 @@ description: "Enforces the Ubiquitous Language (DDD) pattern: when a glossary.md
 
 Enforce the **Ubiquitous Language** pattern from Eric Evans' *Domain-Driven Design* (2003): the team, the code, and the documents speak the same vocabulary. The repository's `glossary.md` is the single source of truth for that vocabulary.
 
-The glossary lives in the **memory bank** by preference, so the pre-flight hook loads it automatically alongside `projectbrief.md` and friends. This instruction is the reminder of the *rules*; the memory bank is the discovery mechanism. Canonical locations, in priority order:
+The glossary lives in the **memory bank** by preference. The pre-flight index
+routes governed code, tests, documentation, and commit work to it before
+authoring. This instruction defines the rules; the Memory Bank provides
+discovery. Canonical locations, in priority order:
 
-1. `.memory-bank/glossary.md` (preferred — sits in the always-loaded memory-bank set)
+1. `.memory-bank/glossary.md` (preferred; selected by the `language` route)
 2. `memory-bank/glossary.md` (legacy / non-hidden variant)
 3. `docs/glossary.md`
 4. `glossary.md` (repo root)
@@ -17,7 +20,11 @@ The glossary lives in the **memory bank** by preference, so the pre-flight hook 
 The first one found wins; the others are ignored to avoid drift.
 
 > [!NOTE]
-> `applyTo` deliberately omits `**/*.md` to avoid loading this instruction on every markdown turn in workspaces that have no glossary. The instruction triggers when the agent reads/edits the glossary itself or any governed code file (`.ps1`, `.psm1`, `.psd1`, `.py`, `.cs`, `.ts`, `.js`). For markdown artefacts the rules are enforced through the memory-bank-loaded glossary, not through `applyTo`.
+> `applyTo` deliberately omits `**/*.md` to avoid loading this instruction on
+> every Markdown turn in workspaces that have no glossary. The instruction
+> triggers when the agent reads or edits the glossary itself or any governed
+> code file (`.ps1`, `.psm1`, `.psd1`, `.py`, `.cs`, `.ts`, `.js`). For
+> Markdown artifacts, the Memory Bank `language` route selects the glossary.
 
 ## What a Ubiquitous Language file looks like
 
@@ -39,7 +46,9 @@ The table may have additional optional columns (e.g. `Status`, `Owner`, `First i
 
 ## Rules the agent MUST follow when a glossary exists
 
-1. **Read first.** Before planning any change to code, documentation, tests, or commit messages, read the glossary end-to-end. Treat it as part of the always-loaded context for the turn.
+1. **Read first.** Before planning any change to code, documentation, tests, or
+   commit messages, select the Memory Bank `language` route and read the
+   glossary end-to-end.
 2. **Use canonical terms only.** In every artefact you author or modify — source code, identifiers, comments, log messages, test names, variable names, documentation, commit messages, PR titles, chat replies — use only terms from the `Term` column.
 3. **Never use a forbidden synonym.** If a token appears in any `Don't say` cell, do not introduce it. If the user uses a forbidden synonym in their prompt, translate it to the canonical term in your reply and note the translation once (e.g. *"I'll treat 'customer' as `Tenant` per the glossary."*). Do not nag the user about it on every turn.
 4. **Missing concept → propose, do not invent.** If you need a word for a concept that is not in the glossary, stop. Propose a new row (`Term | Means | Don't say`) and ask the user to approve adding it. Do not invent a synonym, do not silently reuse the closest existing term.

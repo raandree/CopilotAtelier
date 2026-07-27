@@ -62,7 +62,7 @@ Small changes get real reviews; large ones get rubber-stamped. Keep a reviewable
 
 ## Author self-review first
 
-Before requesting review, clear the [Definition of Done](../../Reference/definition-of-done.md): `Invoke-ScriptAnalyzer` clean, Pester green (separate process), approved verbs, Memory Bank and CHANGELOG updated. Read your own diff top to bottom first — most Nits should never reach the reviewer.
+Before requesting review, clear the shared Post-flight Definition of Done gate: `Invoke-ScriptAnalyzer` clean, Pester green (separate process), approved verbs, Memory Bank and CHANGELOG updated. Read your own diff top to bottom first — most Nits should never reach the reviewer.
 
 ## Anti-rationalization table
 
@@ -87,7 +87,7 @@ A review is done when:
 
 - All five axes were considered and every comment is severity-labelled.
 - No Blocker or Major is left unresolved before approval.
-- The change (author side) clears the [Definition of Done](../../Reference/definition-of-done.md).
+- The change (author side) clears the shared Post-flight Definition of Done gate.
 - The decision is explicit: approve, or request changes with the specific must-fix list.
 
 ## Related

@@ -1,3 +1,10 @@
+---
+status: current
+last-verified: 2026-07-24
+owner: shared
+source: project domain decisions
+---
+
 # Glossary
 
 This file defines the Ubiquitous Language for Copilot Atelier. Use the canonical
@@ -16,6 +23,12 @@ API fields, and quoted historical text retain their exact spelling.
 | Skill | An on-demand bounded workflow stored in `Skills/<name>/SKILL.md`. | Copilot helper package, skill add-on |
 | Prompt | A reusable task template stored in `Prompts/*.prompt.md`. | prompt macro, canned prompt command |
 | Memory Bank | The version-controlled project knowledge in `.memory-bank/`. | project-memory store, context database |
+| Memory Bank index | The compact authority map and routing table read before other Memory Bank files. | memory manifest, memory table of contents |
+| Memory Bank route | A task-to-file mapping in the Memory Bank index that selects relevant project knowledge. | context selector, lazy-memory rule |
+| Full-read fallback | The safety path that reads the complete Memory Bank base when routing is uncertain or explicitly disabled. | load-all workaround, emergency context dump |
+| Decision record | A version-controlled Markdown file that preserves one durable choice, its rationale, consequences, and confirmation. | architecture note, design memo |
+| Memory Bank topic | Optional durable task-specific or role-specific knowledge selected by an explicit Memory Bank route. | memory note, context shard |
+| Memory Bank health check | The read-only validation of Memory Bank structure, provenance, freshness, retention, and compactness budgets. | memory audit script, context cleanup scan |
 | Canonical target | The single selected customization tree populated by the Setup script. | secondary customization target, customization mirror |
 | Discovery link | A path under `~/.copilot/` that exposes a Canonical target subdirectory to Copilot clients. | Copilot shortcut, discovery redirect folder |
 | Setup script | `Setup-CopilotSettings.ps1`, which configures clients and populates the Canonical target. | Copilot installer, setup bootstrapper |

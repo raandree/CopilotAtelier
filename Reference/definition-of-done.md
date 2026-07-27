@@ -2,7 +2,7 @@
 
 The standing quality bar every change in this repository clears before it counts as complete — independent of *what* the change is. It is distinct from a task's **acceptance criteria**, which describe when one specific goal is met. A change ships only when it satisfies **both** its acceptance criteria **and** this Definition of Done.
 
-This file is not auto-attached. The process portion is enforced on every turn by the [pre-flight](../Instructions/preflight.instructions.md) and [post-flight](../Instructions/postflight.instructions.md) hooks; skills, prompts, and agents link here when they need the shared bar written down in one place.
+This repository reference explains the deployed [Post-flight Definition of Done gate](../Instructions/postflight.instructions.md#definition-of-done-gate). The Post-flight Instruction is authoritative because it is copied to the Canonical target; this file must not define a competing checklist.
 
 ## Definition of Done vs acceptance criteria
 
@@ -19,8 +19,8 @@ Neither replaces the other. A feature that meets its acceptance criteria but ski
 
 ### 1. Process — every turn
 
-- [ ] **Pre-flight** complete: `.memory-bank/` probed and read, matching instructions read, matching skills read, `promptHistory.md` appended, reply opened with a UTC timestamp and a PRE-FLIGHT acknowledgment. See [`preflight.instructions.md`](../Instructions/preflight.instructions.md).
-- [ ] **Post-flight** complete: change verified, Memory Bank updated, `CHANGELOG.md` updated, committed locally, POST-FLIGHT checklist emitted. See [`postflight.instructions.md`](../Instructions/postflight.instructions.md).
+- [ ] **Pre-flight** complete: `.memory-bank/` probed; canonical base read or safely initialized for durable writes; matching Instructions and Skills loaded once; reply opened with a UTC timestamp and acknowledgment. Read-only turns do not initialize. See [`preflight.instructions.md`](../Instructions/preflight.instructions.md).
+- [ ] **Post-flight** complete: acceptance criteria and role-specific gates satisfied; focused/final validation and self-review complete; independent review performed when risk requires it; Memory Bank and changelog updated; version-control constraints honored; residual risks reported. See [`postflight.instructions.md`](../Instructions/postflight.instructions.md#definition-of-done-gate).
 
 ### 2. Verification — proof, not "looks right"
 
@@ -42,7 +42,7 @@ Name the artifact that proves the change works. By file type:
 
 - [ ] Memory Bank updated: `activeContext.md` (current focus), `progress.md` (dated line), `promptHistory.md` (per-turn line).
 - [ ] `CHANGELOG.md` `[Unreleased]` updated for any user-visible change (skip for pure refactors, memory-bank-only edits, trivial turns).
-- [ ] Committed locally on an `ai/<slug>` branch with a conventional-commit message and a `Co-authored-by: AI Assistant <ai@example.com>` trailer.
+- [ ] Committed locally on an `ai/<slug>` branch with a conventional-commit message and a `Co-authored-by: AI Assistant <ai@example.com>` trailer, unless the user requested uncommitted changes.
 - [ ] **Never push** unless the user explicitly asked this turn. Never bypass hooks (`--no-verify`).
 
 ### 5. Security
@@ -61,10 +61,11 @@ Not every turn touches every gate. Skipping one is fine **when stated with a rea
 
 ## Using this file
 
-Point to it; do not inline it. From a skill, agent, or prompt that needs the shared bar:
+Deployed Customizations point to the authoritative Instruction, not this
+repository-only reference:
 
 ```markdown
-Before reporting done, confirm the change clears the [Definition of Done](../Reference/definition-of-done.md).
+Before reporting done, confirm the change clears the [Definition of Done gate](../Instructions/postflight.instructions.md#definition-of-done-gate).
 ```
 
-The per-turn hooks already enforce the Process section; this file is the single place the full bar is written down.
+The shared Post-flight Instruction enforces and owns the full bar.

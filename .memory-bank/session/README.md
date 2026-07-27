@@ -15,7 +15,11 @@ Repo-root [`.gitignore`](../../.gitignore) excludes `handoff-*.md` and `deadline
 
 ## Why not the rest of `.memory-bank/`?
 
-- `projectbrief.md`, `activeContext.md`, `progress.md`, `techContext.md`, `systemPatterns.md`, `productContext.md` — curated, version-controlled project knowledge. Always-loaded by every agent at pre-flight.
+- `index.md` is the only unconditional pre-flight read. It routes each task to
+  the smallest relevant set of curated, version-controlled project knowledge;
+  ambiguous or unsafe routing fails open to the complete base.
+- `promptHistory.md` is read only for interaction-history analysis and Memory
+  Bank evals, never during routine pre-flight.
 - `session/` — ephemera produced and consumed in a single user-machine context. Not loaded automatically; the user explicitly attaches a handoff file when starting the next session.
 
 ## Consuming a handoff in the next session

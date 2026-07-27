@@ -6,9 +6,19 @@
     copies customization files to OneDrive or the user profile, and links the
     well-known ~/.copilot directories to that target. Resolves the VS Code user
     directory using the conventions for Windows, macOS, and Linux. Idempotent:
-    merges location entries instead of replacing them, strips JSONC comments
-    before parsing, and creates a timestamped backup on every run.
+    removes obsolete location aliases without disturbing user-defined entries,
+    strips JSONC comments before parsing, and creates a timestamped backup on
+    every run.
+.PARAMETER SkipCopilotCliEnvironment
+    Skips the user-scoped COPILOT_ALLOW_ALL configuration. Intended for
+    sandboxed tests that must not mutate the host user profile.
 #>
+
+[CmdletBinding()]
+param(
+    [Parameter()]
+    [switch]$SkipCopilotCliEnvironment
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -98,6 +108,37 @@ function Merge-LocationSetting {
         -NotePropertyValue ([pscustomobject]$merged) -Force
 }
 
+function Remove-LocationSettingEntry {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)]
+        [psobject]$Settings,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$PropertyName,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string[]]$Entry
+    )
+
+    $property = $Settings.PSObject.Properties[$PropertyName]
+    if (-not $property) {
+        return
+    }
+
+    foreach ($entryName in $Entry) {
+        if ($PSCmdlet.ShouldProcess($PropertyName, "Remove location entry '$entryName'")) {
+            $property.Value.PSObject.Properties.Remove($entryName)
+        }
+    }
+
+    if (@($property.Value.PSObject.Properties).Count -eq 0) {
+        $Settings.PSObject.Properties.Remove($PropertyName)
+    }
+}
+
 # Read and parse existing settings
 $raw = Get-Content $settingsPath -Raw
 
@@ -162,6 +203,27 @@ if ($oneDriveRoot) {
     Write-Host "OneDrive detected at: $oneDriveRoot - target tree will live there."
 } else {
     Write-Host "OneDrive not found - target tree will live under ~/$repoName."
+}
+
+# Remove aliases written by setup versions that predate ~/.copilot discovery.
+# Unrelated locations remain available to the user.
+$legacyLocationMap = [ordered]@{
+    'chat.agentFilesLocations' = 'Agents'
+    'chat.instructionsFilesLocations' = 'Instructions'
+    'chat.agentSkillsLocations' = 'Skills'
+    'chat.promptFilesLocations' = 'Prompts'
+}
+foreach ($location in $legacyLocationMap.GetEnumerator()) {
+    $legacyEntries = @(
+        "~/$repoName/$($location.Value)"
+        "~/OneDrive/$repoName/$($location.Value)"
+    )
+    $removeLocationSettingEntry = @{
+        Settings = $settings
+        PropertyName = $location.Key
+        Entry = $legacyEntries
+    }
+    Remove-LocationSettingEntry @removeLocationSettingEntry
 }
 
 # --- Feature flags ---
@@ -326,17 +388,21 @@ foreach ($entry in $junctionMap.GetEnumerator()) {
 # skills shipped from this repo. Persisted at User scope so every new shell
 # session picks it up automatically; the current process variable is also set
 # so the change is visible without opening a new shell.
-$copilotEnvName  = 'COPILOT_ALLOW_ALL'
+$copilotEnvName = 'COPILOT_ALLOW_ALL'
 $copilotEnvValue = '1'
-$existingValue   = [Environment]::GetEnvironmentVariable($copilotEnvName, 'User')
-if ($existingValue -eq $copilotEnvValue) {
-    Write-Host "Environment variable already set: $copilotEnvName=$copilotEnvValue (User)"
+if ($SkipCopilotCliEnvironment) {
+    Write-Verbose "Skipped environment variable: $copilotEnvName (requested)"
 } else {
-    [Environment]::SetEnvironmentVariable($copilotEnvName, $copilotEnvValue, 'User')
-    Write-Host "Environment variable set: $copilotEnvName=$copilotEnvValue (User)"
-    Write-Host "  Open a new shell to pick up the change in other sessions."
+    $existingValue = [Environment]::GetEnvironmentVariable($copilotEnvName, 'User')
+    if ($existingValue -eq $copilotEnvValue) {
+        Write-Host "Environment variable already set: $copilotEnvName=$copilotEnvValue (User)"
+    } else {
+        [Environment]::SetEnvironmentVariable($copilotEnvName, $copilotEnvValue, 'User')
+        Write-Host "Environment variable set: $copilotEnvName=$copilotEnvValue (User)"
+        Write-Host "  Open a new shell to pick up the change in other sessions."
+    }
+    [Environment]::SetEnvironmentVariable($copilotEnvName, $copilotEnvValue, 'Process')
 }
-[Environment]::SetEnvironmentVariable($copilotEnvName, $copilotEnvValue, 'Process')
 
 # --- Merge keybindings into %APPDATA%\Code\User\keybindings.json ---
 # Idempotent: match on (key, command, when) tuple so re-runs do not duplicate

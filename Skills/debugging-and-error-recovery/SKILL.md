@@ -87,7 +87,7 @@ Done under this skill means:
 - A deterministic reproduction existed before the fix.
 - The root cause is named, not just the symptom masked.
 - A regression test fails without the fix and passes with it; the suite is green, run in a separate process per [`powershell-execution-safety.instructions.md`](../../Instructions/powershell-execution-safety.instructions.md).
-- The change clears the [Definition of Done](../../Reference/definition-of-done.md).
+- The change clears the shared Post-flight Definition of Done gate.
 
 ## Related
 

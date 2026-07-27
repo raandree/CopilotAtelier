@@ -1,0 +1,254 @@
+{
+    "schemaVersion": 1,
+    "description": "Real CopilotAtelier task intents for deterministic Memory Bank routing evaluation.",
+    "cases": [
+        {
+            "id": "session-speed-investigation",
+            "source": "session:a6c62747-05ae-4f34-a625-8274e1096f16:session-start",
+            "prompt": "writing code was much quicker before a certain update of the agents and skills. Can you investigate what the change was and explain?",
+            "routes": ["architecture", "status"],
+            "decisionFiles": ["0013-centralize-shared-lifecycle.md", "0014-prove-memory-bank-routing.md"],
+            "requiredFiles": ["systemPatterns.md", "progress.md"],
+            "allowHistory": false,
+            "durableWrite": false
+        },
+        {
+            "id": "session-read-only-constraint",
+            "source": "session:2e15e8df-12ad-4c6c-9121-793fd3125e02",
+            "prompt": "Investigate the speed regression, but do not make any changes.",
+            "routes": ["architecture", "status"],
+            "decisionFiles": ["0013-centralize-shared-lifecycle.md", "0014-prove-memory-bank-routing.md"],
+            "requiredFiles": ["systemPatterns.md", "progress.md", "activeContext.md"],
+            "allowHistory": false,
+            "durableWrite": false
+        },
+        {
+            "id": "session-optimize-with-quality",
+            "source": "session:1d5c391f-81a6-416c-9125-f19889436a6e",
+            "prompt": "do the changes that you think are good to gain more speed without compromising quality; clean up stale Memory Bank data",
+            "routes": ["architecture", "implementation", "status", "scope", "product", "language", "interaction-history"],
+            "decisionFiles": ["0013-centralize-shared-lifecycle.md", "0014-prove-memory-bank-routing.md"],
+            "requiredFiles": ["systemPatterns.md", "techContext.md", "activeContext.md", "progress.md", "projectbrief.md", "productContext.md", "glossary.md", "promptHistory.md"],
+            "allowHistory": true,
+            "durableWrite": true
+        },
+        {
+            "id": "session-no-commit-constraint",
+            "source": "session:1d5c391f-81a6-416c-9125-f19889436a6e+85e634f6-9d4a-487c-adf5-1542c3d664b5",
+            "prompt": "Apply the speed improvements without compromising quality, but keep the changes uncommitted.",
+            "routes": ["architecture", "implementation", "status", "language"],
+            "decisionFiles": ["0013-centralize-shared-lifecycle.md", "0014-prove-memory-bank-routing.md"],
+            "requiredFiles": ["systemPatterns.md", "techContext.md", "activeContext.md", "progress.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "session-completion-and-schema-question",
+            "source": "session:b6e1c9f9-0db9-40e0-8379-e397e03d6b94",
+            "prompt": "How does the agent know that a memory bank should have files like progress.md or projectbrief.md?",
+            "routes": ["architecture", "scope"],
+            "decisionFiles": ["0013-centralize-shared-lifecycle.md"],
+            "requiredFiles": ["systemPatterns.md", "projectbrief.md"],
+            "allowHistory": false,
+            "durableWrite": false
+        },
+        {
+            "id": "session-apply-all-agent-changes",
+            "source": "session:43794820-0116-4c1f-af5f-6751e3b017fa",
+            "prompt": "do as proposed without losing quality and apply the change to all applicable agents; do not commit yet",
+            "routes": ["architecture", "implementation", "language"],
+            "decisionFiles": ["0004-use-agent-handoffs.md", "0013-centralize-shared-lifecycle.md"],
+            "requiredFiles": ["systemPatterns.md", "techContext.md", "activeContext.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "session-memory-bank-standards-audit",
+            "source": "session:fedd8e1b-8f6a-4e2e-815b-4586b14d8f5b",
+            "prompt": "is the structure of the memory bank still up to date or something we should improve and align to new standards",
+            "routes": ["architecture", "scope", "product", "implementation", "status", "language", "interaction-history"],
+            "decisionFiles": ["0012-govern-ubiquitous-language.md", "0013-centralize-shared-lifecycle.md", "0014-prove-memory-bank-routing.md"],
+            "requiredFiles": ["systemPatterns.md", "projectbrief.md", "productContext.md", "techContext.md", "activeContext.md", "progress.md", "glossary.md", "promptHistory.md"],
+            "allowHistory": true,
+            "durableWrite": false
+        },
+        {
+            "id": "session-memory-bank-primary-research",
+            "source": "session:5decb2c9-c1f4-470a-81ac-48f73115f28f",
+            "prompt": "Intensively research whether the repository Memory Bank structure is current and what should improve.",
+            "routes": ["architecture", "scope", "product", "implementation", "status", "language", "interaction-history"],
+            "decisionFiles": ["0012-govern-ubiquitous-language.md", "0013-centralize-shared-lifecycle.md", "0014-prove-memory-bank-routing.md"],
+            "requiredFiles": ["systemPatterns.md", "projectbrief.md", "productContext.md", "techContext.md", "activeContext.md", "progress.md", "glossary.md", "promptHistory.md"],
+            "allowHistory": true,
+            "durableWrite": false
+        },
+        {
+            "id": "session-implementation-status",
+            "source": "session:2f0510eb-47e6-4dc8-9a01-cc56ca436c00",
+            "prompt": "did you implement all recommended changes or is there something left to do?",
+            "routes": ["status"],
+            "requiredFiles": ["progress.md", "activeContext.md"],
+            "allowHistory": false,
+            "durableWrite": false
+        },
+        {
+            "id": "session-ambiguous-continuation",
+            "source": "session:849a9fde-c617-4bb8-ad08-c9979638c05f",
+            "prompt": "ok, please do that",
+            "routes": ["unknown", "language"],
+            "requiredFiles": ["projectbrief.md", "systemPatterns.md", "glossary.md", "activeContext.md"],
+            "allowHistory": true,
+            "durableWrite": true,
+            "expectFallback": true
+        },
+        {
+            "id": "session-non-impacting-policy",
+            "source": "session:ba40eeb2-cfed-4c56-8f31-285d519497ba:session-start",
+            "prompt": "analyze how the Memory Bank should handle prompts that do not impact project files",
+            "routes": ["architecture", "interaction-history"],
+            "decisionFiles": ["0011-exempt-non-impacting-turns.md"],
+            "requiredFiles": ["systemPatterns.md", "promptHistory.md", "progress.md"],
+            "allowHistory": true,
+            "durableWrite": false
+        },
+        {
+            "id": "git-glossary-and-cross-platform-setup",
+            "source": "git:cbeda52",
+            "prompt": "Establish the Glossary and enhance the Setup script for cross-platform compatibility.",
+            "routes": ["language", "implementation", "architecture"],
+            "decisionFiles": ["0001-use-onedrive-sync.md", "0003-preserve-location-settings.md", "0012-govern-ubiquitous-language.md"],
+            "requiredFiles": ["glossary.md", "techContext.md", "systemPatterns.md", "activeContext.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "git-windows-gui-screenshot-skill",
+            "source": "git:a3d4405",
+            "prompt": "Add the windows-gui-screenshot-capture Skill.",
+            "routes": ["implementation", "architecture", "language"],
+            "decisionFiles": ["0006-require-skill-frontmatter.md"],
+            "requiredFiles": ["techContext.md", "activeContext.md", "systemPatterns.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "git-non-impacting-postflight",
+            "source": "git:d62f240",
+            "prompt": "Exempt Non-impacting turns from Post-flight documentation.",
+            "routes": ["architecture", "implementation", "language"],
+            "decisionFiles": ["0011-exempt-non-impacting-turns.md"],
+            "requiredFiles": ["systemPatterns.md", "techContext.md", "activeContext.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "git-automatedlab-proxmox",
+            "source": "git:938583b",
+            "prompt": "Enhance automatedlab-proxmox troubleshooting and documentation.",
+            "routes": ["implementation", "language"],
+            "requiredFiles": ["techContext.md", "activeContext.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "git-agent-toolsets",
+            "source": "git:5c88113",
+            "prompt": "Repair Custom agent tool sets for file and directory creation.",
+            "routes": ["implementation", "architecture", "language"],
+            "decisionFiles": ["0004-use-agent-handoffs.md"],
+            "requiredFiles": ["techContext.md", "systemPatterns.md", "activeContext.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "git-engineering-skills",
+            "source": "git:7f3cd96",
+            "prompt": "Add engineering discipline Skills for code quality.",
+            "routes": ["implementation", "architecture", "language"],
+            "decisionFiles": ["0006-require-skill-frontmatter.md"],
+            "requiredFiles": ["techContext.md", "systemPatterns.md", "activeContext.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "git-definition-of-done",
+            "source": "git:6e10969",
+            "prompt": "Add the shared Definition of Done and related documentation.",
+            "routes": ["scope", "architecture", "implementation", "language"],
+            "decisionFiles": ["0005-scope-instructions-with-applyto.md", "0013-centralize-shared-lifecycle.md"],
+            "requiredFiles": ["projectbrief.md", "systemPatterns.md", "techContext.md", "activeContext.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "git-status-line-gate",
+            "source": "git:368b94d",
+            "prompt": "Enforce the timestamp and elapsed status-line rule in long-running-job-monitor.",
+            "routes": ["implementation", "architecture", "language"],
+            "decisionFiles": ["0010-detach-long-running-powershell.md"],
+            "requiredFiles": ["techContext.md", "systemPatterns.md", "activeContext.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "git-class-reference-guidance",
+            "source": "git:fc17bb9",
+            "prompt": "Add PowerShell guidance for class references in dot-sourced module files.",
+            "routes": ["implementation", "architecture", "language"],
+            "decisionFiles": ["0005-scope-instructions-with-applyto.md"],
+            "requiredFiles": ["techContext.md", "activeContext.md", "systemPatterns.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "git-prompt-history-tracking",
+            "source": "git:656752f",
+            "prompt": "Stop tracking promptHistory.md and retain it as local ephemera.",
+            "routes": ["interaction-history", "architecture", "scope", "implementation", "language"],
+            "decisionFiles": ["0011-exempt-non-impacting-turns.md"],
+            "requiredFiles": ["promptHistory.md", "progress.md", "systemPatterns.md", "projectbrief.md", "techContext.md", "activeContext.md", "glossary.md"],
+            "allowHistory": true,
+            "durableWrite": true
+        },
+        {
+            "id": "git-long-running-job-monitor",
+            "source": "git:852a4ca",
+            "prompt": "Add the long-running-job-monitor Skill.",
+            "routes": ["implementation", "architecture", "language"],
+            "decisionFiles": ["0006-require-skill-frontmatter.md", "0010-detach-long-running-powershell.md"],
+            "requiredFiles": ["techContext.md", "activeContext.md", "systemPatterns.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "git-social-signal-sweep",
+            "source": "git:9099373",
+            "prompt": "Add the social-signal-sweep Skill and update documentation.",
+            "routes": ["implementation", "product", "architecture", "language"],
+            "decisionFiles": ["0006-require-skill-frontmatter.md"],
+            "requiredFiles": ["techContext.md", "productContext.md", "activeContext.md", "systemPatterns.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "git-interactive-question-ui",
+            "source": "git:7832014",
+            "prompt": "Add the shared interactive question UI convention.",
+            "routes": ["product", "implementation", "architecture", "language"],
+            "decisionFiles": [],
+            "requiredFiles": ["productContext.md", "techContext.md", "activeContext.md", "systemPatterns.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
+            "id": "git-session-handoff",
+            "source": "git:57e6531",
+            "prompt": "Add the Session handoff workflow.",
+            "routes": ["continuation", "architecture", "implementation", "language"],
+            "decisionFiles": ["0008-store-session-handoffs.md"],
+            "requiredFiles": ["activeContext.md", "progress.md", "systemPatterns.md", "techContext.md", "glossary.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        }
+    ]
+}

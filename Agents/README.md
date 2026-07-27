@@ -28,20 +28,19 @@ These agents form the primary software development and release pipeline.
 **Responsibilities**:
 
 - Production-ready, maintainable code development
-- Systematic, specification-driven implementation
+- Focused exploration and incremental implementation
 - SOLID principles and design patterns
-- Comprehensive documentation
-- Unit and integration testing
-- Memory Bank maintenance
+- Behavior-driven tests and regression guards
+- Executable validation scaled to change risk
 
 **Key Features**:
 
-- Zero-confirmation execution policy
-- Autonomous decision-making
+- Compact execution contract with no duplicated lifecycle rules
+- Immediate focused validation after each substantive edit
 - Engineering excellence standards (SOLID, Clean Code, DRY, YAGNI, KISS)
-- Multi-phase workflow (Analyze → Design → Implement → Validate → Reflect → Handoff)
-- Comprehensive testing strategy (E2E → Integration → Unit)
-- Quality gates enforcement
+- Risk-scaled testing strategy (Unit → Integration → E2E)
+- Self-review for every change and independent review for high-risk work
+- Agentic-security review for agents, LLM features, RAG, and MCP servers
 
 **When to Use**:
 
@@ -312,8 +311,15 @@ flowchart LR
 
 ## Memory Bank Integration
 
-All agents integrate with the Memory Bank for context awareness:
+All agents use the shared Pre-flight and Post-flight Instructions. For durable
+repository work, Pre-flight loads the `memory-bank` Skill when the canonical
+base is missing or incomplete and creates only missing files. Existing content
+is never overwritten. Read-only and transient tasks do not initialize a Memory
+Bank.
 
+The canonical base is:
+
+- **index.md**: Loading mode, authority order, and task routes
 - **projectbrief.md**: Project scope and objectives
 - **productContext.md**: Business context and user impact
 - **systemPatterns.md**: Architecture and design decisions
@@ -321,6 +327,23 @@ All agents integrate with the Memory Bank for context awareness:
 - **progress.md**: Current status and completed work
 - **activeContext.md**: Current work focus and recent changes
 - **promptHistory.md**: Interaction tracking and decision history
+
+Only `index.md` is read unconditionally. Its routing table selects the smallest
+relevant set for the task; ambiguous or unsafe routing fails open to the full
+available base. Seven files are required and version-controlled; local
+`promptHistory.md` and optional `glossary.md` join the fallback only when
+present. Routine pre-flight does not read `promptHistory.md`.
+
+Role-specific schemas in the active agent extend this base with case files,
+incident logs, investigation dossiers, threat models, article registries, or
+training registries. Only the active durable workflow initializes those files.
+Every agent uses the shared Definition of Done gate in Post-flight; its own
+quality checklist remains additive.
+
+Durable knowledge without an existing owner may use an explicitly routed
+Memory Bank topic under `.memory-bank/topics/`. Decision records remain under
+`.memory-bank/decisions/`. Neither directory is loaded wholesale; the
+`memory-bank` Skill includes a read-only health and compactness check.
 
 ## Usage Instructions
 
@@ -614,16 +637,17 @@ When creating new agents:
 1. Follow the established pattern and structure
 2. Include comprehensive responsibilities and key features
 3. Define clear success criteria and quality gates
-4. Integrate with Memory Bank for context awareness
+4. Define only role-specific Memory Bank extensions; inherit the canonical base
+   and lifecycle from the shared Instructions
 5. Document escalation protocols
 6. Provide usage examples
 7. Update this README with the new agent
 
 ## Related Documentation
 
-- [Project Brief](../memory-bank/projectbrief.md)
-- [Product Context](../memory-bank/productContext.md)
-- [System Patterns](../memory-bank/systemPatterns.md)
+- [Project Brief](../.memory-bank/projectbrief.md)
+- [Product Context](../.memory-bank/productContext.md)
+- [System Patterns](../.memory-bank/systemPatterns.md)
 
 ---
 

@@ -105,7 +105,7 @@ A change is done under this skill only when:
 - The new or changed behaviour has a test that failed before the code and passes after it.
 - The full suite is green, run in a separate process per [`powershell-execution-safety.instructions.md`](../../Instructions/powershell-execution-safety.instructions.md).
 - `Invoke-ScriptAnalyzer` is clean on the changed files.
-- The change clears the [Definition of Done](../../Reference/definition-of-done.md).
+- The change clears the shared Post-flight Definition of Done gate.
 
 State the evidence: the test name, that it was red then green, and the passing suite summary.
 

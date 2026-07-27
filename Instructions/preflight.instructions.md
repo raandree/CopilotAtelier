@@ -1,6 +1,6 @@
 ---
 applyTo: "**"
-description: "Mandatory pre-flight checklist that auto-loads on every chat turn. Forces Memory Bank + instruction + skill discovery before the first tool call."
+description: "Mandatory pre-flight checklist for Memory Bank discovery or safe initialization plus Instruction and Skill loading before the first tool call."
 ---
 
 # Pre-Flight Compliance Hook
@@ -11,13 +11,14 @@ This file applies to every chat turn (`applyTo: "**"`). It is the de facto pre-p
 
 Do all of these for every new user prompt. Do not skip any step silently.
 
-1. **Probe for `.memory-bank/` before reading anything.** Run one of: `list_dir` on the workspace root, `file_search` for `.memory-bank/**`, or `Test-Path .memory-bank`. The `<workspace_info>` / workspace-structure listing surfaced at session start frequently omits dotfile folders (`.memory-bank`, `.git`, `.vscode`, `.github`) and is **not authoritative** for hidden folders. Concluding "no Memory Bank" from the workspace summary alone — without an explicit probe — is a recurring failure mode and counts as a process violation. The PRE-FLIGHT acknowledgment (step 7) must name the probe used and its result.
-2. **Read the Memory Bank.** If the probe in step 1 shows `.memory-bank/` exists, read the always-loaded set: `projectbrief.md`, `activeContext.md`, `techContext.md`, `progress.md`, `systemPatterns.md`, `glossary.md` if present (Ubiquitous Language — governs canonical terminology repo-wide; see [`ubiquitous-language.instructions.md`](ubiquitous-language.instructions.md)), and `promptHistory.md` if present. If the probe shows it is absent, state that with the probe result in the acknowledgment.
-3. **Match instruction files.** Scan the `<instructions>` block for every `applyTo` pattern that matches the file(s) you intend to edit, and read each match before editing. If you will not edit files this turn, skip this step but say so.
-4. **Match skills.** Scan the `<skills>` block for any skill whose description matches the user's task; read its `SKILL.md` before acting on its domain.
-5. **Do not write prompt history at pre-flight.** The `promptHistory.md` append moved to post-flight and fires only on substantive turns (see [postflight.instructions.md](postflight.instructions.md)); reading it in step 2 is sufficient here. Line format when post-flight writes it: `YYYY-MM-DD HH:mm UTC | <agent-name or default> | <one-line intent>`.
-6. **Open the reply with a UTC timestamp** `[YYYY-MM-DD HH:mm UTC]`.
-7. **Emit a one-line PRE-FLIGHT acknowledgment** immediately after the timestamp on substantive turns. The acknowledgment must name (a) the probe used and its result for `.memory-bank/` (e.g. `list_dir → .memory-bank/ present`, `file_search → no matches`), (b) what was read (or "no Memory Bank"), (c) which instructions matched (or "no matching instructions"), and (d) which skills matched (or "no matching skills"). Trivial conversational turns (clarifications, acknowledgments, single-fact answers) may skip the banner.
+1. **Probe for `.memory-bank/` before reading anything.** Run one of: `list_dir` on the workspace root, `file_search` for `.memory-bank/**`, or `Test-Path .memory-bank`. The `<workspace_info>` / workspace-structure listing surfaced at session start frequently omits dotfile folders (`.memory-bank`, `.git`, `.vscode`, `.github`) and is **not authoritative** for hidden folders. Concluding "no Memory Bank" from the workspace summary alone — without an explicit probe — is a recurring failure mode and counts as a process violation. The PRE-FLIGHT acknowledgment (step 8) must name the probe used and its result.
+2. **Route Memory Bank reads.** Read `.memory-bank/index.md` as the only unconditional Memory Bank read. When `loading-mode: routed`, apply its routing table to the current task and planned file paths, combine applicable routes, and read only task-relevant files. Do not read `promptHistory.md` during routine Pre-flight; read it only for interaction-history analysis or Memory Bank evals. When the index is missing or invalid, `loading-mode: full`, the task is ambiguous, routes conflict, or a critical fact is missing, fail open to the complete available base and name the fallback in the acknowledgment. The required version-controlled base is `index.md`, `projectbrief.md`, `productContext.md`, `activeContext.md`, `techContext.md`, `progress.md`, and `systemPatterns.md`; include local `promptHistory.md`, optional `glossary.md`, and every existing `decisions/*.md` record. Missing local history or glossary is not a routing failure.
+3. **Initialize only for durable work.** If a durable project/configuration write or explicit durable record is requested and `.memory-bank/` or a required version-controlled base file is missing, load `memory-bank`, create only missing files before the first project edit, and never overwrite existing content. The initializer may also create local `promptHistory.md`; an absent local log or optional `glossary.md` does not make a read-only checkout incomplete. Do not initialize for Q&A, clarification, read-only investigation, or transient personal preferences. After initialization, read the index and apply its routes. Create only the active Custom agent's required role files.
+4. **Match instruction files.** Scan the `<instructions>` block for every `applyTo` pattern that matches the files you intend to edit. Reuse full Instruction content already supplied in the current context. Read a matching file from disk only when its content is absent or incomplete. Do not re-read the same Instruction during a turn. If you will not edit files, skip this step and say so.
+5. **Match skills.** Scan the `<skills>` block for descriptions matching the task. Read each matching `SKILL.md` at most once per turn, and skip the read when its full body is already supplied in the current context.
+6. **Do not write prompt history at Pre-flight.** Post-flight owns the `promptHistory.md` append for Substantive turns. Format: `YYYY-MM-DD HH:mm UTC | <agent-name or default> | <one-line intent>`.
+7. **Open the reply with a UTC timestamp** `[YYYY-MM-DD HH:mm UTC]`.
+8. **Emit a one-line PRE-FLIGHT acknowledgment** immediately after the timestamp on substantive turns. Name the probe result, selected Memory Bank route and files (or full-read fallback), initialized files, matching Instructions, and matching Skills. Trivial conversational turns may skip the banner.
 
 ## Failure mode
 
@@ -25,4 +26,4 @@ Skipping any step without an explicit reason in the acknowledgment is a process 
 
 ## Scope note
 
-This hook is intentionally short. The full process contract lives in each agent definition (`Agents/*.agent.md`) and in the mode instructions. This file only guarantees the *minimum* discovery pass on every turn, including the default (non-agent) chat mode.
+This hook owns the shared discovery contract. Custom agent definitions own only role-specific execution behavior, and mode instructions may add stricter requirements. The hook applies to every turn, including default chat mode.

@@ -23,7 +23,7 @@ VS Code's GitHub Copilot — and the GitHub Copilot CLI — both look for custom
 
 CopilotAtelier solves that by storing the canonical files in a single, repo-derived folder (preferring OneDrive for cross-machine sync) and then linking the well-known `~/.copilot/*` discovery folders to that target with NTFS junctions. Write an agent once, use it from both the VS Code Copilot chat extension and the Copilot CLI, on every machine.
 
-No `chat.*FilesLocations` settings are written for agents, instructions, or skills — those three are auto-discovered by both clients via the junctions. Prompts are the exception: the VS Code chat extension does not auto-discover `~/.copilot/prompts`, so the script writes a single `chat.promptFilesLocations` entry for that one path. The CLI auto-discovers it on its own.
+No `chat.*FilesLocations` settings are written for agents, instructions, or skills — those three are auto-discovered by both clients via the junctions. Prompts are the exception: the VS Code chat extension does not auto-discover `~/.copilot/prompts`, so the script writes a single `chat.promptFilesLocations` entry for that one path. The CLI auto-discovers it on its own. Setup removes repo-owned location entries written by older releases so the same Instruction is not registered through both OneDrive and `~/.copilot`; unrelated user locations are preserved.
 
 Only one canonical location is populated per machine (no duplicate mirror). If a previous version of the script left a stale local mirror behind, the new run cleans it up automatically when OneDrive is present.
 
@@ -35,13 +35,10 @@ Only one canonical location is populated per machine (no duplicate mirror). If a
 ├── Agents/          # Custom agents (.agent.md files)
 ├── Instructions/    # Custom instructions (.instructions.md files)
 ├── Skills/          # Agent skills (folders with SKILL.md)
-├── Prompts/         # Prompt files / slash commands (.prompt.md files)
-├── Keybindings/     # keybindings.json merged into your user profile
-├── Setup-CopilotSettings.ps1   # Setup script
-└── README.md        # This file
+└── Prompts/         # Prompt files / slash commands (.prompt.md files)
 ```
 
-The folder name is derived from the repository clone, so renaming the clone renames the synced layout automatically.
+The folder name is derived from the repository clone, so renaming the clone renames the synced layout automatically. Repository-only content such as `.memory-bank/`, `tests/`, `Reference/`, the Setup script, and documentation is not copied into the Canonical target. `Keybindings/keybindings.json` is merged into the VS Code user profile rather than copied there.
 
 ## What Each Folder Contains
 
@@ -63,6 +60,7 @@ The folder name is derived from the repository clone, so renaming the clone rena
 | **dsc-troubleshooting** | Debug and troubleshoot PowerShell DSC resource failures on target nodes. Covers LCM diagnostics, event log analysis, resource debugging with `Wait-Debugger` and `Enter-PSHostProcess`, cache clearing, common exit codes, installer log analysis, and Windows Server 2025 specific issues (Start-Process UNC path hangs, class-based resource ForceModuleImport failures, SYSTEM profile logs). |
 | **german-legal-research** | Legal research and statement drafting for German law (Deutsches Recht). Specializes in tenancy/rental law (Mietrecht), property management, and operating cost disputes. |
 | **grammar-check** | Identify grammar, logical, and flow errors in text and suggest targeted fixes. Analyzes spelling, punctuation, subject-verb agreement, tense consistency, and transitions. |
+| **memory-bank** | Initialize, route, and check a repository Memory Bank for durable work. Manages seven required version-controlled files plus local prompt history, preserves existing content byte-for-byte, supports explicitly routed Decision records and optional Memory Bank topics, checks provenance and compactness budgets, retains a Full-read fallback, and does nothing for read-only or transient tasks. |
 | **citation-integrity** | Verify every external claim, quote, statistic, and reference in generated text against a fetched source. Defines a six-class failure taxonomy (F1 fabricated reference → F6 anchorless claim), a three-layer anchor (locator + ≤25-word quote + stable identifier), a `VERIFIED` / `MISMATCH` / `NOT_FOUND` verdict scheme with no gray zone, and a cross-index triangulation rule for contamination signals. |
 | **devils-advocate-review** | Argue against a proposal, design, claim, or draft from a hostile-but-fair position with explicit safeguards against sycophancy. 1–5 rebuttal scoring rubric (concession only at ≥ 4, no consecutive concessions, attack-intensity preservation), named deflection classes (reframe, authority, volume, sentiment, goalpost shift, tu quoque, premature consensus), frame-lock self-check every three rounds, closing report with sycophancy log. |
 | **social-signal-sweep** | Recency-bounded sweep (default 30 days) of what people are publicly saying about a topic across GitHub, Hacker News, Reddit, and Stack Overflow, plus a browser-only tier for YouTube and X. Produces a tier-8 lead sheet (platform, date, engagement signal, link, what-to-verify) to seed a deeper investigation — strictly leads-only, never citable. No bundled engine, no API keys, no cookies; uses web fetch, the GitHub tools, and the simple browser. Feeds the `research-analyst` SOURCE phase. |
@@ -96,7 +94,7 @@ The setup script configures the following in `settings.json`:
 
 ### File Locations
 
-Discovery is junction-based for agents, instructions, and skills — the script does not write `chat.agentFilesLocations`, `chat.instructionsFilesLocations`, or `chat.agentSkillsLocations` because both the VS Code Copilot chat extension and the GitHub Copilot CLI auto-discover the well-known `~/.copilot/{agents,instructions,skills}` paths. Prompts are the exception: VS Code Copilot Chat reads prompts only from `%APPDATA%\Code\User\prompts` and from paths listed in `chat.promptFilesLocations` (only the CLI auto-discovers `~/.copilot/prompts`), so the script writes a single `chat.promptFilesLocations` entry for `${userHome}/.copilot/prompts` via a merge that preserves any user-added prompt locations. The script copies the four customization folders to a single canonical target and creates NTFS junctions under `%USERPROFILE%\.copilot\` so both clients see the same files:
+Discovery is junction-based for agents, instructions, and skills — the script does not write `chat.agentFilesLocations`, `chat.instructionsFilesLocations`, or `chat.agentSkillsLocations` because both the VS Code Copilot chat extension and the GitHub Copilot CLI auto-discover the well-known `~/.copilot/{agents,instructions,skills}` paths. Setup removes the historical `~/CopilotAtelier/*` and `~/OneDrive/CopilotAtelier/*` entries for this repository while preserving unrelated user locations. Prompts are the exception: VS Code Copilot Chat reads prompts only from `%APPDATA%\Code\User\prompts` and from paths listed in `chat.promptFilesLocations` (only the CLI auto-discovers `~/.copilot/prompts`), so the script writes a single `chat.promptFilesLocations` entry for `${userHome}/.copilot/prompts`. The script copies the four Customization folders to one Canonical target and creates NTFS junctions under `%USERPROFILE%\.copilot\` so both clients see the same files:
 
 ```text
 %USERPROFILE%\.copilot\agents       --> <target>\Agents

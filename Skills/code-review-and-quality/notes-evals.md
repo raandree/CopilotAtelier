@@ -36,5 +36,5 @@ Prompt: "I'm about to push — quick check?"
 
 Pass:
 
-- Runs the author self-review against the [Definition of Done](../../Reference/definition-of-done.md): PSScriptAnalyzer clean, Pester green (separate process), approved verbs, Memory Bank and CHANGELOG updated.
+- Runs the author self-review against the shared Post-flight Definition of Done gate: PSScriptAnalyzer clean, Pester green (separate process), approved verbs, Memory Bank and CHANGELOG updated.
 - Reads the diff top to bottom before asking for review.
