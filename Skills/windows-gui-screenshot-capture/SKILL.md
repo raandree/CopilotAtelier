@@ -1,21 +1,22 @@
 ---
 name: windows-gui-screenshot-capture
 description: >-
-  Programmatically captures screenshots of a Windows desktop GUI - one
-  capture API per rendering engine (WPF, WinForms, Win32/GDI, WebView2,
-  Avalonia, WinUI 3) - and assembles them into a screenshot-embedded
-  Markdown user manual for real apps. Covers the capture-API-per-engine
-  matrix, the GPU-composited-returns-black rule, the self-capturing
-  unattended scene mode, native MessageBox (#32770) capture, and the
-  STA / DPI / font gotchas.
+  Captures Windows GUI screenshots from modifiable apps and existing or
+  third-party executables, then assembles screenshot-embedded Markdown
+  manuals. Selects the correct API for WPF,
+  WinForms, Win32/GDI, WebView2, Avalonia, and WinUI 3; covers external-process
+  driving, event-based readiness, GPU black frames, native dialogs, state
+  restoration, and content validation.
   USE FOR: capture Windows GUI screenshot, automate app screenshots,
-  screenshot-based user manual, screenshot-driven docs, document a WPF /
-  WinForms / Win32 / WebView2 / Avalonia / WinUI 3 app, RenderTargetBitmap,
-  DrawToBitmap, PrintWindow, CapturePreviewAsync, Windows.Graphics.Capture,
-  PrintWindow returns black, GPU-composited capture, self-capturing scene
-  mode, MessageBox #32770 capture, STA GUI PowerShell.
-  DO NOT USE FOR: cross-platform or mobile screenshots, screen-video
-  capture, generic PowerShell GUI tutorials.
+  screenshot-based user manual, screenshot-driven docs, document existing
+  Windows exe, third-party desktop app screenshots, closed-source Win32 app,
+  external process screenshot, WPF, WinForms, Win32, WebView2, Avalonia,
+  WinUI 3, PrintWindow black, SetWinEventHook, RenderTargetBitmap,
+  DrawToBitmap, CapturePreviewAsync, Windows.Graphics.Capture, MessageBox
+  #32770 capture, STA GUI PowerShell.
+  DO NOT USE FOR: cross-platform or mobile screenshots, screen-video capture,
+  general desktop RPA without screenshot-documentation intent, generic GUI
+  tutorials.
 ---
 
 # Windows GUI Screenshot Capture
@@ -37,7 +38,7 @@ recipes below reference that repo as the worked example rather than being tied t
 
 One PNG per predefined UI state, captured with the correct per-engine API into
 `docs/images/<framework>/`, plus a Markdown manual that embeds them - all produced by a single
-orchestrator run with no manual clicking.
+orchestrator run with no manual clicking and no persistent change to user settings.
 
 ## Dependencies
 
@@ -47,7 +48,8 @@ orchestrator run with no manual clicking.
   (WinForms); `user32.dll` / `gdi32.dll` P/Invoke (Win32 + native dialogs).
 - `dotnet` SDK for compiled engines; the Edge **WebView2 runtime**; `Avalonia.Skia` +
   `Avalonia.Headless`; the **Windows App SDK** for WinUI 3.
-- Ready-to-use native-dialog helper: [`scripts/DialogCapture.ps1`](scripts/DialogCapture.ps1).
+- Process-scoped native-dialog helper with checked capture/close results:
+  [`scripts/DialogCapture.ps1`](scripts/DialogCapture.ps1).
 - Short per-engine recipes: [`references/engine-recipes.md`](references/engine-recipes.md).
 
 ## Step 1 - Pick the capture API by rendering engine
@@ -72,11 +74,16 @@ A two-to-three-line snippet per engine, each pointing to the full POC implementa
 `PrintWindow` / `BitBlt` read the window's CPU-side surface. **GPU-composited content returns
 solid black**: WebView2 (Chromium), WinUI 3, and UWP. For those, capture with the framework API
 (`CapturePreviewAsync`, `RenderTargetBitmap.RenderAsync`) or the OS-level
-`Windows.Graphics.Capture` (Windows 10 1803+), which is the general fallback for any composited
-window. CPU / GDI / Milcore surfaces (Win32, WinForms, WPF) are safe with in-process APIs or
-`PrintWindow`.
+`Windows.Graphics.Capture` (Windows 10 1803+), which is the general fallback for composited or
+external windows. Use `PrintWindow` for Win32/GDI, `DrawToBitmap` for in-process WinForms, and
+`RenderTargetBitmap` for an in-process WPF visual; do not infer external WPF reliability from the
+Win32 result.
 
-## Step 3 - Build a self-capturing scene mode
+## Step 3 - Choose how to drive scenes
+
+Choose the branch by source ownership. Do not assume every executable can be modified.
+
+### Apps you can modify
 
 Give the app two modes so it runs unattended and never blocks the terminal:
 
@@ -110,6 +117,24 @@ $app = [System.Windows.Application]::new(); [void]$app.Run($window)
 Full versions: `D:\guitest\src\Wpf\Show-CapitalFinder.ps1` (PowerShell), and the `--capture` mode
 in `src\WebView2\Program.cs` and `src\Avalonia\Program.cs` (dotnet).
 
+### Existing or third-party executables
+
+Use an external driver when source is unavailable:
+
+1. Record the executable version and open a deterministic, nonprivate sample file or fixture.
+2. Launch with `ProcessStartInfo.ArgumentList`; use `WaitForInputIdle` only for initial startup.
+3. Scope every window by process ID plus stable identity (owner, class, title, or control).
+4. Drive scenes through UI Automation, command/control IDs, or app-specific APIs - never mouse
+  coordinates when a stable interface exists.
+5. Wait for the top-level window and known child state through UI Automation or a message-pumping
+  WinEvent hook; a visible dialog and child control can still be unpainted.
+6. Snapshot every changed option, restore it in `finally`, close each dialog, and terminate only
+  the process the driver started.
+
+For the full external-process workflow, cross-process control handling, race-free event wait,
+and validation gates, read
+[`references/external-win32-executables.md`](references/external-win32-executables.md).
+
 ## Step 4 - Name scenes consistently across engines
 
 Use identical scene names in every engine (`app-01-start`, `app-02-selected`, ...). Consistent
@@ -123,13 +148,19 @@ A `MessageBox` is a separate OS window that `RenderTargetBitmap` / `DrawToBitmap
 Capture it with the native helper [`scripts/DialogCapture.ps1`](scripts/DialogCapture.ps1)
 (origin: `D:\guitest\src\Common\DialogCapture.ps1`):
 
-1. On the last scene, click the button that raises the modal dialog, then start a
-   `DispatcherTimer`.
-2. Each tick, locate the dialog by **class `#32770`** + title:
-   `Get-DialogWindowHandle -ClassName '#32770' -Title '<caption>'`.
-3. When found, `Save-WindowImage` (PrintWindow `PW_RENDERFULLCONTENT`) then `Send-WindowClose`
-   (posts `WM_CLOSE`). Give up after a bounded number of ticks so a missing dialog cannot hang the
-   run.
+1. Retain the original `Process` object and target the dialog by process + owner +
+  **class `#32770`** + title, never by foreground window.
+2. For an in-process app, use its UI timer so capture continues during the modal loop.
+3. For an external executable, use UI Automation events or register
+  `SetWinEventHook(EVENT_OBJECT_SHOW, WINEVENT_OUTOFCONTEXT)` on a thread that pumps messages.
+  A blocking wait on the registering thread can prevent callback delivery.
+4. Scan before and after hook registration and after each wake; unrelated show events can wake the
+  hook, so always re-evaluate the complete process/owner/class/title predicate.
+5. After the top-level dialog appears, require expected child text/state, then run a bounded
+  capture-validation retry. Control visibility proves creation, not painted pixels.
+6. Use the helper as `Get-DialogWindowHandle -Process $process ...`,
+  `Save-WindowImage -Process $process ...`, and `Send-WindowClose -Process $process ...`; it
+  rejects cross-process handles and failed `GetWindowRect`, `PrintWindow`, or `PostMessage` calls.
 
 The timer keeps firing *during* the modal loop - that is how capture-then-dismiss works.
 **Never** capture the foreground window (`GetForegroundWindow`) to "find" the dialog: it may be
@@ -137,9 +168,10 @@ the launching console. Always target the specific `#32770` window by class + tit
 
 ## Step 6 - Assemble the manual and verify
 
-1. One orchestrator (e.g. `Generate-Screenshots.ps1`) runs every app: `pwsh -File <app>
-   -CaptureDir <out>` for PowerShell apps; build-if-needed then `<exe> --capture <out>` for dotnet
-   apps. Wait with a timeout and kill on overrun - capture mode self-exits, so a hang is a bug.
+1. One orchestrator runs each scene source through its ownership branch: invoke `-CaptureDir` or
+  `--capture` for modifiable apps; launch and drive the recorded process ID for external
+  executables. Apply bounded readiness and shutdown timeouts in both branches. A modifiable app's
+  capture mode self-exits; an external driver owns and closes only the process it started.
 2. Collect the PNGs into `docs/images/<framework>/`.
 3. Write the Markdown manual: intro, then a per-scene section with the user steps and
    `![alt](images/<framework>/<scene>.png)`.
@@ -154,6 +186,9 @@ the launching console. Always target the specific `#32770` window by class + tit
 | WinForms fonts scaled / clipped on a 150% display | DPI scaling | `Application.SetHighDpiMode('DpiUnaware')` before building the form |
 | Avalonia headless text is blank | No real font registered | `.WithInterFont()` + `AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }` (Skia) |
 | WebView2 / WinUI 3 shot is solid black | GPU-composited surface | Use the framework API or `Windows.Graphics.Capture` |
+| Dialog title renders but client area is black | Frame appeared before content painted | Wait for expected child state, then retry capture and content validation within a bound |
+| Cross-process combo remains empty | Text was sent to the combo wrapper | Find its child `Edit` control and send `WM_SETTEXT`, or use UI Automation |
+| Revised `Add-Type` definition is ignored | The type is already loaded in the session | Run the capture script in a clean `pwsh` process while iterating P/Invoke code |
 | Apartment-state error / self-relaunch loop | UI needs STA | Run STA (`pwsh` detached is STA); guard and relaunch only if MTA |
 | Terminal never returns | GUI is blocking | Capture mode must self-terminate; orchestrator waits with a timeout |
 
@@ -162,30 +197,43 @@ the launching console. Always target the specific `#32770` window by class + tit
 | Rationalization | Reality |
 |---|---|
 | "I'll just `PrintWindow` everything, it's simpler." | Returns black for WebView2 / WinUI 3. Match the API to the engine or the screenshot is unusable. |
-| "I'll capture the foreground window to get the dialog." | The foreground window may be the launching console. Target `#32770` by class + title. |
+| "I'll capture the foreground window to get the dialog." | The foreground window may be the launching console. Use the started `Process` plus owner, class, and title. |
 | "`ClientSize` is close enough for the WinForms bitmap." | `DrawToBitmap` renders the whole window; `ClientSize` clips the border. Use `Form.Size`. |
 | "I'll paste the screenshots in by hand this once." | Manual capture is not reproducible and rots. The scene mode + orchestrator must regenerate them. |
 | "The GUI opened, so capture works - ship it." | Layout may be incomplete or the wrong window captured. Verify each PNG exists and is non-trivial. |
+| "`PrintWindow` returned true, so the image is valid." | A successful call can still capture an unpainted black client area. Validate image content and expected landmarks. |
+| "A short sleep will let the dialog settle." | Fixed delays are flaky across machines. Wait for the specific window and ready control event. |
+| "Changing a few view options is harmless." | External apps can persist them. Snapshot and restore every modified option in `finally`. |
 
 ## Red flags - stop if you catch yourself
 
 - About to report "screenshots generated" without checking the PNGs exist and are non-empty.
-- Using `GetForegroundWindow` to locate a dialog instead of `FindWindow('#32770', title)`.
+- Using foreground or global title-only discovery instead of the started `Process` plus
+  owner/class/title identity.
 - Capturing a WebView2 / WinUI 3 window with `PrintWindow` and accepting a black image.
 - Writing a capture script that needs a human to click or to close it - it must self-terminate.
 - Sizing a WinForms capture bitmap to `ClientSize`.
+- Driving a third-party executable through screen coordinates when stable controls are available.
+- Capturing immediately after a dialog handle appears without checking a ready child control.
+- Leaving the target app running or its view settings changed after the orchestrator exits.
 
 ## Verification
 
 Confirm before reporting done:
 
-- Every expected PNG exists and is a plausible size (no black / blank frames):
-  `Get-ChildItem docs/images -Recurse -Filter *.png | Where-Object Length -lt 1kb` -> empty.
+- Every expected PNG exists, exceeds the minimum dimensions/size, and has non-uniform pixels.
+  File size alone is insufficient: a 2 KB image can contain a title bar over a black client area.
+- Pixel checks are scene-aware: reject mostly black frames only when the expected scene is not a
+  dark theme, and verify at least one expected visual landmark or control region.
+- Visually inspect every final frame for blank, clipped, stale, private, or wrong-window content.
 - Scene count per framework matches the app's scene list.
 - All capture scripts parse clean:
   `[System.Management.Automation.Language.Parser]::ParseFile($p, [ref]$null, [ref]$errs)` -> 0
   errors (the POC wraps this in `tools/Test-Syntax.ps1`).
 - The manual renders with every `![...](images/...)` resolving to a file that exists.
+- The orchestrator leaves no target process it started and restores every changed setting.
+- Cleanup retains the original `Process` object, checks `HasExited`, and never adopts an existing
+  single-instance process merely because a short-lived launcher forwarded the request.
 
 ## Worked example
 

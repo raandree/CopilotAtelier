@@ -14,6 +14,10 @@ Copilot Atelier is released at `v1.1.0`. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-27**: Extended `windows-gui-screenshot-capture` with a source-ownership
+  branch for existing executables, event-driven window/control readiness,
+  cross-process control handling, state restoration, stronger image-content
+  validation, an external-Win32 reference, and real-failure regression evals.
 - **2026-07-25**: Completed independent label and security review, final static
   checks, 44-test Pester validation, and deployment. The audited 25-case router
   reports 0 critical-file misses, 0 unexpected history loads, 0 fallback
@@ -80,6 +84,8 @@ Copilot Atelier is released at `v1.1.0`. Incremental work is tracked under
 
 ## Stable capabilities
 
+- Screenshot documentation for both modifiable Windows applications and
+  existing or third-party executables without source access.
 - One-command, idempotent Setup script with Windows, macOS, and Linux path
   handling.
 - One Canonical target exposed through `~/.copilot` Discovery links.

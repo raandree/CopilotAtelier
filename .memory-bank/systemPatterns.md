@@ -51,6 +51,9 @@ CopilotAtelier repository
 
 - The Setup script deploys the four Customization directories and creates
     Discovery links.
+- GUI screenshot workflows branch by source ownership: modifiable applications
+    own a self-capturing mode; external executables use a process-scoped driver
+    with event-driven readiness, restoration, and content verification.
 - Custom agent frontmatter controls current tools and Agent-to-agent handoffs.
 - Instruction frontmatter controls current `applyTo` scope.
 - Prompt frontmatter controls current Custom agent binding.

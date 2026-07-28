@@ -9,44 +9,44 @@ source: current task evidence
 
 ## Current focus
 
-The evaluated Memory Bank routing model is implemented, independently approved,
-and deployed. The worktree remains uncommitted and unpushed by user request.
+Extend the `windows-gui-screenshot-capture` Skill with the external-executable
+workflow proven while documenting Notepad2.
 
 ## Implemented
 
-- `index.md` is the sole unconditional read and routes tasks to the smallest
-  relevant set; `loading-mode: full` remains the tested rollback.
-- Twenty-five independently audited real-task cases require zero critical-file
-  misses, zero unexpected routine history loads, and at least 50 percent
-  average context reduction.
-- Fifteen metadata-bearing Decision records preserve durable rationale while
-  `systemPatterns.md` remains a compact current index.
-- The initializer creates the eight-file base with routed metadata and
-  preserves existing files byte-for-byte.
-- The Memory Bank health check validates structure, provenance, freshness,
-  retention, compactness, Decision records, and optional Memory Bank topics.
-- Eight Custom agents now state that `memory` is unavailable and that the
-  Memory Bank remains authoritative; no tool allowlist was expanded.
+- The Skill branches by source ownership: modifiable applications use an
+  in-process capture mode; existing executables use an external driver.
+- External capture uses deterministic fixtures, process-scoped discovery,
+  event-driven window and child-control readiness, stable control interfaces,
+  state restoration, and started-process cleanup.
+- Verification rejects premature or black frames through dimensions,
+  non-uniform pixels, scene-aware darkness, expected landmarks, and visual
+  review instead of relying on `PrintWindow` success or file size.
+- A one-level external-Win32 reference and real-failure regression evals keep
+  the main Skill concise and preserve the existing rendering-engine workflow.
 
 ## Focused evidence
 
-- Complete Pester suite: 44 passed, 0 failed, 1 intentional platform skip.
-- Routing: 25 independently audited cases, 0 critical-file misses, 0
-  unexpected history loads, 0 fallback failures, all 15 Decision records in
-  Full mode, and 52.93 percent average version-controlled context reduction.
-- Static checks: 0 AST errors, 0 analyzer findings in the new Memory Bank
-  scripts, 0 JSON errors, 0 health findings, and clean `git diff --check`.
-- Markdown lint: 158 files, 0 errors. Independent security, quality, and label
-  reviews report no remaining Blocker, Major, Minor, or Nit findings.
-- Deployment: 142 source and target files, 0 path/hash mismatches, four correct
-  Discovery links, no legacy aliases, one Prompt location, and no repository
-  Memory Bank, tests, or Reference content in the Canonical target.
-- Deployed initializer: eight LF/no-BOM files, byte-preserving repeat run, and
-  clean health with both eight initialized files and seven required files after
-  removing local prompt history.
+- Description is 985 characters; the Skill body is 257 lines.
+- The 152-line external reference has a `## Contents` table and is linked
+  directly from the Skill.
+- Seven intended trigger prompts and eight real regression cases cover
+  selection, message-pumped readiness, process ownership, capture failure,
+  content validation, restoration, dark themes, and the RPA anti-trigger.
+- Focused Pester passes 10/10; the helper and test have zero AST errors and
+  zero PSScriptAnalyzer findings.
+- A clean-process Notepad2 probe confirms Boolean `PostMessage`, process-scoped
+  handle discovery, a 61 KB capture, and graceful started-process exit.
+- Markdown diagnostics, relative links, Memory Bank health, and
+  `git diff --check` pass.
+- Three independent review rounds surfaced and resolved orchestration,
+  message-pump, helper ownership, interop-signature, unchecked-result, and
+  regression-test gaps. Final approval reports no Blocker, Major, or Minor
+  findings.
+- Setup deployment completed; all five changed Skill artifacts match the
+  Canonical target by SHA-256 and the `~/.copilot/skills` Discovery link is a
+  valid junction.
 
 ## Next step
 
-Restart VS Code or reselect the Custom agent to reload deployed Customizations.
-Keep the validated worktree uncommitted and unpushed until the user explicitly
-requests version-control closure.
+Restart VS Code or reselect the Custom agent to reload the deployed Skill.

@@ -52,15 +52,18 @@ Full implementation: `D:\guitest\src\WinForms\Capture.ps1` (`Save-FormImage`).
 ## Win32 GDI - PrintWindow
 
 `PW_RENDERFULLCONTENT` (`0x2`) captures the window even when it is not on top. Needs the
-`user32.dll` P/Invoke declarations - use the ready-made helper in
-[`../scripts/DialogCapture.ps1`](../scripts/DialogCapture.ps1) (`Save-WindowImage`).
+`user32.dll` P/Invoke declarations - use the process-scoped helper in
+[`../scripts/DialogCapture.ps1`](../scripts/DialogCapture.ps1): locate with
+`Get-DialogWindowHandle -Process $process`, then capture with
+`Save-WindowImage -Process $process`.
 
 ```powershell
 $bmp = [System.Drawing.Bitmap]::new($width, $height)      # from GetWindowRect
 $g   = [System.Drawing.Graphics]::FromImage($bmp)
 $hdc = $g.GetHdc()
-[void][GuiDoc.WindowCapture]::PrintWindow($hwnd, $hdc, [uint32]2)
+$captured = [GuiDoc.WindowCapture]::PrintWindow($hwnd, $hdc, [uint32]2)
 $g.ReleaseHdc($hdc); $g.Dispose()
+if (-not $captured) { throw "PrintWindow could not capture window $hwnd." }
 $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
 ```
 
