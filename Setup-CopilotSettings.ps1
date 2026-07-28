@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Configures VS Code settings for Copilot custom agents, instructions, skills, and prompts.
+    Configures VS Code settings for Copilot custom agents, instructions, skills, prompts, and hooks.
 .DESCRIPTION
     Derives the folder name from the repository root (e.g. CopilotAtelier),
     copies customization files to OneDrive or the user profile, and links the
@@ -12,12 +12,22 @@
 .PARAMETER SkipCopilotCliEnvironment
     Skips the user-scoped COPILOT_ALLOW_ALL configuration. Intended for
     sandboxed tests that must not mutate the host user profile.
+.PARAMETER IncludeClaudeCodeLinks
+    Additionally links ~/.claude/skills and ~/.agents/skills to the Skills
+    directory so Claude Code and other agentskills.io clients discover the same
+    library. Off by default: VS Code reads all three user-level skill locations,
+    so enabling this registers every Skill more than once in VS Code. Use it on
+    machines where a non-Copilot client is the primary consumer. Create-only:
+    an existing path belongs to that tool and is left untouched.
 #>
 
 [CmdletBinding()]
 param(
     [Parameter()]
-    [switch]$SkipCopilotCliEnvironment
+    [switch]$SkipCopilotCliEnvironment,
+
+    [Parameter()]
+    [switch]$IncludeClaudeCodeLinks
 )
 
 $ErrorActionPreference = 'Stop'
@@ -231,16 +241,24 @@ $settings | Add-Member -NotePropertyName 'chat.includeApplyingInstructions' -Not
 $settings | Add-Member -NotePropertyName 'chat.includeReferencedInstructions' -NotePropertyValue $true -Force
 
 # --- GitLens AI model ---
-# Claude Opus 4.8 is the current Copilot release, superseding Opus 4.7
-# (which replaced Opus 4.5 / 4.6; Opus 4.6 Fast was retired April 10, 2026).
-$settings | Add-Member -NotePropertyName 'gitlens.ai.vscode.model' -NotePropertyValue 'copilot:claude-opus-4.8' -Force
+# Claude Opus 5 is the current Copilot release; Opus 4.8 remains GA as the
+# fallback declared in every Agents/*.agent.md `model:` array.
+$settings | Add-Member -NotePropertyName 'gitlens.ai.vscode.model' -NotePropertyValue 'copilot:claude-opus-5' -Force
 
-# --- Copilot completions model ---
-$settings | Add-Member -NotePropertyName 'github.copilot.advanced.model' -NotePropertyValue 'claude-opus-4.8' -Force
+# --- Retire the undocumented completions-model override ---
+# `github.copilot.advanced` is the completions bag and has no documented `model`
+# member, so earlier releases wrote a value Copilot never consumed. Remove the
+# stale key instead of leaving misleading state in the user profile.
+$settings.PSObject.Properties.Remove('github.copilot.advanced.model')
 
 # --- Copilot chat enhancements ---
 $settings | Add-Member -NotePropertyName 'github.copilot.chat.agent.thinkingTool' -NotePropertyValue $true -Force
 $settings | Add-Member -NotePropertyName 'github.copilot.chat.search.semanticTextResults' -NotePropertyValue $true -Force
+
+# --- Forked skill contexts ---
+# Required by Skills that declare `context: fork` so their investigation runs in
+# a dedicated subagent and only the result returns to the parent conversation.
+$settings | Add-Member -NotePropertyName 'github.copilot.chat.skillTool.enabled' -NotePropertyValue $true -Force
 
 # --- Copilot request limits ---
 $settings | Add-Member -NotePropertyName 'github.copilot.chat.agent.maxRequests' -NotePropertyValue 500 -Force
@@ -255,13 +273,21 @@ Merge-LocationSetting -Settings $settings -PropertyName 'chat.promptFilesLocatio
     '~/.copilot/prompts' = $true
 }
 
+# --- Hook discovery ---
+# ~/.copilot/hooks is a well-known user location, but naming it explicitly keeps
+# discovery working if the implicit default changes, and leaves the Claude Code
+# defaults untouched. Merge so user-added hook locations survive.
+Merge-LocationSetting -Settings $settings -PropertyName 'chat.hookFilesLocations' -NewEntries @{
+    '~/.copilot/hooks' = $true
+}
+
 # Write back
 $settings | ConvertTo-Json -Depth 10 | Set-Content $settingsPath -Encoding UTF8
 
 # --- Clear and recreate the chosen target subdirectories, then copy files ---
 # Only one location is populated: OneDrive when available, otherwise ~/<repoName>.
 # A stale local copy from a previous run is removed when OneDrive is now used.
-$subDirs = @('Agents', 'Instructions', 'Skills', 'Prompts')
+$subDirs = @('Agents', 'Instructions', 'Skills', 'Prompts', 'Hooks')
 
 if ($oneDriveRoot) {
     $targetBase = Join-Path $oneDriveRoot $repoName
@@ -295,7 +321,7 @@ foreach ($sub in $subDirs) {
     }
 }
 
-# --- Create ~/.copilot/{agents,instructions,skills,prompts} junctions ---
+# --- Create the Discovery links ---
 # Both the VS Code Copilot chat extension and the GitHub Copilot CLI discover
 # customization files under ~/.copilot. Pointing those well-known
 # folders at our single target tree (OneDrive or local fallback) keeps both
@@ -308,78 +334,148 @@ foreach ($sub in $subDirs) {
 #     into the target (merge, no overwrite of newer files in the target) and
 #     then remove. On refusal, skip the junction with a warning.
 #   - Missing                    -> just create the junction or symbolic link.
-$copilotRoot = Join-Path $userHome '.copilot'
-if (-not (Test-Path $copilotRoot)) {
-    New-Item -ItemType Directory -Path $copilotRoot -Force | Out-Null
-    Write-Host "Created: $copilotRoot"
-}
+function Set-CustomizationLink {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$LinkPath,
 
-$linkItemType = if ($isWindowsPlatform) { 'Junction' } else { 'SymbolicLink' }
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$TargetPath,
 
-# Map repo subfolder (PascalCase) -> well-known .copilot link name (lowercase).
-$junctionMap = [ordered]@{
-    'Agents'       = 'agents'
-    'Instructions' = 'instructions'
-    'Skills'       = 'skills'
-    'Prompts'      = 'prompts'
-}
+        [Parameter(Mandatory)]
+        [ValidateSet('Junction', 'SymbolicLink')]
+        [string]$LinkItemType,
 
-foreach ($entry in $junctionMap.GetEnumerator()) {
-    $linkPath   = Join-Path $copilotRoot $entry.Value
-    $targetPath = Join-Path $targetBase  $entry.Key
+        # Third-party roots such as ~/.claude belong to another tool. Never
+        # adopt, merge, or repoint anything already there.
+        [Parameter()]
+        [switch]$CreateOnly
+    )
 
-    if (-not (Test-Path $targetPath)) {
-        Write-Host "Skipped junction: target missing - $targetPath"
-        continue
+    if (-not (Test-Path -LiteralPath $TargetPath)) {
+        Write-Host "Skipped link: target missing - $TargetPath"
+        return
     }
 
-    if (Test-Path $linkPath) {
-        $item = Get-Item -LiteralPath $linkPath -Force
+    $linkParent = Split-Path -Parent $LinkPath
+    if (-not (Test-Path -LiteralPath $linkParent)) {
+        New-Item -ItemType Directory -Path $linkParent -Force | Out-Null
+        Write-Host "Created: $linkParent"
+    }
+
+    if (Test-Path -LiteralPath $LinkPath) {
+        if ($CreateOnly) {
+            Write-Host "Skipped link: '$LinkPath' already exists and belongs to another tool."
+            return
+        }
+
+        $item = Get-Item -LiteralPath $LinkPath -Force
         $isLink = $item.Attributes.HasFlag([IO.FileAttributes]::ReparsePoint)
 
         if ($isLink) {
-            # Stale or correct junction: remove and recreate so it always
-            # points at the current $targetPath.
-            try {
-                [IO.Directory]::Delete($linkPath)
-            } catch {
-                Remove-Item -LiteralPath $linkPath -Force -Recurse
+            # Stale or correct link: remove and recreate so it always points at
+            # the current $TargetPath. Never use -Recurse on a reparse point:
+            # Windows PowerShell follows the link and deletes the target tree.
+            if ($PSCmdlet.ShouldProcess($LinkPath, 'Remove existing link')) {
+                try {
+                    [IO.Directory]::Delete($LinkPath, $false)
+                } catch {
+                    Remove-Item -LiteralPath $LinkPath -Force
+                }
+                Write-Host "Removed existing link: $LinkPath"
             }
-            Write-Host "Removed existing junction: $linkPath"
         } else {
             # Real directory. Check if it has any content.
-            $children = Get-ChildItem -LiteralPath $linkPath -Force -ErrorAction SilentlyContinue
+            $children = Get-ChildItem -LiteralPath $LinkPath -Force -ErrorAction SilentlyContinue
             if (-not $children) {
-                Remove-Item -LiteralPath $linkPath -Force
-                Write-Host "Removed empty directory: $linkPath"
+                if ($PSCmdlet.ShouldProcess($LinkPath, 'Remove empty directory')) {
+                    Remove-Item -LiteralPath $LinkPath -Force
+                    Write-Host "Removed empty directory: $LinkPath"
+                }
             } else {
                 Write-Host ""
-                Write-Host "Directory '$linkPath' is not empty ($($children.Count) item(s))."
-                Write-Host "It must be replaced with a junction to '$targetPath'."
+                Write-Host "Directory '$LinkPath' is not empty ($($children.Count) item(s))."
+                Write-Host "It must be replaced with a link to '$TargetPath'."
+
+                if (-not $PSCmdlet.ShouldProcess($LinkPath, "Merge into '$TargetPath' and remove")) {
+                    return
+                }
+
                 $answer = Read-Host 'Copy its contents into the target and then delete it? [y/N]'
                 if ($answer -match '^(y|yes)$') {
-                    # Merge into target without clobbering newer files already there.
+                    # Merge into target without clobbering files already there.
                     foreach ($child in $children) {
-                        $destChild = Join-Path $targetPath $child.Name
+                        $destChild = Join-Path $TargetPath $child.Name
                         if (Test-Path -LiteralPath $destChild) {
                             Write-Host "  Skip (already present in target): $($child.Name)"
                             continue
                         }
                         Copy-Item -LiteralPath $child.FullName -Destination $destChild -Recurse -Force
-                        Write-Host "  Copied: $($child.Name) -> $targetPath"
+                        Write-Host "  Copied: $($child.Name) -> $TargetPath"
                     }
-                    Remove-Item -LiteralPath $linkPath -Recurse -Force
-                    Write-Host "Removed: $linkPath"
+                    Remove-Item -LiteralPath $LinkPath -Recurse -Force
+                    Write-Host "Removed: $LinkPath"
                 } else {
-                    Write-Host "Skipped junction: user declined to remove '$linkPath'."
-                    continue
+                    Write-Host "Skipped link: user declined to remove '$LinkPath'."
+                    return
                 }
             }
         }
     }
 
-    New-Item -ItemType $linkItemType -Path $linkPath -Target $targetPath | Out-Null
-    Write-Host "${linkItemType}: $linkPath -> $targetPath"
+    if ($PSCmdlet.ShouldProcess($LinkPath, "Create $LinkItemType to '$TargetPath'")) {
+        New-Item -ItemType $LinkItemType -Path $LinkPath -Target $TargetPath | Out-Null
+        Write-Host "${LinkItemType}: $LinkPath -> $TargetPath"
+    }
+}
+
+$copilotRoot = Join-Path $userHome '.copilot'
+$linkItemType = if ($isWindowsPlatform) { 'Junction' } else { 'SymbolicLink' }
+
+# Repo subfolder (PascalCase) -> well-known Discovery link path (lowercase).
+$linkPlan = [ordered]@{
+    (Join-Path $copilotRoot 'agents') = 'Agents'
+    (Join-Path $copilotRoot 'instructions') = 'Instructions'
+    (Join-Path $copilotRoot 'skills') = 'Skills'
+    (Join-Path $copilotRoot 'prompts') = 'Prompts'
+    (Join-Path $copilotRoot 'hooks') = 'Hooks'
+}
+
+foreach ($entry in $linkPlan.GetEnumerator()) {
+    $setCustomizationLink = @{
+        LinkPath = $entry.Key
+        TargetPath = Join-Path $targetBase $entry.Value
+        LinkItemType = $linkItemType
+    }
+    Set-CustomizationLink @setCustomizationLink
+}
+
+# Opt-in only, and create-only. VS Code reads ~/.copilot/skills,
+# ~/.claude/skills, and ~/.agents/skills, so these links register every Skill
+# more than once in VS Code. They exist for machines where Claude Code or
+# another agentskills.io client is the primary consumer. An existing path is
+# left untouched: it belongs to that tool, and adopting it would move the
+# user's own skills into a tree the next setup run rebuilds from the repository.
+if ($IncludeClaudeCodeLinks) {
+    Write-Host 'Claude Code links requested: VS Code will register Skills from more than one location.'
+
+    $claudeCodeLink = @(
+        Join-Path (Join-Path $userHome '.claude') 'skills'
+        Join-Path (Join-Path $userHome '.agents') 'skills'
+    )
+
+    foreach ($linkPath in $claudeCodeLink) {
+        $setCustomizationLink = @{
+            LinkPath = $linkPath
+            TargetPath = Join-Path $targetBase 'Skills'
+            LinkItemType = $linkItemType
+            CreateOnly = $true
+        }
+        Set-CustomizationLink @setCustomizationLink
+    }
 }
 
 # --- Set environment variable required by the GitHub Copilot CLI ---

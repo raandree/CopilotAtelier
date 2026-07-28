@@ -1,5 +1,6 @@
 ---
 name: outlook-calendar-export
+compatibility: Requires Windows with the classic Outlook desktop client and PowerShell 5.1+ for COM automation.
 description: >-
   Export Outlook calendar entries to Markdown files via COM automation in PowerShell.
   Covers recurring appointments (IncludeRecurrences), date range filtering,

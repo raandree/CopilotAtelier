@@ -2,15 +2,17 @@
 name: agent-evals
 description: >-
   Builds evaluations for your own Copilot skills, prompts, and agents so changes
-  are measured, not vibed. Covers capability eval sets (can it do the task?) vs
-  regression eval sets (did a change break it?), grader types (deterministic /
-  LLM-as-judge / human), pass@k vs pass^k for non-deterministic runs,
-  eval-driven development, and a minimal run-evals.ps1 harness. Rule of thumb:
-  start from 20–50 real failures, not synthetic prompts.
+  are measured, not vibed. Starts from the native VS Code tooling (Chat
+  Customizations Evaluations analysis and the Waza eval runner) and falls back
+  to a bundled run-evals.ps1 harness. Covers capability vs regression eval sets,
+  grader types (deterministic / LLM-as-judge / human), pass@k vs pass^k, and
+  eval-driven development. Rule of thumb: start from 20-50 real failures, not
+  synthetic prompts.
   USE FOR: evaluate agent, evaluate skill, evaluate prompt, eval harness, build
-  evals, LLM-as-judge, LLM as a judge, grader, capability eval, regression eval,
-  pass@k, pass^k, eval-driven development, does my skill work, test a prompt,
-  measure agent quality, run-evals.
+  evals, Waza, analyze-prompt, Chat Customizations Evaluations, LLM-as-judge,
+  grader, capability eval, regression eval, pass@k, pass^k, eval-driven
+  development, does my skill work, test a prompt, measure agent quality,
+  run-evals.
   DO NOT USE FOR: authoring the skill itself (use skill-creator), MCP server
   eval questions (use mcp-builder Phase 4), unit-testing PowerShell code (use
   pester-patterns), security review of an agent (use agent-security-review).
@@ -29,6 +31,22 @@ development that [`skill-creator`](../skill-creator/SKILL.md) prescribes.
 - Before and after tightening a skill description or rewriting an agent section.
 - A workflow keeps *mostly* working but fails intermittently — you need a reliability number, not an anecdote.
 - You want a regression gate that fails a change when a previously-solved task breaks.
+
+## Native tooling first
+
+VS Code ships two evaluation surfaces. Reach for them before hand-rolling anything.
+
+**Static analysis — [Chat Customizations Evaluations](https://marketplace.visualstudio.com/items?itemName=ms-vscode.vscode-chat-customizations-evaluations)** (preview, published separately). Works on `SKILL.md`, `*.agent.md`, `*.instructions.md`, and `*.prompt.md`. Run `Chat Customizations Evaluations: Analyze` from the Command Palette, or `/analyze-prompt` in chat, to surface logical and format contradictions, ambiguous wording with suggested rewrites, conflicting persona traits, excessive cognitive load from nested conditions, missing error paths, and conflicts with linked files. Findings land in the Problems panel with line and column locations; `Implement Suggestions` applies them.
+
+**Behavioural evaluation — [Waza](https://github.com/microsoft/waza)**, wired into the same extension for skill files:
+
+1. `Chat Customizations Evaluations: Download Waza Binary`
+2. `Chat Customizations Evaluations: Create Waza Eval Scaffold` with the skill open
+3. `Chat Customizations Evaluations: Run Waza Evaluation`
+
+Waza is the missing non-interactive runner: it executes the eval set for you, which the bundled PowerShell harness cannot do on its own.
+
+Use the concepts below — capability vs regression sets, pass@k vs pass^k, grader choice, 20-50 real failures — to decide *what* goes into the Waza scaffold. Fall back to the bundled harness only when Waza is unavailable, when the artifact is not a skill file, or when a grader needs logic Waza cannot express.
 
 ## Eval-driven development
 
@@ -92,9 +110,9 @@ One JSON file, one array of cases. Keep it in the skill/agent folder next to a `
 
 `set` is `capability` or `regression`; `match` is `exact`, `contains`, or `regex`. See [`assets/evals.sample.json`](assets/evals.sample.json).
 
-## Minimal harness
+## Fallback harness
 
-Generating samples and grading them are two steps. **Generate** by running the agent/skill/prompt **k** times on each case's prompt and saving each run to `<OutputsDir>/<case-id>/sample-<n>.txt` (Copilot has no stable non-interactive PowerShell entry point, so this step is manual or wired to whatever runner you have). **Grade** with the bundled runner, which computes pass@k and pass^k per case and per set and exits non-zero when a gate fails:
+When Waza is unavailable, generating samples and grading them are two separate steps. **Generate** by running the agent/skill/prompt **k** times on each case's prompt and saving each run to `<OutputsDir>/<case-id>/sample-<n>.txt` — this step is manual or wired to whatever runner you have, which is exactly the gap Waza closes. **Grade** with the bundled runner, which computes pass@k and pass^k per case and per set and exits non-zero when a gate fails:
 
 ```powershell
 pwsh Skills/agent-evals/scripts/run-evals.ps1 -EvalFile evals.json -OutputsDir out -K 5
@@ -105,10 +123,13 @@ Read [`scripts/run-evals.ps1`](scripts/run-evals.ps1) for the grading and gate l
 ## Wiring into this repo
 
 - Save eval prompts to `notes-evals.md` in the skill or agent folder, as `skill-creator` already recommends.
+- Run `/analyze-prompt` on every changed Customization before measuring behaviour; a contradiction found statically is cheaper than a failed eval run.
 - A capability eval doubles as proof the skill triggers: if the skill is not named in the PRE-FLIGHT acknowledgment, the failure is discovery (fix the `description`), not behaviour.
 - For MCP servers, use [`mcp-builder`](../mcp-builder/SKILL.md) Phase 4's 10-question rubric instead — it is the same idea specialised for tool-calling.
 
 ## References
 
+- VS Code — Evaluate and improve customization files: <https://code.visualstudio.com/docs/agent-customization/overview>
+- Waza evaluation framework: <https://github.com/microsoft/waza>
 - Anthropic — Building evals / eval-driven development (Agent Skills best practices): <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>
 - OpenAI — Evals and LLM-as-a-judge guidance: <https://platform.openai.com/docs/guides/evals>

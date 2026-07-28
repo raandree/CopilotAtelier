@@ -1,5 +1,6 @@
 ---
 name: pester-patterns
+compatibility: Requires PowerShell 5.1+ with Pester 5.
 description: >-
   Common Pester 5 test patterns and recipes for PowerShell module testing.
   Covers mocking file systems, REST APIs, DSC resources, databases, credentials,

@@ -1,5 +1,6 @@
 ---
 name: citation-integrity
+context: fork
 description: >-
   Verify every external claim, quote, statistic, and reference in generated
   text against a fetched source before it ships. Prevents fabricated citations,

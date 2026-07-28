@@ -1,5 +1,6 @@
 ---
 name: windows-gui-screenshot-capture
+compatibility: Requires Windows and PowerShell 5.1+ with .NET WPF, WinForms, and Win32 interop. Every capture API is Windows-only.
 description: >-
   Captures Windows GUI screenshots from modifiable apps and existing or
   third-party executables, then assembles screenshot-embedded Markdown

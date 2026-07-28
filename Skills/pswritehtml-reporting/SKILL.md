@@ -1,5 +1,6 @@
 ---
 name: pswritehtml-reporting
+compatibility: Requires the PSWriteHTML PowerShell module. Cross-platform on Windows PowerShell 5.1+ and PowerShell 7+.
 description: >-
   Generate polished, interactive HTML reports, dashboards, tables, charts,
   and network diagrams from PowerShell objects with the PSWriteHTML module —

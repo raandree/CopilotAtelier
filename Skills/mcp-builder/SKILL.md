@@ -1,5 +1,6 @@
 ---
 name: mcp-builder
+compatibility: Requires Node.js with the MCP TypeScript SDK or Python with FastMCP, plus MCP Inspector for local testing.
 description: >-
   Design, scaffold, and ship Model Context Protocol (MCP) servers that
   expose an API or local capability as well-named tools an LLM can call.

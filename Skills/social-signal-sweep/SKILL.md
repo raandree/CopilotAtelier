@@ -1,5 +1,6 @@
 ---
 name: social-signal-sweep
+context: fork
 description: >-
   Recency-bounded sweep of what people publicly say about a topic over the last
   N days (default 30) across GitHub, Hacker News, Reddit, and Stack Overflow,

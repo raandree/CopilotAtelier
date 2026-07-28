@@ -12,7 +12,7 @@ source: Setup-CopilotSettings.ps1
 | Layer | Technology | Purpose |
 |---|---|---|
 | IDE | VS Code | Primary development environment |
-| AI assistant | GitHub Copilot with Claude Opus 4.8 | Code, review, and documentation |
+| AI assistant | GitHub Copilot with Claude Opus 5, Opus 4.8 fallback | Code, review, and documentation |
 | Sync | OneDrive | Cross-machine Customization distribution |
 | Setup | PowerShell 5.1+ | Client configuration and file deployment |
 | Version control | Git | Repository history and collaboration |
@@ -27,21 +27,26 @@ target:
 - `Instructions/`
 - `Skills/`
 - `Prompts/`
+- `Hooks/`
 
-The repository-local `.memory-bank/`, `tests/`, `Reference/`, and documentation
-are not copied. `Keybindings/keybindings.json` is merged into the VS Code user
-profile.
+The repository-local `.memory-bank/`, `tests/`, `Reference/`, `plugin.json`, and
+documentation are not copied. `Keybindings/keybindings.json` is merged into the
+VS Code user profile.
 
 ## Discovery model
 
 The Canonical target is `~/OneDrive/CopilotAtelier/` when OneDrive is available
-and `~/CopilotAtelier/` otherwise. Discovery links expose its four deployed
-directories through `~/.copilot/{agents,instructions,skills,prompts}`.
+and `~/CopilotAtelier/` otherwise. Discovery links expose its five deployed
+directories through `~/.copilot/{agents,instructions,skills,prompts,hooks}`.
 
 - Windows uses NTFS junctions.
 - macOS and Linux use symbolic links.
 - Agents, Instructions, and Skills need no `chat.*FilesLocations` entry.
 - Prompts additionally use `chat.promptFilesLocations = ~/.copilot/prompts`.
+- Hooks additionally use `chat.hookFilesLocations = ~/.copilot/hooks`.
+- `-IncludeClaudeCodeLinks` adds `~/.claude/skills` and `~/.agents/skills`. It
+  is off by default because VS Code reads all three user-level skill locations
+  and would register every Skill more than once.
 - Setup removes historical `~/CopilotAtelier/*` and
   `~/OneDrive/CopilotAtelier/*` entries while preserving unrelated user paths.
 
@@ -51,11 +56,19 @@ directories through `~/.copilot/{agents,instructions,skills,prompts}`.
 |---|---|---|
 | `chat.includeApplyingInstructions` | `true` | Apply Instructions by `applyTo` |
 | `chat.includeReferencedInstructions` | `true` | Resolve referenced Instruction content |
+| `chat.hookFilesLocations` | `~/.copilot/hooks` | Load the shared lifecycle hooks |
 | `github.copilot.chat.agent.thinkingTool` | `true` | Enable reasoning tools |
 | `github.copilot.chat.search.semanticTextResults` | `true` | Improve semantic search |
+| `github.copilot.chat.skillTool.enabled` | `true` | Allow `context: fork` Skills |
 | `github.copilot.chat.agent.maxRequests` | `500` | Support long agent workflows |
-| `gitlens.ai.vscode.model` | `copilot:claude-opus-4.8` | GitLens model |
-| `github.copilot.advanced.model` | `claude-opus-4.8` | Copilot model |
+| `gitlens.ai.vscode.model` | `copilot:claude-opus-5` | GitLens model |
+
+Setup removes the `github.copilot.advanced.model` key written by earlier
+releases. `github.copilot.advanced` is the completions bag and has no documented
+`model` member, so the value was never consumed.
+
+Custom agents declare `model` as a priority array. The last entry must be a GA
+model so a retirement degrades instead of breaking every agent.
 
 ## Execution constraints
 
@@ -84,6 +97,12 @@ directories through `~/.copilot/{agents,instructions,skills,prompts}`.
 - `tests/SharedLifecycle.Tests.ps1` fingerprints all Custom agent tools,
   handoffs, and role-specific Memory Bank headings while enforcing shared
   bootstrap, completion behavior, and least-privilege native-memory guidance.
+- `tests/Hooks.Tests.ps1` runs both hook scripts through a child process the way
+  VS Code invokes them and pins the hook configuration contract.
+- `tests/SkillFrontmatter.Tests.ps1` enforces the Agent Skills specification:
+  name matches folder, description within 1024 characters, `compatibility`
+  present on environment-bound Skills, valid `context`, and a non-growing
+  over-budget body baseline.
 - PowerShell changes require AST parsing, focused Pester, and PSScriptAnalyzer
   where available.
 - Markdown Customizations require frontmatter checks and clean editor or
@@ -97,6 +116,8 @@ Do not duplicate changing inventories here. Use:
 - `Instructions/` for auto-applied rules and `applyTo` patterns.
 - `Skills/` for available Skills and their trigger descriptions.
 - `Prompts/` for Prompt bindings.
+- `Hooks/` for lifecycle events, hook commands, and the enforcement scripts.
+- `plugin.json` for the agent plugin manifest.
 - `README.md` for the user-facing catalog.
 - `CHANGELOG.md` and git history for historical detail.
 

@@ -23,6 +23,8 @@ CopilotAtelier is a portable GitHub Copilot customization framework that synchro
 | R6 | Support prompt files for repeatable slash-command tasks | Done |
 | R7 | Idempotent setup (safe to re-run without data loss) | Done |
 | R8 | Comprehensive language-specific best practices (PS, MD, YAML, C#, changelog, versioning, Sampler) | Done |
+| R9 | Enforce the house rules deterministically with lifecycle hooks rather than prose alone | Done |
+| R10 | Ship an agent plugin manifest so the library installs from a Git URL in VS Code, Copilot CLI, and Claude Code | Done |
 
 ## Target audience
 
@@ -32,13 +34,13 @@ CopilotAtelier is a portable GitHub Copilot customization framework that synchro
 
 ## Scope boundaries
 
-- **In scope**: VS Code + GitHub Copilot customization files, setup automation, coding standards
-- **Out of scope**: CI/CD pipeline definitions, actual module source code, cloud deployments
+- **In scope**: VS Code + GitHub Copilot customization files, lifecycle hooks, setup automation, coding standards
+- **Out of scope**: CI/CD pipeline definitions, actual module source code, cloud deployments, MCP server curation (see [Decision 17](decisions/0017-keep-mcp-curation-out-of-scope.md))
 
 ## Deployment boundary
 
-The Setup script copies only `Agents/`, `Instructions/`, `Skills/`, and
-`Prompts/` into the Canonical target. The repository-local `.memory-bank/` is
+The Setup script copies only `Agents/`, `Instructions/`, `Skills/`, `Prompts/`,
+and `Hooks/` into the Canonical target. The repository-local `.memory-bank/` is
 not deployed and therefore does not affect Custom agent performance in other
 working directories.
 

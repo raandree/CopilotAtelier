@@ -10,7 +10,9 @@ description: >-
   enforcement (§ 361 AO), deadline calculation (§§ 108, 122 AO), and ELSTER
   filing support.
 argument-hint: Describe the tax issue, assessment notice, or tax document you need drafted.
-model: 'Claude Opus 4.8 (copilot)'
+model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
+disable-model-invocation: true
+agents: []
 tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'thinking', 'useMcp']
 ---
 

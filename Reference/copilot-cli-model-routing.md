@@ -1,6 +1,6 @@
 # Copilot CLI — Model Selection Instructions
 
-> **Note on model lineup (updated 2026-07-02):** This document is kept current incrementally; a full rewrite is planned post-1.1.0. Current defaults: **Claude Opus 4.8** (superseding 4.7, which replaced 4.5 / 4.6; Opus 4.6 Fast was retired 2026-04-10), **Claude Sonnet 4.6**, **Claude Haiku 4.5**, and **GPT-5.5**. The deprecated **GPT-5.1** family (`gpt-5.1`, `gpt-5.1-codex`, `gpt-5.1-codex-max`, `gpt-5.1-codex-mini`) has been remapped to the GPT-5.5 equivalents below; the `gpt-5.2` / `gpt-5.3-codex` / `gpt-5.2-codex` and `gemini-3-pro-preview` entries are left unchanged pending the full rewrite.
+> **Note on model lineup (updated 2026-07-28):** This document is kept current incrementally; a full rewrite is planned post-1.1.0. Current defaults: **Claude Opus 5** (with Opus 4.8 as the GA fallback declared in every agent `model:` array), **Claude Sonnet 5**, **Claude Haiku 4.5**, and **GPT-5.5**. GPT-5.2 and GPT-5.2-Codex were retired 2026-06-01; use **GPT-5.5** and **GPT-5.3-Codex**. Gemini 3 Pro was retired 2026-03-26; use **Gemini 3.1 Pro**. Remaining entries are left unchanged pending the full rewrite.
 
 You are an AI agent running in the GitHub Copilot CLI. You have access to several model tiers. **You MUST select the right model for every task.** Do not default to the most powerful model. Do not waste premium capacity on trivial work.
 
@@ -63,9 +63,9 @@ Before executing any task:
 
 | Model ID | Best For |
 |----------|----------|
-| `claude-opus-4.8` | Hard bugs, architecture decisions, ambiguous requirements, cross-cutting analysis |
-| `claude-opus-4.7` | Same niche as 4.8 but older; use if 4.8 is unavailable |
-| `claude-opus-4.8-1m` | ONLY when context exceeds ~100K tokens (whole-codebase analysis, massive logs) |
+| `claude-opus-5` | Hard bugs, architecture decisions, ambiguous requirements, cross-cutting analysis |
+| `claude-opus-4.8` | Same niche as Opus 5 but older; the GA fallback when Opus 5 is unavailable |
+| `claude-opus-5-1m` | ONLY when context exceeds ~100K tokens (whole-codebase analysis, massive logs) |
 
 **Use when:** The task requires deep reasoning, careful judgment, or where getting it wrong is expensive.
 **Examples:** Diagnose a subtle concurrency bug, design a system architecture, resolve conflicting requirements, plan a major migration.

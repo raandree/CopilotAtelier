@@ -1,5 +1,6 @@
 ---
 name: dsc-troubleshooting
+compatibility: Requires Windows with PowerShell 5.1 Desired State Configuration and administrative access to the target node.
 description: >-
   Debug PowerShell DSC resource failures on target nodes: LCM diagnostics, event log analysis, debugging with Wait-Debugger and Enter-PSHostProcess, cache clearing, exit codes, installer log analysis, patching third-party DSC resources, and remote troubleshooting via AutomatedLab Invoke-LabCommand. Includes Windows Server 2025 issues (Start-Process UNC hangs, class-based ForceModuleImport failures). USE FOR: DSC error, DSC resource failed, debug DSC resource, Wait-Debugger, Enter-PSHostProcess, Debug-Runspace, LCM state, Get-DscConfigurationStatus, DSC event log, exit codes 30066/3010/17022, ProviderOperationExecutionFailure, Set-TargetResource failed, DSC cache, WmiPrvSE, ForceModuleImport, Enable-DscDebug, xDscDiagnostics, MSI installer DSC, PsDscRunAsCredential debug, Start-DscConfiguration error, UNC hang, Windows Server 2025 DSC. DO NOT USE FOR: writing new DSC resources, pull server setup, Azure Automation DSC, Sampler builds.
 ---

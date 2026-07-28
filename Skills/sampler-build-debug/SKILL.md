@@ -1,5 +1,6 @@
 ---
 name: sampler-build-debug
+compatibility: Requires PowerShell 5.1+ with the Sampler, InvokeBuild, and Pester 5 modules.
 description: >-
   Debug and troubleshoot Sampler-based PowerShell module builds and Pester 5 test failures.
   Covers running builds safely (without freezing VSCode), reading Pester results, diagnosing

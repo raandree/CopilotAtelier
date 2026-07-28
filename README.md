@@ -9,9 +9,9 @@
 </picture>
 <!-- markdownlint-enable MD033 -->
 
-**Portable GitHub Copilot customization** — agents, instructions, skills, and
-prompts — synced across machines via OneDrive and linked into the well-known
-`~/.copilot/` folders that VS Code and the Copilot CLI both read.
+**Portable GitHub Copilot customization** — agents, instructions, skills,
+prompts, and hooks — synced across machines via OneDrive and linked into the
+well-known `~/.copilot/` folders that VS Code and the Copilot CLI both read.
 
 <!-- markdownlint-disable MD033 -->
 <br clear="left">
@@ -35,7 +35,8 @@ Only one canonical location is populated per machine (no duplicate mirror). If a
 ├── Agents/          # Custom agents (.agent.md files)
 ├── Instructions/    # Custom instructions (.instructions.md files)
 ├── Skills/          # Agent skills (folders with SKILL.md)
-└── Prompts/         # Prompt files / slash commands (.prompt.md files)
+├── Prompts/         # Prompt files / slash commands (.prompt.md files)
+└── Hooks/           # Lifecycle hooks (hook config JSON plus scripts)
 ```
 
 The folder name is derived from the repository clone, so renaming the clone renames the synced layout automatically. Repository-only content such as `.memory-bank/`, `tests/`, `Reference/`, the Setup script, and documentation is not copied into the Canonical target. `Keybindings/keybindings.json` is merged into the VS Code user profile rather than copied there.
@@ -48,6 +49,7 @@ The folder name is derived from the repository clone, so renaming the clone rena
 | **Instructions** | `*.instructions.md` | Coding standards, conventions, and guidelines. Can auto-apply based on file glob patterns (`applyTo`) or be attached manually. Includes [`copilot-authoring.instructions.md`](Instructions/copilot-authoring.instructions.md), which governs how the files in this repo are authored. |
 | **Skills** | `<name>/SKILL.md` | Specialized capabilities with scripts, examples, and resources. Loaded on-demand when relevant. Appear as `/slash` commands. |
 | **Prompts** | `*.prompt.md` | Reusable task templates invoked as `/slash` commands. Best for single, repeatable tasks like scaffolding or code review. |
+| **Hooks** | `*.json` + `scripts/` | Shell commands run at fixed points in the agent loop. Deterministic guardrails that do not depend on the model choosing to obey them. See [`Hooks/README.md`](Hooks/README.md). |
 | **Keybindings** | `keybindings.json` | Shared VS Code keybindings merged idempotently into `%APPDATA%\Code\User\keybindings.json`. See [Keybindings Applied](#keybindings-applied). |
 
 ## Available Skills
@@ -101,6 +103,7 @@ Discovery is junction-based for agents, instructions, and skills — the script 
 %USERPROFILE%\.copilot\instructions --> <target>\Instructions
 %USERPROFILE%\.copilot\skills       --> <target>\Skills
 %USERPROFILE%\.copilot\prompts      --> <target>\Prompts
+%USERPROFILE%\.copilot\hooks        --> <target>\Hooks
 ```
 
 Where `<target>` is `%USERPROFILE%\OneDrive\CopilotAtelier` when OneDrive is installed, otherwise `%USERPROFILE%\CopilotAtelier`.
@@ -112,24 +115,31 @@ If one of the `~/.copilot\<name>` folders already exists as a real directory:
 
 Existing junctions are recreated on every run so they always point at the current target.
 
+#### Claude Code and Agent Skills clients (opt-in)
+
+Run `Setup-CopilotSettings.ps1 -IncludeClaudeCodeLinks` to additionally link `~/.claude/skills` and `~/.agents/skills` to the same `Skills` directory, so Claude Code and other [agentskills.io](https://agentskills.io/) clients discover the library too. This is off by default: VS Code reads all three user-level skill locations, so enabling it registers every Skill more than once in VS Code. Use it on machines where a non-Copilot client is the primary consumer. These two links are create-only — if a path already exists it belongs to that other tool and is left untouched.
+
 ### Feature Flags
 
 | Setting | Value | What It Does |
 |---|---|---|
 | `chat.includeApplyingInstructions` | `true` | Auto-apply `.instructions.md` files when their `applyTo` glob matches files being worked on |
 | `chat.includeReferencedInstructions` | `true` | Follow Markdown links in instruction files and load referenced content into context |
+| `chat.hookFilesLocations` | `~/.copilot/hooks` | Load the shared lifecycle hooks; merged so user-added hook locations and the Claude Code defaults survive |
 | `github.copilot.chat.agent.thinkingTool` | `true` | Enable the thinking tool so agents can reason through complex problems before acting |
 | `github.copilot.chat.search.semanticTextResults` | `true` | Improve search results in agent mode with semantic matching |
+| `github.copilot.chat.skillTool.enabled` | `true` | Allow Skills that declare `context: fork` to run in a dedicated subagent and return only their result |
 | `github.copilot.chat.agent.maxRequests` | `500` | Raise the per-turn agent request budget so long autonomous loops do not stall on the default limit |
 
 ### AI Model Preferences
 
+Every agent in [`Agents/`](Agents/) declares `model` as a priority array — `['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']` — so a model retirement degrades to the GA fallback instead of breaking all eleven agents at once.
+
 | Setting | Value | What It Does |
 |---|---|---|
-| `gitlens.ai.vscode.model` | `copilot:claude-opus-4.8` | Use Claude Opus 4.8 for GitLens AI features (commit messages, explanations). Opus 4.8 is the current Copilot release, superseding Opus 4.7 (which replaced Opus 4.5 / 4.6). |
-| `github.copilot.advanced.model` | `claude-opus-4.8` | Use Claude Opus 4.8 for inline autocompletions (experimental; may be overridden server-side). |
+| `gitlens.ai.vscode.model` | `copilot:claude-opus-5` | Use Claude Opus 5 for GitLens AI features (commit messages, explanations) |
 
-> **Note on model availability**: Opus 4.8 requires Copilot Pro+, Business, or Enterprise. On other plans VS Code falls back to its default. To pin a different model, edit `Setup-CopilotSettings.ps1` or override these two settings in your `settings.json` after running the script.
+> **Note on model availability**: Opus 5 requires Copilot Pro+, Business, or Enterprise. On other plans VS Code falls back to the next entry in the agent's `model` array, then to its default. Setup also removes the `github.copilot.advanced.model` key written by earlier releases: `github.copilot.advanced` is the completions bag and has no documented `model` member, so the value was never consumed.
 
 ## Keybindings Applied
 
@@ -156,9 +166,20 @@ The setup script merges the bindings in [`Keybindings/keybindings.json`](Keybind
 & "$env:USERPROFILE\OneDrive\CopilotAtelier\Setup-CopilotSettings.ps1"
 ```
 
-The script copies the contents of the clone into `~/OneDrive/CopilotAtelier/` when OneDrive is detected, or into `~/CopilotAtelier/` otherwise, then creates NTFS junctions at `~/.copilot/{agents,instructions,skills,prompts}` pointing to that target so both the VS Code Copilot chat extension and the GitHub Copilot CLI pick up the same files. It also patches your VS Code `settings.json` and `keybindings.json` idempotently with timestamped backups. If a stale `~/CopilotAtelier/` mirror exists from a previous dual-copy run, the script removes it when OneDrive is now used. If a pre-existing non-empty folder is found at any of the `~/.copilot/*` link paths, the script asks before deleting it (and copies its contents into the target first).
+The script copies the contents of the clone into `~/OneDrive/CopilotAtelier/` when OneDrive is detected, or into `~/CopilotAtelier/` otherwise, then creates NTFS junctions at `~/.copilot/{agents,instructions,skills,prompts,hooks}` pointing to that target so both the VS Code Copilot chat extension and the GitHub Copilot CLI pick up the same files. It also patches your VS Code `settings.json` and `keybindings.json` idempotently with timestamped backups. If a stale `~/CopilotAtelier/` mirror exists from a previous dual-copy run, the script removes it when OneDrive is now used. If a pre-existing non-empty folder is found at any of the link paths, the script asks before deleting it (and copies its contents into the target first).
 
 3. Restart VS Code.
+
+## Install as an Agent Plugin
+
+[`plugin.json`](plugin.json) also publishes the Agents and Skills as an agent plugin, which installs directly from the Git URL in VS Code, the GitHub Copilot CLI, and Claude Code:
+
+1. Run **Chat: Install Plugin From Source** from the Command Palette.
+2. Enter `https://github.com/raandree/CopilotAtelier`.
+
+Plugin-provided skills appear as `/copilot-atelier:<skill>` and update automatically when VS Code checks for extension updates.
+
+The plugin format does not carry `.instructions.md` files or hooks, so this path gives you agents and skills only. Run the setup script when you also want the Instructions and the deterministic hook guardrails. The two paths are complementary.
 
 ## Verifying It Works
 
@@ -166,6 +187,7 @@ The script copies the contents of the clone into `~/OneDrive/CopilotAtelier/` wh
 - **Instructions**: Type `/instructions` in chat to see the Configure Instructions menu
 - **Skills**: Type `/` in chat to see skills as slash commands
 - **Prompts**: Type `/` in chat to see prompt files as slash commands
+- **Hooks**: Run **Developer: Show Agent Debug Logs** and look for `Load Hooks` listing `~/.copilot/hooks`; hook output goes to the **GitHub Copilot Chat Hooks** channel in the Output panel
 - **Chat Customizations editor**: Click the gear icon in the Chat view (or run **Chat: Open Chat Customizations** from the Command Palette) to see all registered agents, instructions, skills, and prompts in one place
 - **Debug logs**: If customizations aren't being applied, open the ellipsis (**…**) menu in the Chat view → **Show Agent Debug Logs**
 

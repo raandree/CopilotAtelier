@@ -1,5 +1,6 @@
 ---
 name: automatedlab-proxmox
+compatibility: Requires the AutomatedLab PowerShell module, Proxmox VE API access, and the QEMU guest agent on the lab virtual machines.
 description: >-
   Diagnoses AutomatedLab Windows provisioning and remoting failures on
   Proxmox/QEMU from API, guest-agent, Windows Setup, and WinRM evidence.

@@ -1,7 +1,8 @@
 ---
 description: 'Expert-level software engineering agent. Deliver production-ready, maintainable code. Execute systematically and specification-driven. Document comprehensively. Operate autonomously and adaptively.'
 name: software-engineer
-model: 'Claude Opus 4.8 (copilot)'
+model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
+disable-model-invocation: true
 argument-hint: 'Describe the feature, bug fix, or refactoring task'
 tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'edit/rename', 'edit/editNotebook', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'execute/runTask', 'execute/runNotebookCell', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/testFailure', 'read/viewImage', 'read/getNotebookSummary', 'read/readNotebookCellOutput', 'web/fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/vscodeAPI', 'vscode/runCommand', 'vscode/installExtension', 'vscode/getProjectSetupInfo', 'vscode/askQuestions', 'todo', 'runTests', 'search', 'openSimpleBrowser', 'github', 'thinking', 'useMcp', 'codeInterpreter']
 agents: ['security-reviewer', 'technical-writer']

@@ -1,5 +1,6 @@
 ---
 name: microsoft-todo-tasks
+compatibility: Requires PowerShell 5.1+, outbound network access to Microsoft Graph, and a browser for the OAuth2 device code flow.
 description: >-
   Create, list, and manage Microsoft To Do tasks via the Graph REST API using
   raw OAuth2 device code flow in PowerShell. Bypasses the buggy Microsoft.Graph

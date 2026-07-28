@@ -1,5 +1,6 @@
 ---
 name: create-outlook-draft
+compatibility: Requires Windows with the classic Outlook desktop client and PowerShell 5.1+ for COM automation.
 description: >-
   Create Outlook email drafts from Markdown email files via COM automation in
   PowerShell. Parses metadata tables (To, CC, Subject) from Markdown, converts

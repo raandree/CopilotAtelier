@@ -1,5 +1,6 @@
 ---
 name: send-outlook-email
+compatibility: Requires Windows with the classic Outlook desktop client and PowerShell 5.1+ for COM automation.
 description: >-
   Send emails via the Outlook COM API from PowerShell. Supports plain-text and
   HTML-formatted emails, sending to self or specified recipients, with subject

@@ -1,5 +1,6 @@
 ---
 name: whisper-pyannote-transcription
+compatibility: Requires Windows, Python 3.12, ffmpeg, an NVIDIA GPU with a matching CUDA PyTorch wheel, and a Hugging Face token for the gated pyannote models.
 description: >-
   Transcribe long audio/video on Windows with GPU acceleration using faster-whisper (CTranslate2) and add speaker labels with pyannote.audio. Covers ffmpeg audio extraction, Python 3.12 venv, CUDA-matched PyTorch wheel selection, faster-whisper large-v3 inference, pyannote 3.1 diarization with Hugging Face gated-model access, and merging speaker turns into Whisper segments to produce speaker-labeled SRT, JSON, and grouped transcript text. Includes the Windows torchcodec bypass (preload via torchaudio) and Tee-Object exit-code trap. USE FOR: transcribe video/audio, faster-whisper, whisper GPU, large-v3, ctranslate2, pyannote.audio, speaker diarization, who spoke when, RTTM, SRT, German transcription, ffmpeg audio extract, 16 kHz mono WAV, Hugging Face gated model, HF_TOKEN, GatedRepoError, pyannote/speaker-diarization-3.1, CUDA torch wheel, cu128, torchcodec Windows. DO NOT USE FOR: real-time streaming, dictation UIs, cloud transcription APIs, audio editing/denoising, voice cloning, TTS.
 ---

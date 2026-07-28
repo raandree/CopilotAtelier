@@ -1,7 +1,7 @@
 ---
 description: 'Expert-level Security & Quality Assurance agent. Validate production readiness through comprehensive security audits, threat analysis, best practice verification, and quality gates. Execute systematically. Document comprehensively. Operate autonomously with zero-trust principles.'
 name: security-reviewer
-model: 'Claude Opus 4.8 (copilot)'
+model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
 argument-hint: 'Specify code, files, or scope to audit'
 tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'execute/runTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/testFailure', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/vscodeAPI', 'vscode/runCommand', 'vscode/installExtension', 'vscode/askQuestions', 'todo', 'runTests', 'search', 'openSimpleBrowser', 'github', 'thinking', 'useMcp', 'codeInterpreter']
 agents: []

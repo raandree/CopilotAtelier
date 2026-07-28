@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-07-25
+last-verified: 2026-07-28
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,6 +14,14 @@ Copilot Atelier is released at `v1.1.0`. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-28**: Closed the gap against the VS Code 1.130 Customization
+  surface. Added a fifth Customization type (`Hooks/`) with deterministic
+  never-push enforcement and a Memory Bank probe, a root `plugin.json`, model
+  priority arrays with a GA fallback across all 11 Custom agents, subagent
+  eligibility controls, `compatibility` on 25 environment-bound Skills,
+  `context: fork` on the two Skills that ingest untrusted external content, and
+  native Waza/analyzer routing in `agent-evals`. Fixed two over-cap Skill
+  descriptions. Two new suites bring the repository to 250 passing tests.
 - **2026-07-27**: Extended `windows-gui-screenshot-capture` with a source-ownership
   branch for existing executables, event-driven window/control readiness,
   cross-process control handling, state restoration, stronger image-content
@@ -84,13 +92,19 @@ Copilot Atelier is released at `v1.1.0`. Incremental work is tracked under
 
 ## Stable capabilities
 
+- Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
+  presence without relying on model compliance.
 - Screenshot documentation for both modifiable Windows applications and
   existing or third-party executables without source access.
 - One-command, idempotent Setup script with Windows, macOS, and Linux path
   handling.
-- One Canonical target exposed through `~/.copilot` Discovery links.
-- Role-specific Custom agents with Agent-to-agent handoffs.
-- File-scoped Instructions and on-demand Skills.
+- One Canonical target exposed through `~/.copilot` Discovery links, with
+  opt-in Claude Code and Agent Skills links.
+- Agent plugin packaging for installation from a Git URL.
+- Role-specific Custom agents with Agent-to-agent handoffs, model priority
+  arrays, and explicit subagent eligibility.
+- File-scoped Instructions and on-demand Skills with declared environment
+  requirements.
 - Prompt templates for repeatable development, research, legal, and operations
   workflows.
 - Detached Pester and build execution with persistent completion evidence.
@@ -101,6 +115,9 @@ Copilot Atelier is released at `v1.1.0`. Incremental work is tracked under
 
 ## Open work
 
+- Split the ten Skills on the `SkillFrontmatter` over-budget baseline into
+  bodies under 500 lines plus one-level references, removing each from the
+  baseline as it lands.
 - Continue splitting oversized auto-applied Instructions into concise enforced
   rules plus on-demand Skill references where that can be done without losing
   behavior.
@@ -109,7 +126,15 @@ Copilot Atelier is released at `v1.1.0`. Incremental work is tracked under
 - Extend the routing eval set when real retrieval failures are observed.
 - Add Markdown linting to continuous integration when the required runtime is
   available.
-- Review model identifiers when Copilot model availability changes.
+- Review model identifiers when Copilot model availability changes; the last
+  entry of every agent `model` array must stay GA.
+- Evaluate the remaining VS Code surfaces that no Customization covers yet:
+  the agent host and its harness selection, `chat.assistedPermissions.enabled`,
+  and organization-level instructions and agents.
+- Address the deferred Minor review findings in `Set-CustomizationLink`: the
+  `Read-Host` prompt hangs an unattended run, a child present in both source and
+  target is discarded rather than compared, and `Copy-Item -Recurse` may follow
+  a child reparse point.
 
 ## Retention policy
 

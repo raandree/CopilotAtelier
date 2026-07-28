@@ -1,5 +1,6 @@
 ---
 name: xlsx-to-markdown
+compatibility: Extraction is .NET-native PowerShell. Creating or editing workbooks requires Python with openpyxl and pandas; the recalculation and formula-error scan requires LibreOffice (soffice).
 description: >-
   Read, create, and edit XLSX (Excel) files. Recipe 1: convert XLSX to
   Markdown tables via .NET-native ZIP/XML parsing in PowerShell — no Excel

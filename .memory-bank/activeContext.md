@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-07-25
+last-verified: 2026-07-28
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,44 +9,58 @@ source: current task evidence
 
 ## Current focus
 
-Extend the `windows-gui-screenshot-capture` Skill with the external-executable
-workflow proven while documenting Notepad2.
+Close the gap between Copilot Atelier and the VS Code 1.130 Customization
+surface: add hooks, plugin packaging, current model defaults, and Agent Skills
+specification compliance.
 
 ## Implemented
 
-- The Skill branches by source ownership: modifiable applications use an
-  in-process capture mode; existing executables use an external driver.
-- External capture uses deterministic fixtures, process-scoped discovery,
-  event-driven window and child-control readiness, stable control interfaces,
-  state restoration, and started-process cleanup.
-- Verification rejects premature or black frames through dimensions,
-  non-uniform pixels, scene-aware darkness, expected landmarks, and visual
-  review instead of relying on `PrintWindow` success or file size.
-- A one-level external-Win32 reference and real-failure regression evals keep
-  the main Skill concise and preserve the existing rendering-engine workflow.
+- A `Hooks/` Customization deployed to `~/.copilot/hooks`. `PreToolUse` blocks
+  remote-mutating and irreversible commands with exit code 2 and a documented
+  `COPILOT_ATELIER_ALLOW_REMOTE=1` override; `SessionStart` probes for
+  `.memory-bank/index.md` and injects an authoritative present or absent
+  statement plus the UTC timestamp.
+- Root `plugin.json` so the Agents and Skills install from a Git URL in VS Code,
+  the Copilot CLI, and Claude Code. Instructions and hooks stay with the Setup
+  script because the plugin format does not carry them.
+- Every Custom agent declares `model` as a priority array with a GA fallback.
+  Seven heavyweight or domain-specific agents set `disable-model-invocation`,
+  and the three that never delegate declare `agents: []`.
+- Twenty-five Skills declare `compatibility`. The two Skills that ingest large
+  volumes of untrusted external content declare `context: fork`.
+- Setup deploys `Hooks/`, writes `chat.hookFilesLocations` and
+  `github.copilot.chat.skillTool.enabled`, bumps GitLens to Opus 5, removes the
+  inert `github.copilot.advanced.model` key, and gained an opt-in
+  `-IncludeClaudeCodeLinks` switch.
+- `agent-evals` now routes to the native Chat Customizations Evaluations
+  analyzer and the Waza runner before its own fallback harness.
 
 ## Focused evidence
 
-- Description is 985 characters; the Skill body is 257 lines.
-- The 152-line external reference has a `## Contents` table and is linked
-  directly from the Skill.
-- Seven intended trigger prompts and eight real regression cases cover
-  selection, message-pumped readiness, process ownership, capture failure,
-  content validation, restoration, dark themes, and the RPA anti-trigger.
-- Focused Pester passes 10/10; the helper and test have zero AST errors and
-  zero PSScriptAnalyzer findings.
-- A clean-process Notepad2 probe confirms Boolean `PostMessage`, process-scoped
-  handle discovery, a 61 KB capture, and graceful started-process exit.
-- Markdown diagnostics, relative links, Memory Bank health, and
-  `git diff --check` pass.
-- Three independent review rounds surfaced and resolved orchestration,
-  message-pump, helper ownership, interop-signature, unchecked-result, and
-  regression-test gaps. Final approval reports no Blocker, Major, or Minor
-  findings.
-- Setup deployment completed; all five changed Skill artifacts match the
-  Canonical target by SHA-256 and the `~/.copilot/skills` Discovery link is a
-  valid junction.
+- Full suite: 266 passed, 0 failed, 11 skipped.
+- `tests/Hooks.Tests.ps1` runs both scripts through a child process exactly as
+  VS Code invokes them, and executes the shipped command string through the real
+  platform shell so the quoting, `-File`, and stdin contract are proven rather
+  than assumed.
+- `tests/SkillFrontmatter.Tests.ps1` pins the Agent Skills specification and a
+  non-growing baseline of ten Skills whose bodies exceed 500 lines.
+- An independent security review found one Blocker and six Major issues. All
+  were fixed: the reparse-point recursive delete that could destroy the synced
+  customization tree; the fail-open tool-name gate, replaced by tool-agnostic
+  command-carrier extraction that also reaches nested task definitions; the
+  unanchored git patterns that blocked ordinary commit messages and branch
+  names; missing `gh api`, `gh repo create`, `gh workflow run`, and `gh secret`
+  coverage; the destructive `-WhatIf` path; and the Claude Code links, now
+  create-only so they cannot adopt or repoint another tool's state.
+- Three real defects surfaced and were fixed: the reparse-point delete above,
+  a 1460-character description on `authenticated-web-extraction` against the
+  1024 cap, and the extended `agent-evals` description at 1106.
+- AST parse clean on all changed PowerShell; zero PSScriptAnalyzer findings
+  outside the Setup script's established `Write-Host` console style.
+- Decisions 16 and 17 record the hook enforcement model and the MCP scope
+  boundary.
 
 ## Next step
 
-Restart VS Code or reselect the Custom agent to reload the deployed Skill.
+Run `Setup-CopilotSettings.ps1` to deploy `Hooks/`, then restart VS Code and
+confirm `Load Hooks` lists `~/.copilot/hooks` in the agent debug logs.

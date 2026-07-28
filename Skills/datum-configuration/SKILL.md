@@ -1,5 +1,6 @@
 ---
 name: datum-configuration
+compatibility: Requires PowerShell 5.1+ with the Datum module and, for DSC pipelines, Sampler.DscPipeline.
 description: >-
   Reference for the Datum PowerShell DSC configuration data module: hierarchical data composition, Datum.yml, resolution precedence, merge strategies (MostSpecific, hash, deep, UniqueKeyValTuples, DeepTuple), knockout prefix, lookup_options, DatumStructure, store providers, Datum handlers (InvokeCommand, ProtectedData), RSOP, Roles/Configurations pattern, and the DscWorkshop reference. Includes ProjectDagger patterns: 15-layer hierarchy, Scenario overrides (Tiny/Normal/Extended), ServiceTag-scoped roles, TinyAdditionalRole, cross-domain refs, conditional precedence. USE FOR: Datum, Datum.yml, ResolutionPrecedence, lookup_options, merge strategy, MostSpecific, deep/hash merge, UniqueKeyValTuples, DeepTuple, knockout prefix, RSOP, Get-DatumRsop, Resolve-NodeProperty, Lookup, New-DatumStructure, DatumHandlers, Protect-Datum, DSC config data, Roles pattern, DscWorkshop, Sampler.DscPipeline, Scenario/Tiny override, ServiceTag role. DO NOT USE FOR: Sampler build framework, build debugging, AutomatedLab.
 ---

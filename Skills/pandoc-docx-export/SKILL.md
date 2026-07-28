@@ -1,5 +1,6 @@
 ---
 name: pandoc-docx-export
+compatibility: Requires pandoc 3+ for Lua filters and reference.docx styling. Mermaid diagram rendering additionally requires mermaid-cli.
 description: >-
   Export Markdown documents to polished DOCX files using pandoc with custom
   formatting: landscape pages for wide tables, custom column widths, reduced

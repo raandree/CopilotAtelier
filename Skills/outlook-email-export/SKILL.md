@@ -1,5 +1,6 @@
 ---
 name: outlook-email-export
+compatibility: Requires Windows with the classic Outlook desktop client and PowerShell 5.1+ for COM automation.
 description: >-
   Export and extract emails from Outlook via COM automation in PowerShell.
   Covers searching by sender, recipient, CC, subject, or date range across

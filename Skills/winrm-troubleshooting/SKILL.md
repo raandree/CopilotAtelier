@@ -1,5 +1,6 @@
 ---
 name: winrm-troubleshooting
+compatibility: Requires Windows or Windows Server targets, PowerShell 5.1+ with the WSMan provider, and administrative access to the target.
 description: >-
   Diagnoses WinRM failures on Windows servers and AutomatedLab VMs: service
   startup, listeners, HTTP.sys/IIS, authentication, HTTPS, firewall,

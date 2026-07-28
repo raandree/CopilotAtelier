@@ -1,5 +1,6 @@
 ---
 name: sampler-framework
+compatibility: Requires PowerShell 5.1+ with the Sampler, ModuleBuilder, and InvokeBuild modules.
 description: >-
   Reference for the Sampler PowerShell module build framework: project structure, build.yaml, dependency management, build workflows and tasks, custom build tasks, testing patterns, GitVersion versioning, CI/CD pipelines (Azure Pipelines, GitHub Actions), DSC/Datum configuration data projects, VSCode integration, multi-module repositories, community files, troubleshooting, and command reference. USE FOR: Sampler, build.yaml, RequiredModules.psd1, Resolve-Dependency, ModuleBuilder, InvokeBuild, New-SampleModule, Add-Sample, Sampler project structure, PowerShell module build, GitVersion configuration, CI/CD pipeline, Azure Pipelines PowerShell, DSC Datum, DscWorkshop, Sampler.DscPipeline, custom build task, Pester configuration, code coverage threshold, NuGet, Publish-Module, PowerShell Gallery, Set-SamplerTaskVariable, multi-module repository, patched module. DO NOT USE FOR: debugging Sampler builds (sampler-build-debug), legacy migration (sampler-migration), Pester syntax, AutomatedLab.
 ---

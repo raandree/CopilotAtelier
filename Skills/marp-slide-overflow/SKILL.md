@@ -1,5 +1,6 @@
 ---
 name: marp-slide-overflow
+compatibility: Requires Node.js with marp-cli, mermaid-cli for pre-rendered diagrams, Puppeteer for overflow detection, and LibreOffice (soffice) for editable PPTX export.
 description: >-
   Detect and fix silent content overflow in Marp slide decks before exporting to PPTX/PDF/PNG (anything taller than the 1280x720 viewBox is clipped with no warning). Also covers pre-rendering mermaid fences to SVG, a PNG-based visual verification workflow, a Puppeteer overflow detector, dense/compact CSS density tiers, a fillRatio decision table, and selectable-text PPTX export. USE FOR: Marp overflow, slide content clipped, content cut off in PPTX, slide overflow detection, Marp scrollHeight, dense/compact class, fillRatio, marp-cli overflow, Marp backgroundColor frontmatter, Marp mermaid not rendering, mermaid-cli mmdc, pre-render mermaid SVG, mermaid missing in PDF/PPTX, verify slide fits PNG, split slide vs shrink, editable PPTX, selectable text PPTX, marp pptx-editable, SOFFICE_PATH, LibreOffice PPTX, editable PPTX notes, speaker notes dropped, pptx-editable notes missing, copy pptx notes, python-pptx notes. DO NOT USE FOR: Reveal.js, Slidev, PowerPoint authoring, generic CSS layout, font rendering bugs.
 ---

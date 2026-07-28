@@ -14,10 +14,11 @@ the task needs their rationale, consequences, or confirmation evidence.
 
 ```text
 CopilotAtelier repository
-├── Agents, Instructions, Skills, Prompts
+├── Agents, Instructions, Skills, Prompts, Hooks
 ├── Setup-CopilotSettings.ps1
 │   └── one Canonical target: OneDrive when available, user profile otherwise
 │       └── ~/.copilot Discovery links
+├── plugin.json
 ├── tests and Reference
 └── .memory-bank
     ├── index.md
@@ -46,15 +47,20 @@ CopilotAtelier repository
 | 13 | [Centralize shared lifecycle behavior](decisions/0013-centralize-shared-lifecycle.md) | Accepted | 2026-07-24 |
 | 14 | [Prove Memory Bank routing](decisions/0014-prove-memory-bank-routing.md) | Accepted | 2026-07-24 |
 | 15 | [Keep native memory role-gated](decisions/0015-keep-native-memory-role-gated.md) | Accepted | 2026-07-24 |
+| 16 | [Enforce house rules with hooks](decisions/0016-enforce-house-rules-with-hooks.md) | Accepted | 2026-07-28 |
+| 17 | [Keep MCP curation out of scope](decisions/0017-keep-mcp-curation-out-of-scope.md) | Accepted | 2026-07-28 |
 
 ## Live relationships
 
-- The Setup script deploys the four Customization directories and creates
+- The Setup script deploys the five Customization directories and creates
     Discovery links.
+- Hooks enforce the rules that must hold regardless of model reasoning;
+    Instructions carry the judgement calls.
 - GUI screenshot workflows branch by source ownership: modifiable applications
     own a self-capturing mode; external executables use a process-scoped driver
     with event-driven readiness, restoration, and content verification.
-- Custom agent frontmatter controls current tools and Agent-to-agent handoffs.
+- Custom agent frontmatter controls current tools, model priority, subagent
+    eligibility, and Agent-to-agent handoffs.
 - Instruction frontmatter controls current `applyTo` scope.
 - Prompt frontmatter controls current Custom agent binding.
 

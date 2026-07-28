@@ -2,7 +2,7 @@
 
 Portable operating rules for any AI agent or agentic tool (GitHub Copilot, Claude Code, Codex, Cursor, Copilot CLI, and other AGENTS.md-aware harnesses) working in this repository. This file is the tool-neutral entry point; the authoritative, auto-loaded detail lives in [`Instructions/`](Instructions/) and [`.memory-bank/`](.memory-bank/).
 
-CopilotAtelier is a portable GitHub Copilot customization toolkit: custom agents ([`Agents/`](Agents/)), auto-applied coding instructions ([`Instructions/`](Instructions/)), on-demand skills ([`Skills/`](Skills/)), and prompt templates ([`Prompts/`](Prompts/)), synced across machines by [`Setup-CopilotSettings.ps1`](Setup-CopilotSettings.ps1).
+CopilotAtelier is a portable GitHub Copilot customization toolkit: custom agents ([`Agents/`](Agents/)), auto-applied coding instructions ([`Instructions/`](Instructions/)), on-demand skills ([`Skills/`](Skills/)), prompt templates ([`Prompts/`](Prompts/)), and lifecycle hooks ([`Hooks/`](Hooks/)), synced across machines by [`Setup-CopilotSettings.ps1`](Setup-CopilotSettings.ps1).
 
 ## Every turn: pre-flight, then post-flight
 
@@ -32,6 +32,8 @@ Classify the turn first. A **non-impacting** turn (pure Q&A, read-only investiga
 
 **Never run `git push`** (or any remote-mutating git operation) unless the user explicitly asks in the current turn. Local commits and branches are fine; pushing, force-pushing, and PR creation require explicit per-turn authorization. Do not bypass hooks (for example `--no-verify`).
 
+This rule is backed by a deterministic guardrail, not only by trust. The `PreToolUse` hook in [`Hooks/`](Hooks/) blocks push, `--no-verify`, `git reset --hard`, forced clean, and GitHub CLI resource mutation with exit code 2. It matches patterns in the command string, so treat it as defense in depth that removes the accidental path rather than as a containment boundary — the rule above still binds you. When the user authorizes a remote mutation, set `COPILOT_ATELIER_ALLOW_REMOTE=1` for that command and unset it afterwards. Never rewrite a command to evade the check.
+
 ## PowerShell
 
 - **Approved verbs only.** Every function uses a verb from `Get-Verb` (`Get`, `Set`, `New`, `Test`, `Invoke`, `Remove`, and so on). No `Retrieve` / `Delete` / `Change`.
@@ -48,11 +50,12 @@ Classify the turn first. A **non-impacting** turn (pure Q&A, read-only investiga
 ## Authoring agents, skills, instructions, prompts
 
 - Follow [`Instructions/copilot-authoring.instructions.md`](Instructions/copilot-authoring.instructions.md): correct frontmatter per file type, narrow `applyTo`, purposeful emphasis, no maintenance footers.
-- New skills follow the `skill-creator` skill: third-person `description` ≤ 1024 chars with `USE FOR:` / `DO NOT USE FOR:`, body ≤ 500 lines, references one level deep, folder name matching the `name:` field.
+- New skills follow the `skill-creator` skill: third-person `description` ≤ 1024 chars with `USE FOR:` / `DO NOT USE FOR:`, body ≤ 500 lines, references one level deep, folder name matching the `name:` field. Declare `compatibility` whenever the skill needs a specific OS, runtime, module, or binary.
+- Encode a rule as a hook when it must hold regardless of what the model decides; leave judgement calls in Instructions.
 - When building agents, LLM features, or MCP servers, run the `agent-security-review` skill (lethal-trifecta test, OWASP Top 10 for LLM Applications, containment-first); measure skill/prompt/agent changes with the `agent-evals` skill.
 - Markdown must lint clean (see [`Instructions/markdown.instructions.md`](Instructions/markdown.instructions.md)).
 - If a `glossary.md` exists in `.memory-bank/`, use only its canonical terms (Ubiquitous Language).
 
 ## Model
 
-Agents declare `Claude Opus 4.8 (copilot)` as the current model. When bumping models, update the agent frontmatters and reflect the change in the Memory Bank.
+Agents declare `model` as a priority array: `['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']`. The first available model wins, so the last entry must always be a GA model. When bumping models, update every agent frontmatter and reflect the change in the Memory Bank.

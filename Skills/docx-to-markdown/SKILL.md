@@ -1,5 +1,6 @@
 ---
 name: docx-to-markdown
+compatibility: Extraction and in-place OOXML editing are .NET-native PowerShell. Accepting tracked changes requires LibreOffice (soffice).
 description: >-
   Read and edit DOCX (Word) files without Word or pandoc. Recipe 1: convert
   DOCX to Markdown via .NET-native ZIP/XML parsing in PowerShell (English

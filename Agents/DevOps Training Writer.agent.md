@@ -1,7 +1,8 @@
 ---
 description: 'Specialized DevOps/Ops training content writer. Inherits all generic training design rules from the training-writer agent. Adds DevOps-specific focus areas: CI/CD, IaC, containers, monitoring, automation, scripting, and platform engineering. Designed for audiences of DevOps engineers, SREs, platform engineers, and operations professionals.'
 name: devops-training-writer
-model: 'Claude Opus 4.8 (copilot)'
+model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
+disable-model-invocation: true
 argument-hint: 'Describe the DevOps/Ops training module, workshop, or lab to create'
 tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'thinking', 'useMcp']
 agents: ['training-writer', 'technical-writer']

@@ -1,0 +1,20 @@
+{
+    "hooks": {
+        "PreToolUse": [
+            {
+                "type": "command",
+                "timeout": 20,
+                "command": "pwsh -NoProfile -NonInteractive -File \"$HOME/.copilot/hooks/scripts/Block-RemoteMutation.ps1\"",
+                "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%USERPROFILE%\\.copilot\\hooks\\scripts\\Block-RemoteMutation.ps1\""
+            }
+        ],
+        "SessionStart": [
+            {
+                "type": "command",
+                "timeout": 20,
+                "command": "pwsh -NoProfile -NonInteractive -File \"$HOME/.copilot/hooks/scripts/Add-SessionContext.ps1\"",
+                "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%USERPROFILE%\\.copilot\\hooks\\scripts\\Add-SessionContext.ps1\""
+            }
+        ]
+    }
+}

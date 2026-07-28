@@ -1,5 +1,6 @@
 ---
 name: sampler-migration
+compatibility: Requires PowerShell 5.1+ with the Sampler, ModuleBuilder, InvokeBuild, and Pester 5 modules.
 description: >-
   Step-by-step guide for migrating a legacy PowerShell module project to the Sampler build
   framework. Covers migrating from AppVeyor, PSDepend, PSDeploy, Pester 4, and other legacy

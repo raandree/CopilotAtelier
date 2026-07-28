@@ -1,5 +1,6 @@
 ---
 name: pdf-to-markdown
+compatibility: Text extraction is .NET-native PowerShell. OCR requires Python with pymupdf and Tesseract tessdata_best; creation, merging, and form filling require pypdf, reportlab, and qpdf.
 description: >-
   Read, OCR, create, and manipulate PDF files. Recipe 1: convert PDFs to
   Markdown via .NET-native parsing in PowerShell. Recipe 4: OCR scanned
