@@ -5,10 +5,10 @@ BeforeAll {
     $script:postflightPath = Join-Path $script:repoRoot 'Instructions/postflight.instructions.md'
     $script:memoryBankSkillPath = Join-Path $script:repoRoot 'Skills/memory-bank/SKILL.md'
 
-    $script:preflightContent = Get-Content -LiteralPath $script:preflightPath -Raw
-    $script:postflightContent = Get-Content -LiteralPath $script:postflightPath -Raw
+    $script:preflightContent = Get-Content -LiteralPath $script:preflightPath -Raw -Encoding UTF8
+    $script:postflightContent = Get-Content -LiteralPath $script:postflightPath -Raw -Encoding UTF8
     $script:memoryBankSkillContent = if (Test-Path -LiteralPath $script:memoryBankSkillPath) {
-        Get-Content -LiteralPath $script:memoryBankSkillPath -Raw
+        Get-Content -LiteralPath $script:memoryBankSkillPath -Raw -Encoding UTF8
     } else {
         ''
     }
@@ -188,12 +188,12 @@ Describe 'Shared lifecycle Customizations' {
             $script:memoryBankSkillContent | Should -Match ([regex]::Escape($fileName))
         }
 
-        @(Get-Content -LiteralPath $script:memoryBankSkillPath).Count |
+        @(Get-Content -LiteralPath $script:memoryBankSkillPath -Encoding UTF8).Count |
             Should -BeLessOrEqual 500
     }
 
     It 'keeps the Memory Bank Skill discoverable within schema limits' {
-        $skillLines = @(Get-Content -LiteralPath $script:memoryBankSkillPath)
+        $skillLines = @(Get-Content -LiteralPath $script:memoryBankSkillPath -Encoding UTF8)
         $closingDelimiter = [array]::IndexOf($skillLines, '---', 1)
         $frontmatter = $skillLines[1..($closingDelimiter - 1)]
         $descriptionStart = [array]::IndexOf($frontmatter, 'description: >-')
@@ -228,7 +228,7 @@ Describe 'Custom agent lifecycle deduplication' {
     It 'preserves valid required frontmatter in every Custom agent' {
         foreach ($name in $script:agentBaseline.Keys) {
             $agentPath = Join-Path $script:agentsPath $name
-            $lines = @(Get-Content -LiteralPath $agentPath)
+            $lines = @(Get-Content -LiteralPath $agentPath -Encoding UTF8)
             $delimiters = @(
                 for ($index = 0; $index -lt $lines.Count; $index++) {
                     if ($lines[$index] -eq '---') {
@@ -250,7 +250,7 @@ Describe 'Custom agent lifecycle deduplication' {
     It 'preserves tools, handoffs, and role-specific Memory Bank schemas' {
         foreach ($entry in $script:agentBaseline.GetEnumerator()) {
             $agentPath = Join-Path $script:agentsPath $entry.Key
-            $content = Get-Content -LiteralPath $agentPath -Raw
+            $content = Get-Content -LiteralPath $agentPath -Raw -Encoding UTF8
             $toolsMatch = [regex]::Match($content, '(?m)^tools:\s*\[(.*)\]\r?$')
             $tools = @(
                 [regex]::Matches($toolsMatch.Groups[1].Value, "'([^']+)'") |
@@ -276,7 +276,7 @@ Describe 'Custom agent lifecycle deduplication' {
                 $content |
                     Should -Match $memoryHeadingPattern -Because $entry.Key
 
-                $agentLines = @(Get-Content -LiteralPath $agentPath)
+                $agentLines = @(Get-Content -LiteralPath $agentPath -Encoding UTF8)
                 $memoryStart = -1
                 for ($index = 0; $index -lt $agentLines.Count; $index++) {
                     if ($agentLines[$index] -eq $entry.Value.MemoryHeading) {
@@ -301,7 +301,7 @@ Describe 'Custom agent lifecycle deduplication' {
 
     It 'uses the shared lifecycle without duplicate process sections' {
         foreach ($name in $script:agentBaseline.Keys) {
-            $content = Get-Content -LiteralPath (Join-Path $script:agentsPath $name) -Raw
+            $content = Get-Content -LiteralPath (Join-Path $script:agentsPath $name) -Raw -Encoding UTF8
 
             $content |
                 Should -Match '(?i)shared.*lifecycle Instructions' -Because $name
@@ -316,7 +316,7 @@ Describe 'Custom agent lifecycle deduplication' {
         foreach ($name in $script:agentBaseline.Keys) {
             $content = Get-Content -LiteralPath (
                 Join-Path $script:agentsPath $name
-            ) -Raw
+            ) -Raw -Encoding UTF8
             if ($content -notmatch 'VS Code native memory') {
                 continue
             }

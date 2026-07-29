@@ -119,6 +119,15 @@ model so a retirement degrades instead of breaking every agent.
   `output/` in as the build artifact, and run `./build.ps1 -Tasks test`. A
   worktree carries gitignored files such as `.memory-bank/promptHistory.md`
   that CI never has.
+- Windows PowerShell 5.1 decodes a BOM-less UTF-8 file with the ANSI code page.
+  A test that string-matches repository Markdown must read it with
+  `-Encoding UTF8`, or every non-ASCII character becomes mojibake. Most reads
+  in `tests/` still omit it and are only safe because they match ASCII.
+- An environment-bound test declares its requirement through a
+  `BeforeDiscovery` probe feeding `-Skip`, never through `#requires`.
+  `#requires` fails Pester discovery on an unsupported host, which fails the
+  whole run instead of skipping one file. Tag it `Unit` only if it really is
+  portable, because the Linux job selects by tag.
 - `tests/QA/module.tests.ps1` enforces the changelog parse, the exported
   command surface, the shipped customization payload, a unit test per exported
   command, zero PSScriptAnalyzer findings per command, and complete

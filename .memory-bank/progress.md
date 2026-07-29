@@ -15,6 +15,11 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-29**: Fixed CI failing on Windows PowerShell 5.1 and Linux while
+  Windows PowerShell 7 passed. A Windows GUI test was tagged `Unit` and guarded
+  by `#requires`, which fails discovery instead of skipping; the hook tests
+  treated a deliberate stderr write and non-zero exit as a crash; and
+  Windows PowerShell 5.1 decoded BOM-less UTF-8 Markdown as ANSI.
 - **2026-07-29**: Fixed all three CI test jobs failing. Four repository tests
   assumed the gitignored `.memory-bank/promptHistory.md` exists, so the suite
   had only ever run in a developer worktree. Reproducing against a clean clone

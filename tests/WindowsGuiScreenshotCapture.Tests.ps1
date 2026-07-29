@@ -1,14 +1,25 @@
-#Requires -Version 7.0
-
-BeforeAll {
-    $script:helperPath = Join-Path $PSScriptRoot (
-        '..\Skills\windows-gui-screenshot-capture\scripts\DialogCapture.ps1'
+BeforeDiscovery {
+    <#
+        The helper compiles Win32 interop, so it is bound to Windows and to
+        PowerShell 7. A #requires statement cannot express that: it fails
+        discovery on Windows PowerShell 5.1 instead of skipping, which fails the
+        whole run.
+    #>
+    $script:isSupportedHost = (
+        [System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT -and
+        $PSVersionTable.PSVersion.Major -ge 7
     )
-    . $script:helperPath
-    $script:helperContent = Get-Content -LiteralPath $script:helperPath -Raw
 }
 
-Describe 'Windows GUI screenshot native-dialog helper' -Tag 'Unit' {
+Describe 'Windows GUI screenshot native-dialog helper' -Tag 'Unit' -Skip:(-not $script:isSupportedHost) {
+    BeforeAll {
+        $script:helperPath = Join-Path $PSScriptRoot (
+            '..\Skills\windows-gui-screenshot-capture\scripts\DialogCapture.ps1'
+        )
+        . $script:helperPath
+        $script:helperContent = Get-Content -LiteralPath $script:helperPath -Raw -Encoding UTF8
+    }
+
     It 'Should compile the Win32 interop type' {
         { Initialize-WindowCapture } | Should -Not -Throw
     }

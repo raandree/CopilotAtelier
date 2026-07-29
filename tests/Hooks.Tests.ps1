@@ -21,10 +21,46 @@ BeforeAll {
         )
 
         $hookArguments = @('-NoProfile', '-NonInteractive', '-File', $ScriptPath)
-        $output = $Payload | & $script:powerShellPath @hookArguments 2>&1
+
+        <#
+            A blocking hook writes to standard error and exits non-zero, both by
+            design. Windows PowerShell turns a child's standard error into an
+            ErrorRecord, and PowerShell 7.3+ turns a non-zero native exit code
+            into a terminating error, so under the build's 'Stop' preference the
+            expected block would throw instead of being asserted on.
+        #>
+        $previousErrorActionPreference = $ErrorActionPreference
+        $previousNativeCommandPreference = $null
+
+        if (Test-Path -LiteralPath 'variable:PSNativeCommandUseErrorActionPreference')
+        {
+            $previousNativeCommandPreference = $PSNativeCommandUseErrorActionPreference
+        }
+
+        try
+        {
+            $ErrorActionPreference = 'Continue'
+
+            if ($null -ne $previousNativeCommandPreference)
+            {
+                $PSNativeCommandUseErrorActionPreference = $false
+            }
+
+            $output = $Payload | & $script:powerShellPath @hookArguments 2>&1
+            $exitCode = $LASTEXITCODE
+        }
+        finally
+        {
+            $ErrorActionPreference = $previousErrorActionPreference
+
+            if ($null -ne $previousNativeCommandPreference)
+            {
+                $PSNativeCommandUseErrorActionPreference = $previousNativeCommandPreference
+            }
+        }
 
         [pscustomobject]@{
-            ExitCode = $LASTEXITCODE
+            ExitCode = $exitCode
             Output = ($output | Out-String)
         }
     }
