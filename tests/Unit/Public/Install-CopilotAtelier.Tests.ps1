@@ -102,31 +102,6 @@ BeforeAll {
             [System.Environment]::SetEnvironmentVariable($name, $Original[$name], 'Process')
         }
     }
-
-    function Get-SandboxConfigRoot
-    {
-        param
-        (
-            [Parameter(Mandatory = $true)]
-            [System.String]
-            $HomePath,
-
-            [Parameter(Mandatory = $true)]
-            [System.String]
-            $ConfigPath
-        )
-
-        # macOS ignores XDG_CONFIG_HOME; VS Code keeps user settings under
-        # ~/Library/Application Support.
-        $macOSVariable = Get-Variable -Name IsMacOS -ErrorAction SilentlyContinue
-
-        if ($macOSVariable -and [System.Boolean] $macOSVariable.Value)
-        {
-            return Join-Path -Path $HomePath -ChildPath 'Library/Application Support'
-        }
-
-        return $ConfigPath
-    }
 }
 
 Describe 'Install-CopilotAtelier' -Tag 'Unit' {
@@ -150,10 +125,8 @@ Describe 'Install-CopilotAtelier' -Tag 'Unit' {
             }
 
             $script:targetPath = Join-Path -Path $script:homePath -ChildPath 'CopilotAtelier'
-            $script:settingsDirectory = Join-Path -Path (
-                Get-SandboxConfigRoot -HomePath $script:homePath -ConfigPath $script:configPath
-            ) -ChildPath 'Code/User'
-            $script:settingsPath = Join-Path -Path $script:settingsDirectory -ChildPath 'settings.json'
+            $script:settingsPath = $script:result.SettingsPath
+            $script:settingsDirectory = Split-Path -Path $script:settingsPath -Parent
             $script:settings = Get-Content -LiteralPath $script:settingsPath -Raw | ConvertFrom-Json
         }
 
@@ -224,31 +197,34 @@ Describe 'Install-CopilotAtelier' -Tag 'Unit' {
             $script:contentPath = Join-Path -Path $TestDrive -ChildPath 'legacy-content'
             $script:homePath = Join-Path -Path $TestDrive -ChildPath 'legacy-home'
             $script:configPath = Join-Path -Path $TestDrive -ChildPath 'legacy-config'
-            $settingsDirectory = Join-Path -Path (
-                Get-SandboxConfigRoot -HomePath $script:homePath -ConfigPath $script:configPath
-            ) -ChildPath 'Code/User'
 
             Initialize-CustomizationContent -Path $script:contentPath
-            New-Item -ItemType Directory -Path $settingsDirectory -Force | Out-Null
-
-            [ordered] @{
-                'chat.agentFilesLocations'        = [ordered] @{
-                    '~/OneDrive/CopilotAtelier/Agents' = $true
-                    '~/CopilotAtelier/Agents'          = $true
-                }
-                'chat.instructionsFilesLocations' = [ordered] @{
-                    '~/CopilotAtelier/Instructions' = $true
-                    '~/Other/Instructions'          = $true
-                }
-                'github.copilot.advanced.model'   = 'claude-opus-4.8'
-            } |
-                ConvertTo-Json -Depth 5 |
-                Set-Content -LiteralPath (Join-Path -Path $settingsDirectory -ChildPath 'settings.json')
 
             $script:original = Enter-Sandbox -HomePath $script:homePath -ConfigPath $script:configPath
 
             try
             {
+                # The VS Code configuration root is platform-specific, so the resolver decides where to seed.
+                $settingsDirectory = (
+                    InModuleScope -ModuleName $script:moduleName { Get-CopilotAtelierPath }
+                ).SettingsDirectory
+
+                New-Item -ItemType Directory -Path $settingsDirectory -Force | Out-Null
+
+                [ordered] @{
+                    'chat.agentFilesLocations'        = [ordered] @{
+                        '~/OneDrive/CopilotAtelier/Agents' = $true
+                        '~/CopilotAtelier/Agents'          = $true
+                    }
+                    'chat.instructionsFilesLocations' = [ordered] @{
+                        '~/CopilotAtelier/Instructions' = $true
+                        '~/Other/Instructions'          = $true
+                    }
+                    'github.copilot.advanced.model'   = 'claude-opus-4.8'
+                } |
+                    ConvertTo-Json -Depth 5 |
+                    Set-Content -LiteralPath (Join-Path -Path $settingsDirectory -ChildPath 'settings.json')
+
                 Install-CopilotAtelier -ContentPath $script:contentPath -SkipCopilotCliEnvironment | Out-Null
             }
             finally
