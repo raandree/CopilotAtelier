@@ -15,6 +15,11 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-29**: Hardened the `SessionStart` hook probe. It resolved an
+  attacker-controlled payload path through `Join-Path` and `Test-Path`, so a
+  path this host cannot resolve writes to standard error and corrupts the JSON
+  contract the caller parses. Now uses `[System.IO.Path]::Combine` and
+  `[System.IO.File]::Exists`, which carry no provider semantics.
 - **2026-07-29**: Fixed CI failing on Windows PowerShell 5.1 and Linux while
   Windows PowerShell 7 passed. A Windows GUI test was tagged `Unit` and guarded
   by `#requires`, which fails discovery instead of skipping; the hook tests

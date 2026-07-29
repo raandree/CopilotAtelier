@@ -54,9 +54,25 @@ if ([string]::IsNullOrWhiteSpace($workingDirectory)) {
 # characters that a hostile workspace name could use to inject extra lines.
 $workingDirectory = $workingDirectory -replace '[\p{Cc}]', ' '
 
-$memoryBankIndex = Join-Path (Join-Path $workingDirectory '.memory-bank') 'index.md'
+<#
+    The payload supplies this path, so it is untrusted and may name a drive or a
+    shape this host cannot resolve. Combine and probe it through .NET rather than
+    the PowerShell provider: a provider that cannot resolve the path writes to
+    standard error, and the caller merges the streams, which would corrupt the
+    JSON contract on standard output. [System.IO.File]::Exists returns false for
+    any path it cannot read and never throws.
+#>
+$memoryBankExists = $false
+$memoryBankIndex = $workingDirectory
 
-if (Test-Path -LiteralPath $memoryBankIndex -PathType Leaf) {
+try {
+    $memoryBankIndex = [System.IO.Path]::Combine($workingDirectory, '.memory-bank', 'index.md')
+    $memoryBankExists = [System.IO.File]::Exists($memoryBankIndex)
+} catch {
+    $memoryBankExists = $false
+}
+
+if ($memoryBankExists) {
     $memoryBankState = "A Memory Bank exists at $memoryBankIndex. This probe is authoritative: " +
     'do not conclude that the Memory Bank is absent. Read the index and apply its routing table ' +
     'before the first tool call.'

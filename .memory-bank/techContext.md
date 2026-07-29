@@ -128,6 +128,10 @@ model so a retirement degrades instead of breaking every agent.
   `#requires` fails Pester discovery on an unsupported host, which fails the
   whole run instead of skipping one file. Tag it `Unit` only if it really is
   portable, because the Linux job selects by tag.
+- A hook resolves a payload-supplied path through .NET, never the PowerShell
+  provider. The provider writes to standard error for a path it cannot resolve,
+  and a hook's caller merges the streams, so that noise corrupts the JSON the
+  hook writes to standard output.
 - `tests/QA/module.tests.ps1` enforces the changelog parse, the exported
   command surface, the shipped customization payload, a unit test per exported
   command, zero PSScriptAnalyzer findings per command, and complete
