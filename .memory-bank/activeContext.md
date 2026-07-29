@@ -24,10 +24,14 @@ and a record of what is deployed.
   `Get-CopilotAtelierVersion`, over six private helpers.
   `Setup-CopilotSettings.ps1` remains as a clone entry point shim that
   dot-sources `source/` and installs from the working tree.
-- `.github/workflows/ci.yml`: build and package once on Linux with GitVersion,
-  test the same artifact on Windows PowerShell 5.1, PowerShell 7 on Windows,
-  and PowerShell 7 on Linux, then publish the GitHub release and the Gallery
-  package from `main` behind an explicit repository check.
+- `.github/workflows/ci.yml`: aligned with the shared Sampler CI template used
+  by the sibling repositories (ShellPilot is the reference). A `Package Module`
+  job computes the version with GitVersion, exports every GitVersion property as
+  a step output, stamps `FullSemVer` into the job summary, and uploads `output/`;
+  `Test` reuses that artifact on Linux, macOS, Windows PowerShell 7, and Windows
+  PowerShell 5.1, with the non-Windows legs tag-limited to `Unit` and `QA`;
+  `Deploy Module` publishes from `main` or a `v*` tag behind an upstream-owner
+  check. Secrets are `GitHubToken` and `GalleryApiToken`.
 - `tests/QA/module.tests.ps1` plus `tests/Unit/{Public,Private}/` cover the
   command surface, the shipped payload, help quality, static analysis, and the
   behavior of every exported command.
@@ -62,6 +66,7 @@ and a record of what is deployed.
 
 ## Next step
 
-Verify the GitHub Actions workflow on a real run, add the `GALLERY_API_TOKEN`
-repository secret, and tag the first Gallery release as `v2.0.0` so GitVersion
-anchors on a tag instead of `next-version`.
+Verify the GitHub Actions workflow on a real run, add the `GitHubToken` and
+`GalleryApiToken` repository secrets, and tag the first Gallery release as
+`v2.0.0` so GitVersion anchors on a tag instead of `next-version`. The macOS
+test leg is new and has never run; treat its first execution as unproven.

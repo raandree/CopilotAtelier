@@ -1,5 +1,5 @@
 ---
-applyTo: "**/build.yaml,**/build.ps1,**/RequiredModules.psd1,**/Resolve-Dependency.psd1,**/GitVersion.yml,**/Datum.yml"
+applyTo: "**/build.yaml,**/build.ps1,**/RequiredModules.psd1,**/Resolve-Dependency.psd1,**/GitVersion.yml,**/Datum.yml,**/azure-pipelines.yml,**/.github/workflows/*.yml"
 ---
 
 # Sampler Build Framework — Enforced Rules
@@ -40,6 +40,24 @@ see the **sampler-framework** skill.
 - **`build.ps1` and `Resolve-Dependency.ps1`**: Copy verbatim from a reference project — do not modify
 - **`output/`**: Must be in `.gitignore`
 - **Custom build tasks**: Use `Set-SamplerTaskVariable -AsNewBuild` and the InvokeBuild `property` keyword
+
+---
+
+## CI/CD Rules
+
+A Sampler repository's pipeline is a shared template, not a per-repository
+design. Divergence makes every pipeline a separate thing to learn and debug.
+
+- **Start from the template, never from scratch** — copy the canonical
+  `azure-pipelines.yml` or `.github/workflows/ci.yml` from
+  `references/ci-cd-pipelines.md` in the **sampler-framework** skill, then change
+  only the module name, the owner/organisation guard, and the test matrix.
+- **Three stages, canonical names**: `Package Module` → `Test` → `Deploy Module`
+- **Full history**: `fetch-depth: 0` (Actions) or `Agent.Source.Git.ShallowFetchDepth: 0` (Azure) in **every** job, or GitVersion fails
+- **Secrets are `GitHubToken` and `GalleryApiToken`** — in GitHub Actions this means `${{ secrets.GitHubToken }}`, never the automatic `secrets.GITHUB_TOKEN`, which cannot raise the changelog pull request
+- **Fence the deploy stage** to the upstream owner so a fork never publishes
+- **Ignore `CHANGELOG.md` on push** so the release commit does not retrigger the pipeline
+- **Never put an expression in a step's `shell` key** — that key accepts no context and fails the whole workflow file at compile time; a matrix-driven shell belongs in `jobs.<job_id>.defaults.run`
 
 ---
 

@@ -15,6 +15,26 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-29**: Closed the gap that allowed the CI drift. The
+  `sampler-framework` Skill advertised a GitHub Actions template it never
+  contained, so `references/ci-cd-pipelines.md` gained the canonical
+  `.github/workflows/ci.yml`, a second-edition matrix variant, and an Azure
+  Pipelines to GitHub Actions translation table. `sampler.instructions.md`
+  gained a CI/CD Rules section and now also applies to `azure-pipelines.yml`
+  and `.github/workflows/*.yml`, so the template loads automatically whenever a
+  pipeline is edited. 185 tests pass across the Skill frontmatter, shared
+  lifecycle, and workflow suites.
+- **2026-07-29**: Aligned `.github/workflows/ci.yml` with the shared Sampler CI
+  template used across the sibling repositories, with ShellPilot as the
+  reference. Adopted the documented header, the tag-release `run-name`, the
+  `paths-ignore: CHANGELOG.md` push filter, GitVersion properties exported as
+  job outputs so downstream job names carry the version, `if-no-files-found:
+  error` on the build artifact, the `Package Module` / `Test` / `Deploy Module`
+  naming, `pull-requests: write` on deploy, and the `GitHubToken` /
+  `GalleryApiToken` secret names the repository's own Sampler Skills already
+  document. Kept the two CopilotAtelier-specific deviations: the Windows
+  PowerShell 5.1 matrix leg and the tag-limited non-Windows runs. Added macOS.
+  Dropped the `concurrency` block for template parity.
 - **2026-07-29**: Hardened the `SessionStart` hook probe. It resolved an
   attacker-controlled payload path through `Join-Path` and `Test-Path`, so a
   path this host cannot resolve writes to standard error and corrupts the JSON

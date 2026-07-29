@@ -40,7 +40,7 @@ This rule is backed by a deterministic guardrail, not only by trust. The `PreToo
 - Build and test with `./build.ps1 -Tasks build` and `./build.ps1 -Tasks test`, always through the detached launcher. Add `-ResolveDependency` on the first run.
 - Versioning is GitVersion via [`GitVersion.yml`](GitVersion.yml). Never hand-edit `ModuleVersion` in [`source/CopilotAtelier.psd1`](source/CopilotAtelier.psd1); the build replaces it.
 - Add a new public command as `source/Public/<Verb-Noun>.ps1`, list it in `FunctionsToExport`, give it full comment-based help, and add `tests/Unit/Public/<Verb-Noun>.Tests.ps1`. The QA suite in [`tests/QA/module.tests.ps1`](tests/QA/module.tests.ps1) enforces all four.
-- CI runs in GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)); publishing to the PowerShell Gallery needs the `GALLERY_API_TOKEN` repository secret.
+- CI runs in GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) and follows the same build/test/deploy shape as the other Sampler repositories. Deployment needs the `GitHubToken` and `GalleryApiToken` repository secrets.
 
 ## PowerShell
 

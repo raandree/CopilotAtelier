@@ -275,7 +275,7 @@ The repository is a [Sampler](https://github.com/gaelcolas/Sampler) project. The
 ./build.ps1 -Tasks test
 ```
 
-The version comes from [GitVersion](https://gitversion.net/) via [`GitVersion.yml`](GitVersion.yml), so the built module lands in `output/module/CopilotAtelier/<version>/`. [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the same build on every push and pull request, tests on Windows PowerShell 5.1, PowerShell 7 on Windows, and PowerShell 7 on Linux, and publishes the GitHub release and the Gallery package from `main`. Publishing needs a `GALLERY_API_TOKEN` repository secret.
+The version comes from [GitVersion](https://gitversion.net/) via [`GitVersion.yml`](GitVersion.yml), so the built module lands in `output/module/CopilotAtelier/<version>/`. [`.github/workflows/ci.yml`](.github/workflows/ci.yml) packages once on `ubuntu-latest`, tests that artifact on Linux, macOS, Windows, and Windows PowerShell 5.1, and deploys the GitHub release and the Gallery package from `main`. Deployment needs the `GitHubToken` and `GalleryApiToken` repository secrets.
 
 > [!NOTE]
 > Run `build.ps1` and `Invoke-Pester` in a detached process rather than the VS Code integrated terminal. See [`Instructions/powershell-execution-safety.instructions.md`](Instructions/powershell-execution-safety.instructions.md).

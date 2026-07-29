@@ -1,5 +1,28 @@
----
+# Continuous integration pipeline for CopilotAtelier.
+#
+#   * Build  - calculate the version with GitVersion, build and package the
+#              module, then publish the output/ folder as a build artifact.
+#   * Test   - on Linux, macOS and Windows, reuse the build artifact and run the
+#              Sampler test workflow. Windows repeats the run on Windows
+#              PowerShell 5.1 because the setup entry point still supports it.
+#   * Deploy - on the upstream repository, for pushes to main or v* tags,
+#              publish the release to GitHub and the PowerShell Gallery and
+#              raise the changelog pull request.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   GitHubToken     - personal access token used to create the GitHub release
+#                     and the changelog pull request.
+#   GalleryApiToken - PowerShell Gallery API key used to publish the module.
 name: CI
+
+# Azure DevOps renames each run to the GitVersion number via
+# ##vso[build.updatebuildnumber]. GitHub Actions has no equivalent: run-name is
+# evaluated before any job starts and can only see the github/inputs contexts,
+# so it cannot contain a version GitVersion computes mid-run. The closest we can
+# get is: show the version in the run title for tag releases (the tag IS the
+# version), and stamp the computed GitVersion value into the test/deploy job
+# names and the build job summary on every run (see the build job's outputs).
+run-name: ${{ github.ref_type == 'tag' && format('Release {0}', github.ref_name) || '' }}
 
 on:
   push:
@@ -7,6 +30,9 @@ on:
       - main
     tags:
       - 'v*'
+      - '!v*-*'
+    paths-ignore:
+      - CHANGELOG.md
   pull_request:
     branches:
       - main
@@ -15,76 +41,88 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 env:
-  buildFolderName: output
   buildArtifactName: output
   defaultBranch: main
-  # GitVersion 5.x targets an older .NET runtime than the runner ships.
-  DOTNET_ROLL_FORWARD: Major
-  DOTNET_NOLOGO: 'true'
-  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
 
 jobs:
   build:
-    name: Build and package
+    name: Package Module
     runs-on: ubuntu-latest
-
+    # Expose the GitVersion value to downstream jobs so they can show it in their
+    # display names - the closest GitHub gets to Azure DevOps' run renaming.
+    outputs:
+      fullSemVer: ${{ steps.gitversion.outputs.FullSemVer }}
+      nuGetVersion: ${{ steps.gitversion.outputs.NuGetVersionV2 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # GitVersion needs the full history to calculate a version.
+          # GitVersion needs the full history to calculate the version.
           fetch-depth: 0
 
-      - name: Calculate the module version
+      - name: Calculate ModuleVersion (GitVersion)
+        id: gitversion
         shell: pwsh
+        env:
+          # GitVersion 5.x targets an older .NET; allow it to run on the
+          # runner's newer shared framework.
+          DOTNET_ROLL_FORWARD: LatestMajor
         run: |
           dotnet tool install --global GitVersion.Tool --version 5.*
-          $env:PATH = "$HOME/.dotnet/tools" + [System.IO.Path]::PathSeparator + $env:PATH
-          $gitVersion = dotnet-gitversion | ConvertFrom-Json
-          Write-Host "Module version: $($gitVersion.NuGetVersionV2)"
-          "ModuleVersion=$($gitVersion.NuGetVersionV2)" |
-              Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $env:PATH += [System.IO.Path]::PathSeparator + (Join-Path -Path $HOME -ChildPath '.dotnet/tools')
+          $gitVersionObject = dotnet-gitversion | ConvertFrom-Json
+          $gitVersionObject.PSObject.Properties.ForEach{
+              Write-Host -Object "Setting output '$($_.Name)' with value '$($_.Value)'."
+              "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+          Write-Host -Object "ModuleVersion (FullSemVer): $($gitVersionObject.FullSemVer)"
+          "## CopilotAtelier $($gitVersionObject.FullSemVer)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
-      - name: Build and package the module
+      - name: Build & Package Module
         shell: pwsh
+        env:
+          ModuleVersion: ${{ steps.gitversion.outputs.NuGetVersionV2 }}
         run: ./build.ps1 -ResolveDependency -Tasks pack
 
-      - name: Publish the build artifact
+      - name: Publish Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.buildArtifactName }}
-          path: ${{ env.buildFolderName }}/
+          path: output/
+          if-no-files-found: error
           retention-days: 7
 
   test:
-    name: ${{ matrix.name }}
+    name: Test ${{ needs.build.outputs.fullSemVer }} (${{ matrix.name }})
     needs: build
-
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - name: Windows (PowerShell 7)
+          # The repository also tests Windows-only customizations, so the
+          # non-Windows runners select the module's portable tests by tag.
+          - name: ubuntu-latest
+            artifact: ubuntu-latest
+            os: ubuntu-latest
+            shell: pwsh
+            arguments: "-Tasks test -PesterTag @('Unit','QA')"
+          - name: macos-latest
+            artifact: macos-latest
+            os: macos-latest
+            shell: pwsh
+            arguments: "-Tasks test -PesterTag @('Unit','QA')"
+          - name: windows-latest (PowerShell 7)
+            artifact: windows-latest-pwsh
             os: windows-latest
             shell: pwsh
             arguments: '-Tasks test'
-          - name: Windows (Windows PowerShell 5.1)
+          - name: windows-latest (Windows PowerShell 5.1)
+            artifact: windows-latest-powershell
             os: windows-latest
             shell: powershell
             arguments: '-Tasks test'
-          - name: Linux (PowerShell 7)
-            os: ubuntu-latest
-            shell: pwsh
-            # The repository also tests Windows-only customizations, so Linux
-            # runs the module's own unit and quality tests.
-            arguments: "-Tasks test -PesterTag @('Unit','QA')"
-
-    runs-on: ${{ matrix.os }}
 
     # A step's `shell` key does not accept the matrix context; `defaults.run` is
     # the only place that does.
@@ -98,63 +136,61 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download the build artifact
+      - name: Download Build Artifact
         uses: actions/download-artifact@v4
         with:
           name: ${{ env.buildArtifactName }}
-          path: ${{ env.buildFolderName }}/
+          path: output/
 
-      - name: Run the tests
+      - name: Run Tests
         run: ./build.ps1 ${{ matrix.arguments }}
 
-      - name: Publish the test results
+      - name: Publish Test Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: testResults-${{ matrix.os }}-${{ matrix.shell }}
-          path: ${{ env.buildFolderName }}/testResults/
-          retention-days: 7
-          if-no-files-found: ignore
+          name: CodeCoverage-${{ matrix.artifact }}
+          path: output/testResults/
+          if-no-files-found: warn
 
-  publish:
-    name: Publish the release
-    needs: test
+  deploy:
+    name: Deploy Module ${{ needs.build.outputs.fullSemVer }}
+    needs: [build, test]
     runs-on: ubuntu-latest
-
-    # Never publish from a fork or a pull request.
+    # Only deploy from the upstream repository, for pushes to the default
+    # branch or for version tags.
     if: >-
-      github.event_name != 'pull_request' &&
-      github.repository == 'raandree/CopilotAtelier' &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-
+      github.repository_owner == 'raandree' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     permissions:
       contents: write
-
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Download the build artifact
+      - name: Download Build Artifact
         uses: actions/download-artifact@v4
         with:
           name: ${{ env.buildArtifactName }}
-          path: ${{ env.buildFolderName }}/
+          path: output/
 
-      - name: Publish to GitHub and the PowerShell Gallery
+      - name: Publish Release
         shell: pwsh
         env:
-          GitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          GalleryApiToken: ${{ secrets.GALLERY_API_TOKEN }}
+          GitHubToken: ${{ secrets.GitHubToken }}
+          GalleryApiToken: ${{ secrets.GalleryApiToken }}
+          ModuleVersion: ${{ needs.build.outputs.nuGetVersion }}
           ReleaseBranch: ${{ env.defaultBranch }}
           MainGitBranch: ${{ env.defaultBranch }}
         run: ./build.ps1 -Tasks publish
 
-      - name: Send the changelog pull request
+      - name: Send Changelog PR
         shell: pwsh
         env:
-          GitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          GitHubToken: ${{ secrets.GitHubToken }}
           ReleaseBranch: ${{ env.defaultBranch }}
           MainGitBranch: ${{ env.defaultBranch }}
         run: ./build.ps1 -Tasks Create_ChangeLog_GitHub_PR
