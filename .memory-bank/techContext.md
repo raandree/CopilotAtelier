@@ -1,8 +1,8 @@
 ---
 status: current
-last-verified: 2026-07-24
+last-verified: 2026-07-29
 owner: software-engineer
-source: Setup-CopilotSettings.ps1
+source: build.yaml and source/
 ---
 
 # Tech context
@@ -14,13 +14,43 @@ source: Setup-CopilotSettings.ps1
 | IDE | VS Code | Primary development environment |
 | AI assistant | GitHub Copilot with Claude Opus 5, Opus 4.8 fallback | Code, review, and documentation |
 | Sync | OneDrive | Cross-machine Customization distribution |
+| Distribution | PowerShell Gallery module `CopilotAtelier` | Versioned install and update |
+| Build | Sampler, ModuleBuilder, InvokeBuild | Module build, package, and release |
+| Versioning | GitVersion via `GitVersion.yml` | Semantic version from git history |
+| CI/CD | GitHub Actions (`.github/workflows/ci.yml`) | Build, cross-platform test, publish |
 | Setup | PowerShell 5.1+ | Client configuration and file deployment |
 | Version control | Git | Repository history and collaboration |
-| Tests | Pester 5 | Setup and Customization regression checks |
+| Tests | Pester 5 | Setup, module, and Customization regression checks |
+
+## Module layout
+
+`source/` holds the module: the manifest, an empty placeholder root module that
+ModuleBuilder fills, `Public/` with the three exported commands, and `Private/`
+with the path, link, JSONC, and keybinding helpers. The Customization
+directories stay at the repository root and are copied into the built module by
+`.build/Copy_Customizations_To_Output.build.ps1`, listed under
+`CustomizationDirectory` in `build.yaml`. The built module lands in
+`output/module/CopilotAtelier/<version>/`.
+
+> Sampler 0.120.0 ships a `WorkspaceDependencies` task whose
+> `BuiltModuleSubdirectory` property default is `module`, and InvokeBuild treats
+> an empty string as an unset property. That default therefore wins over
+> `build.yaml`, so `BuiltModuleSubdirectory` must stay `module` or the built
+> module manifest is looked up in the wrong place. Tests match the subdirectory
+> rather than hard-coding it.
+
+| Command | Purpose |
+|---|---|
+| `Install-CopilotAtelier` | Deploy the Customizations, link `~/.copilot`, merge settings and keybindings, write the Deployment record |
+| `Update-CopilotAtelier` | Compare against the Gallery, install a newer version, redeploy |
+| `Get-CopilotAtelierVersion` | Report installed version, deployed version, and currency |
+
+Never hand-edit `ModuleVersion` in `source/CopilotAtelier.psd1`; GitVersion
+supplies it at build time.
 
 ## Deployment boundary
 
-`Setup-CopilotSettings.ps1` deploys only these directories to the Canonical
+`Install-CopilotAtelier` deploys only these directories to the Canonical
 target:
 
 - `Agents/`
@@ -29,9 +59,10 @@ target:
 - `Prompts/`
 - `Hooks/`
 
-The repository-local `.memory-bank/`, `tests/`, `Reference/`, `plugin.json`, and
-documentation are not copied. `Keybindings/keybindings.json` is merged into the
-VS Code user profile.
+The repository-local `.memory-bank/`, `tests/`, `Reference/`, the build system,
+`plugin.json`, and documentation are not copied. `Keybindings/keybindings.json`
+is merged into the VS Code user profile. `.copilotatelier.json` in the Canonical
+target records the deployed version.
 
 ## Discovery model
 
@@ -76,13 +107,22 @@ model so a retirement degrades instead of breaking every agent.
 - Run Pester and build entry points through the detached cross-platform
   launcher under `Skills/long-running-job-monitor/scripts/`.
 - Never block the foreground with `Start-Sleep` or a polling loop.
-- Write transient test and build logs under `$env:TEMP`.
+- Write transient test and build logs under `$env:TEMP`, never `output/`.
 - Never push or mutate remotes without an explicit current-turn request.
 
 ## Validation
 
+- `./build.ps1 -Tasks build, test` is the full gate. Add `-ResolveDependency`
+  on the first run.
+- `tests/QA/module.tests.ps1` enforces the changelog parse, the exported
+  command surface, the shipped customization payload, a unit test per exported
+  command, zero PSScriptAnalyzer findings per command, and complete
+  comment-based help.
+- `tests/Unit/Public/` covers the three exported commands against a sandboxed
+  profile; `tests/Unit/Private/` covers `ConvertFrom-Jsonc` and
+  `Get-CopilotAtelierPath`.
 - `tests/Setup-CopilotSettings.Tests.ps1` covers sandboxed setup behavior and
-  legacy location cleanup.
+  legacy location cleanup through the clone entry point.
 - `tests/SoftwareEngineerAgent.Tests.ps1` enforces the Custom agent prompt
   budget and quality invariants.
 - `tests/LifecycleInstructions.Tests.ps1` enforces one-read Pre-flight behavior.
@@ -117,6 +157,8 @@ Do not duplicate changing inventories here. Use:
 - `Skills/` for available Skills and their trigger descriptions.
 - `Prompts/` for Prompt bindings.
 - `Hooks/` for lifecycle events, hook commands, and the enforcement scripts.
+- `source/CopilotAtelier.psd1` for the exported command surface.
+- `build.yaml` for the build workflow, Pester configuration, and payload list.
 - `plugin.json` for the agent plugin manifest.
 - `README.md` for the user-facing catalog.
 - `CHANGELOG.md` and git history for historical detail.
@@ -124,6 +166,7 @@ Do not duplicate changing inventories here. Use:
 ## Development setup
 
 1. Clone the repository.
-2. Run `Setup-CopilotSettings.ps1`.
+2. Run `Setup-CopilotSettings.ps1` to deploy the working tree, or
+   `./build.ps1 -ResolveDependency -Tasks build, test` to build and validate.
 3. Restart VS Code or reselect the Custom agent.
 4. Verify Customization discovery in Copilot Chat diagnostics.

@@ -2,7 +2,7 @@
 
 Portable operating rules for any AI agent or agentic tool (GitHub Copilot, Claude Code, Codex, Cursor, Copilot CLI, and other AGENTS.md-aware harnesses) working in this repository. This file is the tool-neutral entry point; the authoritative, auto-loaded detail lives in [`Instructions/`](Instructions/) and [`.memory-bank/`](.memory-bank/).
 
-CopilotAtelier is a portable GitHub Copilot customization toolkit: custom agents ([`Agents/`](Agents/)), auto-applied coding instructions ([`Instructions/`](Instructions/)), on-demand skills ([`Skills/`](Skills/)), prompt templates ([`Prompts/`](Prompts/)), and lifecycle hooks ([`Hooks/`](Hooks/)), synced across machines by [`Setup-CopilotSettings.ps1`](Setup-CopilotSettings.ps1).
+CopilotAtelier is a portable GitHub Copilot customization toolkit distributed as a PowerShell module: custom agents ([`Agents/`](Agents/)), auto-applied coding instructions ([`Instructions/`](Instructions/)), on-demand skills ([`Skills/`](Skills/)), prompt templates ([`Prompts/`](Prompts/)), and lifecycle hooks ([`Hooks/`](Hooks/)), deployed by `Install-CopilotAtelier` or, from a clone, by [`Setup-CopilotSettings.ps1`](Setup-CopilotSettings.ps1).
 
 ## Every turn: pre-flight, then post-flight
 
@@ -33,6 +33,14 @@ Classify the turn first. A **non-impacting** turn (pure Q&A, read-only investiga
 **Never run `git push`** (or any remote-mutating git operation) unless the user explicitly asks in the current turn. Local commits and branches are fine; pushing, force-pushing, and PR creation require explicit per-turn authorization. Do not bypass hooks (for example `--no-verify`).
 
 This rule is backed by a deterministic guardrail, not only by trust. The `PreToolUse` hook in [`Hooks/`](Hooks/) blocks push, `--no-verify`, `git reset --hard`, forced clean, and GitHub CLI resource mutation with exit code 2. It matches patterns in the command string, so treat it as defense in depth that removes the accidental path rather than as a containment boundary — the rule above still binds you. When the user authorizes a remote mutation, set `COPILOT_ATELIER_ALLOW_REMOTE=1` for that command and unset it afterwards. Never rewrite a command to evade the check.
+
+## Build
+
+- The repository is a [Sampler](https://github.com/gaelcolas/Sampler) project. Module sources live in `source/`; the customization directories stay at the repository root and are copied into the built module by the `Copy_Customizations_To_Output` task in [`.build/`](.build/).
+- Build and test with `./build.ps1 -Tasks build` and `./build.ps1 -Tasks test`, always through the detached launcher. Add `-ResolveDependency` on the first run.
+- Versioning is GitVersion via [`GitVersion.yml`](GitVersion.yml). Never hand-edit `ModuleVersion` in [`source/CopilotAtelier.psd1`](source/CopilotAtelier.psd1); the build replaces it.
+- Add a new public command as `source/Public/<Verb-Noun>.ps1`, list it in `FunctionsToExport`, give it full comment-based help, and add `tests/Unit/Public/<Verb-Noun>.Tests.ps1`. The QA suite in [`tests/QA/module.tests.ps1`](tests/QA/module.tests.ps1) enforces all four.
+- CI runs in GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)); publishing to the PowerShell Gallery needs the `GALLERY_API_TOKEN` repository secret.
 
 ## PowerShell
 

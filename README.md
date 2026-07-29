@@ -17,15 +17,37 @@ well-known `~/.copilot/` folders that VS Code and the Copilot CLI both read.
 <br clear="left">
 <!-- markdownlint-enable MD033 -->
 
+## Quick Start
+
+You need PowerShell 5.1 or later, VS Code, and the GitHub Copilot Chat extension. No elevation is required.
+
+```powershell
+Install-Module -Name CopilotAtelier -Scope CurrentUser
+Install-CopilotAtelier -InformationAction Continue
+```
+
+Restart VS Code. That is the whole setup — the agents appear in the Chat agent dropdown, skills and prompts appear under `/`, and instructions apply automatically to files matching their `applyTo` glob.
+
+Keep it current with one command:
+
+```powershell
+Update-CopilotAtelier -InformationAction Continue
+```
+
+> [!NOTE]
+> The Gallery package is not published yet — `2.0.0` is the first planned release. Until then use the [repository clone](#2-repository-clone) or the [agent plugin](#3-agent-plugin) path.
+
+Full detail: [Setup on a New Machine](#setup-on-a-new-machine) · [Verifying It Works](#verifying-it-works) · [Building from Source](#building-from-source).
+
 ## Purpose
 
 VS Code's GitHub Copilot — and the GitHub Copilot CLI — both look for custom agents, instructions, skills, and prompt files under `%USERPROFILE%\.copilot\{agents,instructions,skills,prompts}`. By default these stay local to a single machine and never sync.
 
-CopilotAtelier solves that by storing the canonical files in a single, repo-derived folder (preferring OneDrive for cross-machine sync) and then linking the well-known `~/.copilot/*` discovery folders to that target with NTFS junctions. Write an agent once, use it from both the VS Code Copilot chat extension and the Copilot CLI, on every machine.
+CopilotAtelier solves that by storing the canonical files in a single folder named after the module (preferring OneDrive for cross-machine sync) and then linking the well-known `~/.copilot/*` discovery folders to that target with NTFS junctions. Write an agent once, use it from both the VS Code Copilot chat extension and the Copilot CLI, on every machine.
 
-No `chat.*FilesLocations` settings are written for agents, instructions, or skills — those three are auto-discovered by both clients via the junctions. Prompts are the exception: the VS Code chat extension does not auto-discover `~/.copilot/prompts`, so the script writes a single `chat.promptFilesLocations` entry for that one path. The CLI auto-discovers it on its own. Setup removes repo-owned location entries written by older releases so the same Instruction is not registered through both OneDrive and `~/.copilot`; unrelated user locations are preserved.
+No `chat.*FilesLocations` settings are written for agents, instructions, or skills — those three are auto-discovered by both clients via the junctions. Prompts are the exception: the VS Code chat extension does not auto-discover `~/.copilot/prompts`, so a single `chat.promptFilesLocations` entry is written for that one path. The CLI auto-discovers it on its own. Installation removes repo-owned location entries written by older releases so the same Instruction is not registered through both OneDrive and `~/.copilot`; unrelated user locations are preserved.
 
-Only one canonical location is populated per machine (no duplicate mirror). If a previous version of the script left a stale local mirror behind, the new run cleans it up automatically when OneDrive is present.
+Only one canonical location is populated per machine (no duplicate mirror). If an earlier release left a stale local mirror behind, the next run cleans it up when OneDrive is present.
 
 ## Folder Structure
 
@@ -39,7 +61,7 @@ Only one canonical location is populated per machine (no duplicate mirror). If a
 └── Hooks/           # Lifecycle hooks (hook config JSON plus scripts)
 ```
 
-The folder name is derived from the repository clone, so renaming the clone renames the synced layout automatically. Repository-only content such as `.memory-bank/`, `tests/`, `Reference/`, the Setup script, and documentation is not copied into the Canonical target. `Keybindings/keybindings.json` is merged into the VS Code user profile rather than copied there.
+The folder name of the canonical target is `CopilotAtelier`, matching the module name. Repository-only content such as `.memory-bank/`, `tests/`, `Reference/`, the build system, and documentation is not copied into the Canonical target. `Keybindings/keybindings.json` is merged into the VS Code user profile rather than copied there.
 
 ## What Each Folder Contains
 
@@ -92,11 +114,11 @@ The folder name is derived from the repository clone, so renaming the clone rena
 
 ## VS Code Settings Applied
 
-The setup script configures the following in `settings.json`:
+`Install-CopilotAtelier` configures the following in `settings.json`:
 
 ### File Locations
 
-Discovery is junction-based for agents, instructions, and skills — the script does not write `chat.agentFilesLocations`, `chat.instructionsFilesLocations`, or `chat.agentSkillsLocations` because both the VS Code Copilot chat extension and the GitHub Copilot CLI auto-discover the well-known `~/.copilot/{agents,instructions,skills}` paths. Setup removes the historical `~/CopilotAtelier/*` and `~/OneDrive/CopilotAtelier/*` entries for this repository while preserving unrelated user locations. Prompts are the exception: VS Code Copilot Chat reads prompts only from `%APPDATA%\Code\User\prompts` and from paths listed in `chat.promptFilesLocations` (only the CLI auto-discovers `~/.copilot/prompts`), so the script writes a single `chat.promptFilesLocations` entry for `${userHome}/.copilot/prompts`. The script copies the four Customization folders to one Canonical target and creates NTFS junctions under `%USERPROFILE%\.copilot\` so both clients see the same files:
+Discovery is junction-based for agents, instructions, and skills — `chat.agentFilesLocations`, `chat.instructionsFilesLocations`, and `chat.agentSkillsLocations` are not written, because both the VS Code Copilot chat extension and the GitHub Copilot CLI auto-discover the well-known `~/.copilot/{agents,instructions,skills}` paths. Installation removes the historical `~/CopilotAtelier/*` and `~/OneDrive/CopilotAtelier/*` entries for this repository while preserving unrelated user locations. Prompts are the exception: VS Code Copilot Chat reads prompts only from `%APPDATA%\Code\User\prompts` and from paths listed in `chat.promptFilesLocations` (only the CLI auto-discovers `~/.copilot/prompts`), so a single `chat.promptFilesLocations` entry is written for `${userHome}/.copilot/prompts`. The five Customization folders are copied to one Canonical target and NTFS junctions are created under `%USERPROFILE%\.copilot\` so both clients see the same files:
 
 ```text
 %USERPROFILE%\.copilot\agents       --> <target>\Agents
@@ -155,6 +177,61 @@ The setup script merges the bindings in [`Keybindings/keybindings.json`](Keybind
 
 ## Setup on a New Machine
 
+There are three installation paths. The PowerShell Gallery is the recommended one because it carries every customization type and brings versioning and an update command with it.
+
+### 1. PowerShell Gallery (recommended)
+
+```powershell
+Install-Module -Name CopilotAtelier -Scope CurrentUser
+Install-CopilotAtelier -InformationAction Continue
+```
+
+The module ships `Agents`, `Instructions`, `Skills`, `Prompts`, `Hooks`, and `Keybindings` as part of its payload, so a Gallery install carries the same content as a repository clone.
+
+| Command | Purpose |
+|---|---|
+| `Install-CopilotAtelier` | Deploys the customizations to the canonical target, links the `~/.copilot` discovery folders, and merges the VS Code settings and keybindings. |
+| `Update-CopilotAtelier` | Checks the Gallery for a newer version, installs it, and redeploys. `-Force` redeploys the current version; `-SkipDeployment` stages the update for later. |
+| `Get-CopilotAtelierVersion` | Reports the installed module version, the deployed version, and whether the deployment is current. |
+
+Both `Install-CopilotAtelier` and `Update-CopilotAtelier` write their progress to the information stream, so add `-InformationAction Continue` when you want to watch each step.
+
+Useful switches:
+
+| Switch | Effect |
+|---|---|
+| `-IncludeClaudeCodeLinks` | Also links `~/.claude/skills` and `~/.agents/skills`. Off by default; see [Claude Code and Agent Skills clients](#claude-code-and-agent-skills-clients-opt-in). |
+| `-SkipCopilotCliEnvironment` | Leaves `COPILOT_ALLOW_ALL` alone. Installation otherwise sets it to `1` at User scope, which is what stops the GitHub Copilot CLI prompting for every tool call. |
+| `-WhatIf` | Reports what would change without touching anything. |
+
+Run `Get-Help Install-CopilotAtelier -Full` for the complete parameter reference.
+
+#### Staying up to date
+
+```powershell
+Update-CopilotAtelier -InformationAction Continue
+```
+
+`Update-CopilotAtelier` compares the installed version against the Gallery, installs a newer one if there is one, and then redeploys from it, so the discovery folders always match the module you have. Use `-Force` to redeploy the current version and `-SkipDeployment` to stage an update you will deploy later.
+
+`Get-CopilotAtelierVersion` answers "is what I have actually deployed?":
+
+```text
+Version         : 2.0.0
+DeployedVersion : 2.0.0
+DeployedOn      : 2026-07-29 10:12:44
+TargetPath      : C:\Users\you\OneDrive\CopilotAtelier
+IsCurrent       : True
+```
+
+`IsCurrent : False` means the module was updated but the customizations on disk still come from an older version — run `Install-CopilotAtelier` to catch them up. The values come from `<target>/.copilotatelier.json`, which every deployment rewrites.
+
+#### More than one machine
+
+When OneDrive is present the canonical target lives inside it, so a second machine that already syncs the folder still needs its own `Install-CopilotAtelier` run to create the `~/.copilot` links and patch VS Code. After that, editing an agent in the synced folder propagates on its own; a module update needs `Update-CopilotAtelier` on each machine.
+
+### 2. Repository clone
+
 1. Clone this repository (or sign into OneDrive if you already keep a synced clone there).
 2. Open PowerShell and run the setup script from the cloned location, for example:
 
@@ -166,11 +243,15 @@ The setup script merges the bindings in [`Keybindings/keybindings.json`](Keybind
 & "$env:USERPROFILE\OneDrive\CopilotAtelier\Setup-CopilotSettings.ps1"
 ```
 
-The script copies the contents of the clone into `~/OneDrive/CopilotAtelier/` when OneDrive is detected, or into `~/CopilotAtelier/` otherwise, then creates NTFS junctions at `~/.copilot/{agents,instructions,skills,prompts,hooks}` pointing to that target so both the VS Code Copilot chat extension and the GitHub Copilot CLI pick up the same files. It also patches your VS Code `settings.json` and `keybindings.json` idempotently with timestamped backups. If a stale `~/CopilotAtelier/` mirror exists from a previous dual-copy run, the script removes it when OneDrive is now used. If a pre-existing non-empty folder is found at any of the link paths, the script asks before deleting it (and copies its contents into the target first).
+[`Setup-CopilotSettings.ps1`](Setup-CopilotSettings.ps1) dot-sources the module commands from `source/` and runs `Install-CopilotAtelier` against the clone, so the working tree is deployed without building or installing the module first.
 
 3. Restart VS Code.
 
-## Install as an Agent Plugin
+### What either path does
+
+The customizations are copied into `~/OneDrive/CopilotAtelier/` when OneDrive is detected, or into `~/CopilotAtelier/` otherwise. NTFS junctions (symbolic links on macOS and Linux) at `~/.copilot/{agents,instructions,skills,prompts,hooks}` then point to that target, so both the VS Code Copilot chat extension and the GitHub Copilot CLI pick up the same files. Your VS Code `settings.json` and `keybindings.json` are patched idempotently with timestamped backups, and the deployed version is recorded in `<target>/.copilotatelier.json`. If a stale `~/CopilotAtelier/` mirror exists from a previous dual-copy run, it is removed when OneDrive is now used. If a pre-existing non-empty folder is found at any of the link paths, you are asked before it is deleted (and its contents are copied into the target first).
+
+### 3. Agent plugin
 
 [`plugin.json`](plugin.json) also publishes the Agents and Skills as an agent plugin, which installs directly from the Git URL in VS Code, the GitHub Copilot CLI, and Claude Code:
 
@@ -179,7 +260,25 @@ The script copies the contents of the clone into `~/OneDrive/CopilotAtelier/` wh
 
 Plugin-provided skills appear as `/copilot-atelier:<skill>` and update automatically when VS Code checks for extension updates.
 
-The plugin format does not carry `.instructions.md` files or hooks, so this path gives you agents and skills only. Run the setup script when you also want the Instructions and the deterministic hook guardrails. The two paths are complementary.
+The plugin format does not carry `.instructions.md` files or hooks, so this path gives you agents and skills only. Install the module from the Gallery when you also want the Instructions and the deterministic hook guardrails. The paths are complementary.
+
+## Building from Source
+
+The repository is a [Sampler](https://github.com/gaelcolas/Sampler) project. The module sources live in `source/`, the customization directories stay at the repository root, and the `Copy_Customizations_To_Output` build task copies them into the built module.
+
+```powershell
+# First run; resolves the build dependencies into output/RequiredModules
+./build.ps1 -ResolveDependency -Tasks build
+
+# Subsequent runs
+./build.ps1 -Tasks build
+./build.ps1 -Tasks test
+```
+
+The version comes from [GitVersion](https://gitversion.net/) via [`GitVersion.yml`](GitVersion.yml), so the built module lands in `output/module/CopilotAtelier/<version>/`. [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the same build on every push and pull request, tests on Windows PowerShell 5.1, PowerShell 7 on Windows, and PowerShell 7 on Linux, and publishes the GitHub release and the Gallery package from `main`. Publishing needs a `GALLERY_API_TOKEN` repository secret.
+
+> [!NOTE]
+> Run `build.ps1` and `Invoke-Pester` in a detached process rather than the VS Code integrated terminal. See [`Instructions/powershell-execution-safety.instructions.md`](Instructions/powershell-execution-safety.instructions.md).
 
 ## Verifying It Works
 

@@ -1,0 +1,130 @@
+---
+####################################################
+#          ModuleBuilder Configuration             #
+####################################################
+
+# The customization directories are the payload of this module: they are copied
+# verbatim into the built module by the Copy_Customizations_To_Output task so a
+# Gallery install carries the same content as a repository clone.
+CopyPaths: []
+Encoding: UTF8
+VersionedOutputDirectory: true
+# Sampler 0.120.0 changed this to 'module'. Its WorkspaceDependencies task
+# declares 'module' as the property default, which wins over this setting, so
+# the two must agree or the built module manifest is looked up in the wrong place.
+BuiltModuleSubdirectory: module
+
+####################################################
+#      ModuleBuilder Dependent Modules             #
+####################################################
+
+RequiredModulesDirectory: output/RequiredModules
+
+####################################################
+#          Customization Payload                   #
+####################################################
+
+# Copied verbatim into the built module by Copy_Customizations_To_Output.
+CustomizationDirectory:
+  - Agents
+  - Instructions
+  - Skills
+  - Prompts
+  - Hooks
+  - Keybindings
+
+####################################################
+#       Sampler Pipeline Configuration             #
+####################################################
+
+BuildWorkflow:
+  '.':
+    - build
+    - test
+
+  build:
+    - Clean
+    - Build_Module_ModuleBuilder
+    - Copy_Customizations_To_Output
+    - Build_NestedModules_ModuleBuilder
+    - Create_Changelog_Release_Output
+
+  pack:
+    - build
+    - package_module_nupkg
+
+  test:
+    - Pester_Tests_Stop_On_Fail
+    - Convert_Pester_Coverage
+    - Pester_If_Code_Coverage_Under_Threshold
+
+  publish:
+    - Publish_Release_To_GitHub
+    - Publish_Module_To_gallery
+
+####################################################
+#            Sampler Build Tasks                   #
+####################################################
+
+ModuleBuildTasks:
+  Sampler:
+    - '*.build.Sampler.ib.tasks'
+  Sampler.GitHubTasks:
+    - '*.ib.tasks'
+
+TaskHeader: |
+  param($Path)
+  ""
+  "=" * 79
+  Write-Build Cyan "`t`t`t$($Task.Name.replace("_"," ").ToUpper())"
+  Write-Build DarkGray "$(Get-BuildSynopsis $Task)"
+  "-" * 79
+  Write-Build DarkGray "  $Path"
+  Write-Build DarkGray "  $($Task.InvocationInfo.ScriptName):$($Task.InvocationInfo.ScriptLineNumber)"
+  ""
+
+####################################################
+#              Pester Configuration                #
+####################################################
+
+Pester:
+  Configuration:
+    Run:
+      Path:
+        - tests
+    Output:
+      Verbosity: Detailed
+    CodeCoverage:
+      Enabled: true
+      Path:
+        - output/module/CopilotAtelier/*/CopilotAtelier.psm1
+      OutputPath: JaCoCo_coverage.xml
+      OutputEncoding: ascii
+      # Measured at 70.77 percent. Raise this as the module surface grows.
+      CoveragePercentTarget: 65
+    TestResult:
+      Enabled: true
+      OutputPath: NUnitXml_CopilotAtelier.xml
+      OutputEncoding: ascii
+      TestSuiteName: CopilotAtelier
+  ExcludeFromCodeCoverage: []
+
+####################################################
+#            Dependency Resolution                 #
+####################################################
+
+Resolve-Dependency:
+  Gallery: PSGallery
+  AllowPrerelease: false
+  Verbose: false
+
+####################################################
+#                 GitHub Release                   #
+####################################################
+
+GitHubConfig:
+  GitHubFilesToAdd:
+    - CHANGELOG.md
+  GitHubConfigUserName: raandree
+  GitHubConfigUserEmail: raandree@users.noreply.github.com
+  UpdateChangelogOnPrerelease: false

@@ -1,0 +1,155 @@
+---
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  buildFolderName: output
+  buildArtifactName: output
+  defaultBranch: main
+  # GitVersion 5.x targets an older .NET runtime than the runner ships.
+  DOTNET_ROLL_FORWARD: Major
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  build:
+    name: Build and package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # GitVersion needs the full history to calculate a version.
+          fetch-depth: 0
+
+      - name: Calculate the module version
+        shell: pwsh
+        run: |
+          dotnet tool install --global GitVersion.Tool --version 5.*
+          $env:PATH = "$HOME/.dotnet/tools" + [System.IO.Path]::PathSeparator + $env:PATH
+          $gitVersion = dotnet-gitversion | ConvertFrom-Json
+          Write-Host "Module version: $($gitVersion.NuGetVersionV2)"
+          "ModuleVersion=$($gitVersion.NuGetVersionV2)" |
+              Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build and package the module
+        shell: pwsh
+        run: ./build.ps1 -ResolveDependency -Tasks pack
+
+      - name: Publish the build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.buildArtifactName }}
+          path: ${{ env.buildFolderName }}/
+          retention-days: 7
+
+  test:
+    name: ${{ matrix.name }}
+    needs: build
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows (PowerShell 7)
+            os: windows-latest
+            shell: pwsh
+            arguments: '-Tasks test'
+          - name: Windows (Windows PowerShell 5.1)
+            os: windows-latest
+            shell: powershell
+            arguments: '-Tasks test'
+          - name: Linux (PowerShell 7)
+            os: ubuntu-latest
+            shell: pwsh
+            # The repository also tests Windows-only customizations, so Linux
+            # runs the module's own unit and quality tests.
+            arguments: "-Tasks test -PesterTag @('Unit','QA')"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download the build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.buildArtifactName }}
+          path: ${{ env.buildFolderName }}/
+
+      - name: Run the tests
+        shell: ${{ matrix.shell }}
+        run: ./build.ps1 ${{ matrix.arguments }}
+
+      - name: Publish the test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testResults-${{ matrix.os }}-${{ matrix.shell }}
+          path: ${{ env.buildFolderName }}/testResults/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  publish:
+    name: Publish the release
+    needs: test
+    runs-on: ubuntu-latest
+
+    # Never publish from a fork or a pull request.
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.repository == 'raandree/CopilotAtelier' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download the build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.buildArtifactName }}
+          path: ${{ env.buildFolderName }}/
+
+      - name: Publish to GitHub and the PowerShell Gallery
+        shell: pwsh
+        env:
+          GitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          GalleryApiToken: ${{ secrets.GALLERY_API_TOKEN }}
+          ReleaseBranch: ${{ env.defaultBranch }}
+          MainGitBranch: ${{ env.defaultBranch }}
+        run: ./build.ps1 -Tasks publish
+
+      - name: Send the changelog pull request
+        shell: pwsh
+        env:
+          GitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          ReleaseBranch: ${{ env.defaultBranch }}
+          MainGitBranch: ${{ env.defaultBranch }}
+        run: ./build.ps1 -Tasks Create_ChangeLog_GitHub_PR

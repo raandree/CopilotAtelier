@@ -1,0 +1,434 @@
+function Install-CopilotAtelier
+{
+    <#
+        .SYNOPSIS
+            Deploys the Copilot customizations and configures the VS Code client.
+
+        .DESCRIPTION
+            Copies the Agents, Instructions, Skills, Prompts, and Hooks
+            directories to the canonical target, links the well-known
+            ~/.copilot discovery folders to that target, merges the VS Code
+            settings and keybindings, and records the deployed version.
+
+            The canonical target is ~/OneDrive/CopilotAtelier when OneDrive is
+            available and ~/CopilotAtelier otherwise. The command is idempotent:
+            it removes obsolete location aliases without disturbing user-defined
+            entries, tolerates comments in the VS Code configuration files, and
+            creates a timestamped backup of every file it rewrites.
+
+            Progress is written to the information stream. Run with
+            -InformationAction Continue to see it.
+
+        .PARAMETER ContentPath
+            The directory that holds the customization directories. Defaults to
+            the module base, or the repository root when the source files are
+            dot-sourced during development.
+
+        .PARAMETER SkipCopilotCliEnvironment
+            Skips the user-scoped COPILOT_ALLOW_ALL configuration. Intended for
+            sandboxed tests that must not mutate the host user profile.
+
+        .PARAMETER IncludeClaudeCodeLinks
+            Additionally links ~/.claude/skills and ~/.agents/skills to the
+            Skills directory so Claude Code and other agentskills.io clients
+            discover the same library. Off by default: VS Code reads all three
+            user-level skill locations, so enabling this registers every Skill
+            more than once in VS Code. Create-only, because an existing path
+            belongs to that other tool.
+
+        .OUTPUTS
+            System.Management.Automation.PSCustomObject
+
+        .EXAMPLE
+            Install-CopilotAtelier -InformationAction Continue
+
+            Deploys the customizations and prints each step.
+
+        .EXAMPLE
+            Install-CopilotAtelier -IncludeClaudeCodeLinks
+
+            Also exposes the Skills directory to Claude Code.
+
+        .LINK
+            https://github.com/raandree/CopilotAtelier
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
+    [OutputType([System.Management.Automation.PSCustomObject])]
+    param
+    (
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [System.String]
+        $ContentPath,
+
+        [Parameter()]
+        [System.Management.Automation.SwitchParameter]
+        $SkipCopilotCliEnvironment,
+
+        [Parameter()]
+        [System.Management.Automation.SwitchParameter]
+        $IncludeClaudeCodeLinks
+    )
+
+    $ErrorActionPreference = 'Stop'
+
+    if (-not $PSBoundParameters.ContainsKey('ContentPath'))
+    {
+        $ContentPath = Get-CopilotAtelierContentPath
+    }
+
+    # The directories deployed to the canonical target, in discovery-link order.
+    $customizationDirectory = [ordered] @{
+        Agents       = 'agents'
+        Instructions = 'instructions'
+        Skills       = 'skills'
+        Prompts      = 'prompts'
+        Hooks        = 'hooks'
+    }
+
+    $presentDirectory = @(
+        $customizationDirectory.Keys |
+            Where-Object -FilterScript {
+                Test-Path -LiteralPath (Join-Path -Path $ContentPath -ChildPath $_) -PathType Container
+            }
+    )
+
+    if (-not $presentDirectory)
+    {
+        throw "No customization directory found under '$ContentPath'. Expected at least one of: $($customizationDirectory.Keys -join ', ')."
+    }
+
+    $path = Get-CopilotAtelierPath
+    $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+
+    if (-not (Test-Path -LiteralPath $path.SettingsDirectory))
+    {
+        New-Item -ItemType Directory -Path $path.SettingsDirectory -Force | Out-Null
+
+        Write-Information -MessageData "Created VS Code User directory: $($path.SettingsDirectory)"
+    }
+
+    if (-not (Test-Path -LiteralPath $path.SettingsPath))
+    {
+        Write-Information -MessageData "VS Code settings file not found at $($path.SettingsPath) - creating a new one."
+
+        '{}' | Set-Content -LiteralPath $path.SettingsPath -Encoding UTF8
+
+        $settingsText = '{}'
+    }
+    else
+    {
+        $settingsBackupPath = '{0}.{1}.bak' -f $path.SettingsPath, $timestamp
+
+        Copy-Item -LiteralPath $path.SettingsPath -Destination $settingsBackupPath -Force
+
+        Write-Information -MessageData "Backup created: $settingsBackupPath"
+
+        $settingsText = Get-Content -LiteralPath $path.SettingsPath -Raw
+    }
+
+    $settings = ConvertFrom-Jsonc -Text $settingsText
+
+    if ($null -eq $settings)
+    {
+        $settings = [PSCustomObject] @{}
+    }
+
+    if ($path.OneDriveRoot)
+    {
+        Write-Information -MessageData "OneDrive detected at: $($path.OneDriveRoot) - target tree will live there."
+    }
+    else
+    {
+        Write-Information -MessageData "OneDrive not found - target tree will live under $($path.TargetPath)."
+    }
+
+    <#
+        Remove aliases written by releases that predate ~/.copilot discovery.
+        Unrelated locations remain available to the user.
+    #>
+    $legacyLocationSetting = [ordered] @{
+        'chat.agentFilesLocations'        = 'Agents'
+        'chat.instructionsFilesLocations' = 'Instructions'
+        'chat.agentSkillsLocations'       = 'Skills'
+        'chat.promptFilesLocations'       = 'Prompts'
+    }
+
+    foreach ($location in $legacyLocationSetting.GetEnumerator())
+    {
+        $removeLocationSettingEntry = @{
+            Settings     = $settings
+            PropertyName = $location.Key
+            Entry        = @(
+                '~/{0}/{1}' -f $path.TargetName, $location.Value
+                '~/OneDrive/{0}/{1}' -f $path.TargetName, $location.Value
+            )
+        }
+
+        Remove-LocationSettingEntry @removeLocationSettingEntry
+    }
+
+    <#
+        `github.copilot.advanced` is the completions bag and has no documented
+        `model` member, so earlier releases wrote a value Copilot never consumed.
+    #>
+    $settings.PSObject.Properties.Remove('github.copilot.advanced.model')
+
+    $settingValue = [ordered] @{
+        'chat.includeApplyingInstructions'               = $true
+        'chat.includeReferencedInstructions'             = $true
+        'gitlens.ai.vscode.model'                        = 'copilot:claude-opus-5'
+        'github.copilot.chat.agent.thinkingTool'         = $true
+        'github.copilot.chat.search.semanticTextResults' = $true
+        'github.copilot.chat.skillTool.enabled'          = $true
+        'github.copilot.chat.agent.maxRequests'          = 500
+    }
+
+    foreach ($setting in $settingValue.GetEnumerator())
+    {
+        $settings |
+            Add-Member -NotePropertyName $setting.Key -NotePropertyValue $setting.Value -Force
+    }
+
+    <#
+        Unlike agents, instructions, skills, and hooks, the chat extension does
+        not auto-discover ~/.copilot/prompts - it reads the per-profile prompts
+        folder plus the paths listed in this setting. Merge so user-added prompt
+        locations survive.
+    #>
+    Merge-LocationSetting -Settings $settings -PropertyName 'chat.promptFilesLocations' -NewEntry @{
+        '~/.copilot/prompts' = $true
+    }
+
+    <#
+        ~/.copilot/hooks is a well-known user location, but naming it explicitly
+        keeps discovery working if the implicit default changes.
+    #>
+    Merge-LocationSetting -Settings $settings -PropertyName 'chat.hookFilesLocations' -NewEntry @{
+        '~/.copilot/hooks' = $true
+    }
+
+    if ($PSCmdlet.ShouldProcess($path.SettingsPath, 'Write VS Code settings'))
+    {
+        $settings |
+            ConvertTo-Json -Depth 10 |
+            Set-Content -LiteralPath $path.SettingsPath -Encoding UTF8
+    }
+
+    <#
+        Only one location is populated: OneDrive when available, otherwise the
+        user profile. A stale local copy from an earlier run is removed when
+        OneDrive is now in use.
+    #>
+    if ($path.OneDriveRoot -and (Test-Path -LiteralPath $path.LegacyLocalPath))
+    {
+        Remove-Item -LiteralPath $path.LegacyLocalPath -Recurse -Force
+
+        Write-Information -MessageData "Removed legacy local copy: $($path.LegacyLocalPath)"
+    }
+
+    foreach ($directoryName in $customizationDirectory.Keys)
+    {
+        $destination = Join-Path -Path $path.TargetPath -ChildPath $directoryName
+
+        if (Test-Path -LiteralPath $destination)
+        {
+            Remove-Item -LiteralPath $destination -Recurse -Force
+
+            Write-Information -MessageData "Cleared: $destination"
+        }
+
+        New-Item -ItemType Directory -Path $destination -Force | Out-Null
+
+        Write-Information -MessageData "Created: $destination"
+
+        $source = Join-Path -Path $ContentPath -ChildPath $directoryName
+
+        if (Test-Path -LiteralPath $source)
+        {
+            Copy-Item -Path (Join-Path -Path $source -ChildPath '*') -Destination $destination -Recurse -Force
+
+            Write-Information -MessageData "Copied:  $source -> $destination"
+        }
+        else
+        {
+            Write-Information -MessageData "Skipped: $source (not found in the module content)"
+        }
+    }
+
+    $moduleVersion = $ExecutionContext.SessionState.Module.Version
+    $deployedVersion = $null
+
+    if ($moduleVersion)
+    {
+        $deployedVersion = $moduleVersion.ToString()
+    }
+
+    $deployment = [PSCustomObject] @{
+        Version     = $deployedVersion
+        InstalledOn = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+        ContentPath = $ContentPath
+    }
+
+    if ($PSCmdlet.ShouldProcess($path.DeploymentManifestPath, 'Record the deployed version'))
+    {
+        $deployment |
+            ConvertTo-Json -Depth 3 |
+            Set-Content -LiteralPath $path.DeploymentManifestPath -Encoding UTF8
+    }
+
+    foreach ($directoryName in $customizationDirectory.Keys)
+    {
+        $setCustomizationLink = @{
+            LinkPath     = Join-Path -Path $path.CopilotRoot -ChildPath $customizationDirectory[$directoryName]
+            TargetPath   = Join-Path -Path $path.TargetPath -ChildPath $directoryName
+            LinkItemType = $path.LinkItemType
+        }
+
+        Set-CustomizationLink @setCustomizationLink
+    }
+
+    <#
+        Opt-in and create-only. VS Code reads ~/.copilot/skills, ~/.claude/skills,
+        and ~/.agents/skills, so these links register every Skill more than once
+        in VS Code. An existing path belongs to that other tool: adopting it would
+        move the user's own skills into a tree the next run rebuilds.
+    #>
+    if ($IncludeClaudeCodeLinks)
+    {
+        Write-Information -MessageData 'Claude Code links requested: VS Code will register Skills from more than one location.'
+
+        $claudeCodeLinkPath = @(
+            Join-Path -Path (Join-Path -Path $path.UserHome -ChildPath '.claude') -ChildPath 'skills'
+            Join-Path -Path (Join-Path -Path $path.UserHome -ChildPath '.agents') -ChildPath 'skills'
+        )
+
+        foreach ($linkPath in $claudeCodeLinkPath)
+        {
+            $setCustomizationLink = @{
+                LinkPath     = $linkPath
+                TargetPath   = Join-Path -Path $path.TargetPath -ChildPath 'Skills'
+                LinkItemType = $path.LinkItemType
+                CreateOnly   = $true
+            }
+
+            Set-CustomizationLink @setCustomizationLink
+        }
+    }
+
+    <#
+        `gh copilot` consults COPILOT_ALLOW_ALL=1 to bypass the per-tool
+        confirmation prompts that otherwise block non-interactive use of the
+        custom agents and skills. Persisted at User scope so every new shell
+        picks it up; the process variable is set too so the change is visible
+        without opening a new shell.
+    #>
+    $copilotEnvironmentName = 'COPILOT_ALLOW_ALL'
+    $copilotEnvironmentValue = '1'
+
+    if ($SkipCopilotCliEnvironment)
+    {
+        Write-Verbose -Message "Skipped environment variable: $copilotEnvironmentName (requested)"
+    }
+    elseif ($PSCmdlet.ShouldProcess($copilotEnvironmentName, 'Set the Copilot CLI environment variable'))
+    {
+        $existingValue = [System.Environment]::GetEnvironmentVariable($copilotEnvironmentName, 'User')
+
+        if ($existingValue -eq $copilotEnvironmentValue)
+        {
+            Write-Information -MessageData "Environment variable already set: $copilotEnvironmentName=$copilotEnvironmentValue (User)"
+        }
+        else
+        {
+            [System.Environment]::SetEnvironmentVariable($copilotEnvironmentName, $copilotEnvironmentValue, 'User')
+
+            Write-Information -MessageData "Environment variable set: $copilotEnvironmentName=$copilotEnvironmentValue (User)"
+            Write-Information -MessageData '  Open a new shell to pick up the change in other sessions.'
+        }
+
+        [System.Environment]::SetEnvironmentVariable($copilotEnvironmentName, $copilotEnvironmentValue, 'Process')
+    }
+
+    <#
+        Idempotent keybinding merge: match on the (key, command, when) tuple so
+        re-runs do not duplicate entries and user-added bindings are preserved.
+    #>
+    $keybindingSourcePath = Join-Path -Path (Join-Path -Path $ContentPath -ChildPath 'Keybindings') -ChildPath 'keybindings.json'
+
+    if (Test-Path -LiteralPath $keybindingSourcePath)
+    {
+        if (-not (Test-Path -LiteralPath $path.KeybindingsPath))
+        {
+            Write-Information -MessageData "VS Code keybindings file not found at $($path.KeybindingsPath) - creating a new one."
+
+            '[]' | Set-Content -LiteralPath $path.KeybindingsPath -Encoding UTF8
+
+            $existingKeybindingText = '[]'
+        }
+        else
+        {
+            $keybindingBackupPath = '{0}.{1}.bak' -f $path.KeybindingsPath, $timestamp
+
+            Copy-Item -LiteralPath $path.KeybindingsPath -Destination $keybindingBackupPath -Force
+
+            Write-Information -MessageData "Backup created: $keybindingBackupPath"
+
+            $existingKeybindingText = Get-Content -LiteralPath $path.KeybindingsPath -Raw
+        }
+
+        $existingKeybindingData = ConvertFrom-Jsonc -Text $existingKeybindingText
+        $existingKeybinding = @()
+
+        if ($null -ne $existingKeybindingData)
+        {
+            $existingKeybinding = @($existingKeybindingData)
+        }
+
+        $desiredKeybinding = @(ConvertFrom-Jsonc -Text (Get-Content -LiteralPath $keybindingSourcePath -Raw))
+
+        $desiredKey = @{}
+
+        foreach ($binding in $desiredKeybinding)
+        {
+            $desiredKey[(Get-KeybindingKey -Binding $binding)] = $true
+        }
+
+        <#
+            Keep every existing binding that is not one of ours, then append
+            ours. Stale copies of our bindings are dropped, so an updated `when`
+            clause does not leave a duplicate behind.
+        #>
+        $preservedKeybinding = @(
+            $existingKeybinding |
+                Where-Object -FilterScript {
+                    -not $desiredKey.ContainsKey((Get-KeybindingKey -Binding $_))
+                }
+        )
+
+        if ($PSCmdlet.ShouldProcess($path.KeybindingsPath, 'Merge keybindings'))
+        {
+            @($preservedKeybinding) + @($desiredKeybinding) |
+                ConvertTo-Json -Depth 10 |
+                Set-Content -LiteralPath $path.KeybindingsPath -Encoding UTF8
+        }
+
+        Write-Information -MessageData "Keybindings merged: $($desiredKeybinding.Count) bindings from the module, $($preservedKeybinding.Count) user bindings preserved."
+    }
+    else
+    {
+        Write-Information -MessageData "Skipped keybindings merge: $keybindingSourcePath not found."
+    }
+
+    Write-Information -MessageData ''
+    Write-Information -MessageData "Settings updated at: $($path.SettingsPath)"
+    Write-Information -MessageData 'Restart VS Code to apply changes.'
+
+    return [PSCustomObject] @{
+        Version         = $deployment.Version
+        TargetPath      = $path.TargetPath
+        ContentPath     = $ContentPath
+        SettingsPath    = $path.SettingsPath
+        KeybindingsPath = $path.KeybindingsPath
+        Deployed        = $presentDirectory
+    }
+}

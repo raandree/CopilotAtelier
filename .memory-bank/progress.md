@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-07-28
+last-verified: 2026-07-29
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -9,11 +9,26 @@ source: CHANGELOG.md and git history
 
 ## Project status
 
-Copilot Atelier is released at `v1.1.0`. Incremental work is tracked under
+Copilot Atelier is released at `v1.1.0`. The next release is `2.0.0`, the first
+published to the PowerShell Gallery. Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-07-29**: Fixed the build breaking on Sampler 0.120.0. Its new
+  `WorkspaceDependencies` task declares `BuiltModuleSubdirectory` with a
+  non-empty `'module'` default; InvokeBuild treats an empty string as an unset
+  property, so that default leaked into the shared build scope and overrode
+  `build.yaml`. Aligned `build.yaml` on `module` and made the test suite match
+  the subdirectory instead of hard-coding it.
+- **2026-07-29**: Migrated the repository to a Sampler-built PowerShell module
+  distributed through the PowerShell Gallery. Module sources under `source/`,
+  three exported commands over six private helpers, a custom build task that
+  copies the six customization directories into the built module, GitVersion
+  versioning, GitHub Actions CI across Windows PowerShell 5.1 and PowerShell 7
+  on Windows and Linux, and a QA plus unit test suite. `Setup-CopilotSettings.ps1`
+  survives as a clone entry point shim. 339 passing tests, 70.77 percent module
+  coverage. Recorded as Decision 18.
 - **2026-07-29**: Fixed both hooks failing to start on Windows. VS Code spawns
   hook commands without a shell, so `%USERPROFILE%` and `$HOME` were never
   expanded and `-File` never resolved. Commands now use `-Command` with

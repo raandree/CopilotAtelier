@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-07-24
+last-verified: 2026-07-29
 owner: shared
 source: README.md
 ---
@@ -9,7 +9,7 @@ source: README.md
 
 ## Overview
 
-CopilotAtelier is a portable GitHub Copilot customization framework that synchronizes custom AI agents, coding instructions, skills, and prompt files across multiple machines. It eliminates the need to manually configure VS Code's Copilot settings on each workstation by storing all customizations in a single repo-derived folder — `~/OneDrive/CopilotAtelier/` when OneDrive is available, or `~/CopilotAtelier/` as a fallback — and redirecting VS Code to use that location. The setup script derives its folder name from the repository, so renaming the repo clone renames the synced layout automatically.
+CopilotAtelier is a portable GitHub Copilot customization framework that synchronizes custom AI agents, coding instructions, skills, and prompt files across multiple machines. It eliminates the need to manually configure VS Code's Copilot settings on each workstation by storing all customizations in a single folder — `~/OneDrive/CopilotAtelier/` when OneDrive is available, or `~/CopilotAtelier/` as a fallback — and redirecting VS Code to use that location. It is distributed as a PowerShell module on the PowerShell Gallery, so it carries a version, an update command, and a record of what is deployed.
 
 ## Core requirements
 
@@ -25,6 +25,7 @@ CopilotAtelier is a portable GitHub Copilot customization framework that synchro
 | R8 | Comprehensive language-specific best practices (PS, MD, YAML, C#, changelog, versioning, Sampler) | Done |
 | R9 | Enforce the house rules deterministically with lifecycle hooks rather than prose alone | Done |
 | R10 | Ship an agent plugin manifest so the library installs from a Git URL in VS Code, Copilot CLI, and Claude Code | Done |
+| R11 | Distribute as a versioned PowerShell Gallery module with an update command and a deployed-version record | Done |
 
 ## Target audience
 
@@ -34,21 +35,24 @@ CopilotAtelier is a portable GitHub Copilot customization framework that synchro
 
 ## Scope boundaries
 
-- **In scope**: VS Code + GitHub Copilot customization files, lifecycle hooks, setup automation, coding standards
-- **Out of scope**: CI/CD pipeline definitions, actual module source code, cloud deployments, MCP server curation (see [Decision 17](decisions/0017-keep-mcp-curation-out-of-scope.md))
+- **In scope**: VS Code + GitHub Copilot customization files, lifecycle hooks, setup automation, coding standards, the Sampler build and GitHub Actions release pipeline for this module
+- **Out of scope**: cloud deployments, MCP server curation (see [Decision 17](decisions/0017-keep-mcp-curation-out-of-scope.md))
 
 ## Deployment boundary
 
-The Setup script copies only `Agents/`, `Instructions/`, `Skills/`, `Prompts/`,
-and `Hooks/` into the Canonical target. The repository-local `.memory-bank/` is
-not deployed and therefore does not affect Custom agent performance in other
-working directories.
+`Install-CopilotAtelier` copies only `Agents/`, `Instructions/`, `Skills/`,
+`Prompts/`, and `Hooks/` into the Canonical target, and merges
+`Keybindings/keybindings.json` into the VS Code user profile. The
+repository-local `.memory-bank/` is not deployed and therefore does not affect
+Custom agent performance in other working directories. The Canonical target
+folder name is fixed to `CopilotAtelier`; see
+[Decision 18](decisions/0018-distribute-as-powershell-module.md).
 
 ## Success criteria
 
-1. Running `Setup-CopilotSettings.ps1` on a fresh machine configures VS Code in under 30 seconds.
+1. `Install-CopilotAtelier` on a fresh machine configures VS Code in under 30 seconds.
 2. All custom agents, instructions, skills, and prompts are discoverable in Copilot Chat immediately after restart.
-3. Adding a new instruction or agent to OneDrive propagates to all machines automatically.
+3. `Update-CopilotAtelier` moves a machine to the newest published version and redeploys in one command.
 
 ## Memory Bank canonical base
 

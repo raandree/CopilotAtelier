@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-07-28
+last-verified: 2026-07-29
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,57 +9,59 @@ source: current task evidence
 
 ## Current focus
 
-Repair the shipped hook commands: VS Code spawns them without a shell, so both
-hooks failed to start on Windows and the never-push guard failed open.
+Migrate CopilotAtelier to a Sampler-built PowerShell module so it can be
+distributed through the PowerShell Gallery with a version, an update command,
+and a record of what is deployed.
 
 ## Implemented
 
-- A `Hooks/` Customization deployed to `~/.copilot/hooks`. `PreToolUse` blocks
-  remote-mutating and irreversible commands with exit code 2 and a documented
-  `COPILOT_ATELIER_ALLOW_REMOTE=1` override; `SessionStart` probes for
-  `.memory-bank/index.md` and injects an authoritative present or absent
-  statement plus the UTC timestamp.
-- Root `plugin.json` so the Agents and Skills install from a Git URL in VS Code,
-  the Copilot CLI, and Claude Code. Instructions and hooks stay with the Setup
-  script because the plugin format does not carry them.
-- Every Custom agent declares `model` as a priority array with a GA fallback.
-  Seven heavyweight or domain-specific agents set `disable-model-invocation`,
-  and the three that never delegate declare `agents: []`.
-- Twenty-five Skills declare `compatibility`. The two Skills that ingest large
-  volumes of untrusted external content declare `context: fork`.
-- Setup deploys `Hooks/`, writes `chat.hookFilesLocations` and
-  `github.copilot.chat.skillTool.enabled`, bumps GitLens to Opus 5, removes the
-  inert `github.copilot.advanced.model` key, and gained an opt-in
-  `-IncludeClaudeCodeLinks` switch.
-- `agent-evals` now routes to the native Chat Customizations Evaluations
-  analyzer and the Waza runner before its own fallback harness.
+- A Sampler project: `source/` holds the module, `build.ps1`, `build.yaml`,
+  `RequiredModules.psd1`, `Resolve-Dependency.*`, and `GitVersion.yml` drive the
+  build, and `.build/Copy_Customizations_To_Output.build.ps1` copies the six
+  customization directories verbatim into the built module.
+- Three exported commands replace the 560-line setup script:
+  `Install-CopilotAtelier`, `Update-CopilotAtelier`, and
+  `Get-CopilotAtelierVersion`, over six private helpers.
+  `Setup-CopilotSettings.ps1` remains as a clone entry point shim that
+  dot-sources `source/` and installs from the working tree.
+- `.github/workflows/ci.yml`: build and package once on Linux with GitVersion,
+  test the same artifact on Windows PowerShell 5.1, PowerShell 7 on Windows,
+  and PowerShell 7 on Linux, then publish the GitHub release and the Gallery
+  package from `main` behind an explicit repository check.
+- `tests/QA/module.tests.ps1` plus `tests/Unit/{Public,Private}/` cover the
+  command surface, the shipped payload, help quality, static analysis, and the
+  behavior of every exported command.
+- A README Quick Start at the top of the file, plus the day-two loop in the
+  Gallery section: useful switches, a `Get-Help` pointer, sample
+  `Get-CopilotAtelierVersion` output, and the multi-machine story. It states
+  that the Gallery package is not published yet; remove that note with the
+  first release.
+- A `Hooks/` Customization deployed to `~/.copilot/hooks`, a root `plugin.json`,
+  model priority arrays with a GA fallback, `compatibility` on 25 Skills, and
+  `context: fork` on the two Skills that ingest untrusted external content.
 
 ## Focused evidence
 
-- Full suite: 266 passed, 0 failed, 11 skipped.
-- `tests/Hooks.Tests.ps1` runs both scripts through a child process exactly as
-  VS Code invokes them, and executes the shipped command string through the real
-  platform shell so the quoting, `-File`, and stdin contract are proven rather
-  than assumed.
-- `tests/SkillFrontmatter.Tests.ps1` pins the Agent Skills specification and a
-  non-growing baseline of ten Skills whose bodies exceed 500 lines.
-- An independent security review found one Blocker and six Major issues. All
-  were fixed: the reparse-point recursive delete that could destroy the synced
-  customization tree; the fail-open tool-name gate, replaced by tool-agnostic
-  command-carrier extraction that also reaches nested task definitions; the
-  unanchored git patterns that blocked ordinary commit messages and branch
-  names; missing `gh api`, `gh repo create`, `gh workflow run`, and `gh secret`
-  coverage; the destructive `-WhatIf` path; and the Claude Code links, now
-  create-only so they cannot adopt or repoint another tool's state.
-- Three real defects surfaced and were fixed: the reparse-point delete above,
-  a 1460-character description on `authenticated-web-extraction` against the
-  1024 cap, and the extended `agent-evals` description at 1106.
-- AST parse clean on all changed PowerShell; zero PSScriptAnalyzer findings
-  outside the Setup script's established `Write-Host` console style.
-- Decisions 16 and 17 record the hook enforcement model and the MCP scope
-  boundary.
+- `./build.ps1 -Tasks build, test`: build succeeded, 17 tasks, 0 errors;
+  339 passed, 0 failed, 11 skipped; code coverage 70.77 percent against a
+  65 percent gate.
+- AST parse clean across all 28 changed PowerShell files; PSScriptAnalyzer
+  reports zero findings on `source/`, `.build/`, and the setup shim.
+- `tests/Setup-CopilotSettings.Tests.ps1` passes unchanged, proving the shim
+  preserves the documented clone entry point and its parameters.
+- Three real defects surfaced and were fixed while migrating: the
+  `[System.Management.Automation.PSCustomObject]` cast does not convert a
+  hashtable, so every returned object was broken until the `[PSCustomObject]`
+  accelerator was used; `ConvertFrom-Json` rehydrates the ISO 8601 deployment
+  stamp into a `DateTime`, so `DeployedOn` is now normalised to UTC rather than
+  leaking a mixed type; and `CHANGELOG.md` did not parse with
+  `Get-ChangelogData`, which would have broken Sampler's release tasks.
+- Decision 18 records the module distribution model and its two behavior
+  changes: the fixed `CopilotAtelier` target folder name and the move from
+  `Write-Host` to the information stream.
 
 ## Next step
 
-Run `Setup-CopilotSettings.ps1` to deploy `Hooks/`, then restart VS Code and
-confirm `Load Hooks` lists `~/.copilot/hooks` in the agent debug logs.
+Verify the GitHub Actions workflow on a real run, add the `GALLERY_API_TOKEN`
+repository secret, and tag the first Gallery release as `v2.0.0` so GitVersion
+anchors on a tag instead of `next-version`.

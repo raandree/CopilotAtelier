@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-07-25
+last-verified: 2026-07-29
 owner: software-engineer
 source: .memory-bank/decisions
 ---
@@ -13,11 +13,19 @@ the task needs their rationale, consequences, or confirmation evidence.
 ## Architecture overview
 
 ```text
-CopilotAtelier repository
-├── Agents, Instructions, Skills, Prompts, Hooks
-├── Setup-CopilotSettings.ps1
+CopilotAtelier repository (Sampler project)
+├── Agents, Instructions, Skills, Prompts, Hooks, Keybindings
+│   └── copied into the built module by Copy_Customizations_To_Output
+├── source/
+│   ├── CopilotAtelier.psd1 (ModuleVersion replaced by GitVersion)
+│   ├── Public/  Install-, Update-, Get-CopilotAtelierVersion
+│   └── Private/ path, link, JSONC, and keybinding helpers
+├── build.ps1, build.yaml, .build/, GitVersion.yml
+├── .github/workflows/ci.yml
+├── Setup-CopilotSettings.ps1 (clone entry point shim)
 │   └── one Canonical target: OneDrive when available, user profile otherwise
-│       └── ~/.copilot Discovery links
+│       ├── ~/.copilot Discovery links
+│       └── .copilotatelier.json Deployment record
 ├── plugin.json
 ├── tests and Reference
 └── .memory-bank
@@ -49,11 +57,15 @@ CopilotAtelier repository
 | 15 | [Keep native memory role-gated](decisions/0015-keep-native-memory-role-gated.md) | Accepted | 2026-07-24 |
 | 16 | [Enforce house rules with hooks](decisions/0016-enforce-house-rules-with-hooks.md) | Accepted | 2026-07-28 |
 | 17 | [Keep MCP curation out of scope](decisions/0017-keep-mcp-curation-out-of-scope.md) | Accepted | 2026-07-28 |
+| 18 | [Distribute as a Sampler-built PowerShell module](decisions/0018-distribute-as-powershell-module.md) | Accepted | 2026-07-29 |
 
 ## Live relationships
 
-- The Setup script deploys the five Customization directories and creates
-    Discovery links.
+- The module carries the Customizations as its payload; `Install-CopilotAtelier`
+    deploys them and creates Discovery links. The Setup script is a clone-only
+    shim over the same command.
+- The Deployment record in the Canonical target is the only place that reports
+    which version is actually deployed, independent of how it was installed.
 - Hooks enforce the rules that must hold regardless of model reasoning;
     Instructions carry the judgement calls.
 - VS Code spawns a hook command without a shell, so no `%VAR%` or `$VAR` token

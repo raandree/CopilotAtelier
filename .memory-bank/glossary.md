@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-07-24
+last-verified: 2026-07-29
 owner: shared
 source: project domain decisions
 ---
@@ -31,7 +31,9 @@ API fields, and quoted historical text retain their exact spelling.
 | Memory Bank health check | The read-only validation of Memory Bank structure, provenance, freshness, retention, and compactness budgets. | memory audit script, context cleanup scan |
 | Canonical target | The single selected customization tree populated by the Setup script. | secondary customization target, customization mirror |
 | Discovery link | A path under `~/.copilot/` that exposes a Canonical target subdirectory to Copilot clients. | Copilot shortcut, discovery redirect folder |
-| Setup script | `Setup-CopilotSettings.ps1`, which configures clients and populates the Canonical target. | Copilot installer, setup bootstrapper |
+| Setup script | `Setup-CopilotSettings.ps1`, the clone entry point that installs the Customizations from a working tree. | Copilot installer, setup bootstrapper |
+| Customization module | The `CopilotAtelier` PowerShell module published to the PowerShell Gallery, which carries the Customizations and the install commands. | Copilot package, atelier package |
+| Deployment record | `.copilotatelier.json` in the Canonical target, which states the deployed version and when it was written. | install marker, version stamp file |
 | Pre-flight | The mandatory discovery phase before the first tool call or substantive answer. | optional precheck, warm-up phase |
 | Post-flight | The mandatory classification and closure phase before the final answer. | optional cleanup, wrap-up phase |
 | Substantive turn | A turn that changes a file, records a durable decision or event, discovers a defect, or creates a tag. | write-required turn, impacting interaction |
