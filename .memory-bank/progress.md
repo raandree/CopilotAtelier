@@ -15,6 +15,11 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-29**: Fixed the first GitHub Actions run failing in 0s with an
+  invalid workflow file. A step's `shell` key rejects every context, so
+  `shell: ${{ matrix.shell }}` broke compilation of the whole file; the shell
+  moved to `jobs.<job_id>.defaults.run`, which does accept `matrix`. Added
+  `tests/Workflows.Tests.ps1` as the regression guard.
 - **2026-07-29**: Fixed the build breaking on Sampler 0.120.0. Its new
   `WorkspaceDependencies` task declares `BuiltModuleSubdirectory` with a
   non-empty `'module'` default; InvokeBuild treats an empty string as an unset

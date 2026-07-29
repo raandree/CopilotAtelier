@@ -86,6 +86,12 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    # A step's `shell` key does not accept the matrix context; `defaults.run` is
+    # the only place that does.
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,7 +105,6 @@ jobs:
           path: ${{ env.buildFolderName }}/
 
       - name: Run the tests
-        shell: ${{ matrix.shell }}
         run: ./build.ps1 ${{ matrix.arguments }}
 
       - name: Publish the test results

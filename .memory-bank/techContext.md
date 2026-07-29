@@ -118,6 +118,10 @@ model so a retirement degrades instead of breaking every agent.
   command surface, the shipped customization payload, a unit test per exported
   command, zero PSScriptAnalyzer findings per command, and complete
   comment-based help.
+- `tests/Workflows.Tests.ps1` parses every GitHub Actions workflow and rejects
+  an expression in a step's `shell` key. That key accepts no context, so an
+  expression there fails the whole workflow file at compile time; a
+  matrix-driven shell belongs in `jobs.<job_id>.defaults.run`.
 - `tests/Unit/Public/` covers the three exported commands against a sandboxed
   profile; `tests/Unit/Private/` covers `ConvertFrom-Jsonc` and
   `Get-CopilotAtelierPath`.
