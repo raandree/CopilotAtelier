@@ -46,6 +46,17 @@ and a record of what is deployed.
 
 ## Focused evidence
 
+- Run 30462902820 failed with `ConvertFrom-Json: Unexpected character
+  encountered while parsing value: M. Path '', line 0, position 0`. GitVersion
+  5.12.0 installed and ran; its standard output began with `M` instead of `{`.
+  The step piped it straight into `ConvertFrom-Json`, and GitVersion logs to
+  standard output, so the real message was consumed and never printed. Root
+  cause still unknown; the rewritten step prints it on the next tag build.
+- A GitVersion failure log begins with `INFO` on both 5.12 and 6.3, verified by
+  separating the streams, so the branch-configuration path is **not** what broke
+  the run. The `release-tag` entry stays as hardening: it turns a reproducible
+  exit 1 on a detached tag checkout into `FullSemVer 2.0.0`, with and without
+  branch refs, and leaves `main` and `ai/*` versions unchanged.
 - CI after the workflow alignment: macOS failed because two test suites
   expected the Linux configuration root, and both Windows legs failed the
   untagged Memory Bank budget check. After the fix, `./build.ps1 -Tasks
@@ -72,7 +83,10 @@ and a record of what is deployed.
 
 ## Next step
 
-Verify the GitHub Actions workflow on a real run, add the `GitHubToken` and
-`GalleryApiToken` repository secrets, and tag the first Gallery release as
-`v2.0.0` so GitVersion anchors on a tag instead of `next-version`. The macOS
-test leg is new and has never run; treat its first execution as unproven.
+Push the rewritten GitVersion step to `main`, then re-create the `v2.0.0` tag on
+the new commit and read the `--- dotnet-gitversion output ---` block: that names
+the real cause. Add the `GitHubToken` and `GalleryApiToken` repository secrets.
+Leave ShellPilot and DeskPilot alone: both have shipped full releases from a tag
+build. Run 30454982173 also failed in `Deploy Module / Publish Release`; that is
+a separate, undiagnosed failure. The macOS test leg is new and has never run;
+treat its first execution as unproven.

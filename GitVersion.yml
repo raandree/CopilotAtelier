@@ -1,6 +1,6 @@
 mode: ContinuousDelivery
-# No release tag exists yet, so this is the base GitVersion increments from.
-# Tag every release as v<version> so later builds anchor on the tag instead.
+# Fallback base for a history that carries no version tag. Release tags now
+# supersede it, so tag every release as v<version> and builds anchor on the tag.
 next-version: 1.1.0
 major-version-bump-message: '(breaking\schange|breaking|major)\b'
 minor-version-bump-message: '(adds?|features?|minor)\b'
@@ -24,6 +24,17 @@ branches:
     increment: Patch
     regex: (hot)?fix(es)?[\/-]
     source-branches: ['main']
+  # A tag push checks out refs/tags/<tag> with a detached HEAD, so GitVersion
+  # takes the branch name from GITHUB_REF and works on a synthetic 'tags/<tag>'
+  # branch. With no entry matching it, GitVersion tries to inherit configuration
+  # from a parent branch and aborts the release build with "could not determine
+  # which branch to treat as the development branch". The tag is the version, so
+  # this entry adds no label and no increment.
+  release-tag:
+    tag: ''
+    increment: None
+    regex: ^tags?[-/]
+    source-branches: []
 
 ignore:
   sha: []

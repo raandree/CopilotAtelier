@@ -46,6 +46,25 @@ Describe 'Changelog management' -Tag 'QA' {
     }
 }
 
+Describe 'Release versioning' -Tag 'QA' {
+    BeforeAll {
+        $script:gitVersionConfiguration = Get-Content -Raw -LiteralPath (Join-Path -Path $script:projectPath -ChildPath 'GitVersion.yml') |
+            ConvertFrom-Yaml
+    }
+
+    It 'Should configure a branch matching the synthetic branch name of a tag build' {
+        # A tag push checks out refs/tags/<tag>, so GitVersion versions a 'tags/<tag>' branch.
+        $matchingBranch = @(
+            $script:gitVersionConfiguration.branches.Values |
+                Where-Object -FilterScript {
+                    $_.regex -and 'tags/v2.0.0' -match $_.regex
+                }
+        )
+
+        $matchingBranch | Should -Not -BeNullOrEmpty -Because 'GitVersion aborts a tag build when no branch configuration matches'
+    }
+}
+
 Describe 'General module control' -Tag 'QA' {
     It 'Should import without errors' {
         { Import-Module -Name $script:moduleName -Force -ErrorAction Stop } | Should -Not -Throw

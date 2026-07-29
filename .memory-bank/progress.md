@@ -15,6 +15,16 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-29**: Found why run 30462902820 is undiagnosable and fixed that
+  first. The GitVersion step piped `dotnet-gitversion` into `ConvertFrom-Json`,
+  and GitVersion logs to standard output, so a failure surfaces as
+  `Unexpected character encountered while parsing value: M` and the real
+  message is lost. The step now captures the output, validates the exit code
+  and the leading `{`, prints the raw output before failing, echoes the
+  resolved binary, and prepends `~/.dotnet/tools` so an image-supplied
+  GitVersion cannot shadow the pinned 5.x. The `release-tag` entry added to
+  `GitVersion.yml` is separate hardening: a GitVersion failure log begins with
+  `INFO`, not `M`, so that path is not what broke the run.
 - **2026-07-29**: Bumped the CI actions to the current majors across
   CopilotAtelier, DeskPilot, and ShellPilot at once: `checkout@v7`,
   `upload-artifact@v7`, `download-artifact@v8`. The three do not share a major

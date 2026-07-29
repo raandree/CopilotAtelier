@@ -70,8 +70,28 @@ jobs:
           DOTNET_ROLL_FORWARD: LatestMajor
         run: |
           dotnet tool install --global GitVersion.Tool --version 5.*
-          $env:PATH += [System.IO.Path]::PathSeparator + (Join-Path -Path $HOME -ChildPath '.dotnet/tools')
-          $gitVersionObject = dotnet-gitversion | ConvertFrom-Json
+          # Prepend, so a GitVersion already on the image cannot shadow the pinned one.
+          $env:PATH = (Join-Path -Path $HOME -ChildPath '.dotnet/tools') + [System.IO.Path]::PathSeparator + $env:PATH
+          Write-Host -Object "Resolved dotnet-gitversion: $((Get-Command -Name dotnet-gitversion).Source)"
+
+          # GitVersion writes its diagnostic log to standard output when it fails,
+          # so piping straight into ConvertFrom-Json replaces the real error with a
+          # parser error and the cause is lost.
+          # GitHub sets $ErrorActionPreference to Stop, which would otherwise make a
+          # non-zero exit throw before the output can be shown.
+          $PSNativeCommandUseErrorActionPreference = $false
+          $gitVersionOutput = (& dotnet-gitversion 2>&1 | Out-String).Trim()
+          $gitVersionExitCode = $LASTEXITCODE
+
+          if ($gitVersionExitCode -ne 0 -or -not $gitVersionOutput.StartsWith('{'))
+          {
+              Write-Host -Object '--- dotnet-gitversion output ---'
+              Write-Host -Object $gitVersionOutput
+              Write-Host -Object '--- end of output ---'
+              throw "dotnet-gitversion exited with code $gitVersionExitCode and did not return JSON."
+          }
+
+          $gitVersionObject = $gitVersionOutput | ConvertFrom-Json
           $gitVersionObject.PSObject.Properties.ForEach{
               Write-Host -Object "Setting output '$($_.Name)' with value '$($_.Value)'."
               "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
