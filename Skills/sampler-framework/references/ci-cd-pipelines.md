@@ -254,7 +254,7 @@ jobs:
       nuGetVersion: ${{ steps.gitversion.outputs.NuGetVersionV2 }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # GitVersion needs the full history to calculate the version.
           fetch-depth: 0
@@ -284,7 +284,7 @@ jobs:
         run: ./build.ps1 -ResolveDependency -Tasks pack
 
       - name: Publish Build Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.buildArtifactName }}
           path: output/
@@ -304,12 +304,12 @@ jobs:
           - macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Download Build Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.buildArtifactName }}
           path: output/
@@ -320,7 +320,7 @@ jobs:
 
       - name: Publish Test Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CodeCoverage-${{ matrix.os }}
           path: output/testResults/
@@ -340,12 +340,12 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Download Build Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.buildArtifactName }}
           path: output/
@@ -419,6 +419,20 @@ artifact name.
 Restrict a platform's scope with `-PesterTag` in `arguments` when part of the
 suite is platform-bound; tag the portable tests deliberately, because the
 restricted leg selects by tag.
+
+#### Action versions
+
+Bump all three actions together and in every repository at once, or the
+templates drift. Do not assume the majors move in step — as of 2026-07 the
+current majors are `checkout@v7`, `upload-artifact@v7`, and
+`download-artifact@v8`, and the major that first stopped defaulting to the
+deprecated Node 20 runtime differs per action:
+
+| Action | First Node 24 default | Current major | Breaking change that matters |
+|---|---|---|---|
+| `actions/checkout` | v5 | v7 | v7 blocks fork-PR checkout under `pull_request_target` and `workflow_run`; harmless for a `push` / `pull_request` pipeline |
+| `actions/upload-artifact` | v6 | v7 | v7 adds opt-in `archive: false` direct uploads; defaults unchanged |
+| `actions/download-artifact` | v7 | v8 | v5 changed the output path for single downloads **by ID** only — downloading by `name` is unaffected; v8 makes a digest mismatch an error instead of a warning |
 
 ### Azure Pipelines to GitHub Actions translation
 

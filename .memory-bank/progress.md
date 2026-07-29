@@ -15,6 +15,12 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-29**: Bumped the CI actions to the current majors across
+  CopilotAtelier, DeskPilot, and ShellPilot at once: `checkout@v7`,
+  `upload-artifact@v7`, `download-artifact@v8`. The three do not share a major
+  number and each stopped defaulting to the deprecated Node 20 runtime in a
+  different release, so a uniform bump would have left two deprecated. The
+  skill template carries the same pins plus a per-action version table.
 - **2026-07-29**: Fixed the CI failures the workflow alignment exposed. The
   macOS leg failed because two test suites assumed `XDG_CONFIG_HOME` while VS
   Code on macOS reads `~/Library/Application Support`; both now derive the

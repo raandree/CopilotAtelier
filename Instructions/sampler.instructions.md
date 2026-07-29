@@ -58,6 +58,7 @@ design. Divergence makes every pipeline a separate thing to learn and debug.
 - **Fence the deploy stage** to the upstream owner so a fork never publishes
 - **Ignore `CHANGELOG.md` on push** so the release commit does not retrigger the pipeline
 - **Never put an expression in a step's `shell` key** — that key accepts no context and fails the whole workflow file at compile time; a matrix-driven shell belongs in `jobs.<job_id>.defaults.run`
+- **Bump action majors in every repository at once**, and check each action separately — `checkout`, `upload-artifact`, and `download-artifact` do not share a major number
 
 ---
 
