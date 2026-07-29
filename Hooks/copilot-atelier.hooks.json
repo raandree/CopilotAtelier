@@ -4,16 +4,16 @@
             {
                 "type": "command",
                 "timeout": 20,
-                "command": "pwsh -NoProfile -NonInteractive -File \"$HOME/.copilot/hooks/scripts/Block-RemoteMutation.ps1\"",
-                "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%USERPROFILE%\\.copilot\\hooks\\scripts\\Block-RemoteMutation.ps1\""
+                "command": "pwsh -NoProfile -NonInteractive -Command \"& (Join-Path $HOME '.copilot/hooks/scripts/Block-RemoteMutation.ps1'); exit $LASTEXITCODE\"",
+                "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Join-Path $env:USERPROFILE '.copilot\\hooks\\scripts\\Block-RemoteMutation.ps1'); exit $LASTEXITCODE\""
             }
         ],
         "SessionStart": [
             {
                 "type": "command",
                 "timeout": 20,
-                "command": "pwsh -NoProfile -NonInteractive -File \"$HOME/.copilot/hooks/scripts/Add-SessionContext.ps1\"",
-                "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%USERPROFILE%\\.copilot\\hooks\\scripts\\Add-SessionContext.ps1\""
+                "command": "pwsh -NoProfile -NonInteractive -Command \"& (Join-Path $HOME '.copilot/hooks/scripts/Add-SessionContext.ps1'); exit $LASTEXITCODE\"",
+                "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Join-Path $env:USERPROFILE '.copilot\\hooks\\scripts\\Add-SessionContext.ps1'); exit $LASTEXITCODE\""
             }
         ]
     }

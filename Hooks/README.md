@@ -66,8 +66,11 @@ which omits dotfile folders.
 - **Hook never fires.** Confirm `copilot-atelier.hooks.json` is present under
   `~/.copilot/hooks` and that the link resolves. Re-run
   [`Setup-CopilotSettings.ps1`](../Setup-CopilotSettings.ps1).
-- **Command not found.** The commands expand `%USERPROFILE%` on Windows and
-  `$HOME` elsewhere. If your shell does not expand them, replace the token in
+- **Command not found.** VS Code spawns a hook command directly, with no shell,
+  so `%USERPROFILE%` and `$HOME` are never expanded by a shell. Each command
+  therefore resolves its own path inside PowerShell — `$env:USERPROFILE` on
+  Windows, `$HOME` elsewhere. If you deploy the scripts outside
+  `~/.copilot/hooks`, replace the `Join-Path` expression in
   `copilot-atelier.hooks.json` with an absolute path.
 - **Timeout.** The default hook timeout is 30 seconds; these hooks declare 20.
   Increase `timeout` if a slow filesystem delays the Memory Bank probe.

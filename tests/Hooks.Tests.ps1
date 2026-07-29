@@ -258,32 +258,56 @@ Describe 'Hook configuration' -Tag 'Unit' {
             foreach ($hook in $hookEvent.Value) {
                 $hook.type | Should -Be 'command'
                 $hook.command | Should -Match '\$HOME'
-                $hook.windows | Should -Match '%USERPROFILE%'
+                $hook.windows | Should -Match '\$env:USERPROFILE'
                 $hook.timeout | Should -BeGreaterThan 0
             }
         }
     }
 
-    It 'runs the shipped PreToolUse command string through the platform shell' {
+    It 'never relies on a shell to expand the script path' {
+        foreach ($hookEvent in $script:hookConfig.hooks.PSObject.Properties) {
+            foreach ($hook in $hookEvent.Value) {
+                # VS Code spawns the command directly, so a %VAR% token reaches
+                # PowerShell verbatim and the -File argument never resolves.
+                $hook.windows | Should -Not -Match '%\w+%'
+                $hook.command | Should -Not -Match '%\w+%'
+            }
+        }
+    }
+
+    It 'blocks a push when the shipped PreToolUse command is spawned without a shell' {
         $isWindowsPlatform = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
         $hook = $script:hookConfig.hooks.PreToolUse[0]
 
-        # Point the shipped command at the repository copy so the test does not
-        # depend on a deployed ~/.copilot/hooks link.
-        if ($isWindowsPlatform) {
-            $command = $hook.windows.Replace('%USERPROFILE%\.copilot\hooks', $script:hooksRoot)
-        } else {
-            $command = $hook.command.Replace('$HOME/.copilot/hooks', $script:hooksRoot)
-        }
+        # Stage a fake home so the shipped command string runs verbatim, without
+        # depending on a deployed ~/.copilot/hooks link.
+        $fakeHome = Join-Path $TestDrive 'home'
+        $deployedScripts = Join-Path $fakeHome '.copilot/hooks/scripts'
+        New-Item -ItemType Directory -Path $deployedScripts -Force | Out-Null
+        Copy-Item -Path (Join-Path $script:hookScriptRoot '*.ps1') -Destination $deployedScripts
 
-        $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
-        $shellArguments = if ($isWindowsPlatform) { @('/c', $command) } else { @('-c', $command) }
-        $shell = if ($isWindowsPlatform) { 'cmd.exe' } else { '/bin/sh' }
+        $command = if ($isWindowsPlatform) { $hook.windows } else { $hook.command }
+        $executable, $commandArguments = $command -split ' ', 2
 
-        $output = $payload | & $shell @shellArguments 2>&1
-        $exitCode = $LASTEXITCODE
+        # No shell: this is how VS Code launches a hook, so the command itself
+        # must expand its own path and propagate the blocking exit code.
+        $processInfo = [Diagnostics.ProcessStartInfo]::new()
+        $processInfo.FileName = $executable
+        $processInfo.Arguments = $commandArguments
+        $processInfo.UseShellExecute = $false
+        $processInfo.RedirectStandardInput = $true
+        $processInfo.RedirectStandardOutput = $true
+        $processInfo.RedirectStandardError = $true
+        $processInfo.EnvironmentVariables[$(if ($isWindowsPlatform) { 'USERPROFILE' } else { 'HOME' })] = $fakeHome
 
-        $exitCode |
-            Should -Be 2 -Because "the shipped command must resolve and block: $($output | Out-String)"
+        $process = [Diagnostics.Process]::Start($processInfo)
+        $process.StandardInput.Write((script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'))
+        $process.StandardInput.Close()
+        $standardOutput = $process.StandardOutput.ReadToEnd()
+        $standardError = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+
+        $process.ExitCode |
+            Should -Be 2 -Because "the shipped command must resolve its own path and block: $standardOutput$standardError"
     }
 }

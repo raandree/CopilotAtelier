@@ -56,6 +56,10 @@ CopilotAtelier repository
     Discovery links.
 - Hooks enforce the rules that must hold regardless of model reasoning;
     Instructions carry the judgement calls.
+- VS Code spawns a hook command without a shell, so no `%VAR%` or `$VAR` token
+    is expanded. Each command resolves its own path inside the interpreter and
+    propagates the exit code explicitly; a test that runs a hook string through
+    a shell does not exercise the real invocation.
 - GUI screenshot workflows branch by source ownership: modifiable applications
     own a self-capturing mode; external executables use a process-scoped driver
     with event-driven readiness, restoration, and content verification.

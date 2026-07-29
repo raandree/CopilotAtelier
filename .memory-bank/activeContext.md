@@ -9,9 +9,8 @@ source: current task evidence
 
 ## Current focus
 
-Close the gap between Copilot Atelier and the VS Code 1.130 Customization
-surface: add hooks, plugin packaging, current model defaults, and Agent Skills
-specification compliance.
+Repair the shipped hook commands: VS Code spawns them without a shell, so both
+hooks failed to start on Windows and the never-push guard failed open.
 
 ## Implemented
 

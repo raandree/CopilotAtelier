@@ -79,6 +79,7 @@ Each file type uses a distinct frontmatter shape. Values must be strings unless 
 
 - One `hooks` object mapping event names to arrays of command objects. Events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `SubagentStart`, `SubagentStop`, `Stop`.
 - Every command declares `type: "command"`, a `timeout`, a POSIX `command`, and a `windows` override.
+- VS Code spawns the command without a shell, so `%VAR%` and `$VAR` are never expanded. Let the interpreter resolve its own path and propagate the exit code: `-Command "& (Join-Path $env:USERPROFILE '...'); exit $LASTEXITCODE"`.
 - Exit `0` to allow, `2` to block with the reason on standard error, any other code for a non-blocking warning.
 - Fail open on an unreadable payload. A hook that cannot parse its input must not block every tool call.
 - Encode enforcement in a hook when the rule must hold regardless of what the model decides. Leave judgement calls in Instructions.

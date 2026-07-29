@@ -14,6 +14,12 @@ Copilot Atelier is released at `v1.1.0`. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-29**: Fixed both hooks failing to start on Windows. VS Code spawns
+  hook commands without a shell, so `%USERPROFILE%` and `$HOME` were never
+  expanded and `-File` never resolved. Commands now use `-Command` with
+  `Join-Path` plus explicit `exit $LASTEXITCODE`. The old regression passed
+  because it ran the shipped string through `cmd.exe /c`; it now spawns without
+  a shell against a staged fake home.
 - **2026-07-28**: Closed the gap against the VS Code 1.130 Customization
   surface. Added a fifth Customization type (`Hooks/`) with deterministic
   never-push enforcement and a Memory Bank probe, a root `plugin.json`, model
