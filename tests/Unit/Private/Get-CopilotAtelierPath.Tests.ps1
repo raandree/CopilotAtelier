@@ -60,6 +60,31 @@ BeforeAll {
             [System.Environment]::SetEnvironmentVariable($name, $Original[$name], 'Process')
         }
     }
+
+    function Get-SandboxConfigRoot
+    {
+        param
+        (
+            [Parameter(Mandatory = $true)]
+            [System.String]
+            $HomePath,
+
+            [Parameter(Mandatory = $true)]
+            [System.String]
+            $ConfigPath
+        )
+
+        # macOS ignores XDG_CONFIG_HOME; VS Code keeps user settings under
+        # ~/Library/Application Support.
+        $macOSVariable = Get-Variable -Name IsMacOS -ErrorAction SilentlyContinue
+
+        if ($macOSVariable -and [System.Boolean] $macOSVariable.Value)
+        {
+            return Join-Path -Path $HomePath -ChildPath 'Library/Application Support'
+        }
+
+        return $ConfigPath
+    }
 }
 
 Describe 'Get-CopilotAtelierPath' -Tag 'Unit' {
@@ -90,6 +115,7 @@ Describe 'Get-CopilotAtelierPath' -Tag 'Unit' {
 
             $script:homePath = $homePath
             $script:configPath = $configPath
+            $script:expectedConfigRoot = Get-SandboxConfigRoot -HomePath $homePath -ConfigPath $configPath
         }
 
         It 'Should fall back to the user profile' {
@@ -98,7 +124,7 @@ Describe 'Get-CopilotAtelierPath' -Tag 'Unit' {
         }
 
         It 'Should resolve the VS Code settings paths' {
-            $expected = Join-Path -Path $script:configPath -ChildPath 'Code'
+            $expected = Join-Path -Path $script:expectedConfigRoot -ChildPath 'Code'
             $expected = Join-Path -Path $expected -ChildPath 'User'
 
             $script:result.SettingsDirectory | Should -Be $expected

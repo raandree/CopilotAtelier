@@ -46,6 +46,12 @@ and a record of what is deployed.
 
 ## Focused evidence
 
+- CI after the workflow alignment: macOS failed because two test suites
+  expected the Linux configuration root, and both Windows legs failed the
+  untagged Memory Bank budget check. After the fix, `./build.ps1 -Tasks
+  build, test` passes on PowerShell 7 (342 passed, 0 failed, 70.67 percent
+  coverage) and `-Tasks test` passes on Windows PowerShell 5.1 (332 passed,
+  0 failed, 21 skipped). The macOS leg is unverified locally; CI is the proof.
 - `./build.ps1 -Tasks build, test`: build succeeded, 17 tasks, 0 errors;
   339 passed, 0 failed, 11 skipped; code coverage 70.77 percent against a
   65 percent gate.

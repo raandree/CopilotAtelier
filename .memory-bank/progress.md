@@ -15,6 +15,12 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-29**: Fixed the CI failures the workflow alignment exposed. The
+  macOS leg failed because two test suites assumed `XDG_CONFIG_HOME` while VS
+  Code on macOS reads `~/Library/Application Support`; both now derive the
+  expected settings directory per platform. Both Windows legs failed the
+  untagged Memory Bank budget check because this file had reached 205 lines, so
+  the oldest milestones moved to git history.
 - **2026-07-29**: Closed the gap that allowed the CI drift. The
   `sampler-framework` Skill advertised a GitHub Actions template it never
   contained, so `references/ci-cd-pipelines.md` gained the canonical
@@ -123,34 +129,6 @@ published to the PowerShell Gallery. Incremental work is tracked under
   shared durable-write/read-only boundary, restored the Software Engineer's
   on-demand role files, respected repository policy for local ephemera, and
   hash-locked full role schemas.
-- **2026-07-22**: Reduced the Software Engineer Custom agent from 413 to 156
-  lines while preserving all 45 tools, both handoffs, focused/final validation,
-  test-first behavior changes, bug-fix regression guards, self-review,
-  risk-triggered independent review, and agentic-security checks. Pre-flight
-  now reuses supplied Instruction and Skill bodies. Setup removes legacy
-  duplicate location aliases without touching unrelated paths. Complete Pester,
-  AST, analyzer, Markdown, independent-review, deployment, and live-profile
-  checks passed.
-- **2026-07-21**: Established the Glossary with 20 Canonical terms and verified
-  that its forbidden phrases do not conflict with existing artifacts.
-- **2026-07-21**: Made the Setup script cross-platform, added a sandboxed Linux
-  regression, and guarded against null copy destinations that could flatten
-  Customization directories into the current working directory.
-- **2026-07-21**: Proved and completed guarded cleanup of artifacts from the
-  failed Linux setup run.
-- **2026-07-17**: Added the `windows-gui-screenshot-capture` Skill with
-  rendering-engine-specific capture recipes and deterministic verification.
-- **2026-07-16**: Added `automatedlab-proxmox`, hardened WinRM and long-running
-  job guidance, and completed the detached cross-platform Pester/build contract.
-- **2026-07-16**: Exempted Non-impacting turns from Post-flight documentation
-  while retaining the full closure path for Substantive turns.
-- **2026-07-11**: Restored file and directory creation tools across all Custom
-  agents and added role-appropriate task and rename capabilities.
-- **2026-07-09**: Added `test-driven-development`,
-  `debugging-and-error-recovery`, and `code-review-and-quality`, plus the shared
-  Definition of Done.
-- **2026-07-02**: Added agentic-security and evaluation Skills, introduced the
-  portable `AGENTS.md`, and aligned Custom agents on Claude Opus 4.8.
 
 ## Stable capabilities
 
