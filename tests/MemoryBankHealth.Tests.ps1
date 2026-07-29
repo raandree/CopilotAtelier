@@ -19,7 +19,14 @@ Describe 'Test-MemoryBankHealth' {
 
         $result.Passed | Should -BeTrue
         $result.ErrorCount | Should -Be 0
-        $result.CanonicalFileCount | Should -Be 8
+
+        # promptHistory.md is gitignored local ephemera, so a clean checkout
+        # carries only the seven required version-controlled files.
+        $promptHistoryPath = Join-Path $script:repoRoot '.memory-bank/promptHistory.md'
+        $promptHistoryPresent = Test-Path -LiteralPath $promptHistoryPath -PathType Leaf
+
+        $result.LocalPromptHistoryPresent | Should -Be $promptHistoryPresent
+        $result.CanonicalFileCount | Should -Be (7 + [int]$promptHistoryPresent)
         $result.MemoryBankTopicCount | Should -Be 0
         $result.IndexLineCount | Should -BeLessOrEqual 100
         $result.IndexCharacterCount | Should -BeLessOrEqual 7000

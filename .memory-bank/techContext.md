@@ -114,6 +114,11 @@ model so a retirement degrades instead of breaking every agent.
 
 - `./build.ps1 -Tasks build, test` is the full gate. Add `-ResolveDependency`
   on the first run.
+- Validate CI-affecting changes against a clean checkout, not just the
+  developer worktree: clone the repository into a temporary directory, copy
+  `output/` in as the build artifact, and run `./build.ps1 -Tasks test`. A
+  worktree carries gitignored files such as `.memory-bank/promptHistory.md`
+  that CI never has.
 - `tests/QA/module.tests.ps1` enforces the changelog parse, the exported
   command surface, the shipped customization payload, a unit test per exported
   command, zero PSScriptAnalyzer findings per command, and complete

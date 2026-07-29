@@ -15,6 +15,12 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-29**: Fixed all three CI test jobs failing. Four repository tests
+  assumed the gitignored `.memory-bank/promptHistory.md` exists, so the suite
+  had only ever run in a developer worktree. Reproducing against a clean clone
+  also exposed that `Setup-CopilotSettings.Tests.ps1` still derived the target
+  folder name from the clone directory, which the module migration fixed to
+  `CopilotAtelier`.
 - **2026-07-29**: Fixed the first GitHub Actions run failing in 0s with an
   invalid workflow file. A step's `shell` key rejects every context, so
   `shell: ${{ matrix.shell }}` broke compilation of the whole file; the shell

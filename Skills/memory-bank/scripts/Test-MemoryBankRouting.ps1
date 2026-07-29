@@ -275,6 +275,22 @@ foreach ($case in @($evalSet.cases)) {
     $uniqueFiles = @($selectedFiles | Select-Object -Unique)
     foreach ($requiredFile in @($case.requiredFiles)) {
         if ($requiredFile -notin $uniqueFiles) {
+            <#
+                An optional file that is genuinely absent is not a routing
+                failure. A clean checkout has no gitignored local prompt log,
+                and the route cannot select a file that does not exist.
+            #>
+            $optionalAndAbsent = (
+                $requiredFile -in $optionalFileNames -and
+                -not (Test-Path -LiteralPath (
+                    Join-Path $memoryBankPath $requiredFile
+                ) -PathType Leaf)
+            )
+
+            if ($optionalAndAbsent) {
+                continue
+            }
+
             $coverageMisses++
         }
     }

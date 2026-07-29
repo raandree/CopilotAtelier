@@ -190,7 +190,7 @@ Describe 'Memory Bank routing evaluation' {
     }
 
     It 'adds freshness and provenance metadata to every core knowledge file' {
-        foreach ($fileName in @(
+        $requiredFileName = @(
             'index.md'
             'projectbrief.md'
             'productContext.md'
@@ -198,12 +198,24 @@ Describe 'Memory Bank routing evaluation' {
             'techContext.md'
             'progress.md'
             'systemPatterns.md'
-            'glossary.md'
-            'promptHistory.md'
-        )) {
-            $content = Get-Content -LiteralPath (
-                Join-Path $script:repoRoot ".memory-bank/$fileName"
-            ) -Raw
+        )
+
+        # Both are optional; promptHistory.md is gitignored and therefore absent
+        # from a clean checkout.
+        $optionalFileName = @('glossary.md', 'promptHistory.md')
+
+        foreach ($fileName in ($requiredFileName + $optionalFileName)) {
+            $filePath = Join-Path $script:repoRoot ".memory-bank/$fileName"
+
+            if ($fileName -in $optionalFileName -and
+                -not (Test-Path -LiteralPath $filePath -PathType Leaf)) {
+                continue
+            }
+
+            Test-Path -LiteralPath $filePath -PathType Leaf |
+                Should -BeTrue -Because $fileName
+
+            $content = Get-Content -LiteralPath $filePath -Raw
             $content | Should -Match '(?m)^status: [a-z-]+\r?$' -Because $fileName
             $content |
                 Should -Match '(?m)^last-verified: \d{4}-\d{2}-\d{2}\r?$' `

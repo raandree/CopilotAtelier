@@ -1,6 +1,9 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
-    $script:repoName = Split-Path -Leaf $script:repoRoot
+
+    # The canonical target folder is the module name, not the clone folder name.
+    $script:repoName = 'CopilotAtelier'
+
     $script:setupScript = Join-Path $script:repoRoot 'Setup-CopilotSettings.ps1'
 }
 
