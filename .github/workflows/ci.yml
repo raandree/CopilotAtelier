@@ -3,8 +3,7 @@
 #   * Build  - calculate the version with GitVersion, build and package the
 #              module, then publish the output/ folder as a build artifact.
 #   * Test   - on Linux, macOS and Windows, reuse the build artifact and run the
-#              Sampler test workflow. Windows repeats the run on Windows
-#              PowerShell 5.1 because the setup entry point still supports it.
+#              Sampler test workflow on PowerShell 7.
 #   * Deploy - on the upstream repository, for pushes to main or v* tags,
 #              publish the release to GitHub and the PowerShell Gallery and
 #              raise the changelog pull request.
@@ -126,29 +125,21 @@ jobs:
           - name: ubuntu-latest
             artifact: ubuntu-latest
             os: ubuntu-latest
-            shell: pwsh
             arguments: "-Tasks test -PesterTag @('Unit','QA')"
           - name: macos-latest
             artifact: macos-latest
             os: macos-latest
-            shell: pwsh
             arguments: "-Tasks test -PesterTag @('Unit','QA')"
           - name: windows-latest (PowerShell 7)
             artifact: windows-latest-pwsh
             os: windows-latest
-            shell: pwsh
-            arguments: '-Tasks test'
-          - name: windows-latest (Windows PowerShell 5.1)
-            artifact: windows-latest-powershell
-            os: windows-latest
-            shell: powershell
             arguments: '-Tasks test'
 
-    # A step's `shell` key does not accept the matrix context; `defaults.run` is
-    # the only place that does.
+    # If a leg ever needs a different interpreter, parameterise this from the
+    # matrix - a step's own `shell` key does not accept the matrix context.
     defaults:
       run:
-        shell: ${{ matrix.shell }}
+        shell: pwsh
 
     steps:
       - name: Checkout

@@ -45,10 +45,11 @@ that made CopilotAtelier distributable through the PowerShell Gallery.
   by the sibling repositories (ShellPilot is the reference). A `Package Module`
   job computes the version with GitVersion, exports every GitVersion property as
   a step output, stamps `FullSemVer` into the job summary, and uploads `output/`;
-  `Test` reuses that artifact on Linux, macOS, Windows PowerShell 7, and Windows
-  PowerShell 5.1, with the non-Windows legs tag-limited to `Unit` and `QA`;
-  `Deploy Module` publishes from `main` or a `v*` tag behind an upstream-owner
-  check. Secrets are `GitHubToken` and `GalleryApiToken`.
+  `Test` reuses that artifact on Linux, macOS, and Windows, all on PowerShell 7,
+  with the non-Windows legs tag-limited to `Unit` and `QA`; `Deploy Module`
+  publishes from `main` or a `v*` tag behind an upstream-owner check. Secrets are
+  `GitHubToken` and `GalleryApiToken`. The Windows PowerShell 5.1 leg was dropped
+  on 2026-07-30; the module is not used on that runtime.
 - `tests/QA/module.tests.ps1` plus `tests/Unit/{Public,Private}/` cover the
   command surface, the shipped payload, help quality, static analysis, and the
   behavior of every exported command.
@@ -63,6 +64,16 @@ that made CopilotAtelier distributable through the PowerShell Gallery.
 
 ## Focused evidence
 
+- CI run 30526269252 failed only on the Windows PowerShell 5.1 leg, in
+  `Invoke_Pester_Tests_v5`, before a test ran. The built manifest is UTF-8
+  without a byte order mark and carries 63 non-ASCII bytes from the stamped
+  release notes; Windows PowerShell 5.1 decodes a BOM-less file with the ANSI
+  code page, so `→` (`E2 86 92`) becomes a sequence ending in `'`, which the
+  tokenizer treats as a string delimiter. Reproduced locally: the same file
+  imports cleanly with `Import-PowerShellDataFile` on PowerShell 7 and fails to
+  parse the moment its bytes are decoded as code page 1252. The leg is removed
+  rather than worked around. `./build.ps1 -Tasks test` on PowerShell 7:
+  347 passed, 0 failed, coverage 70.67 percent against a 65 percent gate.
 - The four changed Skill files lint clean with `markdownlint-cli2` and stay
   within the 500-line body budget; the parameterized
   `tests/SkillFrontmatter.Tests.ps1` covers the new `subagent-dispatch` Skill,

@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-07-29
+last-verified: 2026-07-30
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -15,6 +15,18 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-30**: Dropped the Windows PowerShell 5.1 leg from the CI test
+  matrix. Run 30526269252 failed in `Invoke_Pester_Tests_v5` before any test
+  ran: `Create_Changelog_Release_Output` writes the built manifest as UTF-8
+  without a byte order mark, Windows PowerShell 5.1 decodes a BOM-less file with
+  the ANSI code page, and the UTF-8 bytes of `→` become a sequence ending in a
+  right single quotation mark that the tokenizer reads as a string delimiter,
+  which terminates the release notes and breaks the manifest parse. Verified
+  that the same manifest imports cleanly on PowerShell 7 and fails only under a
+  code page 1252 decode. A `Set_Built_Manifest_Encoding` build task that forced
+  the byte order mark was written and then discarded: the module is not used on
+  Windows PowerShell 5.1, so removing the leg is the cheaper contract. All three
+  legs now run PowerShell 7 and the matrix `shell` key is gone.
 - **2026-07-30**: Strengthened the authoring and engineering-discipline Skills.
   `skill-creator` now classifies the baseline failure — discipline, shaping,
   omission, or conditional — before prescribing a guidance form, and scopes the
