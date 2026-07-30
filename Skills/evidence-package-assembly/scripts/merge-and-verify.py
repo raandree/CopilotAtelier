@@ -13,9 +13,11 @@ Manifest:
       ]
     }
 
-`skip` lists source page numbers (1-based) to omit. Omissions are printed so they
-stay visible in the build log. Page ranges are printed so the cover can be filled
-from this output rather than by hand.
+`cover` is optional; omit it for a package small enough to be described by the
+covering letter's schedule of attachments. `skip` lists source page numbers
+(1-based) to omit. Omissions are printed so they stay visible in the build log.
+Page ranges are printed so the cover can be filled from this output rather than
+by hand.
 """
 
 from __future__ import annotations
@@ -37,10 +39,13 @@ def build(manifest: dict) -> list[tuple[str, int, int]]:
     out = pathlib.Path(manifest["out"])
     writer = PdfWriter()
 
-    for page in PdfReader(manifest["cover"]).pages:
-        writer.add_page(page)
+    if cover := manifest.get("cover"):
+        for page in PdfReader(cover).pages:
+            writer.add_page(page)
+        print(f"Deckblatt: Seiten 1-{len(writer.pages)}")
+    else:
+        print("Kein Deckblatt")
     pos = len(writer.pages)
-    print(f"Deckblatt: Seiten 1-{pos}")
 
     bereiche: list[tuple[str, int, int]] = []
     for teil in manifest["parts"]:
