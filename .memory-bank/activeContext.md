@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-07-29
+last-verified: 2026-07-30
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,12 +9,29 @@ source: current task evidence
 
 ## Current focus
 
-Migrate CopilotAtelier to a Sampler-built PowerShell module so it can be
-distributed through the PowerShell Gallery with a version, an update command,
-and a record of what is deployed.
+Raise the quality bar of the authoring and engineering-discipline Skills, and
+document subagent delegation, on top of the completed Sampler module migration
+that made CopilotAtelier distributable through the PowerShell Gallery.
 
 ## Implemented
 
+- `skill-creator` classifies the baseline failure before prescribing a form.
+  Discipline failures take the prohibition triad; shaping failures take a
+  positive recipe; omissions take a required structural slot; conditional
+  behaviour takes a predicate-keyed conditional. Nuance clauses and exemption
+  clauses are banned because both reopen the negotiation.
+- `agent-evals` carries a wording micro-test loop: fresh context per sample, a
+  mandatory no-guidance control arm whose clean result is a stop condition, five
+  or more repetitions, manual reading of every flagged match, and variance as a
+  metric.
+- `debugging-and-error-recovery` instruments every boundary in a layered system
+  in one pass before hypothesising, and treats the third failed fix as a design
+  signal rather than a cue for a fourth attempt.
+- New `subagent-dispatch` Skill: model tier per task with an explicit-model rule,
+  the five-part dispatch that excludes session history, artifacts handed over as
+  files, no pre-judging a reviewer, a compaction-surviving ledger, a four-status
+  report protocol where the diff is the evidence, and a five-round fix cap with
+  model escalation and written adjudication. Skill count 40 → 41.
 - A Sampler project: `source/` holds the module, `build.ps1`, `build.yaml`,
   `RequiredModules.psd1`, `Resolve-Dependency.*`, and `GitVersion.yml` drive the
   build, and `.build/Copy_Customizations_To_Output.build.ps1` copies the six
@@ -46,6 +63,10 @@ and a record of what is deployed.
 
 ## Focused evidence
 
+- The four changed Skill files lint clean with `markdownlint-cli2` and stay
+  within the 500-line body budget; the parameterized
+  `tests/SkillFrontmatter.Tests.ps1` covers the new `subagent-dispatch` Skill,
+  so its `description` and `compatibility` sit within the specification caps.
 - Run 30462902820 failed with `ConvertFrom-Json: Unexpected character
   encountered while parsing value: M. Path '', line 0, position 0`. GitVersion
   5.12.0 installed and ran; its standard output began with `M` instead of `{`.

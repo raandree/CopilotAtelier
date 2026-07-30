@@ -180,9 +180,29 @@ Task Progress:
 
 When output quality depends on style or format, include two or three input/output pairs in SKILL.md. Examples beat descriptions when the user wants a specific shape.
 
+## Match the form to the failure
+
+Before writing a line of guidance, classify the baseline failure you actually observed. The form that fixes one failure type measurably backfires on another, so this classification decides the shape of everything below it.
+
+| Baseline failure | Right form | Wrong form |
+|---|---|---|
+| Knows the rule, skips it under pressure | Prohibition, plus an anti-rationalization table and red flags | Soft guidance ("prefer", "consider") |
+| Complies, but the output has the wrong shape | A positive recipe: state what the output **is** — its parts, in order | A list of prohibitions |
+| Omits a required element from output it already produces | A structural REQUIRED slot in the template it fills in | Prose reminders near the template |
+| Behaviour should depend on a condition | A conditional keyed to an observable predicate | An unconditional rule plus exemption clauses |
+
+Prohibitions work on discipline failures because the agent already knows the right answer and only needs the shortcut closed. They backfire on shaping failures: given a competing incentive, an agent negotiates with "don't do X" and can produce more of the unwanted content than no guidance at all. A recipe leaves nothing to negotiate — the output either matches the stated shape or it does not.
+
+Two rules hold whichever form you pick:
+
+- **No nuance clauses.** "Don't do X unless it matters" reopens the negotiation. Express a real exception as its own conditional on an observable predicate.
+- **Exemption clauses do not scope.** "This limit does not apply to code blocks" still suppresses code blocks. If part of the output must be exempt, restructure so the rule cannot reach it.
+
+Classify from observed behaviour, not from intuition. A micro-test settles it in minutes.
+
 ## Behavioural enforcement: rationalizations, red flags, evidence
 
-Structural patterns keep a skill readable; these three sections keep the *agent on process* when the shortest path tempts it to skip a step. Add them to any skill that encodes a discipline an agent tends to abandon — tests, security checks, verification, destructive-operation guards. Skip them only for skills with purely subjective output (writing style, summarisation) where there is no step to enforce.
+Structural patterns keep a skill readable; these three sections keep the *agent on process* when the shortest path tempts it to skip a step. They are the discipline-failure form from the table above: add them to a skill that encodes a step an agent abandons under pressure — tests, security checks, verification, destructive-operation guards. Do not reach for them on a shaping failure, where a recipe or a required slot is the correct instrument, and skip them entirely for skills with purely subjective output (writing style, summarisation) where there is no step to enforce.
 
 ### Anti-rationalization table
 
@@ -312,6 +332,7 @@ Before committing a skill:
 - [ ] Folder name == `name:` (kebab-case, ≤ 64 chars, no `anthropic`/`claude`).
 - [ ] Description ≤ 1024 chars, third-person, contains `USE FOR:` and (where adjacent skills exist) `DO NOT USE FOR:`.
 - [ ] Body ≤ 500 lines (`(Get-Content SKILL.md).Count`).
+- [ ] Baseline failure classified and the guidance form matches it — discipline, shaping, omission, or conditional.
 - [ ] Behavioural enforcement present where the skill encodes a skippable discipline: anti-rationalization table + red-flags list + verification/evidence close (skip only for purely subjective-output skills).
 - [ ] Deep material in `references/<topic>.md`, one level deep from SKILL.md.
 - [ ] Reference files > 100 lines start with a `## Contents` TOC.

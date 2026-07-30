@@ -15,7 +15,19 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
-- **2026-07-29**: Found why run 30462902820 is undiagnosable and fixed that
+- **2026-07-30**: Strengthened the authoring and engineering-discipline Skills.
+  `skill-creator` now classifies the baseline failure — discipline, shaping,
+  omission, or conditional — before prescribing a guidance form, and scopes the
+  anti-rationalization triad to discipline failures only, because prohibitions
+  backfire on shaping failures. `agent-evals` gained a wording micro-test loop
+  with a mandatory no-guidance control arm and its stop condition (no failure in
+  the control means the guidance is not written) plus variance as a metric.
+  `debugging-and-error-recovery` gained boundary instrumentation for layered
+  systems and a three-failed-fixes stop condition. New `subagent-dispatch` Skill
+  documents delegation: model tier per task, a dispatch that carries the task
+  not the session history, artifacts as files, no pre-judging a reviewer, a
+  compaction-surviving ledger, verification against the diff rather than the
+  subagent's claim, and a five-round fix cap. Skill count 40 → 41.- **2026-07-29**: Found why run 30462902820 is undiagnosable and fixed that
   first. The GitVersion step piped `dotnet-gitversion` into `ConvertFrom-Json`,
   and GitVersion logs to standard output, so a failure surfaces as
   `Unexpected character encountered while parsing value: M` and the real
@@ -119,20 +131,9 @@ published to the PowerShell Gallery. Incremental work is tracked under
   path and SHA-256; the deployed initializer and health checker pass initialized
   and clean-checkout scenarios. Changes remain uncommitted and unpushed.
 - **2026-07-24**: Implemented evaluated Memory Bank routing with `index.md` as
-  the sole unconditional read, 25 independently audited task cases, zero
-  critical-file misses, a 50 percent context-reduction floor, and a tested
-  Full-read fallback. Extracted 15 Decision records, added freshness and source
-  metadata, demoted prompt history from routine reads, added optional Memory
-  Bank topics and a deterministic health check, and retained least-privilege
-  Custom agent tool lists by making native-memory guidance explicitly
-  conditional.
-- **2026-07-24**: Audited the Memory Bank against current Cline, VS Code 1.130,
-  Claude Code, Agent Skills, Anthropic context-engineering guidance, OpenAI,
-  Google ADK, AutoGen, LangGraph, MADR, and recent memory benchmarks. Confirmed
-  that the file schema remains viable but the unconditional eight-file read
-  costs approximately 10.7k tokens per turn. Found two local documentation
-  conflicts and an eight-agent native-memory tool gap. Recorded an
-  evaluation-first, shadow-routing migration rule; no runtime change was made.
+  the sole unconditional read, 25 audited task cases, zero critical-file misses,
+  a 50 percent context-reduction floor, a tested Full-read fallback, 15 extracted
+  Decision records, optional Memory Bank topics, and a deterministic health check.
 - **2026-07-23**: Added the deployed `memory-bank` Skill and centralized the
   Definition of Done in Post-flight. Pre-flight now safely creates only missing
   canonical base files before durable writes. All 11 Custom agents use shared

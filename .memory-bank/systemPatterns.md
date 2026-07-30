@@ -68,6 +68,12 @@ CopilotAtelier repository (Sampler project)
     which version is actually deployed, independent of how it was installed.
 - Hooks enforce the rules that must hold regardless of model reasoning;
     Instructions carry the judgement calls.
+- Authored guidance takes its form from the baseline failure it corrects:
+    prohibitions and rationalization tables for a discipline an agent skips
+    under pressure, a positive recipe for output of the wrong shape, a required
+    structural slot for an omitted element, and a predicate-keyed conditional
+    for behaviour that depends on context. Applying the prohibition form to a
+    shaping failure makes the output worse.
 - VS Code spawns a hook command without a shell, so no `%VAR%` or `$VAR` token
     is expanded. Each command resolves its own path inside the interpreter and
     propagates the exit code explicitly; a test that runs a hook string through

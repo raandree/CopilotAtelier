@@ -36,6 +36,37 @@ A repeatable method for turning a failure into a fix without guessing. Domain-ne
 4. **Fix the root cause.** Fix the cause, not the symptom. A `$null` you guard with a check is a symptom; where the `$null` came from is the cause. Suppressing the error (empty `catch`, `SilentlyContinue`, blanket retry) hides the bug and ships it.
 5. **Guard.** Add a test that fails without the fix and passes with it (see [`test-driven-development`](../test-driven-development/SKILL.md)). The bug is not fixed until a test would catch its return.
 
+## Instrument the boundaries in a layered system
+
+When the failure crosses component boundaries — CI to build to signing, script to remoting to node, configuration data to compilation to LCM — do not reason about which layer is at fault. Add diagnostic output at every boundary in one pass, run once, and let the evidence name the failing layer before you investigate it.
+
+At each boundary capture what enters, what leaves, and whether environment and configuration propagated:
+
+```powershell
+'=== Layer 1: caller ==='
+"Identity: $(if ($env:IDENTITY) { 'SET' } else { 'UNSET' })"
+
+'=== Layer 2: build script ==='
+Get-ChildItem Env: | Where-Object Name -like 'IDENTITY*'
+
+'=== Layer 3: target node ==='
+Invoke-Command -Session $session { $env:IDENTITY; Test-Path $using:artifactPath }
+```
+
+One instrumented run localises the fault to a layer. Guessing a layer costs a round trip per guess and usually produces a symptom fix in the wrong component.
+
+## Three failed fixes means the design, not the fix
+
+Count fix attempts. After one or two failures, return to Reproduce with what you learned. The third failed fix is a stop condition, not a cue for a fourth attempt.
+
+The signature of a wrong design, as distinct from a wrong hypothesis:
+
+- Each fix resolves its symptom and surfaces a new one somewhere else.
+- Each fix reaches further than the last to make the previous one hold.
+- Making the fix correct would mean "a big refactor first".
+
+When that pattern appears, stop fixing and put the design itself in front of the user: is this approach sound, or is it being kept alive by inertia? Patching past this point buries the real defect under layers of workaround and makes every later fix more expensive.
+
 ## Stop-the-line
 
 A red build or a failing test is a full stop, not a warning to work around. Do not layer new work on a broken base, and do not comment out or `-Skip` a failing test to get green — that discards the signal. Fix it, or revert to the last green commit, then proceed.
@@ -69,6 +100,8 @@ Treat a flaky test as a real defect, not noise. Common causes: hidden order depe
 | "Wrapping it in try/catch fixes it." | Catching an error hides the cause; the bug still exists. Trace it to its origin. |
 | "It's just flaky, re-run it." | Flake is a defect with a hidden cause. A re-run is not a fix. |
 | "Too small to add a regression test." | The bug already escaped once. The test is what stops it escaping twice. |
+| "One more fix attempt will do it." | Three failed fixes is a design signal, not a hypothesis signal. Stop and put the approach on the table. |
+| "I already know which layer is broken." | Knowing is not evidence. One instrumented run across every boundary costs less than one wrong guess. |
 
 ## Red flags
 
@@ -77,6 +110,8 @@ Treat a flaky test as a real defect, not noise. Common causes: hidden order depe
 - A new `try/catch`, `SilentlyContinue`, or retry appears and the failure "goes away".
 - A failing test is `-Skip`ped, commented out, or its assertion weakened.
 - "Fixed" with no test that fails without the change.
+- A fourth fix attempt on the same defect, with the design never questioned.
+- A fix proposed for a layered failure before any boundary was instrumented.
 
 When a red flag fires, stop and return to the step you skipped — most often Reproduce or Guard.
 

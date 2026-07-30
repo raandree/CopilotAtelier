@@ -59,6 +59,18 @@ Write the eval before the extensive documentation, not after. The loop:
 5. **Re-run the evals.** Compare to baseline. Confirm the skill actually triggered (the PRE-FLIGHT line names it) — a "bad output" is often really a "skill never loaded."
 6. **Iterate.** Under-triggered → fix the description. Triggered but wrong → fix the body/references.
 
+## Micro-test the wording first
+
+A full eval run is the final gate, but it is slow and expensive per iteration. When the change is a wording change — a tightened rule, a reworded description, a new constraint — settle the wording first with a cheap micro-test.
+
+1. **One fresh-context sample per call.** The system prompt is the realistic context the guidance will live in (the whole skill or prompt, never the guidance in isolation); the user message is a task that tempts the failure.
+2. **Always run a no-guidance control arm.** If the control does not exhibit the failure, there is nothing to fix — stop, and do not author the guidance. Guidance against a failure that does not occur burns tokens and can teach the model a problem it did not have.
+3. **Five or more repetitions per variant.** A single sample is noise in exactly the way one lucky run is noise for a full eval.
+4. **Read every flagged match yourself.** Score programmatically if you like, but template echoes and quoted counter-examples register as hits, so automated counts overstate both failure and success.
+5. **Treat variance as a metric.** When guidance lands, repetitions converge on the same shape. Five different interpretations across five repetitions means the wording is not binding — tighten the form before adding words.
+
+Micro-tests settle wording. They do not replace the capability and regression sets below for a Customization that enforces a discipline.
+
 ## Start from 20–50 real failures
 
 Do not hand-write synthetic prompts. Start from **20–50 real failures** pulled from actual sessions (check `.memory-bank/promptHistory.md` and `progress.md` for what was actually attempted). Real failures encode the phrasing, edge cases, and messy inputs that synthetic prompts miss. Twenty is enough to expose a pattern; fifty gives a stable pass rate. Grow the set every time a new failure mode appears in production.
