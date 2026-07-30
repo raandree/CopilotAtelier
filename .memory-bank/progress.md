@@ -15,6 +15,14 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-07-30**: Added the Skill `evidence-package-assembly`, extracted from a
+  live Finanzamt filing. Covers the Markdown-to-PDF pipeline on Windows
+  (pandoc plus headless Edge, including the silent-no-output failure that still
+  returns exit code 0), the page-numbering criterion for deciding which sheets
+  may be omitted from a source document, redaction defaults, and cover-sheet
+  structure. Ships two scripts; the Python merge-and-verify script was
+  regression-tested against the real 42-page package and reproduced it exactly.
+
 - **2026-07-30**: Dropped the Windows PowerShell 5.1 leg from the CI test
   matrix. Run 30526269252 failed in `Invoke_Pester_Tests_v5` before any test
   ran: `Create_Changelog_Release_Output` writes the built manifest as UTF-8
