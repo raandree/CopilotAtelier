@@ -14,7 +14,7 @@ description: >-
   entfernen, Schwaerzung, redact bank statement, Seitenzaehlung lueckenlos.
   DO NOT USE FOR: extracting text from PDFs (use pdf-to-markdown), Markdown
   to Word (use pandoc-docx-export), slides (use marp-slide-overflow), legal
-  argumentation (use german-legal-research).
+  or tax argumentation (use german-legal-research, german-tax-research).
 compatibility: >-
   Windows with pandoc on PATH and Microsoft Edge installed. Python via `uv`
   for pypdf and pymupdf. No Adobe Acrobat, Word, or LibreOffice required.
