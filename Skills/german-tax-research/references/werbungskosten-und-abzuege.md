@@ -96,7 +96,7 @@ Watch two traps. A device claimed in one year must not appear again in another �
 | Kranken- und Pflegeversicherung, Basisabsicherung | § 10 Abs. 1 Nr. 3 EStG | Unlimited; supplementary cover only within the residual cap |
 | Sonstige Vorsorgeaufwendungen | § 10 Abs. 1 Nr. 3a EStG | Usually exhausted by the basic health cover |
 | Kirchensteuer | § 10 Abs. 1 Nr. 4 EStG | Paid less refunded |
-| Kinderbetreuung | § 10 Abs. 1 Nr. 5 EStG | Two thirds of the cost, capped; invoice and cashless payment required |
+| Kinderbetreuung | § 10 Abs. 1 Nr. 5 EStG | From VZ 2025: 80 % of the cost, max 4.800 € per child; until VZ 2024: two thirds, max 4.000 €. Invoice and cashless payment required |
 | Berufsausbildung (Erstausbildung) | § 10 Abs. 1 Nr. 7 EStG | Capped, no loss carry-forward |
 | Unterhalt an geschiedene Ehegatten | § 10 Abs. 1a Nr. 1 EStG | Realsplitting, needs the recipient's consent (Anlage U) |
 | Spenden und Mitgliedsbeiträge | § 10b EStG | Up to 20 % of total income; `Zuwendungsbestätigung`, simplified proof for small amounts |

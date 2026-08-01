@@ -216,6 +216,8 @@ Flag to the user immediately, and do not proceed alone:
 ## Anti-patterns
 
 - ❌ Applying the three-day notification fiction — it is four days since 1 January 2025.
+- ❌ Pricing `Aussetzungszinsen` at 0.15 % per month — that rate is limited to `§ 233a`; AdV interest runs at 0.5 % per month.
+- ❌ Applying the flat 14-month (`§ 152`) or 15-month (`§ 233a`) rule to VZ 2020 to 2024, where `Art. 97 § 36 Abs. 3 EGAO` extends both.
 - ❌ Asking to extend the `Einspruchsfrist`.
 - ❌ Depreciating the full purchase price including the land share.
 - ❌ Treating the `§ 7i` or `§ 7h` certificate as optional evidence rather than as a `Grundlagenbescheid` (`§ 175 Abs. 1 S. 1 Nr. 1 AO`).

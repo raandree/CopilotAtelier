@@ -60,7 +60,9 @@ Public holidays are state law, so the relevant `Bundesland` is the one where the
 
 Granted on serious doubts as to lawfulness or on unreasonable hardship. Apply to the Finanzamt first; on refusal, to the Finanzgericht (`§ 69 FGO`).
 
-The cost of losing: `Aussetzungszinsen` under `§ 237 AO` at 0.15 % per month (1.8 % p. a.) on the suspended amount. Apply only where the objection has real prospects, and quantify the exposure before recommending it.
+The cost of losing: `Aussetzungszinsen` under `§ 237 AO` at **0.5 % per month, 6 % per year** (`§ 238 Abs. 1 S. 1 AO`). The reduced rate of 0.15 % in `§ 238 Abs. 1a AO` applies by its own wording only "in den Fällen des § 233a" and therefore **not** to AdV interest; `§ 237 AO` itself contains no rate. Assuming the reduced rate understates the exposure more than threefold. Apply only where the objection has real prospects, and quantify the exposure before recommending it.
+
+The BFH holds that rate unconstitutional for the period 1 January 2019 to 15 April 2021 and referred it to the BVerfG (`BFH, Vorlagebeschluss v. 08.05.2024 – VIII R 9/23`). Where `Aussetzungszinsen` are assessed, object and apply for the objection to rest under `§ 363 Abs. 2 S. 2 AO` instead of treating the amount as settled.
 
 ## Ruhen und Vorläufigkeit
 
@@ -95,15 +97,19 @@ Extension of a filing deadline: `§ 109 AO`, granted at discretion, with reasons
 
 ## Verspätungszuschlag (§ 152 AO)
 
-Discretionary in principle, but **mandatory** where the return arrives more than 14 months after the end of the assessment period (`§ 152 Abs. 2 AO`), subject to the exceptions in `§ 152 Abs. 3 AO` (assessed tax at zero, refund, extension granted).
+Discretionary in principle (`§ 152 Abs. 1 AO`), but **mandatory** where the return arrives more than 14 months after the end of the assessment period (`§ 152 Abs. 2 Nr. 1 AO`), subject to the exceptions in `§ 152 Abs. 3 AO` (assessed tax at zero, refund, extension granted). Those exceptions remove only the mandatory surcharge; the discretionary one under `Abs. 1` remains available.
 
-Amount: 0.25 % of the assessed tax less prepayments and credits per commenced month, minimum 25 euro per month (`§ 152 Abs. 5 AO`).
+The 14-month threshold is replaced for the assessment periods 2020 to 2024 by `Art. 97 § 36 Abs. 3 Nr. 5 EGAO`: 20 months for VZ 2020 and 2021, 19 for VZ 2022, 17 for VZ 2023, 16 for VZ 2024, and 14 again from VZ 2025. Reasoning from the flat rule for any of those years produces a surcharge that is not owed.
+
+Amount: 0.25 % of the assessed tax less prepayments and credits per commenced month, minimum 25 euro per month (`§ 152 Abs. 5 S. 2 AO`), rounded down to full euro and capped at 25,000 euro (`§ 152 Abs. 10 AO`).
 
 It is a **separate administrative act**. Contesting it requires its own objection, even where it is printed on the same sheet as the income tax assessment.
 
 ## Zinsen (§§ 233a, 237 AO)
 
-Interest runs from 15 months after the end of the assessment period (`§ 233a Abs. 2 AO`), both ways. The rate is 0.15 % per month, 1.8 % per year, after the BVerfG decision of 8 July 2021 and the second AO amendment act of 12 July 2022, and it is reviewed every three years.
+Interest runs from 15 months after the end of the assessment period (`§ 233a Abs. 2 S. 1 AO`), both ways. The rate is 0.15 % per month, 1.8 % per year (`§ 238 Abs. 1a AO`), after the BVerfG decision of 8 July 2021 and the second AO amendment act of 12 July 2022. `§ 238 Abs. 1c AO` requires a review at least every two years, the first by 1 January 2024; `§ 238 AO` has not been amended since 22 July 2022, so the 0.15 % rate still stands.
+
+The 15-month `Karenzzeit` is replaced for the assessment periods 2020 to 2024 by `Art. 97 § 36 Abs. 3 Nr. 7 EGAO`: 21 months for VZ 2020 and 2021, 20 for VZ 2022, 18 for VZ 2023, 17 for VZ 2024. The flat 15-month rule applies again only from VZ 2025.
 
 ## Schätzung (§ 162 AO)
 

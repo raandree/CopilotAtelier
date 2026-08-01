@@ -9,12 +9,18 @@ source: current task evidence
 
 ## Current focus
 
-Raise the quality bar of the authoring and engineering-discipline Skills, and
-document subagent delegation, on top of the completed Sampler module migration
-that made CopilotAtelier distributable through the PowerShell Gallery.
+Audit the newly added domain Skills against primary sources before they are
+relied on, on top of the completed Sampler module migration that made
+CopilotAtelier distributable through the PowerShell Gallery.
 
 ## Implemented
 
+- `german-tax-research` audited against the consolidated statutory text in force
+  on 1 August 2026. Four factual defects corrected: the `§ 237 AO` AdV interest
+  rate (0.5 % per month, not the `§ 233a`-only 0.15 %), the `Art. 97 § 36 Abs. 3
+  Nr. 5/7 EGAO` overrides of the 14- and 15-month counts for VZ 2020 to 2024,
+  the `§ 238 Abs. 1c AO` review interval, and the VZ 2025 childcare-cost rule.
+  Everything else the audit touched checked out against primary sources.
 - `skill-creator` classifies the baseline failure before prescribing a form.
   Discipline failures take the prohibition triad; shaping failures take a
   positive recipe; omissions take a required structural slot; conditional

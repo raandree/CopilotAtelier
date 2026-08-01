@@ -102,7 +102,9 @@ For voluntary filing (`Antragsveranlagung`, `§ 46 Abs. 2 Nr. 8 EStG`) the limit
 | Einspruchsfrist without or with defective instruction | 1 year | § 356 Abs. 2 AO |
 | Klagefrist Finanzgericht | 1 month | § 47 FGO |
 | Verspätungszuschlag | 0,25 % of the assessed tax per commenced month, min 25 € per month | § 152 Abs. 5 AO |
-| Zinsen auf Nachzahlungen und Erstattungen | 0,15 % per month = 1,8 % per year, from 15 months after the year end | §§ 233a, 238 Abs. 1a AO |
-| Aussetzungszinsen | 0,15 % per month | § 237 AO |
+| Verspätungszuschlag, Muss-Festsetzung | after 14 months; VZ 2020/2021 20, VZ 2022 19, VZ 2023 17, VZ 2024 16 Monate | § 152 Abs. 2 Nr. 1 AO, Art. 97 § 36 Abs. 3 Nr. 5 EGAO |
+| Zinsen auf Nachzahlungen und Erstattungen | 0,15 % per month = 1,8 % per year | §§ 233a, 238 Abs. 1a AO |
+| Beginn des Zinslaufs | after 15 months; VZ 2020/2021 21, VZ 2022 20, VZ 2023 18, VZ 2024 17 Monate | § 233a Abs. 2 S. 1 AO, Art. 97 § 36 Abs. 3 Nr. 7 EGAO |
+| Aussetzungszinsen | 0,5 % per month = 6 % per year — **not** the reduced § 233a rate | § 237 AO with § 238 Abs. 1 S. 1 AO |
 | Festsetzungsfrist Einkommensteuer | 4 years, 5 on reckless understatement, 10 on evasion | § 169 Abs. 2 AO |
 | Anlaufhemmung where a return is due | Start at the end of the filing year, at the latest after 3 years | § 170 Abs. 2 S. 1 Nr. 1 AO |

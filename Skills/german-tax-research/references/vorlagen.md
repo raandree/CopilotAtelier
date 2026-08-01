@@ -130,7 +130,7 @@ An der Rechtmäßigkeit des Bescheids bestehen ernstliche Zweifel im Sinne des
 Mit freundlichen Grüßen
 ```
 
-Quantify the suspended amount. Note internally that a failed application costs 0.15 % per month under `§ 237 AO`.
+Quantify the suspended amount. Note internally that a failed application costs 0.5 % per month — 6 % per year — under `§ 237 AO` with `§ 238 Abs. 1 S. 1 AO`; the reduced 0.15 % rate covers only `§ 233a` interest.
 
 ## Antrag auf Ruhen des Verfahrens
 

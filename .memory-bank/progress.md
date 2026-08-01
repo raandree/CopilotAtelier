@@ -15,6 +15,14 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-01**: Audited the new `german-tax-research` Skill against the
+  consolidated statutory text in force on that date. Corrected the `§ 237 AO`
+  AdV interest rate (0.15 % → 0.5 % per month, because `§ 238 Abs. 1a AO` is
+  limited to `§ 233a` cases), the `Art. 97 § 36 Abs. 3 Nr. 5/7 EGAO` overrides of
+  the 14-month `§ 152` and 15-month `§ 233a` counts for VZ 2020 to 2024, the
+  `§ 238 Abs. 1c AO` evaluation interval, and the VZ 2025 childcare rule. The
+  remainder verified clean, including every cited BFH docket.
+
 - **2026-07-30**: Added the Skill `evidence-package-assembly`, extracted from a
   live Finanzamt filing. Covers the Markdown-to-PDF pipeline on Windows
   (pandoc plus headless Edge, including the silent-no-output failure that still
@@ -138,34 +146,6 @@ published to the PowerShell Gallery. Incremental work is tracked under
   `context: fork` on the two Skills that ingest untrusted external content, and
   native Waza/analyzer routing in `agent-evals`. Fixed two over-cap Skill
   descriptions. Two new suites bring the repository to 250 passing tests.
-- **2026-07-27**: Extended `windows-gui-screenshot-capture` with a source-ownership
-  branch for existing executables, event-driven window/control readiness,
-  cross-process control handling, state restoration, stronger image-content
-  validation, an external-Win32 reference, and real-failure regression evals.
-- **2026-07-25**: Completed independent label and security review, final static
-  checks, 44-test Pester validation, and deployment. The audited 25-case router
-  reports 0 critical-file misses, 0 unexpected history loads, 0 fallback
-  failures, all 15 Decision records in Full mode, and 52.93 percent average
-  version-controlled context reduction after compacting the routed indexes. All
-  142 deployed files match source by
-  path and SHA-256; the deployed initializer and health checker pass initialized
-  and clean-checkout scenarios. Changes remain uncommitted and unpushed.
-- **2026-07-24**: Implemented evaluated Memory Bank routing with `index.md` as
-  the sole unconditional read, 25 audited task cases, zero critical-file misses,
-  a 50 percent context-reduction floor, a tested Full-read fallback, 15 extracted
-  Decision records, optional Memory Bank topics, and a deterministic health check.
-- **2026-07-23**: Added the deployed `memory-bank` Skill and centralized the
-  Definition of Done in Post-flight. Pre-flight now safely creates only missing
-  canonical base files before durable writes. All 11 Custom agents use shared
-  lifecycle Instructions while preserving exact tools, handoffs, domain
-  workflows, quality gates, and role-specific persistence schemas. Removed ten
-  duplicate lifecycle blocks and three per-tool narration templates. Added a
-  deterministic PowerShell initializer with LF/no-BOM, byte-preservation,
-  idempotency, and partial-base `-WhatIf` tests; deployed hashes and a sandbox
-  initialization pass. Harmonized all role initialization triggers with the
-  shared durable-write/read-only boundary, restored the Software Engineer's
-  on-demand role files, respected repository policy for local ephemera, and
-  hash-locked full role schemas.
 
 ## Stable capabilities
 
