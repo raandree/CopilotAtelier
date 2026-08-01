@@ -257,7 +257,10 @@ When a red flag fires, stop initialization and preserve the repository state.
 
 ## Verification
 
-Before reporting initialization complete:
+Run the health check before reporting initialization complete, and again after
+any turn that edits a Memory Bank file. The append mandated by the shared
+Post-flight gate is the path that breaches a line budget, so an initialization
+gate alone never sees it:
 
 ```powershell
 & "$HOME/.copilot/skills/memory-bank/scripts/Test-MemoryBankHealth.ps1" -Path $PWD.Path

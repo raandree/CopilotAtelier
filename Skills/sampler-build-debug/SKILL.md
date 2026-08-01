@@ -4,9 +4,12 @@ compatibility: Requires PowerShell 5.1+ with the Sampler, InvokeBuild, and Peste
 description: >-
   Debug and troubleshoot Sampler-based PowerShell module builds and Pester 5 test failures.
   Covers running builds safely (without freezing VSCode), reading Pester results, diagnosing
-  common mock/assertion failures, and fixing tests.
+  common mock/assertion failures, fixing tests, and reproducing a CI-only failure at the exact
+  commit CI built.
   USE FOR: build fails, test fails, Pester errors, troubleshoot build, debug tests, run build,
-  Sampler build, module build, Pester mock issues, VSCode freezes during build.
+  Sampler build, module build, Pester mock issues, VSCode freezes during build, passes locally
+  but fails in CI, CI-only test failure, reproduce a CI failure, clean checkout reproduction,
+  GitVersion 0.0.1 fallback version.
   DO NOT USE FOR: creating new modules from scratch, Azure deployments, CI/CD pipeline config.
 ---
 
@@ -157,6 +160,47 @@ Select-String -LiteralPath $logPath -Pattern 'tests\.ps1|Total run time' |
 
 Use the `$logPath` returned by the detached launcher. Do not infer a fixed log
 location.
+
+## Reproduce a CI-Only Failure
+
+A test that fails in CI and passes locally is rarely flaky. It is usually the
+worktree differing from what CI checked out. Reproduce first, diagnose second.
+
+### Step 1: Find the commit CI built
+
+The build log prints the resolved version, and the `+n` suffix GitVersion emits
+is the commit count since the version source. `3.0.0-preview.1+4` means four
+commits after the tag GitVersion used, so `git log <tag>.. --oneline` names the
+exact commit. The default branch has usually moved on, so testing `HEAD` proves
+nothing — and a green `HEAD` is not evidence that the reported failure is fixed.
+
+A CI provider's error annotation often truncates the Pester failure detail. Read
+the raw job log or reproduce locally rather than working from the annotation.
+
+### Step 2: Test a clean clone, not the worktree
+
+```powershell
+$reproPath = Join-Path $env:TEMP ('ci-repro-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+git clone --quiet . $reproPath
+Push-Location $reproPath
+git checkout --quiet <commit>
+# run the failing test file here
+Pop-Location
+```
+
+A clone carries only tracked files. A worktree carries everything git ignores.
+
+### Known local-versus-CI divergences
+
+| Divergence | Effect |
+|---|---|
+| Gitignored files present locally | A test that reads one passes only in a developer worktree and fails on every clean checkout. |
+| `dotnet-gitversion` not installed | Sampler falls back to version `0.0.1`, so the built module version differs from the one CI builds. |
+
+**Test authoring rule**: never hard-code a version sentinel that can equal
+Sampler's `0.0.1` fallback. A test that writes `0.0.1` as "the older version"
+inverts on any machine without GitVersion — green in CI, red locally, which is
+exactly what trains a team to stop running the local gate.
 
 ## Common Pester 5 Mock Issues
 

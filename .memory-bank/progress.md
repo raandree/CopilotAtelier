@@ -15,6 +15,16 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-01**: Bounded the append that keeps breaking CI. The Post-flight
+  Instruction mandates a `progress.md` append every substantive turn and set no
+  limit, so the file grew until the health check errored — twice. Step 2 now
+  requires curating the oldest entries in the same edit when the file is at or
+  near its budget, `Skills/memory-bank/SKILL.md` runs the health check after any
+  Memory Bank edit rather than only after initialization, and
+  `sampler-build-debug` gained a "Reproduce a CI-Only Failure" section: derive
+  the built commit from the GitVersion `+n` suffix, test a clean clone, and
+  never hard-code a version sentinel that can equal Sampler's `0.0.1` fallback.
+
 - **2026-08-01**: Recorded the shipped `2.0.0` release in `CHANGELOG.md`. With
   the token in place the release reached GitHub and was rejected with `422 body
   is too long`: Sampler sends the `[Unreleased]` section as the release body and
@@ -57,17 +67,13 @@ published to the PowerShell Gallery. Incremental work is tracked under
   regression-tested against the real 42-page package and reproduced it exactly.
 
 - **2026-07-30**: Dropped the Windows PowerShell 5.1 leg from the CI test
-  matrix. Run 30526269252 failed in `Invoke_Pester_Tests_v5` before any test
-  ran: `Create_Changelog_Release_Output` writes the built manifest as UTF-8
+  matrix. `Create_Changelog_Release_Output` writes the built manifest as UTF-8
   without a byte order mark, Windows PowerShell 5.1 decodes a BOM-less file with
-  the ANSI code page, and the UTF-8 bytes of `→` become a sequence ending in a
-  right single quotation mark that the tokenizer reads as a string delimiter,
-  which terminates the release notes and breaks the manifest parse. Verified
-  that the same manifest imports cleanly on PowerShell 7 and fails only under a
-  code page 1252 decode. A `Set_Built_Manifest_Encoding` build task that forced
-  the byte order mark was written and then discarded: the module is not used on
-  Windows PowerShell 5.1, so removing the leg is the cheaper contract. All three
-  legs now run PowerShell 7 and the matrix `shell` key is gone.
+  the ANSI code page, and the UTF-8 bytes of `→` end in a right single quotation
+  mark that the tokenizer reads as a string delimiter, which breaks the manifest
+  parse before any test runs. A build task forcing the byte order mark was
+  written and discarded: the module is not used on that runtime, so removing the
+  leg is the cheaper contract. All three legs now run PowerShell 7.
 - **2026-07-30**: Strengthened the authoring and engineering-discipline Skills.
   `skill-creator` now classifies the baseline failure — discipline, shaping,
   omission, or conditional — before prescribing a guidance form, and scopes the
@@ -89,19 +95,14 @@ published to the PowerShell Gallery. Incremental work is tracked under
   `Setup-CopilotSettings.ps1` survives as a clone entry point shim. Recorded as
   Decision 18.
 - **2026-07-29**: Stabilized the new GitHub Actions pipeline across a single
-  day. A step `shell` key accepts no context, so the matrix shell moved to
-  `jobs.<job_id>.defaults.run`; Sampler 0.120.0 leaked a non-empty
-  `BuiltModuleSubdirectory` default into the shared build scope; four tests
-  assumed the gitignored `promptHistory.md`; macOS reads settings from
-  `~/Library/Application Support` rather than `XDG_CONFIG_HOME`; this file had
-  reached 205 lines against its budget; `#requires` failed Pester discovery
-  instead of skipping one file; the `SessionStart` hook resolved an untrusted
-  path through the PowerShell provider and corrupted its own JSON contract;
-  hook commands were spawned without a shell, so `%USERPROFILE%` never
-  expanded; and the GitVersion step piped a log-carrying stream into
-  `ConvertFrom-Json`, which hid every real failure message. The durable rules
-  live in `techContext.md`; `tests/Workflows.Tests.ps1` guards the workflow
-  contract.
+  day: a step `shell` key that accepts no context, a Sampler 0.120.0 property
+  default leaking into the build scope, four tests assuming the gitignored
+  `promptHistory.md`, the macOS configuration root, this file at 205 lines
+  against its budget, `#requires` failing Pester discovery, an untrusted hook
+  path resolved through the PowerShell provider, hook commands spawned without a
+  shell, and a GitVersion log stream piped into `ConvertFrom-Json`. The durable
+  rules live in `techContext.md`; `tests/Workflows.Tests.ps1` guards the
+  workflow contract.
 - **2026-07-28**: Closed the gap against the VS Code 1.130 Customization
   surface. Added `Hooks/` with deterministic never-push enforcement and a
   Memory Bank probe, a root `plugin.json`, model priority arrays with a GA
