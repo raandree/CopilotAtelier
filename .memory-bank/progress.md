@@ -15,6 +15,14 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-01**: Fixed the publish failure in run 30689416495. The Gallery
+  rejected `3.0.0-preview0001` with HTTP 409 because the release that shipped it
+  was never tagged: `ContinuousDelivery` anchors the pre-release number on the
+  last tag, `Publish_Release_To_GitHub` writes that tag, and it skips itself
+  when `GitHubToken` is empty while the Gallery publish still runs. The deploy
+  job now verifies both secrets before publishing. `GitHubToken` still has to be
+  added to the repository.
+
 - **2026-08-01**: Fixed the CI test failure in run 30568587317. The Memory Bank
   health check errored because this file had reached 220 lines against its
   200-line budget, the same append-until-red failure that broke CI on

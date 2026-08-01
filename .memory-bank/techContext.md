@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-07-29
+last-verified: 2026-08-01
 owner: software-engineer
 source: build.yaml and source/
 ---
@@ -132,39 +132,16 @@ model so a retirement degrades instead of breaking every agent.
   provider. The provider writes to standard error for a path it cannot resolve,
   and a hook's caller merges the streams, so that noise corrupts the JSON the
   hook writes to standard output.
-- `tests/QA/module.tests.ps1` enforces the changelog parse, the exported
-  command surface, the shipped customization payload, a unit test per exported
-  command, zero PSScriptAnalyzer findings per command, and complete
-  comment-based help.
 - `tests/Workflows.Tests.ps1` parses every GitHub Actions workflow and rejects
   an expression in a step's `shell` key. That key accepts no context, so an
   expression there fails the whole workflow file at compile time; a
   matrix-driven shell belongs in `jobs.<job_id>.defaults.run`.
-- `tests/Unit/Public/` covers the three exported commands against a sandboxed
-  profile; `tests/Unit/Private/` covers `ConvertFrom-Jsonc` and
-  `Get-CopilotAtelierPath`.
-- `tests/Setup-CopilotSettings.Tests.ps1` covers sandboxed setup behavior and
-  legacy location cleanup through the clone entry point.
-- `tests/SoftwareEngineerAgent.Tests.ps1` enforces the Custom agent prompt
-  budget and quality invariants.
-- `tests/LifecycleInstructions.Tests.ps1` enforces one-read Pre-flight behavior.
-- `tests/MemoryBank.Tests.ps1` verifies exact canonical creation, LF/no-BOM
-  output, byte preservation, idempotency, and complete/partial `-WhatIf` paths.
-- `tests/MemoryBankRouting.Tests.ps1` enforces provenance-labeled routing,
-  zero critical-file misses, Full-read fallback, and at least 50 percent
-  average context reduction.
-- `tests/MemoryBankHealth.Tests.ps1` validates canonical structure,
-  provenance, freshness warnings, retention, optional Memory Bank topics, and
-  compactness budgets.
-- `tests/SharedLifecycle.Tests.ps1` fingerprints all Custom agent tools,
-  handoffs, and role-specific Memory Bank headings while enforcing shared
-  bootstrap, completion behavior, and least-privilege native-memory guidance.
-- `tests/Hooks.Tests.ps1` runs both hook scripts through a child process the way
-  VS Code invokes them and pins the hook configuration contract.
-- `tests/SkillFrontmatter.Tests.ps1` enforces the Agent Skills specification:
-  name matches folder, description within 1024 characters, `compatibility`
-  present on environment-bound Skills, valid `context`, and a non-growing
-  over-budget body baseline.
+- Read `tests/` for what each suite covers; do not restate that inventory here.
+  Three gates there constrain unrelated work and are easy to trip:
+  `MemoryBankRouting.Tests.ps1` requires at least 50 percent average context
+  reduction, so an append to a highly routed core file can fail it;
+  `MemoryBankHealth.Tests.ps1` enforces the per-file line budgets; and
+  `SkillFrontmatter.Tests.ps1` enforces a non-growing over-budget body baseline.
 - PowerShell changes require AST parsing, focused Pester, and PSScriptAnalyzer
   where available.
 - Markdown Customizations require frontmatter checks and clean editor or

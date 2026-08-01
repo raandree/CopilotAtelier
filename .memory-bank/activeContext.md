@@ -9,12 +9,16 @@ source: current task evidence
 
 ## Current focus
 
-Fix the failing CI test in run 30568587317 and remove the recurring cause: an
-append-only Memory Bank file that only reveals its line-budget breach as a red
-build.
+Keep every `main` build publishable: the Gallery rejected a second push of
+`3.0.0-preview0001`, because the release that shipped it was never tagged.
 
 ## Implemented
 
+- `.github/workflows/ci.yml` verifies `GitHubToken` and `GalleryApiToken` before
+  `Publish Release`. A missing token used to let `Publish_Release_To_GitHub`
+  skip while the Gallery publish still ran, shipping a version with no `v*` tag
+  for the next build to anchor on. `tests/Workflows.Tests.ps1` asserts the
+  guard precedes the publish step.
 - Memory Bank line budgets now warn before they fail.
   `Test-MemoryBankHealth.ps1` raises `LineBudgetNearLimit` at 90 percent of a
   line budget, `MemoryBankHealth.Tests.ps1` prints those warnings so a passing
@@ -76,6 +80,15 @@ build.
 
 ## Focused evidence
 
+- `ContinuousDelivery` anchors the pre-release number on the last tag, not on
+  the commit count. `ShellPilot` carries the identical configuration and tags
+  every published preview, `v0.2.0-preview0001` through `v0.2.0-preview0008`.
+  Proven in a throwaway clone of this repository: with the unchanged
+  configuration, adding the missing `v3.0.0-preview0001` tag makes the next
+  commit compute `3.0.0-preview0002`.
+- `PowerShellForGitHub` resolves into `output/RequiredModules` as a dependency
+  of `Sampler.GitHubTasks`, so the empty half of the
+  `Publish_Release_To_GitHub` condition is `GitHubToken`.
 - CI run 30526269252 failed only on the Windows PowerShell 5.1 leg, in
   `Invoke_Pester_Tests_v5`, before a test ran. The built manifest is UTF-8
   without a byte order mark and carries 63 non-ASCII bytes from the stamped
@@ -127,8 +140,6 @@ build.
 
 ## Next step
 
-Curate `techContext.md`, which the health check now reports at 194 of 200
-budgeted lines; its per-test-file inventory duplicates `tests/` and contradicts
-the file's own "do not duplicate changing inventories" rule. Then add the
-`GitHubToken` and `GalleryApiToken` repository secrets, and treat the macOS test
-leg as unproven until it runs green.
+Add the `GitHubToken` repository secret. Until it exists the deploy job now
+fails at the new guard instead of publishing an untagged release. The macOS
+test leg remains unproven until it runs green.

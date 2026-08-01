@@ -188,6 +188,25 @@ jobs:
           name: ${{ env.buildArtifactName }}
           path: output/
 
+      # Sampler's release tasks skip themselves when their token is empty, and a
+      # skipped Publish_Release_To_GitHub still lets the Gallery publish run. That
+      # ships a version without the v* tag GitVersion anchors the next pre-release
+      # number on, so the following build recomputes the published version and the
+      # Gallery rejects it with HTTP 409. Fail here instead of releasing untagged.
+      - name: Verify Release Secrets
+        shell: pwsh
+        env:
+          GitHubToken: ${{ secrets.GitHubToken }}
+          GalleryApiToken: ${{ secrets.GalleryApiToken }}
+        run: |
+          $missingSecret = @('GitHubToken', 'GalleryApiToken') |
+              Where-Object -FilterScript { -not [System.Environment]::GetEnvironmentVariable($_) }
+
+          if ($missingSecret)
+          {
+              throw ("Missing repository secret: {0}. Add it under Settings > Secrets and variables > Actions." -f ($missingSecret -join ', '))
+          }
+
       - name: Publish Release
         shell: pwsh
         env:
