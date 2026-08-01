@@ -9,12 +9,22 @@ source: current task evidence
 
 ## Current focus
 
-Audit the newly added domain Skills against primary sources before they are
-relied on, on top of the completed Sampler module migration that made
-CopilotAtelier distributable through the PowerShell Gallery.
+Keep every `main` build publishable: the Gallery rejected a second push of
+`3.0.0-preview0001`, because the release that shipped it was never tagged.
 
 ## Implemented
 
+- `.github/workflows/ci.yml` verifies `GitHubToken` and `GalleryApiToken` before
+  `Publish Release`. A missing token used to let `Publish_Release_To_GitHub`
+  skip while the Gallery publish still ran, shipping a version with no `v*` tag
+  for the next build to anchor on. `tests/Workflows.Tests.ps1` asserts the
+  guard precedes the publish step.
+- Memory Bank line budgets now warn before they fail.
+  `Test-MemoryBankHealth.ps1` raises `LineBudgetNearLimit` at 90 percent of a
+  line budget, `MemoryBankHealth.Tests.ps1` prints those warnings so a passing
+  run names the file about to breach, and `Skills/memory-bank/SKILL.md` makes
+  the warning a same-turn curation task. Retention applied to `progress.md`
+  took it from 200 to 154 lines. `techContext.md` at 194 of 200 is now flagged.
 - `german-tax-research` audited against the consolidated statutory text in force
   on 1 August 2026. Four factual defects corrected: the `§ 237 AO` AdV interest
   rate (0.5 % per month, not the `§ 233a`-only 0.15 %), the `Art. 97 § 36 Abs. 3
@@ -70,6 +80,15 @@ CopilotAtelier distributable through the PowerShell Gallery.
 
 ## Focused evidence
 
+- `ContinuousDelivery` anchors the pre-release number on the last tag, not on
+  the commit count. `ShellPilot` carries the identical configuration and tags
+  every published preview, `v0.2.0-preview0001` through `v0.2.0-preview0008`.
+  Proven in a throwaway clone of this repository: with the unchanged
+  configuration, adding the missing `v3.0.0-preview0001` tag makes the next
+  commit compute `3.0.0-preview0002`.
+- `PowerShellForGitHub` resolves into `output/RequiredModules` as a dependency
+  of `Sampler.GitHubTasks`, so the empty half of the
+  `Publish_Release_To_GitHub` condition is `GitHubToken`.
 - CI run 30526269252 failed only on the Windows PowerShell 5.1 leg, in
   `Invoke_Pester_Tests_v5`, before a test ran. The built manifest is UTF-8
   without a byte order mark and carries 63 non-ASCII bytes from the stamped
@@ -121,10 +140,6 @@ CopilotAtelier distributable through the PowerShell Gallery.
 
 ## Next step
 
-Push the rewritten GitVersion step to `main`, then re-create the `v2.0.0` tag on
-the new commit and read the `--- dotnet-gitversion output ---` block: that names
-the real cause. Add the `GitHubToken` and `GalleryApiToken` repository secrets.
-Leave ShellPilot and DeskPilot alone: both have shipped full releases from a tag
-build. Run 30454982173 also failed in `Deploy Module / Publish Release`; that is
-a separate, undiagnosed failure. The macOS test leg is new and has never run;
-treat its first execution as unproven.
+Add the `GitHubToken` repository secret. Until it exists the deploy job now
+fails at the new guard instead of publishing an untagged release. The macOS
+test leg remains unproven until it runs green.

@@ -46,7 +46,7 @@ workspace was opened.
 | `productContext.md` | User problem, workflows, experience goals | Stable; revise when product intent changes |
 | `activeContext.md` | Current focus, evidence, next step | Overwrite; do not append history |
 | `techContext.md` | Stack, environment, constraints, validation commands | Current facts only |
-| `progress.md` | Recent milestones, stable capabilities, open work | Keep recent state; use git/changelog for history |
+| `progress.md` | Recent milestones, stable capabilities, open work | Keep recent state; curate the oldest milestones on a `LineBudgetNearLimit` warning; use git/changelog for history |
 | `systemPatterns.md` | Compact architecture map and Decision record index | Curate in place; store durable choices under `decisions/` |
 | `promptHistory.md` | Optional local Substantive-turn intent log | Append; trim entries older than 90 days; may be gitignored |
 
@@ -266,6 +266,8 @@ Before reporting initialization complete:
 - All seven required files exist and are non-empty; local `promptHistory.md`
   exists when the initializer ran for the current durable turn.
 - The health result reports `Passed = True` and no error findings.
+- A `LineBudgetNearLimit` warning is a curation task, not noise. Trim that file
+  in the same turn; the next append turns the warning into a failing build.
 - Files that existed before initialization are byte-for-byte unchanged.
 - New content contains no unresolved template angle brackets.
 - Role-specific files match only the active agent's schema.

@@ -53,4 +53,22 @@ Describe 'GitHub Actions workflows' -Tag 'Unit' {
 
         $offendingStep | Should -BeNullOrEmpty -Because 'a step shell must be a literal; use jobs.<job_id>.defaults.run for a matrix-driven shell'
     }
+
+    It 'Should verify the release secrets before publishing' {
+        <#
+            Publish_Release_To_GitHub skips itself when GitHubToken is empty while
+            Publish_Module_To_gallery still runs, which ships a Gallery version
+            without the v* tag GitVersion anchors the next pre-release number on.
+        #>
+        $workflow = ConvertFrom-Yaml -Yaml (
+            Get-Content -LiteralPath (Join-Path -Path $script:workflowPath -ChildPath 'ci.yml') -Raw
+        )
+
+        $deployStep = @($workflow.jobs['deploy'].steps)
+        $guardIndex = [array]::FindIndex($deployStep, [Predicate[object]] { $args[0].name -eq 'Verify Release Secrets' })
+        $publishIndex = [array]::FindIndex($deployStep, [Predicate[object]] { $args[0].name -eq 'Publish Release' })
+
+        $guardIndex | Should -BeGreaterOrEqual 0 -Because 'a missing release secret must fail the job instead of silently skipping the tag'
+        $guardIndex | Should -BeLessThan $publishIndex
+    }
 }

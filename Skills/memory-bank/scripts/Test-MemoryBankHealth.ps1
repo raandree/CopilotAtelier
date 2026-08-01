@@ -6,8 +6,10 @@
 .DESCRIPTION
     Validates seven required version-controlled files, optional local prompt
     history, routing mode, metadata, line budgets, Decision records, Memory
-    Bank topics, and retention. The script does not modify the repository and
-    returns one structured summary object.
+    Bank topics, and retention. A file within ten percent of its line budget
+    warns so the breach surfaces before the next append fails the build. The
+    script does not modify the repository and returns one structured summary
+    object.
 .PARAMETER Path
     Existing repository directory containing .memory-bank.
 .PARAMETER ReferenceDate
@@ -119,6 +121,9 @@ $canonicalFiles = [ordered]@{
 }
 $optionalCanonicalFiles = @('promptHistory.md')
 $requiredMetadata = @('status', 'last-verified', 'owner', 'source')
+
+# Fraction of a line budget that turns a passing file into a curation warning.
+$nearLimitFraction = 0.9
 $canonicalFileCount = 0
 $indexLineCount = 0
 $indexCharacterCount = 0
@@ -157,18 +162,35 @@ if (-not (Test-Path -LiteralPath $memoryBankPath -PathType Container)) {
                 -Message "Canonical file is empty: $fileName"
         }
 
-        if ($entry.Value.ContainsKey('LineBudget') -and
-            $lineCount -gt $entry.Value.LineBudget) {
-            Add-MemoryBankIssue `
-                -Severity Error `
-                -Code 'LineBudgetExceeded' `
-                -File $fileName `
-                -Message (
-                    '{0} has {1} lines; budget is {2}.' -f
-                    $fileName,
-                    $lineCount,
-                    $entry.Value.LineBudget
-                )
+        if ($entry.Value.ContainsKey('LineBudget')) {
+            $lineBudget = $entry.Value.LineBudget
+            $nearLimitThreshold = [int][math]::Ceiling(
+                $lineBudget * $nearLimitFraction
+            )
+            if ($lineCount -gt $lineBudget) {
+                Add-MemoryBankIssue `
+                    -Severity Error `
+                    -Code 'LineBudgetExceeded' `
+                    -File $fileName `
+                    -Message (
+                        '{0} has {1} lines; budget is {2}.' -f
+                        $fileName,
+                        $lineCount,
+                        $lineBudget
+                    )
+            } elseif ($lineCount -ge $nearLimitThreshold) {
+                Add-MemoryBankIssue `
+                    -Severity Warning `
+                    -Code 'LineBudgetNearLimit' `
+                    -File $fileName `
+                    -Message (
+                        ('{0} has {1} of {2} budgeted lines; curate it ' +
+                        'before the next append exceeds the budget.') -f
+                        $fileName,
+                        $lineCount,
+                        $lineBudget
+                    )
+            }
         }
 
         if ($entry.Value.ContainsKey('CharacterBudget') -and

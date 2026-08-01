@@ -68,6 +68,10 @@ CopilotAtelier repository (Sampler project)
     which version is actually deployed, independent of how it was installed.
 - Hooks enforce the rules that must hold regardless of model reasoning;
     Instructions carry the judgement calls.
+- The `v*` release tag is the version anchor, not a record of the release.
+    GitVersion derives the next pre-release number from the last tag, and
+    `Publish_Release_To_GitHub` writes it, so a release task that skips itself
+    freezes the version the Gallery already holds.
 - Authored guidance takes its form from the baseline failure it corrects:
     prohibitions and rationalization tables for a discipline an agent skips
     under pressure, a positive recipe for output of the wrong shape, a required
