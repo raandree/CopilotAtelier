@@ -20,6 +20,14 @@ Describe 'Test-MemoryBankHealth' {
         $result.Passed | Should -BeTrue
         $result.ErrorCount | Should -Be 0
 
+        # Surface the pre-failure signal so a passing run still reports which
+        # file is about to breach its budget.
+        foreach ($nearLimit in @(
+            $result.Issues | Where-Object Code -eq 'LineBudgetNearLimit'
+        )) {
+            Write-Warning -Message $nearLimit.Message
+        }
+
         # promptHistory.md is gitignored local ephemera, so a clean checkout
         # carries only the seven required version-controlled files.
         $promptHistoryPath = Join-Path $script:repoRoot '.memory-bank/promptHistory.md'
@@ -85,6 +93,29 @@ Describe 'Test-MemoryBankHealth' {
         @($result.Issues | Where-Object Code -eq 'LineBudgetExceeded') |
             Should -HaveCount 1
         @($result.Issues | Where-Object File -eq 'activeContext.md') |
+            Should -HaveCount 1
+    }
+
+    It 'warns before an append-only core file reaches its line budget' {
+        $repositoryPath = Join-Path $TestDrive 'near-budget-core'
+        New-Item -ItemType Directory -Path $repositoryPath -Force | Out-Null
+        & $script:initializerPath -Path $repositoryPath -Confirm:$false |
+            Out-Null
+        $progressPath = Join-Path $repositoryPath '.memory-bank/progress.md'
+        $padding = 190 - @(Get-Content -LiteralPath $progressPath).Count
+        Add-Content -LiteralPath $progressPath -Value (
+            1..$padding | ForEach-Object { "Headroom line $_" }
+        )
+
+        $result = & $script:healthCheckPath `
+            -Path $repositoryPath `
+            -ReferenceDate ([datetime]'2026-07-24')
+
+        $result.Passed | Should -BeTrue
+        $result.ErrorCount | Should -Be 0
+        @($result.Issues | Where-Object Code -eq 'LineBudgetNearLimit') |
+            Should -HaveCount 1
+        @($result.Issues | Where-Object File -eq 'progress.md') |
             Should -HaveCount 1
     }
 

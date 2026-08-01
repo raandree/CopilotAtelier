@@ -9,12 +9,18 @@ source: current task evidence
 
 ## Current focus
 
-Audit the newly added domain Skills against primary sources before they are
-relied on, on top of the completed Sampler module migration that made
-CopilotAtelier distributable through the PowerShell Gallery.
+Fix the failing CI test in run 30568587317 and remove the recurring cause: an
+append-only Memory Bank file that only reveals its line-budget breach as a red
+build.
 
 ## Implemented
 
+- Memory Bank line budgets now warn before they fail.
+  `Test-MemoryBankHealth.ps1` raises `LineBudgetNearLimit` at 90 percent of a
+  line budget, `MemoryBankHealth.Tests.ps1` prints those warnings so a passing
+  run names the file about to breach, and `Skills/memory-bank/SKILL.md` makes
+  the warning a same-turn curation task. Retention applied to `progress.md`
+  took it from 200 to 154 lines. `techContext.md` at 194 of 200 is now flagged.
 - `german-tax-research` audited against the consolidated statutory text in force
   on 1 August 2026. Four factual defects corrected: the `§ 237 AO` AdV interest
   rate (0.5 % per month, not the `§ 233a`-only 0.15 %), the `Art. 97 § 36 Abs. 3
@@ -121,10 +127,8 @@ CopilotAtelier distributable through the PowerShell Gallery.
 
 ## Next step
 
-Push the rewritten GitVersion step to `main`, then re-create the `v2.0.0` tag on
-the new commit and read the `--- dotnet-gitversion output ---` block: that names
-the real cause. Add the `GitHubToken` and `GalleryApiToken` repository secrets.
-Leave ShellPilot and DeskPilot alone: both have shipped full releases from a tag
-build. Run 30454982173 also failed in `Deploy Module / Publish Release`; that is
-a separate, undiagnosed failure. The macOS test leg is new and has never run;
-treat its first execution as unproven.
+Curate `techContext.md`, which the health check now reports at 194 of 200
+budgeted lines; its per-test-file inventory duplicates `tests/` and contradicts
+the file's own "do not duplicate changing inventories" rule. Then add the
+`GitHubToken` and `GalleryApiToken` repository secrets, and treat the macOS test
+leg as unproven until it runs green.

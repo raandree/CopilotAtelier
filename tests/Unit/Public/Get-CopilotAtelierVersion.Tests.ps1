@@ -155,8 +155,10 @@ Describe 'Get-CopilotAtelierVersion' -Tag 'Unit' {
 
             New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
 
+            # Not '0.0.1': that is Sampler's version when GitVersion is
+            # unavailable, so it would match the module and invert this test.
             [ordered] @{
-                Version     = '0.0.1'
+                Version     = '0.0.0-behind'
                 InstalledOn = '2026-01-01T00:00:00Z'
                 ContentPath = 'C:\somewhere'
             } |

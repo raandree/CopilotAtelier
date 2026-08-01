@@ -15,6 +15,15 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-01**: Fixed the CI test failure in run 30568587317. The Memory Bank
+  health check errored because this file had reached 220 lines against its
+  200-line budget, the same append-until-red failure that broke CI on
+  2026-07-29 at 205 lines. The budget stays; `Test-MemoryBankHealth.ps1` now
+  raises a `LineBudgetNearLimit` warning at 90 percent of any line budget, and
+  `MemoryBankHealth.Tests.ps1` prints those warnings so a passing run still
+  names the file about to breach. Retention applied here restored 62 lines of
+  headroom.
+
 - **2026-08-01**: Audited the new `german-tax-research` Skill against the
   consolidated statutory text in force on that date. Corrected the `§ 237 AO`
   AdV interest rate (0.15 % → 0.5 % per month, because `§ 238 Abs. 1a AO` is
@@ -55,97 +64,35 @@ published to the PowerShell Gallery. Incremental work is tracked under
   documents delegation: model tier per task, a dispatch that carries the task
   not the session history, artifacts as files, no pre-judging a reviewer, a
   compaction-surviving ledger, verification against the diff rather than the
-  subagent's claim, and a five-round fix cap. Skill count 40 → 41.- **2026-07-29**: Found why run 30462902820 is undiagnosable and fixed that
-  first. The GitVersion step piped `dotnet-gitversion` into `ConvertFrom-Json`,
-  and GitVersion logs to standard output, so a failure surfaces as
-  `Unexpected character encountered while parsing value: M` and the real
-  message is lost. The step now captures the output, validates the exit code
-  and the leading `{`, prints the raw output before failing, echoes the
-  resolved binary, and prepends `~/.dotnet/tools` so an image-supplied
-  GitVersion cannot shadow the pinned 5.x. The `release-tag` entry added to
-  `GitVersion.yml` is separate hardening: a GitVersion failure log begins with
-  `INFO`, not `M`, so that path is not what broke the run.
-- **2026-07-29**: Bumped the CI actions to the current majors across
-  CopilotAtelier, DeskPilot, and ShellPilot at once: `checkout@v7`,
-  `upload-artifact@v7`, `download-artifact@v8`. The three do not share a major
-  number and each stopped defaulting to the deprecated Node 20 runtime in a
-  different release, so a uniform bump would have left two deprecated. The
-  skill template carries the same pins plus a per-action version table.
-- **2026-07-29**: Fixed the CI failures the workflow alignment exposed. The
-  macOS leg failed because two test suites assumed `XDG_CONFIG_HOME` while VS
-  Code on macOS reads `~/Library/Application Support`; both now derive the
-  expected settings directory per platform. Both Windows legs failed the
-  untagged Memory Bank budget check because this file had reached 205 lines, so
-  the oldest milestones moved to git history.
-- **2026-07-29**: Closed the gap that allowed the CI drift. The
-  `sampler-framework` Skill advertised a GitHub Actions template it never
-  contained, so `references/ci-cd-pipelines.md` gained the canonical
-  `.github/workflows/ci.yml`, a second-edition matrix variant, and an Azure
-  Pipelines to GitHub Actions translation table. `sampler.instructions.md`
-  gained a CI/CD Rules section and now also applies to `azure-pipelines.yml`
-  and `.github/workflows/*.yml`, so the template loads automatically whenever a
-  pipeline is edited. 185 tests pass across the Skill frontmatter, shared
-  lifecycle, and workflow suites.
-- **2026-07-29**: Aligned `.github/workflows/ci.yml` with the shared Sampler CI
-  template used across the sibling repositories, with ShellPilot as the
-  reference. Adopted the documented header, the tag-release `run-name`, the
-  `paths-ignore: CHANGELOG.md` push filter, GitVersion properties exported as
-  job outputs so downstream job names carry the version, `if-no-files-found:
-  error` on the build artifact, the `Package Module` / `Test` / `Deploy Module`
-  naming, `pull-requests: write` on deploy, and the `GitHubToken` /
-  `GalleryApiToken` secret names the repository's own Sampler Skills already
-  document. Kept the two CopilotAtelier-specific deviations: the Windows
-  PowerShell 5.1 matrix leg and the tag-limited non-Windows runs. Added macOS.
-  Dropped the `concurrency` block for template parity.
-- **2026-07-29**: Hardened the `SessionStart` hook probe. It resolved an
-  attacker-controlled payload path through `Join-Path` and `Test-Path`, so a
-  path this host cannot resolve writes to standard error and corrupts the JSON
-  contract the caller parses. Now uses `[System.IO.Path]::Combine` and
-  `[System.IO.File]::Exists`, which carry no provider semantics.
-- **2026-07-29**: Fixed CI failing on Windows PowerShell 5.1 and Linux while
-  Windows PowerShell 7 passed. A Windows GUI test was tagged `Unit` and guarded
-  by `#requires`, which fails discovery instead of skipping; the hook tests
-  treated a deliberate stderr write and non-zero exit as a crash; and
-  Windows PowerShell 5.1 decoded BOM-less UTF-8 Markdown as ANSI.
-- **2026-07-29**: Fixed all three CI test jobs failing. Four repository tests
-  assumed the gitignored `.memory-bank/promptHistory.md` exists, so the suite
-  had only ever run in a developer worktree. Reproducing against a clean clone
-  also exposed that `Setup-CopilotSettings.Tests.ps1` still derived the target
-  folder name from the clone directory, which the module migration fixed to
-  `CopilotAtelier`.
-- **2026-07-29**: Fixed the first GitHub Actions run failing in 0s with an
-  invalid workflow file. A step's `shell` key rejects every context, so
-  `shell: ${{ matrix.shell }}` broke compilation of the whole file; the shell
-  moved to `jobs.<job_id>.defaults.run`, which does accept `matrix`. Added
-  `tests/Workflows.Tests.ps1` as the regression guard.
-- **2026-07-29**: Fixed the build breaking on Sampler 0.120.0. Its new
-  `WorkspaceDependencies` task declares `BuiltModuleSubdirectory` with a
-  non-empty `'module'` default; InvokeBuild treats an empty string as an unset
-  property, so that default leaked into the shared build scope and overrode
-  `build.yaml`. Aligned `build.yaml` on `module` and made the test suite match
-  the subdirectory instead of hard-coding it.
+  subagent's claim, and a five-round fix cap. Skill count 40 → 41.
 - **2026-07-29**: Migrated the repository to a Sampler-built PowerShell module
   distributed through the PowerShell Gallery. Module sources under `source/`,
   three exported commands over six private helpers, a custom build task that
   copies the six customization directories into the built module, GitVersion
-  versioning, GitHub Actions CI across Windows PowerShell 5.1 and PowerShell 7
-  on Windows and Linux, and a QA plus unit test suite. `Setup-CopilotSettings.ps1`
-  survives as a clone entry point shim. 339 passing tests, 70.77 percent module
-  coverage. Recorded as Decision 18.
-- **2026-07-29**: Fixed both hooks failing to start on Windows. VS Code spawns
-  hook commands without a shell, so `%USERPROFILE%` and `$HOME` were never
-  expanded and `-File` never resolved. Commands now use `-Command` with
-  `Join-Path` plus explicit `exit $LASTEXITCODE`. The old regression passed
-  because it ran the shipped string through `cmd.exe /c`; it now spawns without
-  a shell against a staged fake home.
+  versioning, GitHub Actions CI, and a QA plus unit test suite.
+  `Setup-CopilotSettings.ps1` survives as a clone entry point shim. Recorded as
+  Decision 18.
+- **2026-07-29**: Stabilized the new GitHub Actions pipeline across a single
+  day. A step `shell` key accepts no context, so the matrix shell moved to
+  `jobs.<job_id>.defaults.run`; Sampler 0.120.0 leaked a non-empty
+  `BuiltModuleSubdirectory` default into the shared build scope; four tests
+  assumed the gitignored `promptHistory.md`; macOS reads settings from
+  `~/Library/Application Support` rather than `XDG_CONFIG_HOME`; this file had
+  reached 205 lines against its budget; `#requires` failed Pester discovery
+  instead of skipping one file; the `SessionStart` hook resolved an untrusted
+  path through the PowerShell provider and corrupted its own JSON contract;
+  hook commands were spawned without a shell, so `%USERPROFILE%` never
+  expanded; and the GitVersion step piped a log-carrying stream into
+  `ConvertFrom-Json`, which hid every real failure message. The durable rules
+  live in `techContext.md`; `tests/Workflows.Tests.ps1` guards the workflow
+  contract.
 - **2026-07-28**: Closed the gap against the VS Code 1.130 Customization
-  surface. Added a fifth Customization type (`Hooks/`) with deterministic
-  never-push enforcement and a Memory Bank probe, a root `plugin.json`, model
-  priority arrays with a GA fallback across all 11 Custom agents, subagent
-  eligibility controls, `compatibility` on 25 environment-bound Skills,
-  `context: fork` on the two Skills that ingest untrusted external content, and
-  native Waza/analyzer routing in `agent-evals`. Fixed two over-cap Skill
-  descriptions. Two new suites bring the repository to 250 passing tests.
+  surface. Added `Hooks/` with deterministic never-push enforcement and a
+  Memory Bank probe, a root `plugin.json`, model priority arrays with a GA
+  fallback across all Custom agents, subagent eligibility controls,
+  `compatibility` on environment-bound Skills, `context: fork` on the two
+  Skills that ingest untrusted external content, and native Waza and analyzer
+  routing in `agent-evals`.
 
 ## Stable capabilities
 
@@ -192,9 +139,16 @@ published to the PowerShell Gallery. Incremental work is tracked under
   `Read-Host` prompt hangs an unattended run, a child present in both source and
   target is discarded rather than compared, and `Copy-Item -Recurse` may follow
   a child reparse point.
+- Curate `techContext.md`, which the health check now reports at 194 of 200
+  budgeted lines. Its per-test-file inventory duplicates `tests/` and conflicts
+  with the file's own "do not duplicate changing inventories" rule.
 
 ## Retention policy
 
 This file keeps current state and recent milestones only. `CHANGELOG.md` and git
 history are the authoritative sources for older implementation detail, release
 history, and superseded decisions.
+
+Curate the oldest milestones as soon as `Test-MemoryBankHealth.ps1` reports
+`LineBudgetNearLimit` for this file. Waiting for `LineBudgetExceeded` means the
+breach is discovered by a red CI build rather than by a local run.
