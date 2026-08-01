@@ -71,7 +71,9 @@ CopilotAtelier repository (Sampler project)
 - The `v*` release tag is the version anchor, not a record of the release.
     GitVersion derives the next pre-release number from the last tag, and
     `Publish_Release_To_GitHub` writes it, so a release task that skips itself
-    freezes the version the Gallery already holds.
+    freezes the version the Gallery already holds. The same task sends the
+    changelog `[Unreleased]` section as the release body, which GitHub caps at
+    125000 characters.
 - Authored guidance takes its form from the baseline failure it corrects:
     prohibitions and rationalization tables for a discipline an agent skips
     under pressure, a positive recipe for output of the wrong shape, a required

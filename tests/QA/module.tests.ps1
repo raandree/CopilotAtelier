@@ -44,6 +44,18 @@ Describe 'Changelog management' -Tag 'QA' {
 
         $changelog.Unreleased | Should -Not -BeNullOrEmpty
     }
+
+    It 'Should keep the Unreleased section within the GitHub release body limit' {
+        <#
+            Publish_Release_To_GitHub sends this section as the release body, and
+            the REST API rejects a body over 125000 characters with HTTP 422 after
+            the release tag has already been created. Fail here, with headroom.
+        #>
+        $changelog = Get-ChangelogData -Path (Join-Path -Path $script:projectPath -ChildPath 'CHANGELOG.md') -ErrorAction Stop
+
+        $changelog.Unreleased.RawData.Length |
+            Should -BeLessThan 100000 -Because 'the GitHub release body limit is 125000 characters; cut a release before then'
+    }
 }
 
 Describe 'Release versioning' -Tag 'QA' {

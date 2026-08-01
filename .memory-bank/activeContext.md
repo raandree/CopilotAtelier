@@ -80,6 +80,9 @@ Keep every `main` build publishable: the Gallery rejected a second push of
 
 ## Focused evidence
 
+- The GitHub release body is the changelog `[Unreleased]` section, and the REST
+  API caps it at 125000 characters. It stood at 143697 because `2.0.0` shipped
+  on 2026-07-29 without ever being recorded; the split left 18212.
 - `ContinuousDelivery` anchors the pre-release number on the last tag, not on
   the commit count. `ShellPilot` carries the identical configuration and tags
   every published preview, `v0.2.0-preview0001` through `v0.2.0-preview0008`.
@@ -103,12 +106,6 @@ Keep every `main` build publishable: the Gallery rejected a second push of
   within the 500-line body budget; the parameterized
   `tests/SkillFrontmatter.Tests.ps1` covers the new `subagent-dispatch` Skill,
   so its `description` and `compatibility` sit within the specification caps.
-- Run 30462902820 failed with `ConvertFrom-Json: Unexpected character
-  encountered while parsing value: M. Path '', line 0, position 0`. GitVersion
-  5.12.0 installed and ran; its standard output began with `M` instead of `{`.
-  The step piped it straight into `ConvertFrom-Json`, and GitVersion logs to
-  standard output, so the real message was consumed and never printed. Root
-  cause still unknown; the rewritten step prints it on the next tag build.
 - A GitVersion failure log begins with `INFO` on both 5.12 and 6.3, verified by
   separating the streams, so the branch-configuration path is **not** what broke
   the run. The `release-tag` entry stays as hardening: it turns a reproducible

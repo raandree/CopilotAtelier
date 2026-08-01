@@ -15,6 +15,14 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-01**: Recorded the shipped `2.0.0` release in `CHANGELOG.md`. With
+  the token in place the release reached GitHub and was rejected with `422 body
+  is too long`: Sampler sends the `[Unreleased]` section as the release body and
+  it had reached 143697 of the 125000 characters GitHub allows, because
+  `Create_ChangeLog_GitHub_PR` needs the same missing secret and never rolled
+  `2.0.0` into a version section. `tests/QA/module.tests.ps1` now fails at
+  100000 characters.
+
 - **2026-08-01**: Fixed the publish failure in run 30689416495. The Gallery
   rejected `3.0.0-preview0001` with HTTP 409 because the release that shipped it
   was never tagged: `ContinuousDelivery` anchors the pre-release number on the
