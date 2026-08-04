@@ -15,6 +15,16 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-04**: Added `Skills/gilb-requirements-engineering`, the first
+  Customization covering Tom and Kai Gilb's method: Planguage `Scale` and
+  `Meter` quantification, Impact Estimation Tables with credibility ratings,
+  Evo step planning, and Specification Quality Control defect density, in a
+  322-line body plus four references. Placed as a Skill rather than a Custom
+  agent because the knowledge is portable across harnesses and auto-triggers
+  from every agent, where a persona has to be selected. `grill-me` elicits;
+  this Skill quantifies, and both sides of the overlap audit now cross-
+  reference the other.
+
 - **2026-08-01**: Bounded the append that keeps breaking CI. The Post-flight
   Instruction mandates a `progress.md` append every substantive turn and set no
   limit, so the file grew until the health check errored — twice. Step 2 now
@@ -103,13 +113,6 @@ published to the PowerShell Gallery. Incremental work is tracked under
   shell, and a GitVersion log stream piped into `ConvertFrom-Json`. The durable
   rules live in `techContext.md`; `tests/Workflows.Tests.ps1` guards the
   workflow contract.
-- **2026-07-28**: Closed the gap against the VS Code 1.130 Customization
-  surface. Added `Hooks/` with deterministic never-push enforcement and a
-  Memory Bank probe, a root `plugin.json`, model priority arrays with a GA
-  fallback across all Custom agents, subagent eligibility controls,
-  `compatibility` on environment-bound Skills, `context: fork` on the two
-  Skills that ingest untrusted external content, and native Waza and analyzer
-  routing in `agent-evals`.
 
 ## Stable capabilities
 

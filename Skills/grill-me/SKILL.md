@@ -13,7 +13,9 @@ description: >-
   pre-flight requirements, interview before implementation, refuse to
   code until spec, no code yet, spec-driven dev kickoff.
   DO NOT USE FOR: writing code, writing tests, reviewing diffs,
-  generating documentation from existing code, code review, refactoring.
+  generating documentation from existing code, code review,
+  refactoring, quantifying requirements in Planguage or applying the
+  Gilb method (use gilb-requirements-engineering).
 ---
 
 # Grill-Me
@@ -132,6 +134,7 @@ Do not stall further than a single refusal. The skill is a discipline aid, not a
 ## Pairs with
 
 - [`Instructions/ubiquitous-language.instructions.md`](../../Instructions/ubiquitous-language.instructions.md) — once a `glossary.md` exists, the Design Concept must use canonical terms only.
+- [`Skills/gilb-requirements-engineering/SKILL.md`](../gilb-requirements-engineering/SKILL.md) — the natural next stage when the deliverable needs measurable requirements: it converts the interview's answers into Planguage with a `Scale`, a `Meter`, and numeric targets. Grill-me finds the requirements; that skill makes them measurable.
 - [`Skills/skill-creator/SKILL.md`](../skill-creator/SKILL.md) — the meta-skill for authoring new `SKILL.md` files; useful if the grilled deliverable is itself a skill.
 - [`Skills/doc-coauthoring/SKILL.md`](../doc-coauthoring/SKILL.md) — the section-by-section refinement loop is the natural next stage after sign-off if the deliverable is a written document rather than code.
 
