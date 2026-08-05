@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-07-30
+last-verified: 2026-08-05
 owner: software-engineer
 source: current task evidence
 ---
@@ -8,6 +8,34 @@ source: current task evidence
 # Active context
 
 ## Current focus
+
+Add an evidentiary-integrity audit for long-running case files, invoked
+deliberately and run in a fresh session.
+
+## Implemented
+
+- `Prompts/audit-case-file.prompt.md` — read-only audit of a case file and its
+  unsent drafts. Rules: project memory is a finding aid, not evidence; run in a
+  fresh session because a drafting agent confirms its own conclusions; author
+  and addressee are part of every claim. Six hunted error classes, five
+  verification results, deadline-ordered scope, explicit "not found" finding.
+  Orchestrates `citation-integrity`, `devils-advocate-review`, and the severity
+  labels of `code-review-and-quality`.
+
+## Focused evidence
+
+- Trigger: one drafting session on a live case file checked three assertions
+  against the primary corpus for the first time. One was refuted by a message
+  the author had sent himself, one had been framed backwards by the assistant,
+  one was attackable in wording. All three had survived because nobody had
+  opened the source file since the claim was written down.
+- Built as a Prompt, not a Skill: deliberately invoked, fixed procedure, single
+  artefact — the analogue of `peer-review.prompt.md`. A Skill would overlap
+  `citation-integrity` and degrade auto-selection for both.
+- Folder roles are derived from the routing table at run time, so the Prompt
+  carries no project-specific paths, route names, or facts.
+
+## Superseded focus
 
 Cover Tom and Kai Gilb's requirements method, which no Customization touched
 before this turn.
