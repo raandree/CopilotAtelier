@@ -9,7 +9,7 @@ Process the two deadline tables produced by [sync-project-emails.prompt.md](sync
 
 ## Instructions
 
-This prompt expects two tables as input (personal deadlines + project deadlines). If none are passed, extract them from `memory-bank/activeContext.md` or request a run of the sync prompt first. Execute every phase in order.
+This prompt expects two tables as input (personal deadlines + project deadlines). If none are passed, extract them from `.memory-bank/activeContext.md` or request a run of the sync prompt first. Execute every phase in order.
 
 ## Execution contract
 
@@ -62,7 +62,7 @@ For **every project deadline with criticality = high** (or ≤ 7 days):
 
 1. Create a markdown file under `Results/Reminders/YYYY-MM-DD_<short>.md` containing:
    - Metadata table: `| To | CC | Subject |`
-     - `To` = participants from the deadline row (email addresses from `memory-bank/projectbrief.md` or ask if ambiguous)
+     - `To` = participants from the deadline row (email addresses from `.memory-bank/projectbrief.md` or ask if ambiguous)
      - `Subject` = `Reminder: <topic> — due <DD Month YYYY>`
    - Body in formal language (match the language used by the recipients; default English):
      - Short opening (1 sentence)
@@ -112,7 +112,7 @@ Final table in the chat:
 
 ## Phase 4 — Memory Bank
 
-Append to `memory-bank/progress.md`: list of created drafts (file paths) + created To Do tasks (title + id if available). Use `DD Month YYYY`.
+Append to `.memory-bank/progress.md`: list of created drafts (file paths) + created To Do tasks (title + id if available). Use `DD Month YYYY`.
 
 ## Phase 5 — Summary email (REQUIRED FINAL STEP — to user SELF only)
 
@@ -151,6 +151,6 @@ The run is done only when all three are true:
 
 - `Results/Reminders/YYYY-MM-DD_deadline-summary.md` exists.
 - Outlook Sent Items contains a message with subject `Deadline Summary — <DD Month YYYY>` dated today.
-- `memory-bank/activeContext.md` Handoff Queue shows ✅ DONE for this run.
+- `.memory-bank/activeContext.md` Handoff Queue shows ✅ DONE for this run.
 
 Verify all three before reporting completion.

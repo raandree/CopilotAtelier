@@ -13,15 +13,15 @@ Execute every phase in order. Phase 1 is a hard ABORT gate — do not proceed if
 
 ## Phase 1 — Memory Bank Check (ABORT gate)
 
-Verify that `memory-bank/` contains `projectbrief.md` and that it declares:
+Verify that `.memory-bank/` contains `projectbrief.md` and that it declares:
 
 - A **persons-of-interest** list (full names, optional role annotations). Expected under a heading like `## Persons of Interest`, `## Participants`, or equivalent.
 - A **target folder slug** for the archive under `input/emails/` (e.g. `Project_Emails`). Expected under `## Email Archive` or in the project metadata section.
 
 ```powershell
-$mbFile = Join-Path $PWD 'memory-bank/projectbrief.md'
+$mbFile = Join-Path $PWD '.memory-bank/projectbrief.md'
 if (-not (Test-Path $mbFile)) {
-    throw 'ABORT: memory-bank/projectbrief.md is missing. Initialize the Memory Bank before running this prompt.'
+    throw 'ABORT: .memory-bank/projectbrief.md is missing. Initialize the Memory Bank before running this prompt.'
 }
 $mb = Get-Content $mbFile -Raw
 if ($mb -notmatch '(?ms)^##\s+(Persons of Interest|Participants)\b') {
@@ -36,7 +36,7 @@ On failure: report the missing section(s) and **stop**. Do not ask the user for 
 
 ## Phase 2 — Extract scope from the Memory Bank
 
-Parse `memory-bank/projectbrief.md` and derive:
+Parse `.memory-bank/projectbrief.md` and derive:
 
 | Field | Source |
 |---|---|

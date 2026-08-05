@@ -21,6 +21,11 @@ deliberately and run in a fresh session.
   verification results, deadline-ordered scope, explicit "not found" finding.
   Orchestrates `citation-integrity`, `devils-advocate-review`, and the severity
   labels of `code-review-and-quality`.
+- Stale Memory Bank path removed from three Prompts — `export-emails`,
+  `sync-project-emails`, `deadline-action-handoff`. Thirteen occurrences, two of
+  them inside hard ABORT gates that threw on every repository following
+  Decision 0001. References to the Skill named `memory-bank` and the deliberate
+  legacy variant in `ubiquitous-language.instructions.md` were left untouched.
 
 ## Focused evidence
 
@@ -34,6 +39,16 @@ deliberately and run in a fresh session.
   `citation-integrity` and degrade auto-selection for both.
 - Folder roles are derived from the routing table at run time, so the Prompt
   carries no project-specific paths, route names, or facts.
+
+## Open finding
+
+`Prompts/export-emails.prompt.md` in this repository is a generation behind the
+copy deployed under `~/.copilot/prompts/` — 106 lines against 126. The deployed
+version parameterises the export script with `-PersonNames` and `-FolderSlug`,
+derives patterns from email addresses as well as names, and carries a rule
+forbidding hardcoded names in the prompt, in commits, and in scratch files. None
+of that exists here. A build and install would therefore regress a working
+Prompt. Back-porting is a content decision and was left to the owner.
 
 ## Superseded focus
 

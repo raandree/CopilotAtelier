@@ -13,12 +13,12 @@ Execute every phase in order. Phase 1 is a hard ABORT gate — do not proceed if
 
 ## Phase 1 — Memory Bank Check (ABORT gate)
 
-Verify that `memory-bank/` exists and contains at least `projectbrief.md` and `activeContext.md`.
+Verify that `.memory-bank/` exists and contains at least `projectbrief.md` and `activeContext.md`.
 
 ```powershell
-$mbPath = Join-Path $PWD 'memory-bank'
+$mbPath = Join-Path $PWD '.memory-bank'
 if (-not (Test-Path $mbPath) -or -not (Test-Path (Join-Path $mbPath 'projectbrief.md')) -or -not (Test-Path (Join-Path $mbPath 'activeContext.md'))) {
-    throw 'ABORT: Memory Bank missing. Initialize the project first (memory-bank/ with projectbrief.md + activeContext.md).'
+    throw 'ABORT: Memory Bank missing. Initialize the project first (.memory-bank/ with projectbrief.md + activeContext.md).'
 }
 ```
 
@@ -28,9 +28,9 @@ On failure: tell the user clearly that the project must be initialized first, th
 
 Read:
 
-- `memory-bank/projectbrief.md` — people involved, core topics
-- `memory-bank/activeContext.md` — current deadlines, waiting states, expected emails
-- `memory-bank/productContext.md` (if present) — contract details
+- `.memory-bank/projectbrief.md` — people involved, core topics
+- `.memory-bank/activeContext.md` — current deadlines, waiting states, expected emails
+- `.memory-bank/productContext.md` (if present) — contract details
 - `scripts/Export-RelevantPersonEmails.ps1` — current person-of-interest list
 
 Derive:
@@ -72,9 +72,9 @@ For each target folder `input/emails/<Topic>_Emails/`:
 
 ## Phase 5 — Update Memory Bank
 
-- `memory-bank/activeContext.md`: new session entry with date, list of new emails with short assessment (legal relevance, deadlines, open actions). Status icons: 🔴 OPEN, 🟡 WAITING, 🟢 DONE.
-- `memory-bank/progress.md`: append a new prompt entry (prompt number, task, result, affected files).
-- `memory-bank/promptHistory.md` (if present): append prompt + short answer summary.
+- `.memory-bank/activeContext.md`: new session entry with date, list of new emails with short assessment (legal relevance, deadlines, open actions). Status icons: 🔴 OPEN, 🟡 WAITING, 🟢 DONE.
+- `.memory-bank/progress.md`: append a new prompt entry (prompt number, task, result, affected files).
+- `.memory-bank/promptHistory.md` (if present): append prompt + short answer summary.
 - Extract new deadlines from the exported emails and record them as deadline lines in activeContext.
 
 ## Phase 6 — Deadline overview (tabular)
