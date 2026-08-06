@@ -15,6 +15,15 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-06**: `subagent-dispatch` gained the mirror image of its
+  no-pre-judging rule: never hand a re-performer the answer. A dispatch asking
+  for an independent recomputation must not carry the expected values, and a
+  "sealed" section at the end of the same brief is not a barrier — the brief
+  arrives as one text, so the values go in a separate file the reviewer opens
+  deliberately. Every other leak is named by path, the reviewer discloses what
+  it read, and afterwards agreement under exposure counts weaker than
+  disagreement.
+
 - **2026-08-04**: Added `Skills/gilb-requirements-engineering`, the first
   Customization covering Tom and Kai Gilb's method: Planguage `Scale` and
   `Meter` quantification, Impact Estimation Tables with credibility ratings,
@@ -98,21 +107,14 @@ published to the PowerShell Gallery. Incremental work is tracked under
   compaction-surviving ledger, verification against the diff rather than the
   subagent's claim, and a five-round fix cap. Skill count 40 → 41.
 - **2026-07-29**: Migrated the repository to a Sampler-built PowerShell module
-  distributed through the PowerShell Gallery. Module sources under `source/`,
-  three exported commands over six private helpers, a custom build task that
-  copies the six customization directories into the built module, GitVersion
-  versioning, GitHub Actions CI, and a QA plus unit test suite.
-  `Setup-CopilotSettings.ps1` survives as a clone entry point shim. Recorded as
-  Decision 18.
+  distributed through the PowerShell Gallery: sources under `source/`, three
+  exported commands over six private helpers, a build task copying the six
+  customization directories into the built module, GitVersion versioning, and
+  GitHub Actions CI. Recorded as Decision 18.
 - **2026-07-29**: Stabilized the new GitHub Actions pipeline across a single
-  day: a step `shell` key that accepts no context, a Sampler 0.120.0 property
-  default leaking into the build scope, four tests assuming the gitignored
-  `promptHistory.md`, the macOS configuration root, this file at 205 lines
-  against its budget, `#requires` failing Pester discovery, an untrusted hook
-  path resolved through the PowerShell provider, hook commands spawned without a
-  shell, and a GitVersion log stream piped into `ConvertFrom-Json`. The durable
-  rules live in `techContext.md`; `tests/Workflows.Tests.ps1` guards the
-  workflow contract.
+  day — nine distinct failures from a step `shell` key to a GitVersion log
+  stream piped into `ConvertFrom-Json`. The durable rules live in
+  `techContext.md`; `tests/Workflows.Tests.ps1` guards the workflow contract.
 
 ## Stable capabilities
 

@@ -9,8 +9,9 @@ description: >-
   USE FOR: dispatch a subagent, delegate to a subagent, subagent prompt, which
   model for a subagent, subagent model selection, subagent context, subagent
   report, task brief, review package, subagent ledger, resume after compaction,
-  parallel subagents, fix loop, re-review, the agent said it was done, verify a
-  subagent's work, runSubagent, controller context.
+  parallel subagents, fix loop, re-review, blind re-performance, independent
+  recomputation, the agent said it was done, verify a subagent's work,
+  runSubagent, controller context.
   DO NOT USE FOR: the review rubric itself (use code-review-and-quality),
   authoring a Custom agent definition or a Skill (use skill-creator), measuring
   whether a Customization works (use agent-evals), monitoring a long-running
@@ -35,6 +36,7 @@ shipped.
 - Delegating an implementation task, a review, a search, or an investigation.
 - Deciding which model a delegated task should run on.
 - A delegated task came back and the result needs verifying before it counts.
+- A figure or conclusion must be independently re-derived rather than checked.
 - A long session risks compaction and the record of completed work must survive.
 - A review-and-fix cycle has run several rounds without converging.
 
@@ -103,6 +105,30 @@ Equally, do not add open-ended directives ("check everything", "run whatever
 tests seem useful") without a concrete reason. They inflate cost and dilute
 attention without improving the review.
 
+### Never hand a re-performer the answer
+
+The mirror image of the rule above, and the easier one to break by accident.
+When you dispatch a **re-performance** — recompute this, re-derive that, check
+these figures independently — the expected values must not be reachable before
+the reviewer has produced its own. A reviewer that knows the target finds the
+target.
+
+Putting them in a "sealed" section at the end of the same brief does not work.
+The brief is delivered as one text and read as one text; a heading that says
+"open only after computing" is a request, not a barrier.
+
+- **Put the expected values in a separate file** and reference it by path. The
+  reviewer opens it as a deliberate act, after its own numbers exist.
+- **Name every other leak.** Memory Bank files, changelogs, prior reports and
+  commit messages routinely carry the result. List the ones to avoid, by path.
+- **Require disclosure, not perfection.** Ask the reviewer to state in its report
+  what it read and when. Contamination that is declared is usable; contamination
+  that is hidden is not.
+- **Read the asymmetry correctly afterwards.** If the values were known early,
+  the *agreements* are weak — confirmation bias is not excluded. The
+  *disagreements* are stronger than usual: they were produced against a known
+  target, not towards one.
+
 ## Keep a ledger
 
 Conversation memory does not survive compaction. A controller that loses its
@@ -162,6 +188,7 @@ context you need for coordination and skip review entirely.
 |---|---|
 | "The model does not matter, the default is fine." | The default is usually the most expensive model available. Naming the tier is one line. |
 | "The subagent needs the background to understand." | It needs its task, its interfaces, and its constraints. Session history is cost, not context. |
+| "The expected values are in a sealed section it was told not to open first." | A brief arrives as one text and is read as one text. A separate file is the only barrier. |
 | "I'll just fix it myself, dispatching is overhead." | A controller fix skips review and burns the context you need to keep coordinating. |
 | "It reported success, that is good enough." | A report is a claim. The diff is the evidence. |
 | "One more round will converge." | Past the cap, rounds do not converge — the failure is structural. Adjudicate and route. |
@@ -173,6 +200,7 @@ context you need for coordination and skip review entirely.
 - A dispatch prompt containing prior-task summaries or conversation history.
 - A dispatch with no model named.
 - A reviewer dispatched without a diff, or told in advance what not to flag.
+- A re-performance brief that already carries the figures it asks for.
 - A task marked complete on the subagent's word, with no diff inspected.
 - A fourth fix round with no escalation in model or approach.
 - Several tasks complete and nothing written down outside the conversation.
@@ -187,6 +215,8 @@ A delegated task is done when:
 
 - The model was named explicitly and matched the task tier.
 - The subagent's claim was verified against the diff, not accepted on report.
+- A re-performance produced its own values before the expected ones were
+  reachable, and its report discloses what it read.
 - Every Blocker and Major finding is fixed, or parked with a written ruling.
 - The ledger records completion, the commit range, and any parked finding.
 - The change clears the shared Post-flight Definition of Done gate.

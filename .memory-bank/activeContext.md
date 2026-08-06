@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-05
+last-verified: 2026-08-06
 owner: software-engineer
 source: current task evidence
 ---
@@ -8,6 +8,36 @@ source: current task evidence
 # Active context
 
 ## Current focus
+
+Close the containment gap in `subagent-dispatch`: a delegated recomputation that
+can see the answer it was dispatched to reproduce.
+
+## Implemented
+
+- `Skills/subagent-dispatch/SKILL.md` — new section **Never hand a re-performer
+  the answer**, placed under the existing no-pre-judging rule as its mirror
+  image. Expected values go in a separate file referenced by path; every other
+  leak (Memory Bank files, changelogs, prior reports, commit messages) is named
+  by path; the reviewer discloses what it read and when; and afterwards
+  agreement under exposure is read as weaker than disagreement.
+- Integrated into the frontmatter triggers (`blind re-performance`,
+  `independent recomputation`), the when-to-use list, the anti-rationalization
+  table, the red flags, and the verification close, plus the README Skill
+  catalogue row and `CHANGELOG.md`.
+
+## Focused evidence
+
+- The inverse rule was already written — do not tell a reviewer what not to
+  flag. Showing a re-performer the target was unwritten and is the easier of
+  the two to break by accident, because it looks like helpful context.
+- A "sealed" section at the end of the same brief is not a barrier. The brief is
+  delivered as one text and read as one text, so a heading that says "open only
+  after computing" is a request; only a separate file makes opening it an act.
+- The result is asymmetric and has to be read that way: where the values were
+  known early the agreements are weak, while the disagreements are stronger
+  than usual because they were produced against a known target.
+
+## Superseded focus
 
 Add an evidentiary-integrity audit for long-running case files, invoked
 deliberately and run in a fresh session.
@@ -49,35 +79,6 @@ derives patterns from email addresses as well as names, and carries a rule
 forbidding hardcoded names in the prompt, in commits, and in scratch files. None
 of that exists here. A build and install would therefore regress a working
 Prompt. Back-porting is a content decision and was left to the owner.
-
-## Superseded focus
-
-Cover Tom and Kai Gilb's requirements method, which no Customization touched
-before this turn.
-
-## Implemented
-
-- `Skills/gilb-requirements-engineering` — a 322-line body over four
-  references: `planguage-keywords.md`, `impact-estimation.md`,
-  `evo-planning.md`, `spec-quality-control.md`. The body carries the nine-step
-  protocol, a required Planguage slot template, a worked
-  vague-to-quantified transformation, an anti-rationalization table, red flags,
-  and a verification close.
-- `grill-me` now names the new Skill in its `DO NOT USE FOR:` anti-triggers and
-  hands off to it from "Pairs with". Elicitation and quantification are
-  adjacent stages, not competitors.
-
-## Focused evidence
-
-- Nothing in the repository mentioned Gilb, Planguage, or Evolutionary Project
-  Management before this turn. `grill-me` was the nearest neighbour and is
-  Brooks-derived and deliberately qualitative, so its Design Concept never
-  produces a `Scale`, a `Meter`, or a number.
-- Placed as a Skill rather than a Custom agent: the knowledge is portable across
-  harnesses and auto-triggers from any agent, while a persona must be selected,
-  pins a model priority array, and carries role Memory Bank files. The
-  repository ratio, 43 Skills to 11 Custom agents, is the same call made
-  repeatedly.
 - The first description measured 1237 characters against the 1024 cap the
   Copilot CLI silently enforces by dropping the Skill. Trimming the prose
   summary rather than the `USE FOR:` keywords brought it to 930, because only
