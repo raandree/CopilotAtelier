@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-08-07
+
 ### Added
 
 - **New Prompt `audit-case-file`** (2026-08-05). A drafting session accumulates conclusions, and over a long-running matter those conclusions migrate from summary to summary until they read like established fact. The empirical trigger was a single session on a live case file in which three assertions were checked against the primary corpus for the first time: one was refuted by a message the author had sent himself, one had been framed backwards by the assistant and was in truth the strongest argument available, and one was correct in substance but attackable in its wording against the exact phrase a third party had used. None of the three was careless. All three had survived because nobody had opened the source file since the claim was first written down. The Prompt exists to open them.
