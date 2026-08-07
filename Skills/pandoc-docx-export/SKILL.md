@@ -9,7 +9,9 @@ description: >-
   common gotchas.
   USE FOR: convert markdown to docx, export to Word, pandoc export, markdown
   to Word, landscape tables, docx formatting, pandoc Lua filter, table column
-  widths, table font size docx, reference.docx, mixed orientation docx,
+  widths, table font size docx, reference.docx, block quote shading docx,
+  inline code background Word, grey highlight lost in Word, w:shd,
+  VerbatimChar, BlockText, mixed orientation docx,
   wide table formatting, pandoc Word export, document export, emoji shortcodes
   docx, GitHub emoji to Unicode, emoji in Word export, mermaid diagram docx,
   render mermaid to image, mermaid flowchart Word, mermaid Gantt chart image.
@@ -378,6 +380,58 @@ OOXML uses half-points for font sizes:
 | 22          | 11pt      |
 | 24          | 12pt      |
 
+### Grey Shading for Block Quotes and Inline Code
+
+Markdown previews shade block quotes and inline code. Pandoc's default
+reference.docx does not, so both arrive in Word looking like ordinary body text
+and the visual distinction the author relied on is silently lost. Two styles
+carry them:
+
+| Markdown | Word style | Style type |
+|---|---|---|
+| `> quote` | `BlockText` | paragraph |
+| `` `code` `` | `VerbatimChar` | character |
+
+Patch both in `word/styles.xml` of the reference document. **Placement is not
+free** — see gotcha #6:
+
+```xml
+<!-- BlockText: w:shd goes inside w:pPr, BEFORE w:spacing -->
+<w:pPr>
+  <w:shd w:val="clear" w:color="auto" w:fill="F2F2F2" />
+  <w:spacing w:before="100" w:after="100" />
+  <w:ind w:firstLine="0" w:left="480" w:right="480" />
+</w:pPr>
+
+<!-- VerbatimChar: w:shd goes inside w:rPr, AFTER w:sz -->
+<w:rPr>
+  <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" />
+  <w:sz w:val="22" />
+  <w:shd w:val="clear" w:color="auto" w:fill="EDEDED" />
+</w:rPr>
+```
+
+A fill of `F2F2F2` for quotes and `EDEDED` for code keeps both readable in
+greyscale print. Add `<w:pBdr><w:left w:val="single" w:sz="18" w:space="8"
+w:color="BFBFBF" /></w:pBdr>` immediately before the paragraph's `w:shd` to
+reproduce the left bar most Markdown previews draw.
+
+Verify from the produced file rather than by eye — a missing style silently
+falls back to body text:
+
+```powershell
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [System.IO.Compression.ZipFile]::OpenRead($outputDocx)
+$entry = $zip.Entries | Where-Object { $_.FullName -eq 'word/document.xml' }
+$reader = [System.IO.StreamReader]::new($entry.Open())
+$xml = $reader.ReadToEnd(); $reader.Close(); $zip.Dispose()
+([regex]::Matches($xml, 'w:val="BlockText"')).Count     # shaded quote paragraphs
+([regex]::Matches($xml, 'w:val="VerbatimChar"')).Count  # shaded code runs
+```
+
+Both counts must match the source: block quotes collapse to one paragraph each,
+and inline code spans map one-to-one.
+
 ## Critical Gotchas
 
 ### 1. NEVER use Compress-Archive for DOCX
@@ -435,6 +489,27 @@ local content = last_cell[5]
 ```
 
 Always check both: `tbl.head.rows or tbl.head[2]`
+
+### 6. OOXML Child Element Order Is Enforced
+
+`w:pPr` and `w:rPr` are ordered sequences, not bags. Word can refuse a file
+whose children appear out of order, and it reports that as "unreadable content"
+without naming the element. The positions that matter when adding shading:
+
+- `w:pPr` (CT_PPrBase): `pStyle → numPr → pBdr → shd → tabs → spacing → ind → jc`
+- `w:rPr` (CT_RPr): `rFonts → b → i → color → sz → szCs → highlight → u → bdr → shd → vertAlign → lang`
+
+Parsing the patched `styles.xml` with `[xml]` before repacking catches malformed
+XML but **not** order violations — the document is well-formed either way. Prove
+the result opens instead:
+
+```powershell
+& 'C:\Program Files\LibreOffice\program\soffice.exe' --headless `
+    --convert-to pdf --outdir $env:TEMP $outputDocx
+```
+
+A PDF appears only if the DOCX is valid. This is faster than opening Word and
+works unattended.
 
 ## Recipe 4: Emoji Shortcode Conversion
 
@@ -686,7 +761,8 @@ $env:MMDC_PATH = "D:\tools\mmdc.cmd"
        Set-Content "$env:TEMP\puppeteer-config.json" -Encoding UTF8
    ```
 3. Create `landscape-tables.lua` with table detection + orientation + width + emoji + mermaid logic
-4. Create `reference.docx` with custom table font size
+4. Create `reference.docx` with custom table font size and shaded `BlockText` /
+   `VerbatimChar` styles
 5. Export:
    ```powershell
    $pandoc = 'C:\Program Files\Pandoc\pandoc.exe'  # or wherever pandoc is

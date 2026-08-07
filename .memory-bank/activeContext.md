@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-06
+last-verified: 2026-08-07
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,33 +9,45 @@ source: current task evidence
 
 ## Current focus
 
-Close the containment gap in `subagent-dispatch`: a delegated recomputation that
-can see the answer it was dispatched to reproduce.
+Carry the shading Word silently drops through `pandoc-docx-export`, and repair
+the changelog entry that recorded it.
 
 ## Implemented
 
-- `Skills/subagent-dispatch/SKILL.md` — new section **Never hand a re-performer
-  the answer**, placed under the existing no-pre-judging rule as its mirror
-  image. Expected values go in a separate file referenced by path; every other
-  leak (Memory Bank files, changelogs, prior reports, commit messages) is named
-  by path; the reviewer discloses what it read and when; and afterwards
-  agreement under exposure is read as weaker than disagreement.
-- Integrated into the frontmatter triggers (`blind re-performance`,
-  `independent recomputation`), the when-to-use list, the anti-rationalization
-  table, the red flags, and the verification close, plus the README Skill
-  catalogue row and `CHANGELOG.md`.
+- `Skills/pandoc-docx-export/SKILL.md` — Recipe 3 gained **Grey Shading for
+  Block Quotes and Inline Code**: the `BlockText` paragraph and `VerbatimChar`
+  character styles, both `w:shd` patches with print-legible fills, the optional
+  left bar, and a verification snippet that counts both styles in the produced
+  `word/document.xml`. Gotcha #6 records the enforced OOXML child order for
+  `w:pPr` and `w:rPr`. Six triggers added to the description; the workflow step
+  for the reference document updated to match.
+- `CHANGELOG.md` — the new entry had replaced the `subagent-dispatch` bullet of
+  2026-08-06 and absorbed its 1922-character body as its own second paragraph.
+  Split back into two bullets; the restored entry is byte-identical to `HEAD`.
 
 ## Focused evidence
 
-- The inverse rule was already written — do not tell a reviewer what not to
-  flag. Showing a re-performer the target was unwritten and is the easier of
-  the two to break by accident, because it looks like helpful context.
-- A "sealed" section at the end of the same brief is not a barrier. The brief is
-  delivered as one text and read as one text, so a heading that says "open only
-  after computing" is a request; only a separate file makes opening it an act.
-- The result is asymmetric and has to be read that way: where the values were
-  known early the agreements are weak, while the disagreements are stronger
-  than usual because they were produced against a known target.
+- Pandoc maps both constructs correctly; the loss is in the stock reference
+  document, where neither style carries a fill. Nothing warns, so verification
+  counts `w:val="BlockText"` and `w:val="VerbatimChar"` in the output — a style
+  that fails to apply falls back to body text and looks like ordinary output.
+- `w:pPr` and `w:rPr` are ordered sequences. Parsing the patched `styles.xml`
+  with `[xml]` catches malformed XML but not an order violation, because
+  wrongly ordered children are still well-formed. Only a headless LibreOffice
+  conversion to PDF proves the file opens.
+- The description now measures 1013 of 1024 characters. One more trigger
+  keyword breaks the cap, and an over-cap Skill is dropped silently.
+- `tests/SkillFrontmatter.Tests.ps1`: 188 passed, 0 failed, 10 skipped (the
+  documented over-budget baseline, which already lists this Skill at 795 body
+  lines). `markdownlint-cli2` over both changed files: 0 issues.
+
+## Superseded focus
+
+Close the containment gap in `subagent-dispatch`: a delegated recomputation
+that can see the answer it was dispatched to reproduce. Landed as **Never hand
+a re-performer the answer** — expected values go in a separate file, every
+other leak is named by path, the reviewer discloses what it read, and
+afterwards agreement under exposure counts weaker than disagreement.
 
 ## Superseded focus
 

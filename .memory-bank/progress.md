@@ -15,6 +15,15 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-07**: `pandoc-docx-export` now carries the grey shading Word drops
+  silently. Pandoc maps block quotes to `BlockText` and inline code to
+  `VerbatimChar` correctly, but neither style has a fill in the stock reference
+  document, so the preview's distinction is lost without warning. Recipe 3
+  gained both `w:shd` patches and an output-side count of the two styles;
+  gotcha #6 records that `w:pPr` and `w:rPr` are ordered sequences, that `[xml]`
+  parsing cannot catch an order violation, and that only a headless LibreOffice
+  conversion to PDF proves the file opens.
+
 - **2026-08-06**: `subagent-dispatch` gained the mirror image of its
   no-pre-judging rule: never hand a re-performer the answer. A dispatch asking
   for an independent recomputation must not carry the expected values, and a
@@ -78,21 +87,17 @@ published to the PowerShell Gallery. Incremental work is tracked under
   remainder verified clean, including every cited BFH docket.
 
 - **2026-07-30**: Added the Skill `evidence-package-assembly`, extracted from a
-  live Finanzamt filing. Covers the Markdown-to-PDF pipeline on Windows
-  (pandoc plus headless Edge, including the silent-no-output failure that still
-  returns exit code 0), the page-numbering criterion for deciding which sheets
-  may be omitted from a source document, redaction defaults, and cover-sheet
-  structure. Ships two scripts; the Python merge-and-verify script was
-  regression-tested against the real 42-page package and reproduced it exactly.
+  live Finanzamt filing: the Markdown-to-PDF pipeline on Windows including the
+  silent-no-output Edge failure that still returns exit code 0, the
+  page-numbering criterion for omitting sheets, redaction defaults, and two
+  scripts regression-tested against the real 42-page package.
 
 - **2026-07-30**: Dropped the Windows PowerShell 5.1 leg from the CI test
-  matrix. `Create_Changelog_Release_Output` writes the built manifest as UTF-8
-  without a byte order mark, Windows PowerShell 5.1 decodes a BOM-less file with
-  the ANSI code page, and the UTF-8 bytes of `→` end in a right single quotation
-  mark that the tokenizer reads as a string delimiter, which breaks the manifest
-  parse before any test runs. A build task forcing the byte order mark was
-  written and discarded: the module is not used on that runtime, so removing the
-  leg is the cheaper contract. All three legs now run PowerShell 7.
+  matrix. The BOM-less built manifest decodes under the ANSI code page there,
+  and the UTF-8 bytes of `→` end in a quotation mark the tokenizer reads as a
+  string delimiter, which breaks the manifest parse before any test runs. The
+  module is not used on that runtime, so removing the leg is the cheaper
+  contract; all three legs now run PowerShell 7.
 - **2026-07-30**: Strengthened the authoring and engineering-discipline Skills.
   `skill-creator` now classifies the baseline failure — discipline, shaping,
   omission, or conditional — before prescribing a guidance form, and scopes the
@@ -107,13 +112,10 @@ published to the PowerShell Gallery. Incremental work is tracked under
   compaction-surviving ledger, verification against the diff rather than the
   subagent's claim, and a five-round fix cap. Skill count 40 → 41.
 - **2026-07-29**: Migrated the repository to a Sampler-built PowerShell module
-  distributed through the PowerShell Gallery: sources under `source/`, three
-  exported commands over six private helpers, a build task copying the six
-  customization directories into the built module, GitVersion versioning, and
-  GitHub Actions CI. Recorded as Decision 18.
-- **2026-07-29**: Stabilized the new GitHub Actions pipeline across a single
-  day — nine distinct failures from a step `shell` key to a GitVersion log
-  stream piped into `ConvertFrom-Json`. The durable rules live in
+  distributed through the PowerShell Gallery — sources under `source/`, three
+  exported commands, a build task copying the six customization directories into
+  the built module, GitVersion versioning, and a GitHub Actions pipeline
+  stabilized across nine failures the same day (Decision 18). CI rules live in
   `techContext.md`; `tests/Workflows.Tests.ps1` guards the workflow contract.
 
 ## Stable capabilities
