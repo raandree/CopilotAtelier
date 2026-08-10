@@ -15,6 +15,18 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-11**: Corrected `windows-gui-screenshot-capture`, prompted by a live
+  "screenshot the Edge window" request the Skill answered wrongly twice. Its
+  "GPU-composited content returns solid black" verdict had generalised a
+  measurement of a hosted WebView2 control to all of Chromium; measured on
+  Windows `10.0.26200` with Edge `151.0.4129.72`, `PW_RENDERFULLCONTENT`
+  painted a full 2560x1540 frame on the first attempt. Step 2 now separates a
+  hosted control from an application's own top-level frame and prescribes
+  attempt, validate, escalate. The Skill also had no branch for a window the
+  user already had open, where nothing may be launched or closed;
+  `scripts/WindowCapture.ps1` implements it as the inverse-lifecycle sibling of
+  `DialogCapture.ps1`, with 13 new tests.
+
 - **2026-08-10**: `long-running-job-monitor` gained an unprompted chat
   heartbeat. Measured that an async command's completion notification spawns an
   agent turn with no user input, disproving the Skill's own claim that the agent
@@ -95,24 +107,12 @@ published to the PowerShell Gallery. Incremental work is tracked under
   `§ 238 Abs. 1c AO` evaluation interval, and the VZ 2025 childcare rule. The
   remainder verified clean, including every cited BFH docket.
 
-- **2026-07-30**: Added the Skill `evidence-package-assembly`, extracted from a
-  live Finanzamt filing: the Markdown-to-PDF pipeline on Windows including the
-  silent-no-output Edge failure that still returns exit code 0, the
-  page-numbering criterion for omitting sheets, redaction defaults, and two
-  scripts regression-tested against the real 42-page package.
+- **2026-07-30**: Added the Skill `evidence-package-assembly`; strengthened
+  `skill-creator`, `agent-evals`, and `debugging-and-error-recovery` and added
+  `subagent-dispatch` (Skill count 40 → 41); dropped the Windows PowerShell 5.1
+  CI leg, whose ANSI decode of the BOM-less built manifest breaks the manifest
+  parse before any test runs. Detail in `CHANGELOG.md`.
 
-- **2026-07-30**: Dropped the Windows PowerShell 5.1 leg from the CI test
-  matrix. The BOM-less built manifest decodes under the ANSI code page there,
-  and the UTF-8 bytes of `→` end in a quotation mark the tokenizer reads as a
-  string delimiter, which breaks the manifest parse before any test runs. The
-  module is not used on that runtime, so removing the leg is the cheaper
-  contract; all three legs now run PowerShell 7.
-- **2026-07-30**: Strengthened the authoring and engineering-discipline Skills.
-  `skill-creator` now classifies the baseline failure before prescribing a
-  guidance form, `agent-evals` gained a wording micro-test loop with a
-  no-guidance control arm, `debugging-and-error-recovery` gained boundary
-  instrumentation and a three-failed-fixes stop condition, and the new
-  `subagent-dispatch` Skill documents delegation. Skill count 40 → 41.
 - **2026-07-29**: Migrated the repository to a Sampler-built PowerShell module
   distributed through the PowerShell Gallery (Decision 18), with CI stabilized
   across nine failures the same day. CI rules live in `techContext.md`.
@@ -121,8 +121,9 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
   presence without relying on model compliance.
-- Screenshot documentation for both modifiable Windows applications and
-  existing or third-party executables without source access.
+- Screenshot documentation for modifiable Windows applications, existing or
+  third-party executables without source access, and windows the user already
+  has open.
 - One-command, idempotent Setup script with Windows, macOS, and Linux path
   handling.
 - One Canonical target exposed through `~/.copilot` Discovery links, with
@@ -162,9 +163,10 @@ published to the PowerShell Gallery. Incremental work is tracked under
   `Read-Host` prompt hangs an unattended run, a child present in both source and
   target is discarded rather than compared, and `Copy-Item -Recurse` may follow
   a child reparse point.
-- Curate `techContext.md`, which the health check now reports at 194 of 200
-  budgeted lines. Its per-test-file inventory duplicates `tests/` and conflicts
-  with the file's own "do not duplicate changing inventories" rule.
+- Curate `techContext.md`, reported at 194 of 200 budgeted lines, and
+  `systemPatterns.md`, above the 90 % warning line at 106 of 110. The former's
+  per-test-file inventory duplicates `tests/` and conflicts with the file's own
+  "do not duplicate changing inventories" rule.
 
 ## Retention policy
 

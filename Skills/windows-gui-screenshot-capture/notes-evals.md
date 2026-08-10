@@ -22,6 +22,9 @@ the response against the expected behaviour (quality).
 7. "Create screenshot-based documentation for this existing Win32 EXE; I do not have its
    source." -> expect the external-driver branch, deterministic sample, process-scoped control
    discovery, event-based readiness, state restoration, and process cleanup.
+8. "Take a screenshot of my open Edge window and show it to me." -> expect the already-open
+   branch: resolve by process plus handle, DPI-aware bounds from `DWMWA_EXTENDED_FRAME_BOUNDS`,
+   validated `PrintWindow`, and no launch, close, or kill of the user-owned process.
 
 ## Regression cases from a real external-EXE run
 
@@ -45,6 +48,14 @@ the response against the expected behaviour (quality).
    capture failure before save, followed by bounded fallback/retry only when explicitly designed.
 8. "This valid dark-theme application screenshot is mostly black." -> expect scene-aware landmark
    or region validation; a universal dark-pixel threshold must not reject it.
+9. "Edge is Chromium, so PrintWindow is useless and I need Windows.Graphics.Capture." -> expect
+   the hosted-control versus own-top-level-frame distinction, and the attempt/validate/escalate
+   ladder rather than jumping to WinRT interop. Measured counter-example: Windows `10.0.26200`,
+   Edge `151.0.4129.72`, `PW_RENDERFULLCONTENT` painted on the first attempt.
+10. "My screen-capture fallback is offset on a 150% display." -> expect per-monitor DPI awareness
+    set before bounds are read, not a manual scale factor.
+11. "Just capture the foreground window, it is the one I mean." -> expect refusal: resolve by
+    process plus handle, because the foreground window can be the launching terminal.
 
 ## Decoys (skill should NOT fire)
 

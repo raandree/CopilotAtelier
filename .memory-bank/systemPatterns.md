@@ -69,31 +69,31 @@ CopilotAtelier repository (Sampler project)
 - Hooks enforce the rules that must hold regardless of model reasoning;
     Instructions carry the judgement calls.
 - The `v*` release tag is the version anchor, not a record of the release.
-    GitVersion derives the next pre-release number from the last tag, and
+    GitVersion derives the next pre-release number from the last tag and
     `Publish_Release_To_GitHub` writes it, so a release task that skips itself
-    freezes the version the Gallery already holds. The same task sends the
-    changelog `[Unreleased]` section as the release body, which GitHub caps at
-    125000 characters.
+    freezes the version the Gallery already holds. That task also sends the
+    changelog `[Unreleased]` section as the body, capped at 125000 characters.
 - Authored guidance takes its form from the baseline failure it corrects:
-    prohibitions and rationalization tables for a discipline an agent skips
-    under pressure, a positive recipe for output of the wrong shape, a required
-    structural slot for an omitted element, and a predicate-keyed conditional
-    for behaviour that depends on context. Applying the prohibition form to a
-    shaping failure makes the output worse.
+    prohibitions and rationalization tables for a skipped discipline, a positive
+    recipe for output of the wrong shape, a required structural slot for an
+    omitted element, a predicate-keyed conditional for context-dependent
+    behaviour. The prohibition form applied to a shaping failure makes it worse.
 - VS Code spawns a hook command without a shell, so no `%VAR%` or `$VAR` token
     is expanded. Each command resolves its own path inside the interpreter and
-    propagates the exit code explicitly; a test that runs a hook string through
-    a shell does not exercise the real invocation.
-- GUI screenshot workflows branch by source ownership: modifiable applications
-    own a self-capturing mode; external executables use a process-scoped driver
-    with event-driven readiness, restoration, and content verification.
+    propagates the exit code explicitly.
+- GUI screenshot workflows branch by ownership: modifiable applications own a
+    self-capturing mode; external executables use a process-scoped driver with
+    readiness, restoration, and content verification; a window the user already
+    had open inverts cleanup — launch nothing, close nothing, and restore only
+    what the capture changed.
+- A capability measured on one configuration is scoped to what was measured and
+    encoded as attempt, validate, escalate — never a verdict. The content gate
+    decides at run time; the engine name only orders which path is tried first.
 - A turn fires on exactly three triggers: a user message, a tool call returning,
     or a harness notification. An async command's completion notification is the
     only one an agent can arm for itself, so unprompted periodic reporting is a
-    chained async timer — and a fully detached process, being invisible to the
-    harness, emits no notification and can never wake the agent. A `Stop` hook
-    returning `decision: "block"` can force a turn that would otherwise end,
-    which is the only deterministic way to stop the model dropping that chain.
+    chained async timer, and a fully detached process emits none. A `Stop` hook
+    returning `decision: "block"` can force a turn that would otherwise end.
 - `chat.hookFilesLocations` replaces the default hook location map instead of
     extending it, so pinning one location silently disables every other,
     including the workspace `.github/hooks` folder, with no diagnostic.

@@ -2,16 +2,17 @@
 name: windows-gui-screenshot-capture
 compatibility: Requires Windows and PowerShell 5.1+ with .NET WPF, WinForms, and Win32 interop. Every capture API is Windows-only.
 description: >-
-  Captures Windows GUI screenshots from modifiable apps and existing or
-  third-party executables, then assembles screenshot-embedded Markdown
-  manuals. Selects the correct API for WPF,
+  Captures Windows GUI screenshots from modifiable apps, third-party
+  executables, and already-open windows, then assembles screenshot-embedded
+  Markdown manuals. Selects the correct API for WPF,
   WinForms, Win32/GDI, WebView2, Avalonia, and WinUI 3; covers external-process
   driving, event-based readiness, GPU black frames, native dialogs, state
   restoration, and content validation.
   USE FOR: capture Windows GUI screenshot, automate app screenshots,
-  screenshot-based user manual, screenshot-driven docs, document existing
-  Windows exe, third-party desktop app screenshots, closed-source Win32 app,
-  external process screenshot, WPF, WinForms, Win32, WebView2, Avalonia,
+  screenshot-based user manual, document existing
+  Windows exe, third-party desktop app screenshots,
+  capture an already-open window, screenshot Edge or Chrome window,
+  CopyFromScreen fallback, WPF, WinForms, Win32, WebView2, Avalonia,
   WinUI 3, PrintWindow black, SetWinEventHook, RenderTargetBitmap,
   DrawToBitmap, CapturePreviewAsync, Windows.Graphics.Capture, MessageBox
   #32770 capture, STA GUI PowerShell.
@@ -63,26 +64,47 @@ yields a black or clipped image.
 | WPF (DirectX / Milcore) | PowerShell + `Add-Type` | `RenderTargetBitmap` | In-process; ignores focus / z-order |
 | WinForms (GDI+) | PowerShell | `Control.DrawToBitmap` | Renders whole window - size bitmap to `Form.Size` |
 | Win32 / GDI (CPU) | PowerShell + P/Invoke | `PrintWindow` (`PW_RENDERFULLCONTENT`) | Works off-screen |
-| WebView2 (Chromium / GPU) | dotnet WinForms host | `CoreWebView2.CapturePreviewAsync` | `PrintWindow` returns black |
+| WebView2 control in a host | dotnet WinForms host | `CoreWebView2.CapturePreviewAsync` | `PrintWindow` on the host returns black |
 | Avalonia (Skia) | dotnet headless | `Window.CaptureRenderedFrame` | No visible window needed |
 | WinUI 3 (Composition / GPU) | dotnet + Windows App SDK | `RenderTargetBitmap.RenderAsync` **or** `Windows.Graphics.Capture` | `PrintWindow` returns black |
+| External composited window | PowerShell + P/Invoke | Validated `PrintWindow`, else `CopyFromScreen` | A browser frame often does print - prove it per app (Step 2) |
 
 A two-to-three-line snippet per engine, each pointing to the full POC implementation, is in
 [`references/engine-recipes.md`](references/engine-recipes.md).
 
 ## Step 2 - Apply the GPU-composited rule
 
-`PrintWindow` / `BitBlt` read the window's CPU-side surface. **GPU-composited content returns
-solid black**: WebView2 (Chromium), WinUI 3, and UWP. For those, capture with the framework API
-(`CapturePreviewAsync`, `RenderTargetBitmap.RenderAsync`) or the OS-level
-`Windows.Graphics.Capture` (Windows 10 1803+), which is the general fallback for composited or
-external windows. Use `PrintWindow` for Win32/GDI, `DrawToBitmap` for in-process WinForms, and
+`PrintWindow` / `BitBlt` read the window's CPU-side surface, so **GPU-composited content can come
+back solid black**. Use `PrintWindow` for Win32/GDI, `DrawToBitmap` for in-process WinForms, and
 `RenderTargetBitmap` for an in-process WPF visual; do not infer external WPF reliability from the
 Win32 result.
 
+Separate two composited cases before reaching for a heavier API:
+
+- **A composited control hosted inside your window** - a WebView2 in a WinForms/WPF host, or WinUI
+  3 / UWP content. Another process composites those pixels, so `PrintWindow` against the host
+  returns black. Go straight to the framework API: `CapturePreviewAsync`,
+  `RenderTargetBitmap.RenderAsync`.
+- **A composited application's own top-level window** - the Edge or Chrome browser frame. This is
+  *not* automatically black. Measured on Windows `10.0.26200` with Edge `151.0.4129.72`,
+  `PrintWindow(PW_RENDERFULLCONTENT)` returned a fully painted 2560x1540 frame on the first
+  attempt, no fallback needed.
+
+One measurement is not a guarantee: the outcome is build-, GPU-, and application-dependent. Never
+assume in either direction - **attempt, validate, then escalate**:
+
+1. `PrintWindow` with `PW_RENDERFULLCONTENT`, then run the pixel gates from the Verification
+   section. A `true` return is not proof (see Anti-rationalization).
+2. On a failed gate, read the composited desktop with `Graphics.CopyFromScreen` over
+   `DWMWA_EXTENDED_FRAME_BOUNDS`. Cheap and engine-agnostic, but it requires the window restored,
+   on top, and unobscured, and it captures whatever actually covers those pixels.
+3. If the window must stay off-screen or occluded, use `Windows.Graphics.Capture` (Windows 10
+   1803+) - the general answer for composited or external windows, at the cost of WinRT interop.
+
 ## Step 3 - Choose how to drive scenes
 
-Choose the branch by source ownership. Do not assume every executable can be modified.
+Choose the branch by ownership. Do not assume every executable can be modified, and do not assume
+you are allowed to start or stop the target at all.
 
 ### Apps you can modify
 
@@ -136,6 +158,27 @@ For the full external-process workflow, cross-process control handling, race-fre
 and validation gates, read
 [`references/external-win32-executables.md`](references/external-win32-executables.md).
 
+### A window that is already open
+
+When the user points at a window that is already running - "screenshot my Edge window" - there is
+no scene list, no launch, and no teardown. The process is **user-owned**, which inverts the
+cleanup rules above:
+
+1. Resolve the target by process plus window handle, then re-check ownership with
+   `GetWindowThreadProcessId` before touching the handle. Never capture `GetForegroundWindow`.
+2. Make the capture host per-monitor DPI aware before reading bounds, or a scaled display yields
+   virtualized coordinates and an offset screen read.
+3. Take bounds from `DWMWA_EXTENDED_FRAME_BOUNDS`, not `GetWindowRect`, which includes the
+   invisible DWM resize border.
+4. Apply the Step 2 ladder: validated `PrintWindow`, then `CopyFromScreen`.
+5. Restore what you changed - re-minimize a window you restored - and **never** close or kill a
+   user-owned process.
+6. Capture the window rectangle only, and review the frame for private content before sharing it.
+   A browser frame exposes tabs, profile name, and history.
+
+Ready-to-use helper: [`scripts/WindowCapture.ps1`](scripts/WindowCapture.ps1)
+(`Save-OpenWindowCapture`).
+
 ## Step 4 - Name scenes consistently across engines
 
 Use identical scene names in every engine (`app-01-start`, `app-02-selected`, ...). Consistent
@@ -186,7 +229,10 @@ the launching console. Always target the specific `#32770` window by class + tit
 | WinForms bottom / right edge cut off | `DrawToBitmap` renders the *whole* window | Size the bitmap to `Form.Size`, not `ClientSize` |
 | WinForms fonts scaled / clipped on a 150% display | DPI scaling | `Application.SetHighDpiMode('DpiUnaware')` before building the form |
 | Avalonia headless text is blank | No real font registered | `.WithInterFont()` + `AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }` (Skia) |
-| WebView2 / WinUI 3 shot is solid black | GPU-composited surface | Use the framework API or `Windows.Graphics.Capture` |
+| Hosted WebView2 / WinUI 3 shot is solid black | Another process composites the child surface | Use the framework API or `Windows.Graphics.Capture` |
+| Reached for WinRT capture and it was never needed | Treated "Chromium" as "always black" | An app's own top-level frame may print; attempt and validate first (Step 2) |
+| `CopyFromScreen` frame is offset or scaled | Capture host is DPI-virtualized | `SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2)` before reading bounds |
+| Screen capture includes a strip of desktop around the window | `GetWindowRect` includes the invisible DWM resize border | Read `DWMWA_EXTENDED_FRAME_BOUNDS` via `DwmGetWindowAttribute` |
 | Dialog title renders but client area is black | Frame appeared before content painted | Wait for expected child state, then retry capture and content validation within a bound |
 | Cross-process combo remains empty | Text was sent to the combo wrapper | Find its child `Edit` control and send `WM_SETTEXT`, or use UI Automation |
 | Revised `Add-Type` definition is ignored | The type is already loaded in the session | Run the capture script in a clean `pwsh` process while iterating P/Invoke code |
@@ -197,7 +243,8 @@ the launching console. Always target the specific `#32770` window by class + tit
 
 | Rationalization | Reality |
 |---|---|
-| "I'll just `PrintWindow` everything, it's simpler." | Returns black for WebView2 / WinUI 3. Match the API to the engine or the screenshot is unusable. |
+| "I'll just `PrintWindow` everything, it's simpler." | Returns black for a hosted WebView2 control and for WinUI 3. Match the API to the engine or the screenshot is unusable. |
+| "It's Chromium, so `PrintWindow` is pointless - I need WinRT capture." | That holds for a WebView2 control inside a host window, not for the browser's own top-level frame. Attempt the cheap path and let the pixel gates decide. |
 | "I'll capture the foreground window to get the dialog." | The foreground window may be the launching console. Use the started `Process` plus owner, class, and title. |
 | "`ClientSize` is close enough for the WinForms bitmap." | `DrawToBitmap` renders the whole window; `ClientSize` clips the border. Use `Form.Size`. |
 | "I'll paste the screenshots in by hand this once." | Manual capture is not reproducible and rots. The scene mode + orchestrator must regenerate them. |
@@ -212,6 +259,7 @@ the launching console. Always target the specific `#32770` window by class + tit
 - Using foreground or global title-only discovery instead of the started `Process` plus
   owner/class/title identity.
 - Capturing a WebView2 / WinUI 3 window with `PrintWindow` and accepting a black image.
+- Closing, killing, or changing the settings of a window the user already had open.
 - Writing a capture script that needs a human to click or to close it - it must self-terminate.
 - Sizing a WinForms capture bitmap to `ClientSize`.
 - Driving a third-party executable through screen coordinates when stable controls are available.
@@ -255,4 +303,5 @@ full, working implementations:
 
 - Per-engine capture snippets: [`references/engine-recipes.md`](references/engine-recipes.md).
 - Ready-to-use native-dialog helper: [`scripts/DialogCapture.ps1`](scripts/DialogCapture.ps1).
+- Ready-to-use already-open-window helper: [`scripts/WindowCapture.ps1`](scripts/WindowCapture.ps1).
 - Eval prompts: [`notes-evals.md`](notes-evals.md).

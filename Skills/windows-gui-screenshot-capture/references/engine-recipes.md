@@ -71,8 +71,10 @@ Full app (native WndProc + GDI paint): `D:\guitest\src\Win32\Show-CapitalFinder.
 
 ## WebView2 - CapturePreviewAsync
 
-Chromium content is GPU-composited, so `PrintWindow` / `BitBlt` return black. Use the WebView2
-API. Drive UI state with `ExecuteScriptAsync` before each capture.
+A WebView2 control is composited by a separate browser process, so `PrintWindow` / `BitBlt`
+against the host window return black. Use the WebView2 API. (A browser's *own* top-level window
+is a different case - see [`../SKILL.md`](../SKILL.md), Step 2.) Drive UI state with
+`ExecuteScriptAsync` before each capture.
 
 ```csharp
 using var fs = new FileStream(path, FileMode.Create, FileAccess.Write);
