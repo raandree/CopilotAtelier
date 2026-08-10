@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-07
+last-verified: 2026-08-10
 owner: software-engineer
 source: current task evidence
 ---
@@ -8,6 +8,63 @@ source: current task evidence
 # Active context
 
 ## Current focus
+
+Give `long-running-job-monitor` an unprompted chat heartbeat, so a job that runs
+for hours stops leaving the chat pane silent.
+
+## Implemented
+
+- `Skills/long-running-job-monitor/scripts/Start-JobHeartbeat.ps1` — arms one
+  tick, waits, emits a measured summary. Metadata-only JSON state, a
+  `1x, 1x, 2x, 3x, 6x` backoff ladder, a `-TouchStatus` mode that keeps the
+  sliding-reset anchor accurate when status is shown between ticks, and a
+  `-Stop` mode that cancels a pending tick after matching the recorded process
+  start time so a recycled process ID is never killed.
+- `Skills/long-running-job-monitor/SKILL.md` — new `Chat heartbeat` section;
+  the bullet claiming the agent "cannot self-schedule a timer" corrected to
+  distinguish a blocking foreground wait from an async timer. Four trigger
+  keywords added; description 835 → 912 of 1024 characters, body 326 → 357
+  lines.
+- `Skills/long-running-job-monitor/references/heartbeat-protocol.md` — wake
+  loop, state schema, chain-integrity options, and the two rules that silently
+  break the heartbeat.
+- `tests/LongRunningJobMonitor.Tests.ps1` — 15 tests. The scripts had no
+  coverage before this change.
+
+## Focused evidence
+
+- A completion notification spawns a turn unprompted. Measured: async command
+  `20:23:59` → `20:26:59 UTC`, agent turn produced with no user input. The
+  Skill's previous claim to the contrary was why the gap had persisted.
+- A detached process emits no completion notification. The timer must run in
+  async mode; the detached launcher is correct for the job and the sampling
+  sidecar and wrong here.
+- The harness appends a note to async tool results urging a
+  `get_terminal_output` poll and claiming the result is "not a signal to end the
+  turn". Following the documented contract instead is what made the measurement
+  succeed.
+- First smoke run reported `elapsed=120m` on a fresh job: `[datetime]::Parse`
+  yields `Kind=Local`, so `.ToUniversalTime()` subtracted the offset twice.
+  Fixed with `RoundtripKind` and pinned by a regression test.
+- Verified: 203 passed / 0 failed / 10 skipped across the new suite and
+  `SkillFrontmatter`; markdownlint 0 issues; PSScriptAnalyzer clean apart from
+  `PSUseShouldProcessForStateChangingFunctions` on a pure path-generating test
+  helper.
+- Live smoke tests: unprompted wakes at `21:21:58` and `21:23:12`; ladder
+  `1m, 1m, 2m`; sliding reset `Redundant=true` with `0.61m` remaining after a
+  mid-interval message; completion reported from the job's own notification;
+  `alpha` and `beta` waking as independent turns nine seconds apart; a separate
+  process reconstructing `elapsed=45m` and the ladder position from state alone.
+- A guarded one-shot `Stop` hook returning `decision: "block"` forced a turn
+  that would otherwise have ended, so chain enforcement is viable and batch
+  pre-arm is unnecessary. The no-repeat rail was not exercised live \u2014 only one
+  block occurred \u2014 and must be confirmed before a real hook ships.
+- `chat.hookFilesLocations` replaces the default location map rather than
+  extending it, so the workspace `.github/hooks` file never loaded and produced
+  no diagnostic. Recorded in `Hooks/README.md`.
+- Left uncommitted on `main` at the user's request.
+
+## Superseded focus
 
 Carry the shading Word silently drops through `pandoc-docx-export`, and repair
 the changelog entry that recorded it.

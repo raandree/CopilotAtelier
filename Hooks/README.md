@@ -66,6 +66,13 @@ which omits dotfile folders.
 - **Hook never fires.** Confirm `copilot-atelier.hooks.json` is present under
   `~/.copilot/hooks` and that the link resolves. Re-run
   [`Setup-CopilotSettings.ps1`](../Setup-CopilotSettings.ps1).
+- **A workspace `.github/hooks/*.json` never fires.** `chat.hookFilesLocations`
+  replaces the default location map rather than extending it. A settings value
+  of `{ "~/.copilot/hooks": true }` therefore drops `.github/hooks`, and the
+  workspace file loads silently as nothing — no error, no log entry. Add
+  `".github/hooks": true` alongside the existing entry, or place the hook in
+  `~/.copilot/hooks`. Verified by observing a `Stop` hook that executed only
+  after the file moved to the deployed folder.
 - **Command not found.** VS Code spawns a hook command directly, with no shell,
   so `%USERPROFILE%` and `$HOME` are never expanded by a shell. Each command
   therefore resolves its own path inside PowerShell — `$env:USERPROFILE` on

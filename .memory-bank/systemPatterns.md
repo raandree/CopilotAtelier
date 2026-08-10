@@ -87,6 +87,16 @@ CopilotAtelier repository (Sampler project)
 - GUI screenshot workflows branch by source ownership: modifiable applications
     own a self-capturing mode; external executables use a process-scoped driver
     with event-driven readiness, restoration, and content verification.
+- A turn fires on exactly three triggers: a user message, a tool call returning,
+    or a harness notification. An async command's completion notification is the
+    only one an agent can arm for itself, so unprompted periodic reporting is a
+    chained async timer — and a fully detached process, being invisible to the
+    harness, emits no notification and can never wake the agent. A `Stop` hook
+    returning `decision: "block"` can force a turn that would otherwise end,
+    which is the only deterministic way to stop the model dropping that chain.
+- `chat.hookFilesLocations` replaces the default hook location map instead of
+    extending it, so pinning one location silently disables every other,
+    including the workspace `.github/hooks` folder, with no diagnostic.
 - Custom agent frontmatter controls current tools, model priority, subagent
     eligibility, and Agent-to-agent handoffs.
 - Instruction frontmatter controls current `applyTo` scope.

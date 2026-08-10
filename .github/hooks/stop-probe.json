@@ -1,0 +1,12 @@
+{
+    "hooks": {
+        "Stop": [
+            {
+                "type": "command",
+                "timeout": 15,
+                "command": "pwsh -NoProfile -NonInteractive -File ./.github/hooks/Test-HookLoaded.ps1",
+                "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File D:\\Git\\CopilotAtelier\\.github\\hooks\\Test-HookLoaded.ps1"
+            }
+        ]
+    }
+}

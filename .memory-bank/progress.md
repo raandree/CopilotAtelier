@@ -15,6 +15,19 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-10**: `long-running-job-monitor` gained an unprompted chat
+  heartbeat. Measured that an async command's completion notification spawns an
+  agent turn with no user input, disproving the Skill's own claim that the agent
+  cannot self-schedule. `Start-JobHeartbeat.ps1` arms one tick and emits a
+  measured summary, backed by a metadata-only state file that stores no probe
+  scriptblock because it is re-read and acted on at every wake. Live smoke tests
+  proved the wake chain, the `1x, 1x, 2x, 3x, 6x` ladder, the sliding reset,
+  concurrent jobs waking independently, and state-only reconstruction from a
+  separate process; they also exposed a missing cancel, so `-Stop` now kills a
+  pending tick after matching the recorded process start time. A guarded `Stop`
+  hook was confirmed to force a turn, so chain enforcement is viable and the
+  batch pre-arm fallback is unnecessary. 18 tests; the scripts had none before.
+
 - **2026-08-07**: `pandoc-docx-export` now carries the grey shading Word drops
   silently. Pandoc maps block quotes to `BlockText` and inline code to
   `VerbatimChar` correctly, but neither style has a fill in the stock reference
@@ -35,13 +48,9 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 - **2026-08-04**: Added `Skills/gilb-requirements-engineering`, the first
   Customization covering Tom and Kai Gilb's method: Planguage `Scale` and
-  `Meter` quantification, Impact Estimation Tables with credibility ratings,
-  Evo step planning, and Specification Quality Control defect density, in a
-  322-line body plus four references. Placed as a Skill rather than a Custom
-  agent because the knowledge is portable across harnesses and auto-triggers
-  from every agent, where a persona has to be selected. `grill-me` elicits;
-  this Skill quantifies, and both sides of the overlap audit now cross-
-  reference the other.
+  `Meter` quantification, Impact Estimation Tables, Evo step planning, and
+  Specification Quality Control, in a 322-line body plus four references.
+  `grill-me` elicits; this Skill quantifies, and both cross-reference the other.
 
 - **2026-08-01**: Bounded the append that keeps breaking CI. The Post-flight
   Instruction mandates a `progress.md` append every substantive turn and set no
@@ -99,24 +108,14 @@ published to the PowerShell Gallery. Incremental work is tracked under
   module is not used on that runtime, so removing the leg is the cheaper
   contract; all three legs now run PowerShell 7.
 - **2026-07-30**: Strengthened the authoring and engineering-discipline Skills.
-  `skill-creator` now classifies the baseline failure — discipline, shaping,
-  omission, or conditional — before prescribing a guidance form, and scopes the
-  anti-rationalization triad to discipline failures only, because prohibitions
-  backfire on shaping failures. `agent-evals` gained a wording micro-test loop
-  with a mandatory no-guidance control arm and its stop condition (no failure in
-  the control means the guidance is not written) plus variance as a metric.
-  `debugging-and-error-recovery` gained boundary instrumentation for layered
-  systems and a three-failed-fixes stop condition. New `subagent-dispatch` Skill
-  documents delegation: model tier per task, a dispatch that carries the task
-  not the session history, artifacts as files, no pre-judging a reviewer, a
-  compaction-surviving ledger, verification against the diff rather than the
-  subagent's claim, and a five-round fix cap. Skill count 40 → 41.
+  `skill-creator` now classifies the baseline failure before prescribing a
+  guidance form, `agent-evals` gained a wording micro-test loop with a
+  no-guidance control arm, `debugging-and-error-recovery` gained boundary
+  instrumentation and a three-failed-fixes stop condition, and the new
+  `subagent-dispatch` Skill documents delegation. Skill count 40 → 41.
 - **2026-07-29**: Migrated the repository to a Sampler-built PowerShell module
-  distributed through the PowerShell Gallery — sources under `source/`, three
-  exported commands, a build task copying the six customization directories into
-  the built module, GitVersion versioning, and a GitHub Actions pipeline
-  stabilized across nine failures the same day (Decision 18). CI rules live in
-  `techContext.md`; `tests/Workflows.Tests.ps1` guards the workflow contract.
+  distributed through the PowerShell Gallery (Decision 18), with CI stabilized
+  across nine failures the same day. CI rules live in `techContext.md`.
 
 ## Stable capabilities
 

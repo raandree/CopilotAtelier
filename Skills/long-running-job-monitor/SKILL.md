@@ -8,7 +8,8 @@ description: >-
   readiness epochs. USE FOR: live test, integration test, deployment,
   installation, long-running job, monitor progress, heartbeat, is it stuck,
   still running, background job, watch deployment, timestamped status, log
-  tail, out-of-band verification, remote job, SSH, WinRM, elapsed time.
+  log tail, out-of-band verification, remote job, SSH, WinRM, elapsed time,
+  chat heartbeat, report every N minutes, keep me posted, periodic status.
   DO NOT USE FOR: root-cause diagnosis of AutomatedLab Proxmox provisioning
   (use automatedlab-proxmox), generic WinRM connectivity/configuration diagnosis
   (use winrm-troubleshooting), short commands, skill authoring (use
@@ -110,7 +111,8 @@ phase-specific `ProgressToken` advancement proves work progress.
 - The implementation is
   [`scripts/Start-DetachedPowerShell.ps1`](scripts/Start-DetachedPowerShell.ps1).
 - **Use async only for truly indefinite processes** (servers, watchers, the monitor sidecar in step 4).
-- **Never `Start-Sleep` in the agent's own foreground command to "wait 5 minutes"**, and never hand-roll a poll loop. The agent cannot self-schedule a timer; it relies on the completion notification and on-demand checks.
+- **Never `Start-Sleep` in the agent's own foreground command to "wait 5 minutes"**, and never hand-roll a poll loop. A blocking foreground command makes the chat unresponsive for the whole wait.
+- **To wake on a cadence, arm an async timer instead.** An async command does not block the chat, and its completion notification spawns a turn with no user input. See [Chat heartbeat](#chat-heartbeat).
 - Read background output only when the tool says a command moved to background, timed out, or needs input — not as a polling loop.
 
 ### 3. Verify progress OUT OF BAND against the target (read-only)
@@ -241,6 +243,35 @@ A heartbeat proves only that the monitor or controller can still emit output; it
 is not target progress and never resets `last-progress`. Set the `STALLED`
 threshold to ~2x the expected time of the current phase, not a global constant.
 
+## Chat heartbeat
+
+Without a wake mechanism the chat pane stays silent for hours, and the user
+cannot tell a healthy job from a dead one. The heartbeat arms a timer whose
+completion notification spawns a turn, so status arrives unprompted while the
+chat stays responsive.
+
+- Arm with [`scripts/Start-JobHeartbeat.ps1`](scripts/Start-JobHeartbeat.ps1)
+  through the terminal tool in async mode, then end the turn. **Never launch the
+  timer through the detached launcher**: a detached process emits no completion
+  notification, so the agent is never woken.
+- Ignore the harness note urging a `get_terminal_output` poll instead of ending
+  the turn. Ending the turn is what lets the notification arrive.
+- Default cadence is 10 minutes, settable from the prompt, with a 1x, 1x, 2x,
+  3x, 6x backoff ladder.
+- Opt in on the first job of a session by announcing the cadence and its request
+  cost, then arm freely for later jobs. "Stop watching" ends it.
+- Cancel the pending tick with `-Stop` on job completion and on "stop watching";
+  an armed timer otherwise keeps waking the agent about a finished job.
+- On each wake read `HEARTBEAT-JSON` from the tool result, report when
+  `Redundant` is false, and arm the next tick. A missed re-arm kills the
+  heartbeat silently, so publish the next due time in every status line.
+- With `HasProgressProbe` false, report
+  `status=WORKING(low-confidence: no progress evidence)`; process liveness alone
+  cannot separate a working job from a hung one.
+
+Full mechanics, state schema, and chain-integrity options:
+[`references/heartbeat-protocol.md`](references/heartbeat-protocol.md).
+
 ## Reporting format
 
 The complete status line adds heartbeat age, liveness, and summary to the
@@ -323,4 +354,6 @@ and synthetic-heartbeat stall detection.
   actual protocol is re-probed.
 - [ ] Remote jobs: detached on the remote, log + liveness on the remote, and a channel drop is treated as reconnect-and-recheck (not FAILED).
 - [ ] Every in-flight reply opens with the mandatory status line — timestamp + elapsed + phase + status + next + out-of-band evidence ([The one rule](#the-one-rule-non-negotiable)); a bare `[… UTC]` opener is not sufficient.
+- [ ] For unattended cadence: a heartbeat tick is armed in async mode, the turn
+  is ended without polling, and every status line publishes the next due time.
 - [ ] On completion: full log read, end-state verified on target, throwaway resources cleaned up.
