@@ -8,3 +8,6 @@ output/
 
 # Prompt log — local session ephemera, intentionally untracked.
 .memory-bank/promptHistory.md
+
+# Eval harness run workspace — local, regenerated per run, not a repo artifact.
+.evalwork/
