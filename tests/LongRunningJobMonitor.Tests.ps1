@@ -1,9 +1,13 @@
 Describe 'Start-JobHeartbeat' -Tag 'Unit' {
     BeforeAll {
         $script:scriptPath = Join-Path $PSScriptRoot (
-            '..\Skills\long-running-job-monitor\scripts\Start-JobHeartbeat.ps1'
+            '../Skills/long-running-job-monitor/scripts/Start-JobHeartbeat.ps1'
         )
         $script:scriptContent = Get-Content -LiteralPath $script:scriptPath -Raw -Encoding UTF8
+
+        # Start-Process rejects -WindowStyle on non-Windows PowerShell.
+        $script:isWindowsPlatform =
+            [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
 
         $script:tempRoot = Join-Path ([IO.Path]::GetTempPath()) (
             'hb-tests-{0}' -f [guid]::NewGuid().ToString('N')
@@ -202,10 +206,19 @@ Describe 'Start-JobHeartbeat' -Tag 'Unit' {
     Context 'Cancellation' {
         It 'Should cancel a pending tick and clear the armed process' {
             $statePath = New-TestStatePath
-            $armed = Start-Process -FilePath 'pwsh' -PassThru -WindowStyle Hidden -ArgumentList @(
-                '-NoProfile', '-NonInteractive', '-File', $script:scriptPath,
-                '-JobName', 'stop1', '-IntervalMinutes', '1', '-StatePath', $statePath
-            )
+            $startProcess = @{
+                FilePath = 'pwsh'
+                PassThru = $true
+                ArgumentList = @(
+                    '-NoProfile', '-NonInteractive', '-File', $script:scriptPath,
+                    '-JobName', 'stop1', '-IntervalMinutes', '1', '-StatePath', $statePath
+                )
+            }
+            if ($script:isWindowsPlatform)
+            {
+                $startProcess['WindowStyle'] = 'Hidden'
+            }
+            $armed = Start-Process @startProcess
 
             $deadline = (Get-Date).AddSeconds(15)
             while (-not (Test-Path -LiteralPath $statePath) -and (Get-Date) -lt $deadline)
