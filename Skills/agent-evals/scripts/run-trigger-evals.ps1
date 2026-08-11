@@ -55,7 +55,10 @@
     Directory name of the skill under test, e.g. 'skill-creator'.
 
 .PARAMETER SkillRoot
-    Root holding one directory per skill, each with a SKILL.md.
+    Root holding one directory per skill, each with a SKILL.md. Point it at
+    `Skills/`, not at the repository root: the search is recursive, so a root
+    that also contains a built copy of the module puts every skill in the
+    catalogue twice and silently changes what the judge is choosing between.
 
 .PARAMETER WorkDir
     Where prompts and replies live. Keep it outside the repository: Skills/ is
@@ -75,6 +78,15 @@
     Execute mode only. The judge model. A cheap model is appropriate: the task
     is a single forced-choice selection, not reasoning.
 
+.PARAMETER Temperature
+    Execute mode only. Sampling temperature for the judge, 0 to 2. Pass 0 to pin
+    the run: selection is stochastic, so without it a query that scores 1 of 3
+    cannot be told apart from a reliable trigger that got unlucky, and the
+    measurement describes the sampler as much as the description under test.
+    Omitted entirely from the call when you do not pass it, so the backend
+    default applies and an existing run's operating point does not move. Needs a
+    ShellPilot new enough to expose Invoke-Shp -Temperature.
+
 .PARAMETER MaxBudgetUSD
     Execute mode only. Hard ceiling passed to each call.
 
@@ -86,6 +98,13 @@
 
 .EXAMPLE
     ./run-trigger-evals.ps1 -Mode Execute -QueryFile ../assets/trigger-queries.skill-creator.json -TargetSkill skill-creator -SkillRoot ../../ -WorkDir "$env:TEMP/trigger-evals/skill-creator"
+
+.EXAMPLE
+    ./run-trigger-evals.ps1 -Mode Execute -QueryFile ../assets/trigger-queries.skill-creator.json -TargetSkill skill-creator -SkillRoot ../../ -WorkDir "$env:TEMP/trigger-evals/skill-creator" -Temperature 0
+
+    Pins the judge so a repeated run measures the description rather than the
+    sampler. Compare against an unpinned run to see how much of a partial score
+    was noise.
 
 .EXAMPLE
     ./run-trigger-evals.ps1 -Mode Grade -QueryFile ../assets/trigger-queries.skill-creator.json -TargetSkill skill-creator -WorkDir "$env:TEMP/trigger-evals/skill-creator"
@@ -115,6 +134,9 @@ param(
     [double] $TriggerThreshold = 0.5,
 
     [string] $Model = 'claude-haiku-4.5',
+
+    [ValidateRange(0.0, 2.0)]
+    [double] $Temperature,
 
     [double] $MaxBudgetUSD = 2.0,
 
@@ -281,6 +303,12 @@ switch ($Mode) {
         $failed = 0
         $spent = 0.0
 
+        # Omit-or-send: 0 is a meaningful temperature, so binding is the only
+        # safe test. Defaulting it would move the operating point of every run
+        # that never asked for one.
+        $samplingParams = @{}
+        if ($PSBoundParameters.ContainsKey('Temperature')) { $samplingParams['Temperature'] = $Temperature }
+
         foreach ($item in $set) {
             $stem = Join-Path $WorkDir "$($item.Id).rep$($item.Rep)"
             [System.IO.File]::WriteAllText("$stem.prompt.txt", $item.Prompt, $enc)
@@ -312,7 +340,7 @@ switch ($Mode) {
                 $r = Invoke-Shp -Prompt $item.Prompt -Model $Model `
                     -DisableUserTools -DisableBrowsing -DisableFileAccess `
                     -DisableTerminal -DisableUserPrompts -DisableTodoList `
-                    -MaxBudgetUSD $MaxBudgetUSD -TimeoutSec 120 -ErrorAction Stop
+                    -MaxBudgetUSD $MaxBudgetUSD -TimeoutSec 120 @samplingParams -ErrorAction Stop
                 [System.IO.File]::WriteAllText($outPath, [string]$r.Content, $enc)
                 if ($null -ne $r.CostUSD) { $spent += [double]$r.CostUSD }
                 $done++

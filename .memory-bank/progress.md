@@ -15,6 +15,21 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-11**: Pinned the trigger-eval judge and re-measured `skill-creator`.
+  `run-trigger-evals.ps1` gained `-Temperature` (omit-or-send) plus 7 tests.
+  Paired sweeps, same 44-skill catalogue and description: pinned at 0 gave train
+  10/10 and validation 6/8; unpinned gave 10/10 and 5/8. So 13 points of
+  validation was sampler noise — `pos-06` scored 1.00 pinned and 0.33 unpinned,
+  and would have been "fixed" by editing a description that already worked. Two
+  failures survive pinning: `pos-07` (a German request) at 0 of 3 and `pos-09`
+  ("one skill or split into references?") at 1 of 3, both plausibly the cost of
+  the category-level `USE FOR:` rewrite. Method findings: the installed
+  ShellPilot `0.4.0` predates `Invoke-Shp -Temperature`, so import a newer build
+  by path; `-Temperature 0` reduces but does not remove variance; and the grader
+  scores a prose reply like a wrong selection. An earlier validation 7/8 figure
+  is withdrawn — its `-SkillRoot` was the repository root, duplicating every
+  skill via `output/`.
+
 - **2026-08-11**: Audited the Agent Skills guidance refresh and remediated it.
   The content held up — no truncation, no encoding drift, both upstream sources
   re-verified — but the process did not: committed and pushed against a standing
@@ -33,20 +48,17 @@ published to the PowerShell Gallery. Incremental work is tracked under
   which raises `NotSupportedException` on non-Windows PowerShell, so no local
   Windows run could reproduce it; the shipped launcher had guarded the same
   parameter from the start. The standing risk is the preceding failure: the
-  routing gate reported `49.57 %` against its `50 %` floor with roughly 1 KB of
-  headroom, because `activeContext.md` is routed into 23 of 25 baseline cases.
+  routing gate reported `49.57 %` against its `50 %` floor, because
+  `activeContext.md` is routed into 23 of 25 baseline cases.
 
 - **2026-08-11**: Corrected `windows-gui-screenshot-capture`, prompted by a live
   "screenshot the Edge window" request the Skill answered wrongly twice. Its
   "GPU-composited content returns solid black" verdict had generalised a
-  measurement of a hosted WebView2 control to all of Chromium; measured on
-  Windows `10.0.26200` with Edge `151.0.4129.72`, `PW_RENDERFULLCONTENT`
-  painted a full 2560x1540 frame on the first attempt. Step 2 now separates a
-  hosted control from an application's own top-level frame and prescribes
-  attempt, validate, escalate. The Skill also had no branch for a window the
-  user already had open, where nothing may be launched or closed;
-  `scripts/WindowCapture.ps1` implements it as the inverse-lifecycle sibling of
-  `DialogCapture.ps1`, with 13 new tests.
+  WebView2 measurement to all of Chromium; on Windows `10.0.26200` with Edge
+  `151.0.4129.72`, `PW_RENDERFULLCONTENT` painted a full 2560x1540 frame first
+  try. Step 2 now separates a hosted control from an application's own top-level
+  frame and prescribes attempt, validate, escalate. `scripts/WindowCapture.ps1`
+  adds the branch for a window the user already had open, with 13 new tests.
 
 - **2026-08-10**: `long-running-job-monitor` gained an unprompted chat
   heartbeat. Measured that an async command's completion notification spawns an
@@ -68,14 +80,13 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 - **2026-08-06**: `subagent-dispatch` gained the mirror image of its
   no-pre-judging rule: never hand a re-performer the answer. A "sealed" section
-  at the end of the same brief is not a barrier — the brief arrives as one text,
-  so expected values go in a separate file the reviewer opens deliberately, and
-  agreement under exposure counts weaker than disagreement.
+  in the same brief is no barrier, so expected values go in a separate file the
+  reviewer opens deliberately; agreement under exposure counts weaker than
+  disagreement.
 
-- **2026-08-04**: Added `Skills/gilb-requirements-engineering`, the first
-  Customization covering Tom and Kai Gilb's method: Planguage `Scale` and
-  `Meter` quantification, Impact Estimation Tables, Evo step planning, and
-  Specification Quality Control, in a 322-line body plus four references.
+- **2026-08-04**: Added `Skills/gilb-requirements-engineering`, covering Tom and
+  Kai Gilb's method: Planguage `Scale` and `Meter` quantification, Impact
+  Estimation Tables, Evo step planning, and Specification Quality Control.
   `grill-me` elicits; this Skill quantifies, and both cross-reference the other.
 
 - **2026-08-01**: Bounded the append that keeps breaking CI. The Post-flight
@@ -90,26 +101,19 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 - **2026-08-01**: Hardened the release path after three related failures. The
   `2.0.0` release was rejected with `422 body is too long` because Sampler sends
-  the `[Unreleased]` section as the body and it had reached 143697 of GitHub's
-  125000 characters; `tests/QA/module.tests.ps1` now fails at 100000. The
-  Gallery then rejected `3.0.0-preview0001` with HTTP 409 because the release
-  that shipped it was never tagged: `Publish_Release_To_GitHub` writes the tag
-  the version anchors on and skips itself when `GitHubToken` is empty, while the
-  Gallery publish still runs. The deploy job now verifies both secrets, and
-  `GitHubToken` still has to be added to the repository. The third was this file
-  reaching 220 of its 200 budgeted lines, so `Test-MemoryBankHealth.ps1` now
-  warns at 90 percent of any budget rather than failing CI at 100.
+  the `[Unreleased]` section as the body; `tests/QA/module.tests.ps1` now fails
+  at 100000 characters. The Gallery then rejected `3.0.0-preview0001` with HTTP
+  409 because the release that shipped it was never tagged:
+  `Publish_Release_To_GitHub` writes the tag the version anchors on and skips
+  itself when `GitHubToken` is empty, while the Gallery publish still runs. The
+  deploy job now verifies both secrets, and `GitHubToken` still has to be added.
+  The third was this file reaching 220 of its 200 budgeted lines, so
+  `Test-MemoryBankHealth.ps1` warns at 90 percent rather than failing at 100.
 
 - **2026-08-01**: Audited `german-tax-research` against the statutory text in
   force, correcting the `§ 237 AO` AdV interest rate, the `Art. 97 § 36 EGAO`
   overrides for VZ 2020 to 2024, the `§ 238 Abs. 1c AO` interval, and the VZ
   2025 childcare rule. Every cited BFH docket verified clean.
-
-- **2026-07-30**: Added `evidence-package-assembly` and `subagent-dispatch`
-  (Skill count 40 → 41), dropped the Windows PowerShell 5.1 CI leg, and
-  migrated the repository to a Sampler-built PowerShell module distributed
-  through the PowerShell Gallery (Decision 18). Detail in `CHANGELOG.md`; CI
-  rules live in `techContext.md`.
 
 ## Stable capabilities
 
