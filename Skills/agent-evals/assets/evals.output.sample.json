@@ -1,0 +1,28 @@
+{
+  "skill_name": "xlsx-to-markdown",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a workbook of monthly sales in data/sales_2025.xlsx. Convert the summary sheet to a markdown table I can paste into the release notes.",
+      "expected_output": "A markdown table of the summary sheet with a header row, aligned columns, and the month values preserved in chronological order.",
+      "files": ["evals/files/sales_2025.xlsx"],
+      "assertions": [
+        "The output contains a markdown table with a header separator row",
+        "All 12 months appear in the table",
+        "Months are in chronological order, not alphabetical",
+        "Numeric cells retain their original precision"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "there's a spreadsheet in my downloads called kunden.xlsx, some rows have merged cells — can you get it into markdown and tell me what got lost?",
+      "expected_output": "A markdown table plus an explicit note listing which merged cells were flattened and how.",
+      "files": ["evals/files/kunden.xlsx"],
+      "assertions": [
+        "The output includes a markdown table",
+        "The response names the merged-cell ranges that were flattened",
+        "The response does not silently drop rows"
+      ]
+    }
+  ]
+}

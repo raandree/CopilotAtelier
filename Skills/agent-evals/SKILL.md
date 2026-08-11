@@ -122,6 +122,20 @@ One JSON file, one array of cases. Keep it in the skill/agent folder next to a `
 
 `set` is `capability` or `regression`; `match` is `exact`, `contains`, or `regex`. See [`assets/evals.sample.json`](assets/evals.sample.json).
 
+This shape is local to the bundled harness and answers *reliability*: did the same prompt pass k times running. It is deliberately narrow — a deterministic matcher per case, nothing else.
+
+## Formal eval artifacts (open standard)
+
+The open Agent Skills standard specifies a second, complementary artifact set that answers *quality*: is the output actually good, and is it better than the same model with no skill loaded. Use it when the output is open-ended enough that a matcher cannot judge it — a converted document, a review, a report — and whenever you need to justify that a skill earns the tokens it costs.
+
+You author one file, `evals/evals.json`, holding per-case `prompt`, `expected_output`, optional input `files`, and `assertions`. Each case then runs twice per iteration, once **with the skill** and once **without** (or against a snapshot of the previous version), into `<skill>-workspace/iteration-N/<eval-id>/{with_skill,without_skill}/`. Each arm produces `outputs/`, `timing.json` (`total_tokens`, `duration_ms`) and `grading.json` (per-assertion `passed` plus quoted `evidence`). The iteration rolls up into `benchmark.json`, and the human review pass records per-case prose in `feedback.json`.
+
+`benchmark.json`'s `delta` block is the payoff: it reports the with/without difference on **pass rate, tokens, and duration** together. Judge a skill on all three. Fifty points of pass rate for 1700 extra tokens is a good trade; two points for double the tokens is not, and pass rate alone will never tell you which one you have.
+
+Full field tables, grading principles, aggregation rules, and the iteration loop: [`references/eval-artifacts.md`](references/eval-artifacts.md). Worked sample: [`assets/evals.output.sample.json`](assets/evals.output.sample.json). For trigger-rate measurement — does the skill get discovered at all — see [`assets/trigger-queries.sample.json`](assets/trigger-queries.sample.json), the live [`assets/trigger-queries.skill-creator.json`](assets/trigger-queries.skill-creator.json), and [`scripts/run-trigger-evals.ps1`](scripts/run-trigger-evals.ps1).
+
+**Which set to reach for:** trigger queries prove *discovery*, the `cases` harness proves *reliability*, and the formal artifacts prove *value*. They stack; none replaces another.
+
 ## Fallback harness
 
 When Waza is unavailable, generating samples and grading them are two separate steps. **Generate** by running the agent/skill/prompt **k** times on each case's prompt and saving each run to `<OutputsDir>/<case-id>/sample-<n>.txt` — this step is manual or wired to whatever runner you have, which is exactly the gap Waza closes. **Grade** with the bundled runner, which computes pass@k and pass^k per case and per set and exits non-zero when a gate fails:
@@ -134,7 +148,7 @@ Read [`scripts/run-evals.ps1`](scripts/run-evals.ps1) for the grading and gate l
 
 ## Wiring into this repo
 
-- Save eval prompts to `notes-evals.md` in the skill or agent folder, as `skill-creator` already recommends.
+- Save eval prompts to `notes-evals.md` in the skill or agent folder, as `skill-creator` already recommends. `notes-evals.md` stays as the **human-readable companion** to the formal artifacts, not a casualty of them: it is the cheap, reviewable place to record *why* a case exists and what a good answer looks like in prose, and it is the only one of the two that survives a diff review. `evals/evals.json` is the machine-readable execution input derived from it. Nine skills already carry a `notes-evals.md`; leave them as they are and add `evals/evals.json` only for a skill you are actually about to measure.
 - Run `/analyze-prompt` on every changed Customization before measuring behaviour; a contradiction found statically is cheaper than a failed eval run.
 - A capability eval doubles as proof the skill triggers: if the skill is not named in the PRE-FLIGHT acknowledgment, the failure is discovery (fix the `description`), not behaviour.
 - For MCP servers, use [`mcp-builder`](../mcp-builder/SKILL.md) Phase 4's 10-question rubric instead — it is the same idea specialised for tool-calling.
@@ -145,3 +159,4 @@ Read [`scripts/run-evals.ps1`](scripts/run-evals.ps1) for the grading and gate l
 - Waza evaluation framework: <https://github.com/microsoft/waza>
 - Anthropic — Building evals / eval-driven development (Agent Skills best practices): <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>
 - OpenAI — Evals and LLM-as-a-judge guidance: <https://platform.openai.com/docs/guides/evals>
+- Agent Skills (open standard) — Evaluating skill output quality: <https://agentskills.io/skill-creation/evaluating-skills.md>

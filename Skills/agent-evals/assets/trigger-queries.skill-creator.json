@@ -1,0 +1,116 @@
+[
+  {
+    "id": "pos-01",
+    "query": "this SKILL.md is 700 lines now, it's getting unwieldy — sort it out",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-02",
+    "query": "we keep doing the same release-notes dance every sprint. can you package that up so it's reusable?",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-03",
+    "query": "why does my skill never fire when I ask about certificates?",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-04",
+    "query": "review the skills under Skills/ and tell me which ones overlap",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-05",
+    "query": "the description got rejected for being too long, trim it",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-06",
+    "query": "turn this workflow into something the agent can pick up on its own",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-07",
+    "query": "kannst du aus dieser Anleitung einen wiederverwendbaren Skill bauen?",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-08",
+    "query": "audit skill-creator against the current spec and tell me what's missing",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-09",
+    "query": "should this be one skill or split into references?",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "neg-01",
+    "query": "write an instructions file that applies to all our yaml",
+    "should_trigger": false,
+    "split": "train",
+    "note": "Instructions authoring - explicitly excluded by DO NOT USE FOR"
+  },
+  {
+    "id": "neg-02",
+    "query": "run the eval harness against the docx skill and give me the pass rates",
+    "should_trigger": false,
+    "split": "train",
+    "note": "belongs to agent-evals - the nearest neighbour, sharpest boundary"
+  },
+  {
+    "id": "neg-03",
+    "query": "add a new MCP server to my config",
+    "should_trigger": false,
+    "split": "train"
+  },
+  {
+    "id": "neg-04",
+    "query": "my agent keeps ignoring the system prompt, what's wrong with it",
+    "should_trigger": false,
+    "split": "train",
+    "note": "agent authoring, not skill authoring - lexically very close"
+  },
+  {
+    "id": "neg-05",
+    "query": "the markdown table in this readme renders wrong on github",
+    "should_trigger": false,
+    "split": "train"
+  },
+  {
+    "id": "neg-06",
+    "query": "what skills do I have available right now?",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "mentions skills but asks for inventory, not authoring"
+  },
+  {
+    "id": "neg-07",
+    "query": "write a prompt file for the weekly status report",
+    "should_trigger": false,
+    "split": "validation"
+  },
+  {
+    "id": "neg-08",
+    "query": "our onboarding doc is 900 lines, can you split it into sections",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "same 'too long, split it' shape as pos-01 but not a skill - the key near-miss"
+  },
+  {
+    "id": "neg-09",
+    "query": "package this powershell module for the gallery",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "'package this' collides with pos-02 phrasing"
+  }
+]

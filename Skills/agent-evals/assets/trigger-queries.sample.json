@@ -1,0 +1,52 @@
+[
+  {
+    "query": "I've got a spreadsheet at ~/data/q4_results.xlsx with revenue in col C and expenses in col D — can you add a profit margin column and flag anything under 10%?",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "query": "my manager wants a chart out of the numbers in that export from yesterday, can you sort it out",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "query": "analyse my sales csv and make a chart",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "query": "der Bericht liegt als xlsx in Downloads, kannst du die Umsätze pro Monat auswerten",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "query": "before we ship the release notes, pull the defect counts out of bugs.xlsx and summarise the trend",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "query": "I need to update the formulas in my Excel budget spreadsheet",
+    "should_trigger": false,
+    "split": "train"
+  },
+  {
+    "query": "can you write a python script that reads a csv and uploads each row to our postgres database",
+    "should_trigger": false,
+    "split": "train"
+  },
+  {
+    "query": "whats the quickest way to convert this json file to yaml",
+    "should_trigger": false,
+    "split": "train"
+  },
+  {
+    "query": "the xlsx export from SAP is corrupt, can you tell me why it won't open",
+    "should_trigger": false,
+    "split": "validation"
+  },
+  {
+    "query": "add a column to the users table in the migration script",
+    "should_trigger": false,
+    "split": "validation"
+  }
+]
