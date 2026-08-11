@@ -15,6 +15,16 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-11**: Measured the claim that the trigger-eval grader scores a prose
+  reply like a wrong selection, and withdrew it. All 162 stored replies parse;
+  the reply cited as evidence leads with `SELECTED: none`, and the quoted
+  fragment was line 3 of the explanation beneath it. The regex is multiline, so
+  it finds a compliant line anywhere in a reply. No harness change: a
+  three-outcome taxonomy would report `unparseable = 0` on every run to date.
+  Two latent defects were logged instead — markdown-wrapped, quoted and
+  parenthesised answers do not match, and `SELECTED: x.` captures `x.` and is
+  therefore scored as a different skill rather than as a format failure.
+
 - **2026-08-11**: `run-trigger-evals.ps1 -Mode Execute` probes `Invoke-Shp` for
   `-Temperature` and throws once instead of failing 54 calls in the binder. It
   tests the parameter, not the version: `0.4.0-preview0003` reports `0.4.0`, so
@@ -46,7 +56,8 @@ published to the PowerShell Gallery. Incremental work is tracked under
   the category-level `USE FOR:` rewrite. Method findings: the installed
   ShellPilot `0.4.0` predates `Invoke-Shp -Temperature`, so import a newer build
   by path; `-Temperature 0` reduces but does not remove variance; and the grader
-  scores a prose reply like a wrong selection. An earlier validation 7/8 figure
+  scores a prose reply like a wrong selection (withdrawn 2026-08-11: measured 0
+  unparseable of 162). An earlier validation 7/8 figure
   is withdrawn — its `-SkillRoot` was the repository root, duplicating every
   skill via `output/`.
 

@@ -82,9 +82,20 @@ sources, then return to the trigger-eval iteration for `skill-creator`.
 
 - `-Temperature 0` reduces variance but does not remove it: `pos-04` still
   scored 0.67 pinned. The harness exposes no `-Seed`.
-- The grader matches `^\s*SELECTED:\s*<name>\s*$`, so a judge that answers in
-  prose scores identically to one that picks the wrong skill. At least one reply
-  in these runs was prose. A format violation is not a trigger miss.
+- **Withdrawn: the grader does not mis-score prose.** All 162 stored replies
+  under `%TEMP%\trigger-evals\` and `.evalwork\` parse; none is unparseable. The
+  reply cited as prose, `skill-creator-temp0\neg-01.rep2`, leads with
+  `SELECTED: none` and was graded `none` — the quoted fragment is line 3 of the
+  explanation beneath it. The regex is multiline, so a compliant line anywhere in
+  the reply is found. 16 of 162 replies do append prose after a compliant line,
+  and every one answers `none`: the judge obeys the format, then explains why it
+  declined.
+- Two grader defects survive that measurement, both latent at incidence 0.
+  `**SELECTED:** x`, `` SELECTED: `x` ``, `> SELECTED: x` and `SELECTED: x (why)`
+  do not match at all; `SELECTED: x.` matches but captures `x.`, so a correct
+  answer is scored as a *different skill* rather than as a format failure.
+  Hardening the capture is cheap insurance — decide it on its own merits, not on
+  the withdrawn premise.
 - `Prompts/export-emails.prompt.md` is a generation behind the copy deployed
   under `~/.copilot/prompts/` — 106 lines against 126. Back-porting is a content
   decision, left to the owner.
