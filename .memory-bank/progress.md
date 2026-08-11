@@ -111,7 +111,8 @@ published to the PowerShell Gallery. Incremental work is tracked under
   `422 body is too long` rejection now guarded by a 100000-character check on
   `[Unreleased]`, an HTTP 409 from an untagged release now guarded by a deploy
   job that verifies both secrets, and a `progress.md` budget breach now warned
-  at 90 percent rather than failed at 100. `GitHubToken` still has to be added.
+  at 90 percent rather than failed at 100. `GitHubToken` has since been added,
+  and the release job has tagged every build from `v3.0.0-preview0003` on.
 
 ## Stable capabilities
 

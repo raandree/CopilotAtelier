@@ -88,6 +88,7 @@ covers multilingual triggering. Then the outstanding handoff prompts: prompt 07
 option C, the six worst keyword-stuffed descriptions, and prompt 06's
 with/without delta.
 
-Still outstanding: add the `GitHubToken` repository secret, without which the
-deploy job fails at its guard; give the routing reduction gate real headroom
-rather than the roughly 1 KB it has now.
+Still outstanding: give the routing reduction gate real headroom rather than the
+roughly 1 KB it has now. The `GitHubToken` secret is no longer outstanding — it
+is configured, and `Publish_Release_To_GitHub` has tagged every build from
+`v3.0.0-preview0003` through `v3.2.0-preview0001`.
