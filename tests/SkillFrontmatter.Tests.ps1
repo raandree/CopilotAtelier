@@ -1,20 +1,21 @@
 $script:repoRoot = Split-Path -Parent $PSScriptRoot
 $script:skillRoot = Join-Path $script:repoRoot 'Skills'
 
-# Skills whose body already exceeds the 500-line progressive-disclosure budget.
-# The list may shrink as bodies are split into references; it must never grow.
-$script:oversizedBodyBaseline = @(
-    'dsc-troubleshooting'
-    'german-legal-research'
-    'marp-slide-overflow'
-    'mecm-dsc-deployment'
-    'outlook-email-export'
-    'pandoc-docx-export'
-    'pdf-to-markdown'
-    'pester-patterns'
-    'sampler-migration'
-    'whisper-pyannote-transcription'
-)
+# Skills whose body already exceeds the 500-line progressive-disclosure budget,
+# mapped to their current line count as a high-water mark. The list may shrink as
+# bodies are split into references; it must never grow, and no entry may rise.
+$script:oversizedBodyBaseline = @{
+    'dsc-troubleshooting'            = 622
+    'german-legal-research'          = 780
+    'marp-slide-overflow'            = 576
+    'mecm-dsc-deployment'            = 657
+    'outlook-email-export'           = 627
+    'pandoc-docx-export'             = 775
+    'pdf-to-markdown'                = 611
+    'pester-patterns'                = 796
+    'sampler-migration'              = 738
+    'whisper-pyannote-transcription' = 560
+}
 
 # Built during discovery so -ForEach expands. Building it in BeforeAll would
 # silently generate zero test cases, and a discovery-scope variable read inside
@@ -26,7 +27,7 @@ $script:skillCase = @(
             @{
                 SkillName = $_.Name
                 SkillPath = Join-Path $_.FullName 'SKILL.md'
-                IsOversizedBaseline = ($_.Name -in $script:oversizedBodyBaseline)
+                IsOversizedBaseline = $script:oversizedBodyBaseline.ContainsKey($_.Name)
             }
         }
 )
@@ -142,13 +143,17 @@ Describe 'Skill frontmatter' -Tag 'Unit' {
     }
 
     It '<SkillName> is still over the body budget and must stay on the baseline' -ForEach @(
-        $script:oversizedBodyBaseline | ForEach-Object { @{ SkillName = $_ } }
+        $script:oversizedBodyBaseline.GetEnumerator() |
+            ForEach-Object { @{ SkillName = $_.Key; BodyCeiling = $_.Value } }
     ) {
         $skillPath = Join-Path (Join-Path $script:skillRoot $SkillName) 'SKILL.md'
         $frontmatter = script:Get-SkillFrontmatter -Path $skillPath
 
         $frontmatter['__bodyLineCount'] |
             Should -BeGreaterThan 500 -Because 'a Skill trimmed under budget must be removed from the baseline'
+
+        $frontmatter['__bodyLineCount'] |
+            Should -BeLessOrEqual $BodyCeiling -Because 'a body already over budget must not grow further; split it into references instead'
     }
 
     It '<SkillName> uses only supported optional fields' -ForEach $script:skillCase {

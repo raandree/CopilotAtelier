@@ -6,6 +6,18 @@
         "name": "raandree",
         "url": "https://github.com/raandree/CopilotAtelier"
     },
+    "homepage": "https://github.com/raandree/CopilotAtelier",
+    "repository": "https://github.com/raandree/CopilotAtelier",
+    "license": "MIT",
+    "keywords": [
+        "copilot",
+        "agent-skills",
+        "custom-agents",
+        "powershell",
+        "dsc",
+        "sampler",
+        "pester"
+    ],
     "agents": "Agents/",
     "skills": "Skills/"
 }

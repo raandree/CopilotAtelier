@@ -20,7 +20,7 @@ description: >-
 
 # Skill Creator
 
-Author and iteratively improve `Skills/**/SKILL.md` files for CopilotAtelier against the [Agent Skills open standard](https://agentskills.io/): the [specification](https://agentskills.io/specification), [best practices for skill creators](https://agentskills.io/skill-creation/best-practices), [optimizing skill descriptions](https://agentskills.io/skill-creation/optimizing-descriptions), and [evaluating skill output quality](https://agentskills.io/skill-creation/evaluating-skills). The same loop applies to brand-new skills, skills that under-trigger, and skills whose body has grown past the 500-line budget.
+Author and iteratively improve `Skills/**/SKILL.md` files for CopilotAtelier against the [Agent Skills open standard](https://agentskills.io/): the [specification](https://agentskills.io/specification), [best practices for skill creators](https://agentskills.io/skill-creation/best-practices), [optimizing skill descriptions](https://agentskills.io/skill-creation/optimizing-descriptions), [evaluating skill output quality](https://agentskills.io/skill-creation/evaluating-skills), and [using scripts in skills](https://agentskills.io/skill-creation/using-scripts). The same loop applies to brand-new skills, skills that under-trigger, and skills whose body has grown past the 500-line budget.
 
 For a condensed two-page primer with links to the canonical external sources, see [`Reference/howto-write-skills.md`](../../Reference/howto-write-skills.md).
 
@@ -103,18 +103,20 @@ The reference validator from the open standard checks frontmatter and naming mec
 skills-ref validate ./Skills/<skill-name>
 ```
 
+The template above shows the two required fields. Optional ones the standard and the VS Code surface also accept — `compatibility`, `license`, `metadata`, `allowed-tools`, `argument-hint`, `user-invocable`, `disable-model-invocation`, `context` — are listed with their constraints in [`Instructions/copilot-authoring.instructions.md`](../../Instructions/copilot-authoring.instructions.md). Declare `compatibility` whenever the skill needs a specific operating system, runtime, module, or external binary. `context: fork` is a GitHub Copilot field the open standard does not define, so a skill that sets it fails `skills-ref` and belongs on the divergence baseline in [`tests/SkillsRefValidate.Tests.ps1`](../../tests/SkillsRefValidate.Tests.ps1).
+
 When a skill depends on MCP tools, name them **fully qualified** as `ServerName:tool_name` wherever they appear - in `allowed-tools`, in the dependency list, and in the body. A bare `tool_name` is ambiguous once two servers expose the same verb, and the permission match silently fails.
 
 ## Writing the description
 
-The `description` is the **only** thing the auto-selector sees. Body text never influences triggering. How the selector matches is not publicly documented, so write for both possibilities: name categories rather than betting on lexical overlap or on semantics.
+The `description` is the **only** thing the auto-selector sees. Body text never influences triggering. How the selector matches is not publicly documented, so write for both possibilities: name the categories the skill serves *and* carry their vocabulary, rather than betting on lexical overlap or on semantics alone.
 
 Rules, in order of impact:
 
 1. **Use imperative phrasing.** Frame the description as an instruction to the agent — "Use this skill when the user has a CSV and wants to explore or transform the data" — not as a self-description ("This skill processes CSV files"). The agent is deciding whether to act, so tell it when to act.
 2. **Describe user intent, not implementation.** The selector matches against what the user asked for, not against your internal mechanics.
 3. **Be pushy about scope.** Explicitly name the contexts where the skill applies, including the ones where the user will not say the magic word: "even if they don't explicitly mention 'CSV' or 'analysis'". Under-triggering is the more common failure.
-4. **Keep `USE FOR:` at the level of categories, not phrasings.** This repo's house convention gives the selector a compact scope list. Populate it with the general classes of request the skill serves. Do **not** paste in the verbatim wording of queries that failed to trigger — that is overfitting, and it produces a description that works on those exact strings and nothing near them. Find the category the failed queries represent and name that instead.
+4. **Keep the domain vocabulary; drop the failed-query wording.** These are not the same thing, and conflating them costs triggering. The specification asks for "specific keywords that help agents identify relevant tasks", so name the formats, tools, error strings, and domain terms a user would plausibly type. What overfits is narrower: pasting in the verbatim phrasing of eval queries that failed, which yields a description that works on those exact strings and nothing near them. Name the category those queries represent, and keep the vocabulary that belongs to it. This repo's `USE FOR:` is that compact scope list.
 5. **Use `DO NOT USE FOR:` to draw the boundary.** Name the adjacent skill that should win. This is the single highest-leverage anti-cannibalisation tool when two skills overlap, and it is what upstream means by "clarify the boundary between this skill and adjacent capabilities".
 6. **Never write a vague description.** "Helps with documents" and "Does stuff with files" are auto-selector poison.
 
@@ -341,6 +343,19 @@ When a skill bundles executable code (`scripts/`):
 - **Extract anything ≥ ~30 lines** of executable code from SKILL.md into `scripts/<name>.ps1` (or `.py` / `.mjs`). SKILL.md keeps a 5-line invocation example.
 - **Bundle what the agent keeps reinventing.** If execution traces across eval runs show the agent independently rewriting the same chart builder, parser, or validator each time, write it once and ship it in `scripts/`.
 
+### Design the interface for a non-interactive caller
+
+The agent decides what to do next from stdout and stderr, and it cannot answer a prompt.
+
+- **Never prompt.** Agents run in non-interactive shells, so a TTY prompt, password dialog, or confirmation menu blocks until the harness gives up. Take every input from a parameter, an environment variable, or stdin, and fail with a usage line instead.
+- **Document the interface with `--help`** (comment-based help for PowerShell). It is how the agent learns the parameters. Keep it short; the output lands in the context window.
+- **Say what to try next in an error.** `--format must be one of json, csv, table. Received "xml"` costs one turn. `Validation failed` costs several.
+- **Structured data to stdout, diagnostics to stderr.** Emit JSON, CSV, or objects the agent can pipe, and keep progress and warnings out of that stream.
+- **Bound the output.** Harnesses truncate tool output somewhere around 10-30 KB and the remainder is simply lost. Default to a summary and offer an output path or paging for the full result.
+- **Use distinct exit codes** for not-found, bad arguments, and auth failure, and document them where `--help` shows them.
+- **Be idempotent, and reversible where it matters.** The agent retries: prefer create-if-absent over fail-on-duplicate, and give a destructive operation `-WhatIf` or `--dry-run`.
+- **Declare dependencies inside the script** — PEP 723 inline metadata run with `uv run script.py`, or `#Requires -Module` in PowerShell. A prerequisite stated only in prose is one the agent may never read.
+
 ## Plan-validate-execute
 
 For batch or destructive operations (updating 50 form fields, applying tracked changes to a document, rewriting a config across a fleet), use the plan-validate-execute pattern:
@@ -448,7 +463,7 @@ Before committing a skill:
 - [ ] Behavioural enforcement present where the skill encodes a skippable discipline: anti-rationalization table + red-flags list + verification/evidence close (skip only for purely subjective-output skills).
 - [ ] Deep material in `references/<topic>.md`, one level deep, each pointer stating its load condition.
 - [ ] Reference files > 100 lines start with a `## Contents` TOC.
-- [ ] Scripts ≥ ~30 lines extracted to `scripts/`; forward slashes; no voodoo constants.
+- [ ] Scripts ≥ ~30 lines extracted to `scripts/`; forward slashes; no voodoo constants; non-interactive, with `--help`, documented exit codes, and bounded output.
 - [ ] No time-sensitive language in main content (legacy guidance in `<details>` blocks).
 - [ ] Consistent terminology throughout.
 - [ ] No maintenance footer; no `Last Updated` / `Maintained By`.

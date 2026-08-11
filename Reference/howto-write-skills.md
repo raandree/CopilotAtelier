@@ -30,7 +30,7 @@ Use this before writing a single line of SKILL.md. If any step is unclear, the s
 ## Five high-leverage rules
 
 1. **Description is the only thing the selector sees.** Body text never influences triggering. When a skill under-triggers, fix the description first.
-2. **Third person, always.** `"Extracts text from PDF files."` — not `"I can help you..."` or `"You can use this to..."`. POV-inconsistent text breaks discovery.
+2. **Third-person voice for the capability, imperative for the trigger.** `"Extracts text from PDF files. Use this skill when the user has a PDF and wants its contents."` Never first person (`"I can help you..."`) and never addressed to the user (`"You can use this to..."`) — POV-inconsistent text breaks discovery, and the imperative is aimed at the agent, which is a different thing. The two upstream guides phrase this rule differently; [`skill-creator`](../Skills/skill-creator/SKILL.md) reconciles them.
 3. **Point, don't dump.** SKILL.md is the standard operating procedure. Deep knowledge (XML schemas, API tables, long examples) belongs in `references/<topic>.md`. When the body crosses 500 lines, split.
 4. **References one level deep.** Claude often previews nested references with `head -100` and gets incomplete content. All references link directly from SKILL.md.
 5. **Pick a default.** Don't offer five libraries — pick one and mention alternatives only as documented escape hatches ("use X instead when Y").
@@ -64,9 +64,9 @@ description: >-
   that belongs elsewhere.
 ```
 
-`USE FOR:` is a compact scope list at the level of **categories**, not a transcript of phrasings. Name the general classes of request the skill serves, and be pushy about listing contexts where it applies even when the user does not name the domain. `DO NOT USE FOR:` is the single highest-leverage anti-cannibalisation tool when two skills overlap, and it is what upstream means by "clarify the boundary between this skill and adjacent capabilities".
+`USE FOR:` is a compact scope list at the level of **categories**, not a transcript of phrasings — but state those categories in the vocabulary of the domain, because the specification asks for "specific keywords that help agents identify relevant tasks". What overfits is the verbatim wording of queries that failed to trigger, not the domain terms themselves. Be pushy about listing contexts where the skill applies even when the user does not name the domain. `DO NOT USE FOR:` is the single highest-leverage anti-cannibalisation tool when two skills overlap, and it is what upstream means by "clarify the boundary between this skill and adjacent capabilities".
 
-Selector mechanics are not publicly documented, so assume neither lexical matching nor semantic matching. Category-level scope plus an explicit boundary holds either way; an exhaustive keyword dump only helps under an assumption nobody here has evidenced.
+Selector mechanics are not publicly documented, so assume neither lexical matching nor semantic matching. Category-level scope that carries the domain's own vocabulary, plus an explicit boundary, holds either way; an exhaustive keyword dump only helps under an assumption nobody here has evidenced.
 
 ## Degrees of freedom
 
@@ -92,7 +92,7 @@ Analogy: narrow bridge with cliffs → guardrails (low freedom); open field → 
 ## Anti-patterns
 
 - Vague description. ("Helps with documents." Names no category worth matching.)
-- **Overfitting to failed queries.** Pasting the verbatim wording of eval queries that did not trigger. The description then works on those exact strings and nothing near them. Generalise instead — name the category those queries represent. See the trigger-eval loop in [`skill-creator`](../Skills/skill-creator/SKILL.md).
+- **Overfitting to failed queries.** Pasting the verbatim wording of eval queries that did not trigger. The description then works on those exact strings and nothing near them. Generalise instead — name the category those queries represent, and keep the vocabulary that belongs to it. See the trigger-eval loop in [`skill-creator`](../Skills/skill-creator/SKILL.md).
 - Body holds the trigger. (Body is invisible to the selector.)
 - Time-sensitive language in main content. (Use `<details><summary>Old patterns</summary>` blocks.)
 - Inconsistent terminology. (Pick one term and use it throughout.)
@@ -105,15 +105,21 @@ Analogy: narrow bridge with cliffs → guardrails (low freedom); open field → 
 
 External sources, in order of authority:
 
-1. **Anthropic — Agent Skills overview.** Architecture, three-tier loading, how Claude reads SKILL.md via bash, security model. <https://platform.claude.com/docs/en/agents-and-tools/agent-skills>
-2. **Anthropic — Skill authoring best practices.** Description writing, gerund naming, degrees of freedom, progressive disclosure patterns, eval-driven development, Claude-A/Claude-B iteration loop, anti-patterns. <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>
-3. **Anthropic — The Complete Guide to Building Skills for Claude (PDF).** Marketing PDF that mirrors the docs in linear form. Good for offline reading. <https://resources.anthropic.com/hubfs/The-Complete-Guide-to-Building-Skill-for-Claude.pdf>
-4. **Anthropic — Equipping agents for the real world with Agent Skills (engineering blog).** Design rationale, real-world deployment patterns. <https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills>
-5. **Anthropic — Claude apps Skills launch announcement.** Product-level framing, plugin marketplace context. <https://claude.com/blog/skills>
-6. **anthropics/skills (GitHub).** Anthropic's own reference skills (`pptx`, `xlsx`, `docx`, `pdf`, Claude API). Reading these is the fastest way to see canonical structure in practice. <https://github.com/anthropics/skills>
-7. **Agent Skills as an open standard.** Cross-platform skill portability spec (originally developed by Anthropic, released open). <https://agentskills.io/>
-8. **Agentic AI Foundation (AAIF).** Vendor-neutral [Linux Foundation](https://www.linuxfoundation.org/) initiative consolidating stewardship of open agent standards (skills, tools, protocols). Sits alongside the agentskills.io spec as the neutral home for cross-tool agent portability. Search "Agentic AI Foundation" for the current project page.
-9. **Simon Scrapes — "The 1% way to use Claude Skills" (video).** Source of the six-step authoring frame summarised above; argues that 20–30 well-built curated skills beat 500 generic ones. <https://www.youtube.com/watch?v=6-D3fg3JUL4>
+1. **Agent Skills — the open standard.** The format is vendor-neutral, and these five pages are the primary authority. <https://agentskills.io/>
+   - [Specification](https://agentskills.io/specification) — frontmatter fields and their constraints, directory layout, progressive disclosure, the `skills-ref` reference validator.
+   - [Best practices for skill creators](https://agentskills.io/skill-creation/best-practices) — scoping, degrees of freedom, gotchas, instruction patterns.
+   - [Optimizing skill descriptions](https://agentskills.io/skill-creation/optimizing-descriptions) — trigger evals, the 60/40 train/validation split, the optimisation loop.
+   - [Evaluating skill output quality](https://agentskills.io/skill-creation/evaluating-skills) — test cases, assertions, grading, benchmark deltas.
+   - [Using scripts in skills](https://agentskills.io/skill-creation/using-scripts) — non-interactive interfaces, `--help`, structured output, exit codes, inline dependencies.
+2. **Anthropic — Skill authoring best practices.** The same material from the vendor that originated the format, and the source of the "always write in third person" warning and the gerund naming convention. <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>
+3. **Anthropic — Agent Skills overview.** Architecture, three-tier loading, how the agent reads SKILL.md via bash, security model. <https://platform.claude.com/docs/en/agents-and-tools/agent-skills>
+4. **VS Code — Use Agent Skills.** The client surface this repository targets: skill locations, slash commands, and the `context`, `user-invocable`, `disable-model-invocation`, and `argument-hint` fields the open standard does not define. <https://code.visualstudio.com/docs/copilot/customization/agent-skills>
+5. **anthropics/skills (GitHub).** Anthropic's own reference skills (`pptx`, `xlsx`, `docx`, `pdf`, Claude API). Reading these is the fastest way to see canonical structure in practice. <https://github.com/anthropics/skills>
+6. **Anthropic — The Complete Guide to Building Skills for Claude (PDF).** Marketing PDF that mirrors the docs in linear form. Good for offline reading. <https://resources.anthropic.com/hubfs/The-Complete-Guide-to-Building-Skill-for-Claude.pdf>
+7. **Anthropic — Equipping agents for the real world with Agent Skills (engineering blog).** Design rationale, real-world deployment patterns. <https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills>
+8. **Anthropic — Claude apps Skills launch announcement.** Product-level framing, plugin marketplace context. <https://claude.com/blog/skills>
+9. **Agentic AI Foundation (AAIF).** Vendor-neutral [Linux Foundation](https://www.linuxfoundation.org/) initiative consolidating stewardship of open agent standards (skills, tools, protocols). Sits alongside the agentskills.io spec as the neutral home for cross-tool agent portability. Search "Agentic AI Foundation" for the current project page.
+10. **Simon Scrapes — "The 1% way to use Claude Skills" (video).** Source of the six-step authoring frame summarised above; argues that 20–30 well-built curated skills beat 500 generic ones. <https://www.youtube.com/watch?v=6-D3fg3JUL4>
 
 ## In-repo references
 

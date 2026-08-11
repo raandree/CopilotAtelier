@@ -15,6 +15,19 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-11**: Audited the customization library against the live upstream
+  sources and closed six gaps. The category-level `USE FOR:` rewrite had
+  conflated two different upstream rules — the specification wants domain
+  keywords, only failed-query wording overfits — which is what `pos-09` had been
+  paying for; the rule now reads "keep the domain vocabulary, drop the
+  failed-query wording" in all four files. `skill-creator` gained the fifth
+  upstream authoring page it never cited, `using-scripts`, plus a pointer to the
+  optional frontmatter fields. The primer's "third person, always"
+  contradiction and its Anthropic-first source list are fixed. Two guards
+  landed: `plugin.json` is validated for the first time, including version drift
+  and the `$schema`-versus-capital-`Skills` trap, and the over-budget Skill
+  baseline became a per-Skill high-water mark.
+
 - **2026-08-11**: Pinned the trigger-eval judge and re-measured `skill-creator`.
   `run-trigger-evals.ps1` gained `-Temperature` (omit-or-send) plus 7 tests.
   Paired sweeps, same 44-skill catalogue and description: pinned at 0 gave train
@@ -89,31 +102,16 @@ published to the PowerShell Gallery. Incremental work is tracked under
   Estimation Tables, Evo step planning, and Specification Quality Control.
   `grill-me` elicits; this Skill quantifies, and both cross-reference the other.
 
-- **2026-08-01**: Bounded the append that keeps breaking CI. The Post-flight
-  Instruction mandates a `progress.md` append every substantive turn and set no
-  limit, so the file grew until the health check errored — twice. Step 2 now
-  requires curating the oldest entries in the same edit when the file is at or
-  near its budget, `Skills/memory-bank/SKILL.md` runs the health check after any
-  Memory Bank edit rather than only after initialization, and
-  `sampler-build-debug` gained a "Reproduce a CI-Only Failure" section: derive
-  the built commit from the GitVersion `+n` suffix, test a clean clone, and
-  never hard-code a version sentinel that can equal Sampler's `0.0.1` fallback.
+- **2026-08-01**: Bounded the `progress.md` append that had broken CI twice —
+  Post-flight now curates the oldest entries in the same edit, the health check
+  runs after any Memory Bank edit rather than only after initialization, and
+  `sampler-build-debug` covers reproducing a CI-only failure.
 
-- **2026-08-01**: Hardened the release path after three related failures. The
-  `2.0.0` release was rejected with `422 body is too long` because Sampler sends
-  the `[Unreleased]` section as the body; `tests/QA/module.tests.ps1` now fails
-  at 100000 characters. The Gallery then rejected `3.0.0-preview0001` with HTTP
-  409 because the release that shipped it was never tagged:
-  `Publish_Release_To_GitHub` writes the tag the version anchors on and skips
-  itself when `GitHubToken` is empty, while the Gallery publish still runs. The
-  deploy job now verifies both secrets, and `GitHubToken` still has to be added.
-  The third was this file reaching 220 of its 200 budgeted lines, so
-  `Test-MemoryBankHealth.ps1` warns at 90 percent rather than failing at 100.
-
-- **2026-08-01**: Audited `german-tax-research` against the statutory text in
-  force, correcting the `§ 237 AO` AdV interest rate, the `Art. 97 § 36 EGAO`
-  overrides for VZ 2020 to 2024, the `§ 238 Abs. 1c AO` interval, and the VZ
-  2025 childcare rule. Every cited BFH docket verified clean.
+- **2026-08-01**: Hardened the release path after three related failures: a
+  `422 body is too long` rejection now guarded by a 100000-character check on
+  `[Unreleased]`, an HTTP 409 from an untagged release now guarded by a deploy
+  job that verifies both secrets, and a `progress.md` budget breach now warned
+  at 90 percent rather than failed at 100. `GitHubToken` still has to be added.
 
 ## Stable capabilities
 

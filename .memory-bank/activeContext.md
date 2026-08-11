@@ -9,26 +9,35 @@ source: current task evidence
 
 ## Current focus
 
-Pin the trigger-eval judge, then re-measure `skill-creator` against the
-category-level description that shipped with the audit remediation.
+Close the conformance gaps a web audit found against the live Agent Skills
+sources, then return to the trigger-eval iteration for `skill-creator`.
 
 ## Implemented
 
-- `Skills/agent-evals/scripts/run-trigger-evals.ps1` — gained `-Temperature`,
-  omit-or-send: bound, it reaches every judge call; unbound, nothing is sent, so
-  no existing run moves its operating point. `0` is a meaningful temperature, so
-  binding is the only safe test. `-SkillRoot` help now warns that the search is
-  recursive, because pointing it at the repository root also picks up the built
-  copies under `output/` and puts every skill in the catalogue twice.
-- `tests/TriggerEvalHarness.Tests.ps1` — 7 tests: parameter surface, range
-  rejection, forwarding, and the omitted case. Hermetic; stubs both `Invoke-Shp`
-  and `Clear-ShpChat`.
+- `Skills/skill-creator/SKILL.md` — cites `using-scripts`, the fifth upstream
+  authoring page, and carries its rules as **Design the interface for a
+  non-interactive caller**: never prompt, `--help`, actionable errors, stdout
+  versus stderr, bounded output, distinct exit codes, idempotency, dependencies
+  declared in the script. Frontmatter now points at the optional fields and
+  records that `context: fork` is why two Skills fail `skills-ref`. 473/500.
+- The keyword rule is narrowed in all four files that state it: the
+  specification wants domain keywords, and only failed-query wording overfits.
+- `Reference/howto-write-skills.md` — "third person, always" replaced by the
+  reconciliation `skill-creator` already carried; sources reordered so the open
+  standard's five pages lead and the VS Code surface is named.
+- `tests/PluginManifest.Tests.ps1` — first validation of `plugin.json`: name,
+  component paths, version against the newest released changelog section, and
+  the `$schema`-with-capital-`Skills` trap. Manifest gained `license`,
+  `repository`, `homepage`, `keywords`.
+- `tests/SkillFrontmatter.Tests.ps1` — the over-budget baseline is now a map of
+  Skill to current body length, so a baselined body cannot grow further.
 
 ## Focused evidence
 
-- `./build.ps1 -Tasks build, test`: 447 passed, 0 failed, coverage 70.67 %
-  against the 65 % threshold. The one warning is the pre-existing
-  `systemPatterns.md` line-budget notice.
+- Detached Pester over `SkillFrontmatter`, `PluginManifest`, `SharedLifecycle`:
+  206 passed, 0 failed, 10 skipped, exit 0. `markdownlint-cli2` reports 0 issues
+  across the four changed Markdown files. The last full `./build.ps1 -Tasks
+  build, test` before these edits: 447 passed, 0 failed, coverage 70.67 %.
 - Paired sweeps, same 44-skill catalogue, same `claude-haiku-4.5`, same
   description (`57b2cf9`), 54/54 succeeding each, 0.60 USD each:
 
@@ -69,11 +78,17 @@ category-level description that shipped with the audit remediation.
 
 ## Next step
 
-Decide whether to restore concrete question-shaped phrases to `skill-creator`'s
-`USE FOR:` for `pos-09`, and how to cover non-English requests for `pos-07` —
-iterating on train only. Then the outstanding handoff prompts: prompt 07
+Restore the domain vocabulary the category rewrite stripped from
+`skill-creator`'s `USE FOR:` — the narrowed rule now permits it — and re-measure
+`pos-09` on train only. `pos-07` is a non-English request and nothing upstream
+covers multilingual triggering. Then the outstanding handoff prompts: prompt 07
 option C, the six worst keyword-stuffed descriptions, and prompt 06's
-with/without delta, which is now unblocked.
+with/without delta.
+
+Not yet gated: description headroom. Six Skills sit at 1009 characters or more,
+and `authenticated-web-extraction` is at exactly 1024, where one added character
+is a silent drop. A warning threshold below the hard cap would surface that
+before a rewrite crosses the line.
 
 Still outstanding: add the `GitHubToken` repository secret, without which the
 deploy job fails at its guard; give the routing reduction gate real headroom
