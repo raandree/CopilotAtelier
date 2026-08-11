@@ -34,6 +34,22 @@ sources, then return to the trigger-eval iteration for `skill-creator`.
   second ratchet holds descriptions to a 1000-character soft cap below the 1024
   hard cap, with the eight Skills already past it pinned to their current
   length; `authenticated-web-extraction` sits at exactly 1024.
+- `run-trigger-evals.ps1` — `Execute` mode probes `Invoke-Shp` for
+  `-Temperature` before the loop and throws once, naming the resolved build and
+  the fix. The probe tests the parameter, not the version: `0.4.0-preview0003`
+  reports `0.4.0`, so the `compatibility` claim "ShellPilot 0.4.0 or later"
+  passed the build that fails. That field now names `0.4.0-preview0004` and says
+  why a version test cannot decide it. `tests/TriggerEvalHarness.Tests.ps1`
+  stands a real stale module on disk rather than a bare function, so the message
+  it asserts carries a version, a prerelease and a path.
+- The machine's ShellPilot is current: `0.4.0-preview0005` at
+  `~\Documents\PowerShell\Modules\ShellPilot\0.4.0`, built from
+  `V:\Git\ShellPilot` at tag `v0.4.0-preview0005` with `$env:ModuleVersion`
+  supplying what GitVersion could not — neither GitVersion nor dotnet exists on
+  this host, so a plain Sampler build stamps the source manifest's `0.0.1` and
+  loses to the installed `0.4.0`. The displaced `preview0003` is kept at
+  `~\Documents\PowerShell\ShellPilot-0.4.0-preview0003.backup`, outside any
+  module path.
 
 ## Focused evidence
 
@@ -64,12 +80,6 @@ sources, then return to the trigger-eval iteration for `skill-creator`.
 
 ## Open findings
 
-- The **installed** ShellPilot is `0.4.0` and predates `Invoke-Shp -Temperature`
-  (shipped in ShellPilot `c89f14a`). `Import-Module ShellPilot` therefore yields
-  a judge that rejects the parameter; the harness must be pointed at a build new
-  enough to accept it. The memory-bank note that this was "blocked on ShellPilot
-  exposing -Temperature" was half right — the module exposes it, this machine
-  does not have that build installed.
 - `-Temperature 0` reduces variance but does not remove it: `pos-04` still
   scored 0.67 pinned. The harness exposes no `-Seed`.
 - The grader matches `^\s*SELECTED:\s*<name>\s*$`, so a judge that answers in

@@ -15,6 +15,13 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-11**: `run-trigger-evals.ps1 -Mode Execute` probes `Invoke-Shp` for
+  `-Temperature` and throws once instead of failing 54 calls in the binder. It
+  tests the parameter, not the version: `0.4.0-preview0003` reports `0.4.0`, so
+  the Skill's own "0.4.0 or later" claim passed the build that fails. The
+  machine now carries `0.4.0-preview0005`, built with `$env:ModuleVersion`
+  because this host has no GitVersion and Sampler otherwise stamps `0.0.1`.
+
 - **2026-08-11**: Audited the customization library against the live upstream
   sources and closed six gaps. The category-level `USE FOR:` rewrite had
   conflated two different upstream rules — the specification wants domain
@@ -102,17 +109,13 @@ published to the PowerShell Gallery. Incremental work is tracked under
   Estimation Tables, Evo step planning, and Specification Quality Control.
   `grill-me` elicits; this Skill quantifies, and both cross-reference the other.
 
-- **2026-08-01**: Bounded the `progress.md` append that had broken CI twice —
-  Post-flight now curates the oldest entries in the same edit, the health check
-  runs after any Memory Bank edit rather than only after initialization, and
-  `sampler-build-debug` covers reproducing a CI-only failure.
-
-- **2026-08-01**: Hardened the release path after three related failures: a
-  `422 body is too long` rejection now guarded by a 100000-character check on
-  `[Unreleased]`, an HTTP 409 from an untagged release now guarded by a deploy
-  job that verifies both secrets, and a `progress.md` budget breach now warned
-  at 90 percent rather than failed at 100. `GitHubToken` has since been added,
-  and the release job has tagged every build from `v3.0.0-preview0003` on.
+- **2026-08-01**: Hardened the release path and the `progress.md` append that
+  had broken CI twice. `[Unreleased]` is capped before the GitHub release call,
+  the deploy job verifies both secrets, a budget breach warns at 90 percent
+  rather than failing at 100, and Post-flight curates the oldest entries in the
+  same edit. `CHANGELOG.md` holds the three failures behind it. `GitHubToken`
+  has since been added, and the release job has tagged every build from
+  `v3.0.0-preview0003` on.
 
 ## Stable capabilities
 

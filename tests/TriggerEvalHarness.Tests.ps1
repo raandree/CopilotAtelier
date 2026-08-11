@@ -46,8 +46,9 @@ description: Use this skill for $name work.
         # Do NOT reach for $PSModuleAutoLoadingPreference = 'None' here: it also
         # stops Microsoft.PowerShell.Management loading, so the harness loses
         # Join-Path and Get-ChildItem and every call fails for the wrong reason.
-        function global:Invoke-Shp
-        {
+        # Held as a scriptblock so Invoke-Harness can re-assert it before every
+        # run, whatever the previous run left in the function table.
+        $script:modernShpStub = {
             [CmdletBinding()]
             param(
                 [string] $Prompt,
@@ -77,18 +78,76 @@ description: Use this skill for $name work.
         # which is how this test first reached the live backend, and later failed
         # against an installed build too old to accept -Temperature. Every
         # ShellPilot command the harness touches has to be stubbed.
-        function global:Clear-ShpChat { }
+        $script:clearShpStub = { }
+
+        # A real module on disk, not a bare function, standing in for the stale
+        # install that prompted the guard: ShellPilot 0.4.0-preview0003 reports
+        # version 0.4.0 and exposes no -Temperature, so a minimum-version check
+        # would have passed it. Being a module is what gives Get-Command a
+        # Version, a Prerelease and a ModuleBase to name in the failure.
+        $script:staleModuleBase = Join-Path (Join-Path $script:tempRoot 'stale-modules/ShellPilot') '0.4.0'
+        New-Item -ItemType Directory -Path $script:staleModuleBase -Force | Out-Null
+        $script:staleManifest = Join-Path $script:staleModuleBase 'ShellPilot.psd1'
+
+        Set-Content -LiteralPath (Join-Path $script:staleModuleBase 'ShellPilot.psm1') -Encoding utf8 -Value @'
+function Invoke-Shp
+{
+    [CmdletBinding()]
+    param(
+        [string] $Prompt,
+        [string] $Model,
+        [double] $MaxBudgetUSD,
+        [int] $TimeoutSec,
+        [switch] $DisableUserTools,
+        [switch] $DisableBrowsing,
+        [switch] $DisableFileAccess,
+        [switch] $DisableTerminal,
+        [switch] $DisableUserPrompts,
+        [switch] $DisableTodoList
+    )
+
+    $global:ShpStubCalls.Add([pscustomobject]@{ Temperature = $null; HadTemp = $false })
+
+    [pscustomobject]@{ Content = 'SELECTED: none'; CostUSD = 0.0 }
+}
+
+function Clear-ShpChat { }
+'@
+
+        Set-Content -LiteralPath $script:staleManifest -Encoding utf8 -Value @"
+@{
+    RootModule        = 'ShellPilot.psm1'
+    ModuleVersion     = '0.4.0'
+    GUID              = '$([guid]::NewGuid())'
+    Author            = 'trigger-eval tests'
+    FunctionsToExport = @('Invoke-Shp', 'Clear-ShpChat')
+    PrivateData       = @{ PSData = @{ Prerelease = 'preview0003' } }
+}
+"@
 
         function Invoke-Harness
         {
-            param([hashtable] $Extra = @{})
+            param(
+                [hashtable] $Extra = @{},
 
-            # Re-assert the stub immediately before each run, after removing any
-            # real ShellPilot a previous step may have pulled in. Temperature is
+                # Imports the stale module last so it wins the function table,
+                # exactly as the real installed build did.
+                [switch] $LegacyShellPilot
+            )
+
+            # Re-assert the stubs immediately before each run, after removing any
+            # ShellPilot a previous step may have pulled in. Temperature is
             # [object] so an unbound value stays $null rather than collapsing to
             # 0 - otherwise "omitted" and "-Temperature 0" look identical, and 0
             # is the value that matters most here.
             Remove-Module -Name ShellPilot -Force -ErrorAction SilentlyContinue
+            Set-Item -LiteralPath 'function:global:Invoke-Shp' -Value $script:modernShpStub
+            Set-Item -LiteralPath 'function:global:Clear-ShpChat' -Value $script:clearShpStub
+
+            if ($LegacyShellPilot)
+            {
+                Import-Module -Name $script:staleManifest -Force -Global -ErrorAction Stop
+            }
 
             $global:ShpStubCalls = [System.Collections.Generic.List[object]]::new()
             Get-ChildItem -LiteralPath $script:workDir -File -ErrorAction SilentlyContinue | Remove-Item -Force
@@ -107,6 +166,7 @@ description: Use this skill for $name work.
     }
 
     AfterAll {
+        Remove-Module -Name ShellPilot -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $script:tempRoot -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath 'function:global:Invoke-Shp' -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath 'function:global:Clear-ShpChat' -Force -ErrorAction SilentlyContinue
@@ -167,6 +227,43 @@ description: Use this skill for $name work.
             $calls = Invoke-Harness -Extra @{ Temperature = 1.5 }
 
             @($calls | Where-Object { $_.Temperature -eq 1.5 }).Count | Should -Be 4
+        }
+    }
+
+    Context 'Stale ShellPilot guard' {
+        # Measured on 2026-08-11: the installed ShellPilot was 0.4.0-preview0003,
+        # which predates -Temperature. Every one of 54 calls died in the parameter
+        # binder with "A parameter cannot be found that matches parameter name
+        # 'Temperature'", the run reported 54 failures, and nothing in that output
+        # said the module was stale. The guard has to fire before the loop, and it
+        # has to name the build it resolved.
+        It 'Throws before any call when -Temperature meets a ShellPilot without it' {
+            $thrown = { Invoke-Harness -LegacyShellPilot -Extra @{ Temperature = 0 } } |
+                Should -Throw -PassThru
+
+            $thrown.Exception.Message | Should -BeLike '*Invoke-Shp -Temperature*'
+            $global:ShpStubCalls.Count | Should -Be 0
+            @(Get-ChildItem -LiteralPath $script:workDir -File) |
+                Should -BeNullOrEmpty -Because 'the guard must cost nothing, not even a prompt file'
+        }
+
+        It 'Names the resolved build and the fix in the failure' {
+            $thrown = { Invoke-Harness -LegacyShellPilot -Extra @{ Temperature = 0 } } |
+                Should -Throw -PassThru
+
+            # The prerelease is the whole point: 0.4.0 alone reads as new enough.
+            $thrown.Exception.Message | Should -BeLike '*0.4.0-preview0003*'
+            $thrown.Exception.Message | Should -BeLike "*$script:staleModuleBase*"
+            $thrown.Exception.Message | Should -BeLike '*Import-Module*'
+        }
+
+        # Only what the run needs is checked. An old ShellPilot answers every
+        # other call in this harness perfectly well.
+        It 'Runs against an older ShellPilot when -Temperature is omitted' {
+            $calls = Invoke-Harness -LegacyShellPilot
+
+            $calls.Count | Should -Be 4
+            @($calls | Where-Object HadTemp) | Should -BeNullOrEmpty
         }
     }
 }

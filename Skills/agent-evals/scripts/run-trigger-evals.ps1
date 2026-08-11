@@ -85,7 +85,9 @@
     measurement describes the sampler as much as the description under test.
     Omitted entirely from the call when you do not pass it, so the backend
     default applies and an existing run's operating point does not move. Needs a
-    ShellPilot new enough to expose Invoke-Shp -Temperature.
+    ShellPilot new enough to expose Invoke-Shp -Temperature, first shipped in
+    0.4.0-preview0004; Execute mode checks for the parameter once and throws
+    before the first call rather than failing every call in the binder.
 
 .PARAMETER MaxBudgetUSD
     Execute mode only. Hard ceiling passed to each call.
@@ -293,8 +295,31 @@ switch ($Mode) {
 
     'Execute' {
         if (-not $SkillRoot) { throw '-SkillRoot is required in Execute mode.' }
-        if (-not (Get-Command Invoke-Shp -ErrorAction SilentlyContinue)) {
+        $shp = Get-Command Invoke-Shp -ErrorAction SilentlyContinue
+        if (-not $shp) {
             throw 'Execute mode needs the ShellPilot module (Invoke-Shp). Use -Mode Prepare instead.'
+        }
+
+        # Probe the parameter, not the version: 0.4.0-preview0003 reports version
+        # 0.4.0 and has no -Temperature, so any minimum-version test passes on the
+        # build that fails. Only what this run needs is checked - an older
+        # ShellPilot is fine as long as -Temperature was not asked for. Without
+        # this, a stale module fails every call in the parameter binder and a
+        # 54-call run reports 54 failures that never name the cause.
+        if ($PSBoundParameters.ContainsKey('Temperature') -and -not $shp.Parameters.ContainsKey('Temperature')) {
+            $module = $shp.Module
+            $resolved = if ($module) {
+                $prerelease = if ($module.PrivateData.PSData.Prerelease) { "-$($module.PrivateData.PSData.Prerelease)" }
+                "$($module.Name) $($module.Version)$prerelease at $($module.ModuleBase)"
+            }
+            else {
+                "an Invoke-Shp defined outside any module ($($shp.CommandType))"
+            }
+
+            throw "-Temperature requires a ShellPilot that exposes Invoke-Shp -Temperature. " +
+                "The resolved module is $resolved. Import a newer build by path " +
+                "(Import-Module <dir>/ShellPilot.psd1 -Force) or install one. " +
+                'Omit -Temperature to run against the resolved build.'
         }
 
         $set = @(New-JudgePromptSet -Root $SkillRoot -Target $TargetSkill -Queries $queries -Reps $Repetitions)

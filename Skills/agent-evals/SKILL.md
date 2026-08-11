@@ -18,7 +18,10 @@ description: >-
 compatibility: >-
   The bundled harnesses need PowerShell 7. run-trigger-evals.ps1 also needs the
   powershell-yaml module, and its -Mode Execute needs ShellPilot 0.4.0 or later
-  plus a paid model backend; -Mode Prepare and -Mode Grade need neither.
+  plus a paid model backend; -Mode Prepare and -Mode Grade need neither. Its
+  -Temperature needs a build exposing Invoke-Shp -Temperature, first shipped in
+  0.4.0-preview0004 - a version test cannot decide this, because preview0003
+  reports 0.4.0 and rejects the parameter.
 ---
 
 # Agent Evals
