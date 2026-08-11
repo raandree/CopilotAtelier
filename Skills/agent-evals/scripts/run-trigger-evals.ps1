@@ -58,7 +58,10 @@
     Root holding one directory per skill, each with a SKILL.md.
 
 .PARAMETER WorkDir
-    Where prompts and replies live.
+    Where prompts and replies live. Keep it outside the repository: Skills/ is
+    the published module payload, so scratch written under the skill folder
+    ends up in the built module. Relative paths resolve against the caller's
+    location, not the script's, so prefer an absolute path.
 
 .PARAMETER Repetitions
     Runs per query. Selection is stochastic; a single run cannot distinguish a
@@ -79,13 +82,13 @@
     Execute mode only. Re-answer prompts whose reply file already exists.
 
 .EXAMPLE
-    ./run-trigger-evals.ps1 -Mode Prepare -QueryFile ../assets/trigger-queries.skill-creator.json -TargetSkill skill-creator -SkillRoot ../../ -WorkDir ./work
+    ./run-trigger-evals.ps1 -Mode Prepare -QueryFile ../assets/trigger-queries.skill-creator.json -TargetSkill skill-creator -SkillRoot ../../ -WorkDir "$env:TEMP/trigger-evals/skill-creator"
 
 .EXAMPLE
-    ./run-trigger-evals.ps1 -Mode Execute -QueryFile ../assets/trigger-queries.skill-creator.json -TargetSkill skill-creator -SkillRoot ../../ -WorkDir ./work
+    ./run-trigger-evals.ps1 -Mode Execute -QueryFile ../assets/trigger-queries.skill-creator.json -TargetSkill skill-creator -SkillRoot ../../ -WorkDir "$env:TEMP/trigger-evals/skill-creator"
 
 .EXAMPLE
-    ./run-trigger-evals.ps1 -Mode Grade -QueryFile ../assets/trigger-queries.skill-creator.json -TargetSkill skill-creator -WorkDir ./work
+    ./run-trigger-evals.ps1 -Mode Grade -QueryFile ../assets/trigger-queries.skill-creator.json -TargetSkill skill-creator -WorkDir "$env:TEMP/trigger-evals/skill-creator"
 #>
 [CmdletBinding()]
 param(

@@ -1,21 +1,24 @@
 ---
 name: agent-evals
 description: >-
-  Builds evaluations for your own Copilot skills, prompts, and agents so changes
-  are measured, not vibed. Starts from the native VS Code tooling (Chat
-  Customizations Evaluations analysis and the Waza eval runner) and falls back
-  to a bundled run-evals.ps1 harness. Covers capability vs regression eval sets,
-  grader types (deterministic / LLM-as-judge / human), pass@k vs pass^k, and
-  eval-driven development. Rule of thumb: start from 20-50 real failures, not
-  synthetic prompts.
-  USE FOR: evaluate agent, evaluate skill, evaluate prompt, eval harness, build
-  evals, Waza, analyze-prompt, Chat Customizations Evaluations, LLM-as-judge,
-  grader, capability eval, regression eval, pass@k, pass^k, eval-driven
-  development, does my skill work, test a prompt, measure agent quality,
-  run-evals.
+  Use this skill when a Copilot skill, prompt, or agent changes and someone
+  needs evidence that it works rather than one lucky run. Covers three stacked
+  questions: is it discovered (trigger-rate evals), does it hold up across runs
+  (capability and regression sets, pass@k vs pass^k, deterministic /
+  LLM-as-judge / human graders), and does it beat no skill at all (with/without
+  delta on pass rate, tokens, duration). Starts from native VS Code tooling and
+  Waza, falling back to bundled PowerShell harnesses. Rule of thumb: start from
+  20-50 real failures, not synthetic prompts.
+  USE FOR: evaluating or measuring any Customization, eval harness and artifact
+  design, grader selection, trigger-rate and discoverability work, eval-driven
+  iteration on a description or a body.
   DO NOT USE FOR: authoring the skill itself (use skill-creator), MCP server
   eval questions (use mcp-builder Phase 4), unit-testing PowerShell code (use
   pester-patterns), security review of an agent (use agent-security-review).
+compatibility: >-
+  The bundled harnesses need PowerShell 7. run-trigger-evals.ps1 also needs the
+  powershell-yaml module, and its -Mode Execute needs ShellPilot 0.4.0 or later
+  plus a paid model backend; -Mode Prepare and -Mode Grade need neither.
 ---
 
 # Agent Evals
@@ -135,6 +138,12 @@ You author one file, `evals/evals.json`, holding per-case `prompt`, `expected_ou
 Full field tables, grading principles, aggregation rules, and the iteration loop: [`references/eval-artifacts.md`](references/eval-artifacts.md). Worked sample: [`assets/evals.output.sample.json`](assets/evals.output.sample.json). For trigger-rate measurement — does the skill get discovered at all — see [`assets/trigger-queries.sample.json`](assets/trigger-queries.sample.json), the live [`assets/trigger-queries.skill-creator.json`](assets/trigger-queries.skill-creator.json), and [`scripts/run-trigger-evals.ps1`](scripts/run-trigger-evals.ps1).
 
 **Which set to reach for:** trigger queries prove *discovery*, the `cases` harness proves *reliability*, and the formal artifacts prove *value*. They stack; none replaces another.
+
+## Harness prerequisites
+
+Both bundled scripts need **PowerShell 7**. [`scripts/run-trigger-evals.ps1`](scripts/run-trigger-evals.ps1) also needs **`powershell-yaml`** (`Install-Module powershell-yaml -Scope CurrentUser`) to read the skill catalogue, and its `-Mode Execute` needs **ShellPilot 0.4.0 or later** plus a model backend that bills real money — 54 judge calls against `claude-haiku-4.5` cost 0.60 USD. `-Mode Prepare` and `-Mode Grade` need neither, so an author with no backend can still generate the judge prompts, answer them in any fresh chat, and grade the replies.
+
+Point `-WorkDir` **outside the repository**. `Skills/` is the published module payload, so scratch written under a skill folder is copied into the built module; the build prunes it and `.gitignore` catches it, but neither is a reason to aim there.
 
 ## Fallback harness
 

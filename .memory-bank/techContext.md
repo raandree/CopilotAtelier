@@ -21,6 +21,11 @@ source: build.yaml and source/
 | Setup | PowerShell 5.1+ | Client configuration and file deployment |
 | Version control | Git | Repository history and collaboration |
 | Tests | Pester 5 | Setup, module, and Customization regression checks |
+| Skill conformance | `uv` fetching upstream `skills-ref` (pinned) | Validates `Skills/*` against the open specification |
+
+`uv` is the only non-PowerShell dependency and it is test-only: without it the
+conformance gate skips locally and throws in CI, where the workflow installs it.
+Nothing in building, installing, or using the module needs it.
 
 ## Module layout
 

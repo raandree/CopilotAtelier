@@ -20,8 +20,7 @@ CopilotAtelier repository (Sampler project)
 │   ├── CopilotAtelier.psd1 (ModuleVersion replaced by GitVersion)
 │   ├── Public/  Install-, Update-, Get-CopilotAtelierVersion
 │   └── Private/ path, link, JSONC, and keybinding helpers
-├── build.ps1, build.yaml, .build/, GitVersion.yml
-├── .github/workflows/ci.yml
+├── build.ps1, build.yaml, .build/, GitVersion.yml, .github/workflows/ci.yml
 ├── Setup-CopilotSettings.ps1 (clone entry point shim)
 │   └── one Canonical target: OneDrive when available, user profile otherwise
 │       ├── ~/.copilot Discovery links
@@ -29,8 +28,7 @@ CopilotAtelier repository (Sampler project)
 ├── plugin.json
 ├── tests and Reference
 └── .memory-bank
-    ├── index.md
-    ├── routed canonical files
+    ├── index.md, routed canonical files
     ├── decisions/
     ├── topics/
     └── session/
@@ -58,6 +56,7 @@ CopilotAtelier repository (Sampler project)
 | 16 | [Enforce house rules with hooks](decisions/0016-enforce-house-rules-with-hooks.md) | Accepted | 2026-07-28 |
 | 17 | [Keep MCP curation out of scope](decisions/0017-keep-mcp-curation-out-of-scope.md) | Accepted | 2026-07-28 |
 | 18 | [Distribute as a Sampler-built PowerShell module](decisions/0018-distribute-as-powershell-module.md) | Accepted | 2026-07-29 |
+| 19 | [Gate Skills on the reference validator](decisions/0019-gate-skills-on-the-reference-validator.md) | Accepted | 2026-08-11 |
 
 ## Live relationships
 
@@ -81,26 +80,26 @@ CopilotAtelier repository (Sampler project)
 - VS Code spawns a hook command without a shell, so no `%VAR%` or `$VAR` token
     is expanded. Each command resolves its own path inside the interpreter and
     propagates the exit code explicitly.
-- GUI screenshot workflows branch by ownership: modifiable applications own a
-    self-capturing mode; external executables use a process-scoped driver with
-    readiness, restoration, and content verification; a window the user already
-    had open inverts cleanup — launch nothing, close nothing, and restore only
-    what the capture changed.
+- GUI screenshot workflows branch by ownership: modifiable applications self-
+    capture; external executables use a process-scoped driver with readiness,
+    restoration, and content verification; an already-open window inverts
+    cleanup — launch nothing, close nothing, restore only what capture changed.
 - A capability measured on one configuration is scoped to what was measured and
     encoded as attempt, validate, escalate — never a verdict. The content gate
     decides at run time; the engine name only orders which path is tried first.
-- A turn fires on exactly three triggers: a user message, a tool call returning,
-    or a harness notification. An async command's completion notification is the
-    only one an agent can arm for itself, so unprompted periodic reporting is a
-    chained async timer, and a fully detached process emits none. A `Stop` hook
-    returning `decision: "block"` can force a turn that would otherwise end.
+- A turn fires on three triggers: a user message, a tool call returning, or a
+    harness notification. Only an async command's completion notification can be
+    armed by the agent, so unprompted periodic reporting is a chained async
+    timer; a fully detached process emits none. A `Stop` hook can force a turn.
 - `chat.hookFilesLocations` replaces the default hook location map instead of
     extending it, so pinning one location silently disables every other,
     including the workspace `.github/hooks` folder, with no diagnostic.
-- Custom agent frontmatter controls current tools, model priority, subagent
-    eligibility, and Agent-to-agent handoffs.
-- Instruction frontmatter controls current `applyTo` scope.
-- Prompt frontmatter controls current Custom agent binding.
+- A gate that can skip is not a gate. An external-tool check must fail where it
+    is supposed to protect — CI — and must be proven to reject a bad input, or
+    it reports a green build with nothing behind it.
+- Frontmatter is the live control surface: Custom agent tools, model priority,
+    subagent eligibility, and handoffs; Instruction `applyTo` scope; Prompt
+    Custom agent binding.
 
 Read those source files for changing inventories. This file indexes durable
 relationships and Decision records only.

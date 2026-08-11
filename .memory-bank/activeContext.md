@@ -9,52 +9,52 @@ source: current task evidence
 
 ## Current focus
 
-Return `main` to green after the CI matrix went red on the Linux and macOS
-test legs.
+Remediate the audit findings against the Agent Skills refresh (`ff9ab0a..HEAD`).
 
 ## Implemented
 
-- `tests/LongRunningJobMonitor.Tests.ps1` — the cancellation test now splats
-  `Start-Process` and adds `WindowStyle` only on Windows; the script path uses
-  forward slashes so `pwsh -File` resolves it on every platform.
-- `.memory-bank/activeContext.md` — curated from 135 lines, restoring headroom
-  on the routing reduction gate.
+- `.gitignore`, `.build/Copy_Customizations_To_Output.build.ps1` — a harness run
+  had left 108 scratch files under `Skills/agent-evals/scripts/work/`. Deleted,
+  ignored, and pruned from the built module; `tests/QA/module.tests.ps1` asserts
+  the payload carries no `work/` or `.evalwork/`.
+- `Skills/agent-evals/` — declares `compatibility` (PowerShell 7,
+  `powershell-yaml`, ShellPilot for `-Mode Execute`), documents the
+  prerequisites, and points the harness examples outside the payload.
+- `tests/SkillFrontmatter.Tests.ps1` — derives the `compatibility` requirement
+  from shipped scripts that `Import-Module`, instead of a hand-kept list.
+- `.github/workflows/ci.yml`, `tests/SkillsRefValidate.Tests.ps1` — CI installs
+  `uv`; the gate throws instead of skipping when `$env:CI` is set, and a
+  negative fixture proves it rejects an invalid `name`.
+- `Skills/skill-creator/SKILL.md` — description migrated to category-level
+  `USE FOR:`, so the Skill now passes its own rule.
+- `.memory-bank/decisions/0019-*.md` — records the reference-validator gate.
 
 ## Focused evidence
 
-- The failure was platform-specific, not content-specific: `Start-Process
-  -WindowStyle` raises `NotSupportedException` on non-Windows PowerShell. The
-  Windows leg passed, so a local Windows run could never reproduce it. The CI
-  `PesterObject_*.xml` artifact carried the message the NUnit XML dropped.
-- `Skills/long-running-job-monitor/scripts/Start-DetachedPowerShell.ps1` already
-  guarded the same parameter behind `[PlatformID]::Win32NT`. The test was
-  written without that guard, and only the cross-platform matrix could catch it.
-- The preceding commit failed for a different reason worth remembering: the
-  routing gate reported `49.57 %` against the `50 %` floor documented in
-  `decisions/0014-prove-memory-bank-routing.md`. Measured headroom is roughly
-  **1 KB** — one ordinary append to `activeContext.md` breaks it, because that
-  file is routed into 23 of 25 baseline cases while the decision records that
-  dominate the full-read baseline are not.
-- Verified: `./build.ps1 -Tasks test` green on Windows; the routing evaluator
-  clears the 50 % floor with the curation applied.
-- Left uncommitted on `main` at the user's request.
+- `./build.ps1 -Tasks build, test`: 453 tests, 0 failed, 13 skipped, coverage
+  70.67 % against the 65 % threshold. The baseline before this work was
+  449/436/0/13 at the same coverage.
+- The prune was verified live: a scratch file placed under the skill folder was
+  reported as `Pruned scratch directory` and is absent from the built module.
+- The handoff's premise that `CHANGELOG.md` does not parse is false. All four
+  "pre-existing failures" pass under `build.ps1`; they appear only under a bare
+  `Invoke-Pester`, which lacks `RequiredModules` on `PSModulePath`.
+- The three refresh commits skipped Memory Bank and changelog bookkeeping
+  entirely. That omission is what this turn closes.
 
 ## Open finding
 
-`Prompts/export-emails.prompt.md` in this repository is a generation behind the
-copy deployed under `~/.copilot/prompts/` — 106 lines against 126. The deployed
-version parameterises the export script with `-PersonNames` and `-FolderSlug`,
-derives patterns from email addresses as well as names, and carries a rule
-forbidding hardcoded names in the prompt, in commits, and in scratch files. None
-of that exists here. A build and install would therefore regress a working
-Prompt. Back-porting is a content decision and was left to the owner.
+`Prompts/export-emails.prompt.md` is a generation behind the copy deployed under
+`~/.copilot/prompts/` — 106 lines against 126. The deployed version parameterises
+the export script and forbids hardcoded names. A build and install would regress
+a working Prompt. Back-porting is a content decision, left to the owner.
 
 ## Next step
 
-Give the routing reduction gate real headroom instead of a coin flip: curate the
-widely routed core files further, or add a near-limit warning to
-`Test-MemoryBankRouting.ps1` mirroring `LineBudgetNearLimit` in
-`Test-MemoryBankHealth.ps1`, so drift is reported before CI turns red.
+Run the outstanding handoff prompts against the corrected baseline: prompt 07
+option C, the six worst keyword-stuffed descriptions, and prompt 06's
+with/without delta, which stays blocked on ShellPilot exposing `-Temperature`.
 
 Still outstanding: add the `GitHubToken` repository secret, without which the
-deploy job fails at its guard; write evals for `gilb-requirements-engineering`.
+deploy job fails at its guard; give the routing reduction gate real headroom
+rather than the roughly 1 KB it has now.

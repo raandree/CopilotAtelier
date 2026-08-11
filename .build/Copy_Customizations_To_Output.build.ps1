@@ -54,6 +54,10 @@ param
 task Copy_Customizations_To_Output {
     . Set-SamplerTaskVariable
 
+    # The copy reads the working tree, not the index, so a gitignored scratch
+    # directory left behind by an eval or tooling run would still be published.
+    $excludedDirectoryName = @('work', '.evalwork')
+
     if (-not $CustomizationDirectory)
     {
         $CustomizationDirectory = @(
@@ -87,6 +91,20 @@ task Copy_Customizations_To_Output {
         New-Item -Path $destinationDirectory -ItemType Directory -Force | Out-Null
 
         Copy-Item -Path (Join-Path -Path $sourceDirectory -ChildPath '*') -Destination $destinationDirectory -Recurse -Force
+
+        $scratchDirectory = @(
+            Get-ChildItem -LiteralPath $destinationDirectory -Recurse -Directory |
+                Where-Object -FilterScript { $_.Name -in $excludedDirectoryName }
+        )
+
+        foreach ($directory in $scratchDirectory)
+        {
+            if (Test-Path -LiteralPath $directory.FullName -PathType Container)
+            {
+                Remove-Item -LiteralPath $directory.FullName -Recurse -Force
+                Write-Build -Color Yellow -Text "`tPruned scratch directory '$($directory.FullName)'"
+            }
+        }
 
         $fileCount = @(Get-ChildItem -LiteralPath $destinationDirectory -Recurse -File).Count
 

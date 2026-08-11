@@ -4,15 +4,15 @@ description: >-
   Use this skill when authoring, auditing, or improving `Skills/**/SKILL.md`
   files against the Agent Skills open standard: progressive disclosure (body
   ≤ 500 lines, references one level deep), the six-step authoring frame,
-  imperative trigger descriptions with train/validation trigger evals, the
-  1024-char description cap, gotchas sections, degrees-of-freedom
+  category-level imperative descriptions with train/validation trigger evals,
+  the 1024-char description cap, gotchas sections, degrees-of-freedom
   calibration, output evals, and cross-skill overlap audits.
   Use it even when the user does not say "skill" — a request to package,
   reuse, or fix a repeatable workflow is in scope.
-  USE FOR: create a new skill, write SKILL.md, improve or audit a skill,
-  skill not triggering, description optimisation, trigger evals, progressive
-  disclosure, body too long, description over 1024 chars, split into
-  references, gotchas section, skill overlap audit, six step skill framework.
+  USE FOR: authoring or revising a skill, diagnosing why one is not selected,
+  description and discoverability work, frontmatter and budget conformance,
+  restructuring an oversized body into references, capturing environment
+  gotchas, and resolving overlap between adjacent skills.
   DO NOT USE FOR: writing `Instructions/*.instructions.md`,
   `Agents/*.agent.md`, or prompts; configuring MCP servers; running an eval
   harness end to end (use agent-evals).

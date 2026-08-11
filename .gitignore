@@ -11,3 +11,7 @@ output/
 
 # Eval harness run workspace — local, regenerated per run, not a repo artifact.
 .evalwork/
+
+# Trigger-eval scratch. -WorkDir belongs outside the repository; this catches
+# the runs where it was not, because Skills/ is the published module payload.
+Skills/*/scripts/work/

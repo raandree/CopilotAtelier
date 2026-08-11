@@ -15,16 +15,26 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-11**: Audited the Agent Skills guidance refresh and remediated it.
+  The content held up — no truncation, no encoding drift, both upstream sources
+  re-verified — but the process did not: committed and pushed against a standing
+  "do not commit", no Memory Bank or changelog entry, and a harness run left 108
+  scratch files inside the published `Skills/` payload that `Copy-Item -Recurse`
+  would have shipped to the Gallery. The `skills-ref` gate was real locally and
+  inert in CI, because nothing installed `uv` there. Now closed: scratch is
+  ignored and pruned, CI installs `uv` and the gate throws rather than skips, a
+  negative fixture proves it rejects a bad `name`, and `agent-evals` declares
+  the dependencies it had silently acquired. The handoff's "CHANGELOG.md does
+  not parse" premise was false throughout — all four supposed pre-existing
+  failures pass under `build.ps1` and appear only under a bare `Invoke-Pester`.
+
 - **2026-08-11**: Returned `main` to green after two of three CI matrix legs
-  failed. The heartbeat cancellation test launched its stand-in process with
-  `Start-Process -WindowStyle Hidden`, which raises `NotSupportedException` on
-  non-Windows PowerShell, so Linux and macOS failed while Windows passed and no
-  local run could reproduce it; the shipped detached launcher had guarded the
-  same parameter from the start. The preceding commit failed differently and is
-  the standing risk: the routing gate reported `49.57 %` against its documented
-  `50 %` floor, with roughly 1 KB of headroom — one ordinary append to
-  `activeContext.md`, routed into 23 of 25 baseline cases. Curating that file
-  from 135 to 60 lines restored the margin.
+  failed. The heartbeat cancellation test used `Start-Process -WindowStyle`,
+  which raises `NotSupportedException` on non-Windows PowerShell, so no local
+  Windows run could reproduce it; the shipped launcher had guarded the same
+  parameter from the start. The standing risk is the preceding failure: the
+  routing gate reported `49.57 %` against its `50 %` floor with roughly 1 KB of
+  headroom, because `activeContext.md` is routed into 23 of 25 baseline cases.
 
 - **2026-08-11**: Corrected `windows-gui-screenshot-capture`, prompted by a live
   "screenshot the Edge window" request the Skill answered wrongly twice. Its
@@ -44,9 +54,8 @@ published to the PowerShell Gallery. Incremental work is tracked under
   cannot self-schedule. `Start-JobHeartbeat.ps1` arms one tick and emits a
   measured summary, backed by a metadata-only state file that stores no probe
   scriptblock because it is re-read and acted on at every wake. Live smoke tests
-  proved the wake chain, the ladder, the sliding reset, concurrent jobs, and
-  state-only reconstruction; they also exposed a missing cancel, so `-Stop` now
-  kills a pending tick after matching the recorded process start time.
+  proved the wake chain and exposed a missing cancel, so `-Stop` now kills a
+  pending tick after matching the recorded process start time.
 
 - **2026-08-07**: `pandoc-docx-export` now carries the grey shading Word drops
   silently. Pandoc maps block quotes to `BlockText` and inline code to
@@ -79,29 +88,17 @@ published to the PowerShell Gallery. Incremental work is tracked under
   the built commit from the GitVersion `+n` suffix, test a clean clone, and
   never hard-code a version sentinel that can equal Sampler's `0.0.1` fallback.
 
-- **2026-08-01**: Recorded the shipped `2.0.0` release in `CHANGELOG.md`. With
-  the token in place the release reached GitHub and was rejected with `422 body
-  is too long`: Sampler sends the `[Unreleased]` section as the release body and
-  it had reached 143697 of the 125000 characters GitHub allows, because
-  `Create_ChangeLog_GitHub_PR` needs the same missing secret and never rolled
-  `2.0.0` into a version section. `tests/QA/module.tests.ps1` now fails at
-  100000 characters.
-
-- **2026-08-01**: Fixed the publish failure in run 30689416495. The Gallery
-  rejected `3.0.0-preview0001` with HTTP 409 because the release that shipped it
-  was never tagged: `ContinuousDelivery` anchors the pre-release number on the
-  last tag, `Publish_Release_To_GitHub` writes that tag, and it skips itself
-  when `GitHubToken` is empty while the Gallery publish still runs. The deploy
-  job now verifies both secrets before publishing. `GitHubToken` still has to be
-  added to the repository.
-
-- **2026-08-01**: Fixed the CI test failure in run 30568587317. The Memory Bank
-  health check errored because this file had reached 220 lines against its
-  200-line budget, the same append-until-red failure that broke CI on
-  2026-07-29. The budget stays; `Test-MemoryBankHealth.ps1` now raises a
-  `LineBudgetNearLimit` warning at 90 percent of any line budget, and
-  `MemoryBankHealth.Tests.ps1` prints those warnings so a passing run still
-  names the file about to breach.
+- **2026-08-01**: Hardened the release path after three related failures. The
+  `2.0.0` release was rejected with `422 body is too long` because Sampler sends
+  the `[Unreleased]` section as the body and it had reached 143697 of GitHub's
+  125000 characters; `tests/QA/module.tests.ps1` now fails at 100000. The
+  Gallery then rejected `3.0.0-preview0001` with HTTP 409 because the release
+  that shipped it was never tagged: `Publish_Release_To_GitHub` writes the tag
+  the version anchors on and skips itself when `GitHubToken` is empty, while the
+  Gallery publish still runs. The deploy job now verifies both secrets, and
+  `GitHubToken` still has to be added to the repository. The third was this file
+  reaching 220 of its 200 budgeted lines, so `Test-MemoryBankHealth.ps1` now
+  warns at 90 percent of any budget rather than failing CI at 100.
 
 - **2026-08-01**: Audited `german-tax-research` against the statutory text in
   force, correcting the `§ 237 AO` AdV interest rate, the `Art. 97 § 36 EGAO`
@@ -109,13 +106,10 @@ published to the PowerShell Gallery. Incremental work is tracked under
   2025 childcare rule. Every cited BFH docket verified clean.
 
 - **2026-07-30**: Added `evidence-package-assembly` and `subagent-dispatch`
-  (Skill count 40 → 41) and dropped the Windows PowerShell 5.1 CI leg, whose
-  ANSI decode of the BOM-less built manifest breaks the parse before any test
-  runs. Detail in `CHANGELOG.md`.
-
-- **2026-07-29**: Migrated the repository to a Sampler-built PowerShell module
-  distributed through the PowerShell Gallery (Decision 18), with CI stabilized
-  across nine failures the same day. CI rules live in `techContext.md`.
+  (Skill count 40 → 41), dropped the Windows PowerShell 5.1 CI leg, and
+  migrated the repository to a Sampler-built PowerShell module distributed
+  through the PowerShell Gallery (Decision 18). Detail in `CHANGELOG.md`; CI
+  rules live in `techContext.md`.
 
 ## Stable capabilities
 
@@ -163,10 +157,10 @@ published to the PowerShell Gallery. Incremental work is tracked under
   `Read-Host` prompt hangs an unattended run, a child present in both source and
   target is discarded rather than compared, and `Copy-Item -Recurse` may follow
   a child reparse point.
-- Curate `techContext.md`, reported at 194 of 200 budgeted lines, and
-  `systemPatterns.md`, above the 90 % warning line at 106 of 110. The former's
-  per-test-file inventory duplicates `tests/` and conflicts with the file's own
-  "do not duplicate changing inventories" rule.
+- Curate `techContext.md` and `systemPatterns.md` when either approaches its
+  line budget. `techContext.md`'s per-test-file inventory duplicates `tests/`
+  and conflicts with the file's own "do not duplicate changing inventories"
+  rule.
 
 ## Retention policy
 

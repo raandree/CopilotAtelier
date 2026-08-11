@@ -153,6 +153,12 @@ jobs:
           name: ${{ env.buildArtifactName }}
           path: output/
 
+      # tests/SkillsRefValidate.Tests.ps1 shells out to the upstream reference
+      # validator through uv. Without this step it would skip, and a skipped
+      # gate is a green build with no validation behind it.
+      - name: Install uv (skills-ref reference validator)
+        uses: astral-sh/setup-uv@v9
+
       - name: Run Tests
         run: ./build.ps1 ${{ matrix.arguments }}
 

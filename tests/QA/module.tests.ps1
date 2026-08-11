@@ -113,6 +113,18 @@ Describe 'General module control' -Tag 'QA' {
                 Should -Not -BeNullOrEmpty -Because "'$directoryName' must not be shipped empty"
         }
     }
+
+    It 'Should not ship eval scratch directories inside the built module' {
+        $moduleBase = (Get-Module -Name $script:moduleName).ModuleBase
+
+        $scratchDirectory = @(
+            Get-ChildItem -LiteralPath $moduleBase -Recurse -Directory |
+                Where-Object -FilterScript { $_.Name -in @('work', '.evalwork') }
+        )
+
+        $scratchDirectory.FullName -join '; ' |
+            Should -BeNullOrEmpty -Because 'a harness run left scratch output inside a payload directory and the build published it'
+    }
 }
 
 Describe 'Quality for module' -Tag 'QA' {

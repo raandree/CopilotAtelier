@@ -88,11 +88,58 @@ Describe 'Skills reference-validator conformance' -Tag 'Unit' {
 
     It 'runs the reference validator' {
         if (-not $script:hasUv) {
+            # CI installs uv on purpose. Skipping there would convert a missing
+            # gate into a green build, which is the whole failure this guards.
+            if ($env:CI) {
+                throw 'uv is not on PATH. CI installs it in the "Install uv" step of ci.yml; skipping here would report a green build with no validation behind it.'
+            }
+
             Set-ItResult -Skipped -Because 'uv is not installed, so the reference validator cannot be fetched'
             return
         }
 
         $script:validatorError | Should -BeNullOrEmpty -Because 'the validator must run to completion before its findings mean anything'
+    }
+
+    It 'reports a problem for a deliberately invalid skill' {
+        if (-not $script:hasUv) {
+            Set-ItResult -Skipped -Because 'uv is not installed, so the reference validator cannot be fetched'
+            return
+        }
+
+        $fixtureRoot = Join-Path ([System.IO.Path]::GetTempPath()) "skills-ref-negative-$([guid]::NewGuid().ToString('N'))"
+        $fixture = Join-Path $fixtureRoot 'Not_A_Valid_Name'
+        $null = New-Item -ItemType Directory -Path $fixture -Force
+
+        try {
+            # Uppercase and underscores in `name`, which the open specification
+            # rejects. A gate that only ever passes proves nothing; this proves
+            # the validator still reports a fault when one is present.
+            $content = @(
+                '---'
+                'name: Not_A_Valid_Name'
+                'description: Deliberately malformed fixture used to prove the gate fails.'
+                '---'
+                ''
+                '# Fixture'
+            ) -join "`n"
+            [System.IO.File]::WriteAllText((Join-Path $fixture 'SKILL.md'), $content, [System.Text.UTF8Encoding]::new($false))
+
+            $previousUtf8 = $env:PYTHONUTF8
+            $env:PYTHONUTF8 = '1'
+            try {
+                $output = & uv run --quiet --with $script:skillsRefSource python $script:runner $fixture 2>&1
+            }
+            finally {
+                $env:PYTHONUTF8 = $previousUtf8
+            }
+
+            @($output | Where-Object { $_ -match '^ERR' }) |
+                Should -Not -BeNullOrEmpty -Because 'the validator must reject a malformed skill, or the gate is decorative'
+        }
+        finally {
+            Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 
     It 'reports no problems for <SkillName>' -ForEach $script:skillCase {

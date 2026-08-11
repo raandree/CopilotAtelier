@@ -31,6 +31,30 @@ $script:skillCase = @(
         }
 )
 
+# Skills whose shipped scripts import a module the consumer has to install.
+# The hand-maintained list below catches environment-bound Skills a human
+# noticed; this one catches the dependency a script acquired without anyone
+# updating the frontmatter, which is how agent-evals shipped undeclared.
+$script:moduleImportingSkillCase = @(
+    Get-ChildItem -LiteralPath $script:skillRoot -Directory |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'SKILL.md') -PathType Leaf } |
+        Where-Object {
+            $scriptRoot = Join-Path $_.FullName 'scripts'
+
+            (Test-Path -LiteralPath $scriptRoot -PathType Container) -and
+            @(
+                Get-ChildItem -LiteralPath $scriptRoot -Recurse -File -Filter '*.ps1' |
+                    Where-Object { (Get-Content -LiteralPath $_.FullName -Raw) -match '(?m)^\s*Import-Module\s+\S' }
+            ).Count -gt 0
+        } |
+        ForEach-Object {
+            @{
+                SkillName = $_.Name
+                SkillPath = Join-Path $_.FullName 'SKILL.md'
+            }
+        }
+)
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
     $script:skillRoot = Join-Path $script:repoRoot 'Skills'
@@ -160,5 +184,19 @@ Describe 'Skill environment declarations' -Tag 'Unit' {
 
         $frontmatter['compatibility'] |
             Should -Not -BeNullOrEmpty -Because 'a Windows-only or toolchain-bound Skill must say so'
+    }
+
+    It 'discovers the Skills whose scripts import a module' -ForEach @(
+        @{ DiscoveredCount = $script:moduleImportingSkillCase.Count }
+    ) {
+        $DiscoveredCount |
+            Should -BeGreaterThan 0 -Because 'a silently empty discovery would make the rule below vacuous'
+    }
+
+    It '<SkillName> declares compatibility because a shipped script imports a module' -ForEach $script:moduleImportingSkillCase {
+        $frontmatter = script:Get-SkillFrontmatter -Path $SkillPath
+
+        $frontmatter['compatibility'] |
+            Should -Not -BeNullOrEmpty -Because 'the consumer must install that module before the script runs'
     }
 }
