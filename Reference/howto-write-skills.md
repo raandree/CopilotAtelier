@@ -56,13 +56,17 @@ Verify description length:
 
 ```yaml
 description: >-
-  One-sentence third-person summary of what the skill does, plus when to use it.
-  USE FOR: exact phrase a user would type, alternative phrasing, error message
-  pasted verbatim, tool names, bilingual terms (EN/DE).
-  DO NOT USE FOR: adjacent skill (use other-skill instead), false-positive trigger.
+  One-sentence third-person summary of what the skill does, followed by an
+  imperative trigger clause ("Use this skill when ..."). Applies even when the
+  user does not name the domain.
+  USE FOR: the general categories of request this skill serves.
+  DO NOT USE FOR: adjacent skill (use other-skill instead), near-miss request
+  that belongs elsewhere.
 ```
 
-`USE FOR:` is a keyword list, not prose — the selector matches lexical overlap, not semantics. `DO NOT USE FOR:` is the single highest-leverage anti-cannibalisation tool when two skills overlap.
+`USE FOR:` is a compact scope list at the level of **categories**, not a transcript of phrasings. Name the general classes of request the skill serves, and be pushy about listing contexts where it applies even when the user does not name the domain. `DO NOT USE FOR:` is the single highest-leverage anti-cannibalisation tool when two skills overlap, and it is what upstream means by "clarify the boundary between this skill and adjacent capabilities".
+
+Selector mechanics are not publicly documented, so assume neither lexical matching nor semantic matching. Category-level scope plus an explicit boundary holds either way; an exhaustive keyword dump only helps under an assumption nobody here has evidenced.
 
 ## Degrees of freedom
 
@@ -87,7 +91,8 @@ Analogy: narrow bridge with cliffs → guardrails (low freedom); open field → 
 
 ## Anti-patterns
 
-- Description full of prose, not keywords. (Selector matches lexical overlap.)
+- Vague description. ("Helps with documents." Names no category worth matching.)
+- **Overfitting to failed queries.** Pasting the verbatim wording of eval queries that did not trigger. The description then works on those exact strings and nothing near them. Generalise instead — name the category those queries represent. See the trigger-eval loop in [`skill-creator`](../Skills/skill-creator/SKILL.md).
 - Body holds the trigger. (Body is invisible to the selector.)
 - Time-sensitive language in main content. (Use `<details><summary>Old patterns</summary>` blocks.)
 - Inconsistent terminology. (Pick one term and use it throughout.)

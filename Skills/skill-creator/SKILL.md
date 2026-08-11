@@ -107,7 +107,7 @@ When a skill depends on MCP tools, name them **fully qualified** as `ServerName:
 
 ## Writing the description
 
-The `description` is the **only** thing the auto-selector sees. Body text never influences triggering.
+The `description` is the **only** thing the auto-selector sees. Body text never influences triggering. How the selector matches is not publicly documented, so write for both possibilities: name categories rather than betting on lexical overlap or on semantics.
 
 Rules, in order of impact:
 

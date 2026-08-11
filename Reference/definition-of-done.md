@@ -34,7 +34,7 @@ Name the artifact that proves the change works. By file type:
 
 ### 3. Authored content — Skills, Instructions, Agents, Prompts
 
-- **Skills**: folder name matches `name:`; `description` ≤ 1024 chars, third-person, with `USE FOR:` and (where adjacent skills exist) `DO NOT USE FOR:`; body ≤ 500 lines; references one level deep; behavioural-enforcement sections present where the skill encodes a skippable discipline. See [`skill-creator`](../Skills/skill-creator/SKILL.md).
+- **Skills**: folder name matches `name:`; `description` ≤ 1024 chars, third-person summary with an imperative trigger clause, category-level `USE FOR:` and (where adjacent skills exist) `DO NOT USE FOR:`; body ≤ 500 lines; references one level deep; behavioural-enforcement sections present where the skill encodes a skippable discipline. See [`skill-creator`](../Skills/skill-creator/SKILL.md).
 - **Instructions**: `applyTo` is the narrowest glob that covers the intended files; no rule duplicates one in another instruction file.
 - **All authored files**: frontmatter matches the schema for the type; emphasis used sparingly per the emphasis rule; no maintenance footers. See [`copilot-authoring.instructions.md`](../Instructions/copilot-authoring.instructions.md).
 

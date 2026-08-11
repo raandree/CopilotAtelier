@@ -68,7 +68,7 @@ Each file type uses a distinct frontmatter shape. Values must be strings unless 
 ### Skills (`Skills/**/SKILL.md`)
 
 - `name` (required): kebab-case identifier matching the folder name. No namespace prefix — a prefix makes the Skill fail to load silently.
-- `description` (required): block scalar. Start with a one-paragraph summary, then `USE FOR:` keyword list, then optional `DO NOT USE FOR:` list. Keywords drive skill auto-selection. Max 1024 characters.
+- `description` (required): block scalar. Start with a one-paragraph summary, then a `USE FOR:` list naming the general categories of request the Skill serves, then an optional `DO NOT USE FOR:` list naming adjacent Skills and near-miss requests. The description is the only text the auto-selector sees. Keep `USE FOR:` at category level; do not paste in the verbatim wording of queries that failed to trigger, which is overfitting. Max 1024 characters.
 - `compatibility` (optional): max 500 characters. Required whenever the Skill needs a specific operating system, runtime, module, or external binary. State the hard requirement, not a preference.
 - `context` (optional): `fork` runs the Skill in a dedicated subagent and returns only its result. Use it for Skills that ingest large volumes of untrusted external content or run long investigations whose intermediate detail must not reach the parent conversation. Requires `github.copilot.chat.skillTool.enabled`.
 - `license`, `metadata`, `allowed-tools` (optional): agentskills.io fields. `allowed-tools` is experimental and support varies by client.
