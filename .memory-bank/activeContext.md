@@ -30,7 +30,10 @@ sources, then return to the trigger-eval iteration for `skill-creator`.
   the `$schema`-with-capital-`Skills` trap. Manifest gained `license`,
   `repository`, `homepage`, `keywords`.
 - `tests/SkillFrontmatter.Tests.ps1` — the over-budget baseline is now a map of
-  Skill to current body length, so a baselined body cannot grow further.
+  Skill to current body length, so a baselined body cannot grow further. A
+  second ratchet holds descriptions to a 1000-character soft cap below the 1024
+  hard cap, with the eight Skills already past it pinned to their current
+  length; `authenticated-web-extraction` sits at exactly 1024.
 
 ## Focused evidence
 
@@ -84,11 +87,6 @@ Restore the domain vocabulary the category rewrite stripped from
 covers multilingual triggering. Then the outstanding handoff prompts: prompt 07
 option C, the six worst keyword-stuffed descriptions, and prompt 06's
 with/without delta.
-
-Not yet gated: description headroom. Six Skills sit at 1009 characters or more,
-and `authenticated-web-extraction` is at exactly 1024, where one added character
-is a silent drop. A warning threshold below the hard cap would surface that
-before a rewrite crosses the line.
 
 Still outstanding: add the `GitHubToken` repository secret, without which the
 deploy job fails at its guard; give the routing reduction gate real headroom

@@ -17,6 +17,20 @@ $script:oversizedBodyBaseline = @{
     'whisper-pyannote-transcription' = 560
 }
 
+# Descriptions already past the 1000-character soft cap, mapped to their current
+# length. The cap itself is 1024 and a description that passes it is dropped
+# silently, so these have almost no headroom and no entry may grow.
+$script:longDescriptionBaseline = @{
+    'authenticated-web-extraction'   = 1024
+    'marp-slide-overflow'            = 1022
+    'evidence-package-assembly'      = 1016
+    'pandoc-docx-export'             = 1013
+    'datum-configuration'            = 1010
+    'windows-gui-screenshot-capture' = 1009
+    'automatedlab-deployment'        = 1004
+    'subagent-dispatch'              = 1002
+}
+
 # Built during discovery so -ForEach expands. Building it in BeforeAll would
 # silently generate zero test cases, and a discovery-scope variable read inside
 # an It block is null at run time, so every flag travels as case data.
@@ -28,6 +42,7 @@ $script:skillCase = @(
                 SkillName = $_.Name
                 SkillPath = Join-Path $_.FullName 'SKILL.md'
                 IsOversizedBaseline = $script:oversizedBodyBaseline.ContainsKey($_.Name)
+                IsLongDescriptionBaseline = $script:longDescriptionBaseline.ContainsKey($_.Name)
             }
         }
 )
@@ -130,6 +145,32 @@ Describe 'Skill frontmatter' -Tag 'Unit' {
 
         $frontmatter['description'] | Should -Not -BeNullOrEmpty
         $frontmatter['description'].Length | Should -BeLessOrEqual 1024
+    }
+
+    It '<SkillName> keeps the description under the 1000-character soft cap' -ForEach $script:skillCase {
+        if ($IsLongDescriptionBaseline) {
+            Set-ItResult -Skipped -Because 'the description is over the soft cap in the documented baseline'
+            return
+        }
+
+        $frontmatter = script:Get-SkillFrontmatter -Path $SkillPath
+
+        $frontmatter['description'].Length |
+            Should -BeLessOrEqual 1000 -Because 'descriptions grow during trigger-eval optimisation, and the 1024-character cap fails silently'
+    }
+
+    It '<SkillName> is still over the description soft cap and must stay on the baseline' -ForEach @(
+        $script:longDescriptionBaseline.GetEnumerator() |
+            ForEach-Object { @{ SkillName = $_.Key; DescriptionCeiling = $_.Value } }
+    ) {
+        $skillPath = Join-Path (Join-Path $script:skillRoot $SkillName) 'SKILL.md'
+        $frontmatter = script:Get-SkillFrontmatter -Path $skillPath
+
+        $frontmatter['description'].Length |
+            Should -BeGreaterThan 1000 -Because 'a description trimmed under the soft cap must be removed from the baseline'
+
+        $frontmatter['description'].Length |
+            Should -BeLessOrEqual $DescriptionCeiling -Because 'a description this close to the cap must not grow; shorten it instead'
     }
 
     It '<SkillName> keeps the body within the 500-line budget' -ForEach $script:skillCase {

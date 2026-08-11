@@ -23,10 +23,10 @@ published to the PowerShell Gallery. Incremental work is tracked under
   failed-query wording" in all four files. `skill-creator` gained the fifth
   upstream authoring page it never cited, `using-scripts`, plus a pointer to the
   optional frontmatter fields. The primer's "third person, always"
-  contradiction and its Anthropic-first source list are fixed. Two guards
+  contradiction and its Anthropic-first source list are fixed. Three guards
   landed: `plugin.json` is validated for the first time, including version drift
   and the `$schema`-versus-capital-`Skills` trap, and the over-budget Skill
-  baseline became a per-Skill high-water mark.
+  baseline and the near-cap descriptions both became per-Skill high-water marks.
 
 - **2026-08-11**: Pinned the trigger-eval judge and re-measured `skill-creator`.
   `run-trigger-evals.ps1` gained `-Temperature` (omit-or-send) plus 7 tests.
