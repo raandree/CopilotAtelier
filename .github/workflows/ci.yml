@@ -156,8 +156,10 @@ jobs:
       # tests/SkillsRefValidate.Tests.ps1 shells out to the upstream reference
       # validator through uv. Without this step it would skip, and a skipped
       # gate is a green build with no validation behind it.
+      # Pinned to a full release tag: setup-uv publishes no floating major
+      # alias past v7, so `@v8`/`@v9` do not resolve.
       - name: Install uv (skills-ref reference validator)
-        uses: astral-sh/setup-uv@v9
+        uses: astral-sh/setup-uv@v9.0.0
 
       - name: Run Tests
         run: ./build.ps1 ${{ matrix.arguments }}

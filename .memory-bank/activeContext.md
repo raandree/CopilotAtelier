@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-11
+last-verified: 2026-08-12
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,10 +9,10 @@ source: current task evidence
 
 ## Current focus
 
-Four handoff prompts were run end to end in one session: the `skill-creator`
-trigger gaps, batch dispatch for the eval harness, the deferred
-`Set-CustomizationLink` findings, and the first slice of the budget work.
-Nothing is committed; the working tree holds all of it for review.
+CI was red on every test leg before any step ran, at *Prepare all required
+actions*: `astral-sh/setup-uv@v9` does not resolve. Fixed by pinning the step
+to the `v9.0.0` release tag. The previous session's four handoff prompts are
+committed in `4d02a7a`.
 
 ## Implemented
 

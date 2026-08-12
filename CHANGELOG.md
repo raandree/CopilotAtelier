@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CI resolves the `uv` install step again** (2026-08-12). Every test leg failed before it ran a single job step, at *Prepare all required actions*: `Unable to resolve action astral-sh/setup-uv@v9, unable to find version v9`. `astral-sh/setup-uv` stopped publishing a floating major alias after `v7` — `v8.3.2` and `v9.0.0` exist as full release tags, `refs/tags/v8` and `refs/tags/v9` do not — so the reference had never been resolvable. The step is now pinned to `v9.0.0`, which the workflow comment explains, and the step takes no inputs so the major bump carries no configuration risk. The three `actions/*` references in the same workflow were checked against the tag API and all resolve.
+
 - **`Set-CustomizationLink` no longer prompts, discards, or follows a link out of the tree** (2026-08-11). Three review findings had been recorded and deferred; all three still reproduced, and the reproductions are now regression tests.
 
   The `Read-Host` before replacing a non-empty discovery folder is gone. The function is reachable unattended through the shipped `Update-CopilotAtelier -Force` path, where a prompt does not fail — it waits forever on a host with no console. The opt-in is now `-Force`, surfaced on `Install-CopilotAtelier` and on [`Setup-CopilotSettings.ps1`](Setup-CopilotSettings.ps1); without it a populated folder is left alone and the message names the switch. Interactive users who previously answered `y` in-flight now re-run with `-Force`.
