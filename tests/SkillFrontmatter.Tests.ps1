@@ -12,7 +12,6 @@ $script:oversizedBodyBaseline = @{
     'outlook-email-export'           = 627
     'pandoc-docx-export'             = 775
     'pdf-to-markdown'                = 611
-    'pester-patterns'                = 796
     'sampler-migration'              = 738
     'whisper-pyannote-transcription' = 560
 }
