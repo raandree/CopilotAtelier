@@ -1,0 +1,81 @@
+[
+  {
+    "id": "pos-01",
+    "query": "how do I fake Invoke-RestMethod in a test so it returns canned json instead of calling the real API",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-02",
+    "query": "my test says CommandNotFoundException for a helper I definitely defined in the Describe block",
+    "should_trigger": true,
+    "split": "train",
+    "note": "Pattern 14. The symptom reads like a typo, so the query deliberately never says runspace or isolation"
+  },
+  {
+    "id": "pos-03",
+    "query": "running the tests locks up vscode every single time, what is the safe way to do it",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-04",
+    "query": "is there a template for testing a class-based DSC resource",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-05",
+    "query": "give me a pattern for mocking Test-Path so it only returns true for one specific path",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-06",
+    "query": "these tests are still on Pester 4, what breaks if I just run them on 5",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "contested with sampler-migration, whose description also claims Pester 4 to 5. The tooling lives here; neither description has been swept for the boundary, so a miss here is a real finding and not a bad query"
+  },
+  {
+    "id": "pos-07",
+    "query": "how do I stub out a PSCredential in a test without a real password",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "neg-01",
+    "query": "the build is red after my last commit, work out why",
+    "should_trigger": false,
+    "split": "train",
+    "note": "sampler-build-debug"
+  },
+  {
+    "id": "neg-02",
+    "query": "write the failing test first before we touch the function",
+    "should_trigger": false,
+    "split": "train",
+    "note": "test-driven-development"
+  },
+  {
+    "id": "neg-03",
+    "query": "move this old module onto the Sampler build framework",
+    "should_trigger": false,
+    "split": "train",
+    "note": "sampler-migration"
+  },
+  {
+    "id": "neg-04",
+    "query": "what goes in build.yaml for a brand new module",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "sampler-framework"
+  },
+  {
+    "id": "neg-05",
+    "query": "the DSC resource fails on the node with exit code 3010",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "dsc-troubleshooting"
+  }
+]

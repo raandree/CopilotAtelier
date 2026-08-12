@@ -64,6 +64,42 @@ This rule is backed by a deterministic guardrail, not only by trust. The `PreToo
 - Markdown must lint clean (see [`Instructions/markdown.instructions.md`](Instructions/markdown.instructions.md)).
 - If a `glossary.md` exists in `.memory-bank/`, use only its canonical terms (Ubiquitous Language).
 
+## Atomic change sets
+
+A Customization is not one file. Ship the whole set in a single commit — a
+half-added Skill leaves the catalogue, the trigger coverage, and the changelog
+disagreeing with each other, and only some of that drift is caught by CI.
+
+**Adding a Skill:**
+
+1. `Skills/<name>/SKILL.md` — folder name matching the `name:` field.
+2. `Skills/agent-evals/assets/trigger-queries.<name>.json` — labelled positives
+   plus near-miss negatives taken from *sibling Skills*, both splits populated.
+   If it will not be measured yet, add the Skill to `$uncoveredSkillBaseline`
+   in [`tests/SkillTriggerCoverage.Tests.ps1`](tests/SkillTriggerCoverage.Tests.ps1)
+   instead, and say why.
+3. `README.md` — a row in the *Available Skills* table.
+4. `CHANGELOG.md` — an entry under `[Unreleased]`.
+
+**Adding a Custom agent:**
+
+1. `Agents/<Name>.agent.md` — `name`, `description`, and a `model` priority
+   array whose last entry is a GA model.
+2. [`tests/SharedLifecycle.Tests.ps1`](tests/SharedLifecycle.Tests.ps1) — the
+   per-agent expectation map.
+3. `Agents/README.md` and `CHANGELOG.md`.
+
+**What CI enforces**, so you find the drift before review does:
+
+| Gate | Test |
+|---|---|
+| Skill name, description cap, body budget | [`tests/SkillFrontmatter.Tests.ps1`](tests/SkillFrontmatter.Tests.ps1) |
+| Skill conformance against the open specification | [`tests/SkillsRefValidate.Tests.ps1`](tests/SkillsRefValidate.Tests.ps1) |
+| Trigger coverage, query schema, orphaned query sets | [`tests/SkillTriggerCoverage.Tests.ps1`](tests/SkillTriggerCoverage.Tests.ps1) |
+| Agent, Instruction, and Prompt frontmatter | [`tests/CustomizationFrontmatter.Tests.ps1`](tests/CustomizationFrontmatter.Tests.ps1) |
+| Plugin manifest shape and version | [`tests/PluginManifest.Tests.ps1`](tests/PluginManifest.Tests.ps1) |
+| Committed credentials | [`tests/SecretScan.Tests.ps1`](tests/SecretScan.Tests.ps1) |
+
 ## Model
 
 Agents declare `model` as a priority array: `['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']`. The first available model wins, so the last entry must always be a GA model. When bumping models, update every agent frontmatter and reflect the change in the Memory Bank.

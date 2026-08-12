@@ -26,6 +26,7 @@ Ready-to-use test patterns for common PowerShell testing scenarios using Pester 
 - You want proven patterns for testing complex PowerShell code
 - You need to test credential handling, DSC resources, or async operations
 - You need to run Pester tests without hanging VS Code
+- You are moving an existing Pester 4 suite onto the Pester 5 engine
 
 ## Pattern 0: Run Tests via the Fully Detached Launcher
 
@@ -95,6 +96,39 @@ touch, so they live one level down and keep their numbers.
 |---|---|---|
 | [`references/mocking-external-dependencies.md`](references/mocking-external-dependencies.md) | 1-3 | Mocking the file system and `TestDrive`, `Invoke-RestMethod` and `Invoke-WebRequest` including paginated responses, `PSCredential` and `SecureString` |
 | [`references/testing-powershell-constructs.md`](references/testing-powershell-constructs.md) | 4-13 | Class-based and MOF-based DSC resources, PowerShell classes, pipeline functions, `ErrorVariable` and warning and verbose streams, dates and times, `ShouldProcess`, environment variables, module exports, private functions, external test fixtures |
+
+## Migrating a Pester 4 Suite
+
+A v4 suite does not fail loudly on v5 — it fails *quietly*. Setup that used to
+run per test now runs once during Discovery, a mock that covered a whole
+`Describe` now covers only where it sits, and `Should -Throw` matches with
+`-like`. A migrated test can pass while asserting less than it did before, so
+the migration is driven by a baseline count and a detection sweep rather than
+by reading the diff.
+
+Size the work first:
+
+```powershell
+& "<skill-path>/scripts/Find-PesterV4Pattern.ps1" -Path ./tests |
+    Group-Object -Property Construct |
+    Sort-Object -Property Count -Descending
+```
+
+The script parses each file's AST and reports legacy `Should`,
+`Assert-MockCalled` and `Assert-VerifiableMock(s)`, `Describe`/`Context`/`It`
+wrapped in `InModuleScope`, `$MyInvocation.MyCommand.Path`, commands running at
+file top level or in a block body, and retired `Invoke-Pester` parameters. It
+reports; it never rewrites. Discovery-time code that feeds `-ForEach` is legal
+and still shows up, so every finding needs a human decision.
+
+The construct-by-construct replacements, the mock scoping rules, the runner
+parameter map, and the completion checklist are in
+[`references/migrating-pester-v4-to-v5.md`](references/migrating-pester-v4-to-v5.md).
+
+> A request phrased as *"migrate this project off the old build system"* belongs
+> to [`sampler-migration`](../sampler-migration/SKILL.md), which owns the legacy
+> project walkthrough. The tooling above stays here because it is a Pester
+> concern. Neither description has been swept for that boundary yet.
 
 ## Pattern 14: Helpers Used Inside `It` Must Live in `BeforeAll`
 

@@ -1,0 +1,74 @@
+[
+  {
+    "id": "pos-01",
+    "query": "./build.ps1 -Tasks test blows up and I cannot tell which part failed",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-02",
+    "query": "it passes locally but the pipeline is red on the same commit",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-03",
+    "query": "vscode goes completely unresponsive whenever I kick off the build task",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-04",
+    "query": "where does the build put the pester results and how do I read them",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-05",
+    "query": "the version comes out as 0.0.1 in CI but is fine locally",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-06",
+    "query": "the test task errors out before a single test runs",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "discovery-phase failure phrased as a build symptom rather than a Pester one"
+  },
+  {
+    "id": "neg-01",
+    "query": "explain what each section of build.yaml is for",
+    "should_trigger": false,
+    "split": "train",
+    "note": "sampler-framework"
+  },
+  {
+    "id": "neg-02",
+    "query": "migrate this project from AppVeyor to Sampler",
+    "should_trigger": false,
+    "split": "train",
+    "note": "sampler-migration"
+  },
+  {
+    "id": "neg-03",
+    "query": "give me a template for mocking a REST call in a test",
+    "should_trigger": false,
+    "split": "train",
+    "note": "pester-patterns"
+  },
+  {
+    "id": "neg-04",
+    "query": "should I write the test first for this change",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "test-driven-development"
+  },
+  {
+    "id": "neg-05",
+    "query": "WinRM refuses the connection after the server reboots",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "winrm-troubleshooting"
+  }
+]

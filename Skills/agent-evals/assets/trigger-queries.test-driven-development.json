@@ -1,0 +1,75 @@
+[
+  {
+    "id": "pos-01",
+    "query": "should I write the test before the function or after it works",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-02",
+    "query": "we found a bug in Get-Widget, how do I make sure it can never come back",
+    "should_trigger": true,
+    "split": "train",
+    "note": "regression guard framing, never says TDD"
+  },
+  {
+    "id": "pos-03",
+    "query": "our tests always pass first time and never catch anything, what are we doing wrong",
+    "should_trigger": true,
+    "split": "train",
+    "note": "the test-after failure mode described as a symptom"
+  },
+  {
+    "id": "pos-04",
+    "query": "should this be a unit test or an integration test",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-05",
+    "query": "I want to add this feature test first, walk me through it",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-06",
+    "query": "wir wollen testgetrieben arbeiten, wo fangen wir an",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "neg-01",
+    "query": "show me how to mock Get-Content in a test",
+    "should_trigger": false,
+    "split": "train",
+    "note": "pester-patterns"
+  },
+  {
+    "id": "neg-02",
+    "query": "the Pester run only fails in CI, never on my machine",
+    "should_trigger": false,
+    "split": "train",
+    "note": "sampler-build-debug"
+  },
+  {
+    "id": "neg-03",
+    "query": "review this diff and tell me whether it is ready to merge",
+    "should_trigger": false,
+    "split": "train",
+    "note": "code-review-and-quality"
+  },
+  {
+    "id": "neg-04",
+    "query": "convert these old Should Be assertions to the dashed form",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "pester-patterns, and the closest near-miss in the set: it is about tests but carries no test-first decision"
+  },
+  {
+    "id": "neg-05",
+    "query": "set the code coverage threshold for the build",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "sampler-framework"
+  }
+]

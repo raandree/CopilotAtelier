@@ -1,0 +1,74 @@
+[
+  {
+    "id": "pos-01",
+    "query": "we still build with AppVeyor and PSDeploy, move us onto Sampler",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-02",
+    "query": "convert this legacy module repo to the Sampler layout without losing anything",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-03",
+    "query": "old module, no build system at all, set it up the modern way",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-04",
+    "query": "what order should I do the migration in so the repo stays buildable",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-05",
+    "query": "we are moving to Sampler and the test suite is still on the old Pester, what is the sequence",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "the migration side of the boundary shared with pester-patterns. The distinguishing signal is the project move; the Pester detail is subordinate to it"
+  },
+  {
+    "id": "pos-06",
+    "query": "scaffold Sampler over an existing module without starting from a blank template",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "neg-01",
+    "query": "my Sampler build is red, help me find the cause",
+    "should_trigger": false,
+    "split": "train",
+    "note": "sampler-build-debug"
+  },
+  {
+    "id": "neg-02",
+    "query": "what does the DscResource key in build.yaml control",
+    "should_trigger": false,
+    "split": "train",
+    "note": "sampler-framework"
+  },
+  {
+    "id": "neg-03",
+    "query": "mock Invoke-WebRequest so the test never hits the network",
+    "should_trigger": false,
+    "split": "train",
+    "note": "pester-patterns"
+  },
+  {
+    "id": "neg-04",
+    "query": "write the test first for this new function",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "test-driven-development"
+  },
+  {
+    "id": "neg-05",
+    "query": "publish this module to the PowerShell Gallery",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "sampler-framework"
+  }
+]

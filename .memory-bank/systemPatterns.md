@@ -78,6 +78,10 @@ carries the rest.
 - A gate that can skip is not a gate. An external-tool check must fail where it
     is supposed to protect — CI — and must be proven to reject a bad input, or
     it reports a green build with nothing behind it.
+- Known debt is a shrink-only baseline keyed to the offending item, never a
+    disabled check. The gate then proves the fix rather than the intent: an item
+    that improves fails until its entry is removed, and a new item cannot join
+    the debt silently.
 - Frontmatter is the live control surface: Custom agent tools, model priority,
     subagent eligibility, and handoffs; Instruction `applyTo` scope; Prompt
     Custom agent binding.

@@ -1,0 +1,73 @@
+[
+  {
+    "id": "pos-01",
+    "query": "what belongs in RequiredModules.psd1 and how does it get resolved",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-02",
+    "query": "I need to add a custom task to the build workflow, where does it go",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-03",
+    "query": "how do I raise the code coverage threshold for this module",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-04",
+    "query": "explain the folder layout Sampler expects for a new module",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-05",
+    "query": "how does the module actually get published to the gallery from the pipeline",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-06",
+    "query": "set up GitVersion so the module version comes from the git history",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "neg-01",
+    "query": "my build is failing and I need to know why",
+    "should_trigger": false,
+    "split": "train",
+    "note": "sampler-build-debug, the sibling this description most often loses to"
+  },
+  {
+    "id": "neg-02",
+    "query": "we still depend on PSDepend, what replaces it",
+    "should_trigger": false,
+    "split": "train",
+    "note": "sampler-migration"
+  },
+  {
+    "id": "neg-03",
+    "query": "how does Datum decide which value wins across the hierarchy",
+    "should_trigger": false,
+    "split": "train",
+    "note": "datum-configuration"
+  },
+  {
+    "id": "neg-04",
+    "query": "how do I mock a database call in a unit test",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "pester-patterns"
+  },
+  {
+    "id": "neg-05",
+    "query": "the DSC configuration will not compile",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "dsc-troubleshooting"
+  }
+]

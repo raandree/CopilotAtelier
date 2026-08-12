@@ -15,6 +15,20 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-12**: Adopted four items from a review of an external Copilot
+  catalogue, reimplemented rather than copied. `pester-patterns` gained an AST
+  detector for Pester v4 constructs plus a v4-to-v5 reference; against this
+  repository's own suite it returns 0 `BlockBodyCommand` and 18
+  `TopLevelCommand` findings, all of them deliberate discovery-time `-ForEach`
+  builders, which is the signal-to-noise a detector needs to survive.
+  `SkillTriggerCoverage` turns "1 Skill of 44 has ever been measured for
+  discovery" into a shrink-only baseline of 38, with five sets shipped for the
+  Pester and Sampler cluster whose negatives are near misses lifted from each
+  other. `SecretScan` and `CustomizationFrontmatter` close the two gates that
+  did not exist, the former carrying a planted-credential test because a gate
+  never shown to reject is not a gate. `AGENTS.md` now names the atomic change
+  set per Customization type. 603 passed, 0 failed, coverage 78.44 %.
+
 - **2026-08-12**: Unblocked CI. Every test leg failed at *Prepare all required
   actions* on `Unable to resolve action astral-sh/setup-uv@v9`. The action
   publishes no floating major alias past `v7` — `v9.0.0` is a release tag,
@@ -88,11 +102,6 @@ published to the PowerShell Gallery. Incremental work is tracked under
   logged instead: markdown-wrapped, quoted and parenthesised answers do not
   match, and `SELECTED: x.` scores as a different skill, not a format failure.
 
-- **2026-08-11**: `run-trigger-evals.ps1 -Mode Execute` probes `Invoke-Shp` for
-  `-Temperature` and throws once instead of failing 54 calls in the binder. Test
-  the parameter, not the version: `0.4.0-preview0003` reports `0.4.0`, so a
-  "0.4.0 or later" claim passes on the build that fails.
-
 - **2026-08-11**: Audited the customization library against the live upstream
   sources and closed six gaps. The category-level `USE FOR:` rewrite had
   conflated two different upstream rules — the specification wants domain
@@ -105,19 +114,6 @@ published to the PowerShell Gallery. Incremental work is tracked under
   landed: `plugin.json` is validated for the first time, including version drift
   and the `$schema`-versus-capital-`Skills` trap, and the over-budget Skill
   baseline and the near-cap descriptions both became per-Skill high-water marks.
-
-- **2026-08-11**: Audited the Agent Skills guidance refresh and remediated it.
-  The content held up — no truncation, no encoding drift, both upstream sources
-  re-verified — but the process did not: committed and pushed against a standing
-  "do not commit", no Memory Bank or changelog entry, and a harness run left 108
-  scratch files inside the published `Skills/` payload that `Copy-Item -Recurse`
-  would have shipped to the Gallery. The `skills-ref` gate was real locally and
-  inert in CI, because nothing installed `uv` there. Now closed: scratch is
-  ignored and pruned, CI installs `uv` and the gate throws rather than skips, a
-  negative fixture proves it rejects a bad `name`, and `agent-evals` declares
-  the dependencies it had silently acquired. The handoff's "CHANGELOG.md does
-  not parse" premise was false throughout — all four supposed pre-existing
-  failures pass under `build.ps1` and appear only under a bare `Invoke-Pester`.
 
 ## Stable capabilities
 
@@ -145,6 +141,9 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Open work
 
+- Run the five shipped trigger-query sets, then cover the 38 Skills still on the
+  `SkillTriggerCoverage` uncovered baseline. The sets are authored but
+  unmeasured, so the gate currently proves only that the queries exist.
 - Split the nine Skills still on the `SkillFrontmatter` over-budget baseline
   into bodies under 500 lines plus one-level references, one per change,
   removing each from the baseline as it lands. `german-legal-research` at 780
