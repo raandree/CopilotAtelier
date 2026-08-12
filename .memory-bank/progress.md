@@ -15,6 +15,63 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-11**: Took the worst over-budget Skill and the tighter Memory Bank
+  file back under budget. `pester-patterns` split from a 796-line body to 149,
+  with patterns 1-13 moved into two one-level references and patterns 0 and 14
+  — the rules that apply to every run — kept in the body; its baseline entry is
+  gone, so the gate proves the fix instead of documenting the intent. Its
+  description was not touched, so the trigger surface is unchanged. Nine Skills
+  remain baselined. `systemPatterns.md` dropped from 106 lines to 86 by deleting
+  the repository tree, a changing inventory that duplicated `techContext.md` and
+  broke this file's own rule; its build warning is gone. Two premises did not
+  hold on inspection: `techContext.md`'s per-test-file inventory was already
+  curated away, and the routing reduction is 56.11 % rather than the recorded
+  49.57 %, moving further above the floor with each curation.
+
+- **2026-08-11**: Closed the three deferred `Set-CustomizationLink` findings,
+  all of which still reproduced. The `Read-Host` is gone: the opt-in is now
+  `-Force`, surfaced on `Install-CopilotAtelier` and `Setup-CopilotSettings.ps1`,
+  because the function is reachable unattended through
+  `Update-CopilotAtelier -Force` where a prompt waits forever rather than
+  failing. Measured before the fix: a child present in both places lost the
+  deployed copy (`126 lines` gone, `106 lines` left), and `Copy-Item -Recurse`
+  materialised a junction's outside content inside the target. Decision 0020
+  settles the policy — anything that cannot merge without loss stops the merge
+  and nothing is copied or removed, with equality proven by SHA-256 rather than
+  by presence. 7 tests, red against the previous implementation, green against
+  the fix.
+
+- **2026-08-11**: Moved the trigger-eval sweep onto `Invoke-ShpBatch`. The
+  identical pinned 69-call sweep runs in 26.3 s batched at `-ThrottleLimit 4`
+  against 103.9 s sequential for the same 0.76 USD, which is what makes the
+  N x R x M model-tier comparison practical. `-Dispatch Sequential` is kept so
+  an older run stays reproducible. Batch items are stateless by contract, so
+  `Clear-ShpChat` is gone from that path; failures arrive as data; and replies
+  are correlated on `Id`, because results land in completion order. The
+  measurement itself did not move — but the control did the real work: two
+  *sequential* runs of one description disagreed with each other as much as
+  batch disagreed with sequential (`pos-09` 1/3 then 2/3, `pos-06` 3/3 then
+  1/3). `-Temperature 0` reduces run-to-run judge variance without removing it,
+  so any query near the 0.5 threshold moves between runs. 21 harness tests,
+  still hermetic.
+
+- **2026-08-11**: Re-measured `skill-creator`'s two standing trigger gaps and
+  found the recorded cause wrong. A pinned baseline over an extended query set
+  gave train 13/14 and validation 7/8: `pos-09` now scores 3/3, so the "1 of 3"
+  recorded against it no longer reproduces. An 18-call probe then isolated the
+  `pos-07` variable — its literal English translation fails 0/3 while a
+  differently worded German request passes 3/3, so the miss is the concept
+  "build a skill out of existing material", not the language. Two train
+  stand-ins for that concept and for the scoping decision, plus two matched
+  near-miss negatives, are now in the query set. Editing the description
+  against train only (990 to 989 characters, dropping `output evals`,
+  `degrees-of-freedom calibration` and the duplicated gotchas and overlap
+  entries) took train to 15/15 — but validation fell to 6/8, because `pos-09`
+  dropped from 3/3 to 1/3 while its train stand-in rose to 3/3. Train climbing
+  while validation falls is the overfitting signal, so the edit is left
+  uncommitted for the owner rather than claimed as an improvement. 198 judge
+  calls, 2.19 USD.
+
 - **2026-08-11**: Measured the claim that the trigger-eval grader scores a prose
   reply like a wrong selection, and withdrew it. All 162 stored replies parse;
   the reply cited as evidence leads with `SELECTED: none`, and the quoted
@@ -45,22 +102,6 @@ published to the PowerShell Gallery. Incremental work is tracked under
   and the `$schema`-versus-capital-`Skills` trap, and the over-budget Skill
   baseline and the near-cap descriptions both became per-Skill high-water marks.
 
-- **2026-08-11**: Pinned the trigger-eval judge and re-measured `skill-creator`.
-  `run-trigger-evals.ps1` gained `-Temperature` (omit-or-send) plus 7 tests.
-  Paired sweeps, same 44-skill catalogue and description: pinned at 0 gave train
-  10/10 and validation 6/8; unpinned gave 10/10 and 5/8. So 13 points of
-  validation was sampler noise — `pos-06` scored 1.00 pinned and 0.33 unpinned,
-  and would have been "fixed" by editing a description that already worked. Two
-  failures survive pinning: `pos-07` (a German request) at 0 of 3 and `pos-09`
-  ("one skill or split into references?") at 1 of 3, both plausibly the cost of
-  the category-level `USE FOR:` rewrite. Method findings: the installed
-  ShellPilot `0.4.0` predates `Invoke-Shp -Temperature`, so import a newer build
-  by path; `-Temperature 0` reduces but does not remove variance; and the grader
-  scores a prose reply like a wrong selection (withdrawn 2026-08-11: measured 0
-  unparseable of 162). An earlier validation 7/8 figure
-  is withdrawn — its `-SkillRoot` was the repository root, duplicating every
-  skill via `output/`.
-
 - **2026-08-11**: Audited the Agent Skills guidance refresh and remediated it.
   The content held up — no truncation, no encoding drift, both upstream sources
   re-verified — but the process did not: committed and pushed against a standing
@@ -73,60 +114,6 @@ published to the PowerShell Gallery. Incremental work is tracked under
   the dependencies it had silently acquired. The handoff's "CHANGELOG.md does
   not parse" premise was false throughout — all four supposed pre-existing
   failures pass under `build.ps1` and appear only under a bare `Invoke-Pester`.
-
-- **2026-08-11**: Returned `main` to green after two of three CI matrix legs
-  failed. The heartbeat cancellation test used `Start-Process -WindowStyle`,
-  which raises `NotSupportedException` on non-Windows PowerShell, so no local
-  Windows run could reproduce it; the shipped launcher had guarded the same
-  parameter from the start. The standing risk is the preceding failure: the
-  routing gate reported `49.57 %` against its `50 %` floor, because
-  `activeContext.md` is routed into 23 of 25 baseline cases.
-
-- **2026-08-11**: Corrected `windows-gui-screenshot-capture`, prompted by a live
-  "screenshot the Edge window" request the Skill answered wrongly twice. Its
-  "GPU-composited content returns solid black" verdict had generalised a
-  WebView2 measurement to all of Chromium; on Windows `10.0.26200` with Edge
-  `151.0.4129.72`, `PW_RENDERFULLCONTENT` painted a full 2560x1540 frame first
-  try. Step 2 now separates a hosted control from an application's own top-level
-  frame and prescribes attempt, validate, escalate. `scripts/WindowCapture.ps1`
-  adds the branch for a window the user already had open, with 13 new tests.
-
-- **2026-08-10**: `long-running-job-monitor` gained an unprompted chat
-  heartbeat. Measured that an async command's completion notification spawns an
-  agent turn with no user input, disproving the Skill's own claim that the agent
-  cannot self-schedule. `Start-JobHeartbeat.ps1` arms one tick and emits a
-  measured summary, backed by a metadata-only state file that stores no probe
-  scriptblock because it is re-read and acted on at every wake. Live smoke tests
-  proved the wake chain and exposed a missing cancel, so `-Stop` now kills a
-  pending tick after matching the recorded process start time.
-
-- **2026-08-07**: `pandoc-docx-export` now carries the grey shading Word drops
-  silently. Pandoc maps block quotes to `BlockText` and inline code to
-  `VerbatimChar` correctly, but neither style has a fill in the stock reference
-  document, so the preview's distinction is lost without warning. Recipe 3
-  gained both `w:shd` patches and an output-side count of the two styles;
-  gotcha #6 records that `w:pPr` and `w:rPr` are ordered sequences, that `[xml]`
-  parsing cannot catch an order violation, and that only a headless LibreOffice
-  conversion to PDF proves the file opens.
-
-- **2026-08-06**: `subagent-dispatch` gained the mirror image of its
-  no-pre-judging rule: never hand a re-performer the answer. A "sealed" section
-  in the same brief is no barrier, so expected values go in a separate file the
-  reviewer opens deliberately; agreement under exposure counts weaker than
-  disagreement.
-
-- **2026-08-04**: Added `Skills/gilb-requirements-engineering`, covering Tom and
-  Kai Gilb's method: Planguage `Scale` and `Meter` quantification, Impact
-  Estimation Tables, Evo step planning, and Specification Quality Control.
-  `grill-me` elicits; this Skill quantifies, and both cross-reference the other.
-
-- **2026-08-01**: Hardened the release path and the `progress.md` append that
-  had broken CI twice. `[Unreleased]` is capped before the GitHub release call,
-  the deploy job verifies both secrets, a budget breach warns at 90 percent
-  rather than failing at 100, and Post-flight curates the oldest entries in the
-  same edit. `CHANGELOG.md` holds the three failures behind it. `GitHubToken`
-  has since been added, and the release job has tagged every build from
-  `v3.0.0-preview0003` on.
 
 ## Stable capabilities
 
@@ -154,9 +141,10 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Open work
 
-- Split the ten Skills on the `SkillFrontmatter` over-budget baseline into
-  bodies under 500 lines plus one-level references, removing each from the
-  baseline as it lands.
+- Split the nine Skills still on the `SkillFrontmatter` over-budget baseline
+  into bodies under 500 lines plus one-level references, one per change,
+  removing each from the baseline as it lands. `german-legal-research` at 780
+  body lines is the next worst.
 - Continue splitting oversized auto-applied Instructions into concise enforced
   rules plus on-demand Skill references where that can be done without losing
   behavior.
@@ -170,14 +158,10 @@ published to the PowerShell Gallery. Incremental work is tracked under
 - Evaluate the remaining VS Code surfaces that no Customization covers yet:
   the agent host and its harness selection, `chat.assistedPermissions.enabled`,
   and organization-level instructions and agents.
-- Address the deferred Minor review findings in `Set-CustomizationLink`: the
-  `Read-Host` prompt hangs an unattended run, a child present in both source and
-  target is discarded rather than compared, and `Copy-Item -Recurse` may follow
-  a child reparse point.
 - Curate `techContext.md` and `systemPatterns.md` when either approaches its
-  line budget. `techContext.md`'s per-test-file inventory duplicates `tests/`
-  and conflicts with the file's own "do not duplicate changing inventories"
-  rule.
+  line budget. The per-test-file inventory `techContext.md` once carried is
+  already gone, and `systemPatterns.md` now has 24 lines of headroom, which the
+  Decision index consumes one line at a time.
 
 ## Retention policy
 

@@ -9,107 +9,81 @@ source: current task evidence
 
 ## Current focus
 
-Close the conformance gaps a web audit found against the live Agent Skills
-sources, then return to the trigger-eval iteration for `skill-creator`.
+Four handoff prompts were run end to end in one session: the `skill-creator`
+trigger gaps, batch dispatch for the eval harness, the deferred
+`Set-CustomizationLink` findings, and the first slice of the budget work.
+Nothing is committed; the working tree holds all of it for review.
 
 ## Implemented
 
-- `Skills/skill-creator/SKILL.md` — cites `using-scripts`, the fifth upstream
-  authoring page, and carries its rules as **Design the interface for a
-  non-interactive caller**: never prompt, `--help`, actionable errors, stdout
-  versus stderr, bounded output, distinct exit codes, idempotency, dependencies
-  declared in the script. Frontmatter now points at the optional fields and
-  records that `context: fork` is why two Skills fail `skills-ref`. 473/500.
-- The keyword rule is narrowed in all four files that state it: the
-  specification wants domain keywords, and only failed-query wording overfits.
-- `Reference/howto-write-skills.md` — "third person, always" replaced by the
-  reconciliation `skill-creator` already carried; sources reordered so the open
-  standard's five pages lead and the VS Code surface is named.
-- `tests/PluginManifest.Tests.ps1` — first validation of `plugin.json`: name,
-  component paths, version against the newest released changelog section, and
-  the `$schema`-with-capital-`Skills` trap. Manifest gained `license`,
-  `repository`, `homepage`, `keywords`.
-- `tests/SkillFrontmatter.Tests.ps1` — the over-budget baseline is now a map of
-  Skill to current body length, so a baselined body cannot grow further. A
-  second ratchet holds descriptions to a 1000-character soft cap below the 1024
-  hard cap, with the eight Skills already past it pinned to their current
-  length; `authenticated-web-extraction` sits at exactly 1024.
-- `run-trigger-evals.ps1` — `Execute` mode probes `Invoke-Shp` for
-  `-Temperature` before the loop and throws once, naming the resolved build and
-  the fix. The probe tests the parameter, not the version: `0.4.0-preview0003`
-  reports `0.4.0`, so the `compatibility` claim "ShellPilot 0.4.0 or later"
-  passed the build that fails. That field now names `0.4.0-preview0004` and says
-  why a version test cannot decide it. `tests/TriggerEvalHarness.Tests.ps1`
-  stands a real stale module on disk rather than a bare function, so the message
-  it asserts carries a version, a prerelease and a path.
-- The machine's ShellPilot is current: `0.4.0-preview0005` at
-  `~\Documents\PowerShell\Modules\ShellPilot\0.4.0`, built from
-  `V:\Git\ShellPilot` at tag `v0.4.0-preview0005` with `$env:ModuleVersion`
-  supplying what GitVersion could not — neither GitVersion nor dotnet exists on
-  this host, so a plain Sampler build stamps the source manifest's `0.0.1` and
-  loses to the installed `0.4.0`. The displaced `preview0003` is kept at
-  `~\Documents\PowerShell\ShellPilot-0.4.0-preview0003.backup`, outside any
-  module path.
+- `Skills/skill-creator/SKILL.md` — the description covers two concepts it did
+  not: building a skill out of existing material, and deciding whether
+  something deserves a skill at all and whether it is one skill, two, or a
+  reference. 990 to 989 characters, under the 1000-character soft-cap ratchet.
+  Dropped to pay for it: `output evals` (agent-evals territory),
+  `degrees-of-freedom calibration` (no query covers it), and the gotchas and
+  overlap entries that were stated twice.
+- `Skills/agent-evals/assets/trigger-queries.skill-creator.json` — five queries.
+  `pos-10` German packaging, `pos-11` scoping decision, `pos-12` build from an
+  existing document, plus `neg-10` and `neg-11` as matched near-misses so a
+  keyword-stuffing edit is penalised rather than rewarded.
+- `Skills/agent-evals/scripts/run-trigger-evals.ps1` — `-Dispatch Batch` is the
+  default and `-ThrottleLimit` defaults to 4. `Clear-ShpChat` is gone from the
+  batch path because every item is dispatched with `-History @()`; failures
+  arrive as data; replies are correlated on `Id` because results land in
+  completion order. `-Dispatch Sequential` is kept and documented.
+  `tests/TriggerEvalHarness.Tests.ps1` grew to 21 hermetic tests.
+- `source/Private/Set-CustomizationLink.ps1` — no `Read-Host`. The opt-in is
+  `-Force`, surfaced on `Install-CopilotAtelier` and `Setup-CopilotSettings.ps1`.
+  Anything that cannot merge without loss stops the merge and is reported, with
+  equality proven by SHA-256 in `Test-CustomizationChildMatch`. Decision 0020.
+- `Skills/pester-patterns/` — body 796 to 149 lines, patterns 1-13 in two
+  one-level references, baseline entry removed. `.memory-bank/systemPatterns.md`
+  106 to 86 lines.
 
 ## Focused evidence
 
-- Detached Pester over `SkillFrontmatter`, `PluginManifest`, `SharedLifecycle`:
-  206 passed, 0 failed, 10 skipped, exit 0. `markdownlint-cli2` reports 0 issues
-  across the four changed Markdown files. The last full `./build.ps1 -Tasks
-  build, test` before these edits: 447 passed, 0 failed, coverage 70.67 %.
-- Paired sweeps, same 44-skill catalogue, same `claude-haiku-4.5`, same
-  description (`57b2cf9`), 54/54 succeeding each, 0.60 USD each:
+- `./build.ps1 -Tasks build, test`: 518 passed, 0 failed, coverage 78.44 %,
+  2 warnings. The `systemPatterns.md` budget warning is gone; `progress.md` is
+  at 174 of 200, below the 180-line warning threshold.
+- Routing reduction 56.11 % against the 50 % floor, up from 55.69 % before the
+  curation. The recorded 49.57 % no longer holds.
+- Trigger evals, all pinned at `-Temperature 0`, 198 judge calls, 2.19 USD:
 
-  | | train | validation | false negatives |
-  |---|---|---|---|
-  | `-Temperature 0` | 10/10 (100%) | 6/8 (75%) | `pos-07`, `pos-09` |
-  | unpinned | 10/10 (100%) | 5/8 (62%) | `pos-06`, `pos-07`, `pos-09` |
+  | description | train | validation |
+  |---|---|---|
+  | before | 13/14 (93%) | 7/8 (88%) |
+  | after | 15/15 (100%) | 6/8 (75%) |
 
-- **13 points of validation was sampler noise.** `pos-06` scored 1.00 pinned and
-  0.33 unpinned; unpinned it would have been "fixed" by editing a description
-  that already worked. That row is the whole argument for the parameter.
-- Two failures survive pinning and are real. `pos-07`
-  (`kannst du aus dieser Anleitung einen wiederverwendbaren Skill bauen?`) is
-  **0 of 3 both ways** — a repeatable miss on a German request. `pos-09`
-  (`should this be one skill or split into references?`) is 1 of 3 both ways.
-  Both are plausibly the cost of the category-level rewrite: `USE FOR:` used to
-  carry the literal `split into references` and `body too long`.
-- The earlier "train 10/10, validation 7/8" figure taken on 2026-08-11 by the
-  ShellPilot session is **withdrawn**: it used `-SkillRoot` at the repository
-  root, so the judge chose from 88 entries with every skill duplicated.
+- Dispatch comparison on the identical 69-call sweep: 26.3 s batched at
+  `-ThrottleLimit 4` against 103.9 s sequential, 0.7623 against 0.7659 USD.
 
 ## Open findings
 
-- `-Temperature 0` reduces variance but does not remove it: `pos-04` still
-  scored 0.67 pinned. The harness exposes no `-Seed`.
-- **Withdrawn: the grader does not mis-score prose.** All 162 stored replies
-  under `%TEMP%\trigger-evals\` and `.evalwork\` parse; none is unparseable. The
-  reply cited as prose, `skill-creator-temp0\neg-01.rep2`, leads with
-  `SELECTED: none` and was graded `none` — the quoted fragment is line 3 of the
-  explanation beneath it. The regex is multiline, so a compliant line anywhere in
-  the reply is found. 16 of 162 replies do append prose after a compliant line,
-  and every one answers `none`: the judge obeys the format, then explains why it
-  declined.
-- Two grader defects survive that measurement, both latent at incidence 0.
-  `**SELECTED:** x`, `` SELECTED: `x` ``, `> SELECTED: x` and `SELECTED: x (why)`
-  do not match at all; `SELECTED: x.` matches but captures `x.`, so a correct
-  answer is scored as a *different skill* rather than as a format failure.
-  Hardening the capture is cheap insurance — decide it on its own merits, not on
-  the withdrawn premise.
+- **The description edit is not proven to be an improvement.** Train climbed to
+  100 % while validation fell, which is the overfitting signal. It is left
+  uncommitted for the owner to accept or revert.
+- **`-Temperature 0` does not make the judge reproducible.** Three pinned sweeps
+  of one description scored `pos-09` at 1/3, 2/3 and 3/3, and `pos-06` at 3/3,
+  1/3 and 2/3. Any query near the 0.5 trigger threshold moves between runs, so a
+  single sweep cannot settle a marginal query. `Invoke-ShpBatch` exposes a
+  `-Seed` the harness does not use yet.
+- **The recorded cause of `pos-07` was wrong.** Its literal English translation
+  fails 0/3 while a differently worded German request passes 3/3, so the miss is
+  a concept gap rather than a language one. `pos-07` itself still fails.
+- The failure-isolation test adds one build warning naming a deliberately failed
+  stub item. `-WarningAction SilentlyContinue`, `-WarningAction Ignore` and a
+  stream redirect were all measured; Pester surfaces the warning regardless.
+- Two grader defects survive, both latent at incidence 0. `**SELECTED:** x`,
+  `` SELECTED: `x` ``, `> SELECTED: x` and `SELECTED: x (why)` do not match at
+  all; `SELECTED: x.` matches but captures `x.`, so a correct answer is scored
+  as a different skill rather than as a format failure.
 - `Prompts/export-emails.prompt.md` is a generation behind the copy deployed
   under `~/.copilot/prompts/` — 106 lines against 126. Back-porting is a content
   decision, left to the owner.
 
 ## Next step
 
-Restore the domain vocabulary the category rewrite stripped from
-`skill-creator`'s `USE FOR:` — the narrowed rule now permits it — and re-measure
-`pos-09` on train only. `pos-07` is a non-English request and nothing upstream
-covers multilingual triggering. Then the outstanding handoff prompts: prompt 07
-option C, the six worst keyword-stuffed descriptions, and prompt 06's
-with/without delta.
-
-Still outstanding: give the routing reduction gate real headroom rather than the
-roughly 1 KB it has now. The `GitHubToken` secret is no longer outstanding — it
-is configured, and `Publish_Release_To_GitHub` has tagged every build from
-`v3.0.0-preview0003` through `v3.2.0-preview0001`.
+Decide whether to keep or revert the `skill-creator` description edit. Then the
+next budget slice: `german-legal-research` at 780 body lines is the worst of the
+nine Skills still baselined.
