@@ -54,6 +54,27 @@
     "split": "validation"
   },
   {
+    "id": "pos-10",
+    "query": "ich möchte diesen Freigabeprozess als Skill verpacken, damit der Agent ihn künftig selbst findet",
+    "should_trigger": true,
+    "split": "train",
+    "note": "a German packaging request. It passes, which is what disproved the theory that non-English phrasing is why pos-07 misses; kept as the regression guard for that"
+  },
+  {
+    "id": "pos-11",
+    "query": "is this big enough to be its own skill, or should the extra material live in a reference file?",
+    "should_trigger": true,
+    "split": "train",
+    "note": "train stand-in for pos-09: a structure decision phrased as a question rather than as an instruction"
+  },
+  {
+    "id": "pos-12",
+    "query": "we have a how-to document for this — build a skill from it",
+    "should_trigger": true,
+    "split": "train",
+    "note": "the concept pos-07 actually tests. A probe measured 2026-08-11 showed pos-07's literal English translation failing 0/3 while a differently worded German request passed 3/3, so the variable is converting existing material, not the language"
+  },
+  {
     "id": "neg-01",
     "query": "write an instructions file that applies to all our yaml",
     "should_trigger": false,
@@ -112,5 +133,19 @@
     "should_trigger": false,
     "split": "validation",
     "note": "'package this' collides with pos-02 phrasing"
+  },
+  {
+    "id": "neg-10",
+    "query": "kannst du mir eine Instructions-Datei für unsere YAML-Dateien schreiben?",
+    "should_trigger": false,
+    "split": "train",
+    "note": "German near-miss guarding pos-10: excluded work stated in German must still not trigger"
+  },
+  {
+    "id": "neg-11",
+    "query": "should this be one agent or two separate ones?",
+    "should_trigger": false,
+    "split": "train",
+    "note": "near-miss guarding pos-11: same 'one or split it' decision shape, but about agents"
   }
 ]
