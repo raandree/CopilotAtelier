@@ -22,15 +22,15 @@
         run -Mode Grade.
 
     -Mode Execute (needs ShellPilot)
-        Does the same as Prepare, then answers each prompt itself via
-        Invoke-Shp and writes the replies, so Grade can run immediately.
-        Requires the ShellPilot module and a working backend.
+        Does the same as Prepare, then answers each prompt itself and writes the
+        replies, so Grade can run immediately. Requires the ShellPilot module
+        and a working backend.
 
         The judge runs with tools, browsing, file and terminal access all
         disabled. It sees only the catalogue and the query, so its answer
-        cannot be contaminated by the repository it is judging. The session
-        conversation is reset before every call, so each judge call is a genuinely
-        fresh context rather than one carrying every previous verdict.
+        cannot be contaminated by the repository it is judging. Each judge call
+        is a genuinely fresh context rather than one carrying every previous
+        verdict - see -Dispatch for how each path achieves that.
 
     -Mode Grade (no credential needed)
         Reads the replies, extracts the selected skill name, and reports the
@@ -44,9 +44,7 @@
     A note on who may judge. Do not grade a skill using the same session that
     wrote it: that measures recall of authoring intent, not discoverability.
     Execute mode satisfies this because each call is a fresh context with no
-    history of the authoring conversation - which requires resetting the
-    ShellPilot session conversation between calls, since Invoke-Shp continues it
-    by default. See the comment in Execute mode.
+    history of the authoring conversation.
 
 .PARAMETER QueryFile
     Labelled query set. Schema: [ { id, query, should_trigger, split, note? } ].
@@ -78,6 +76,26 @@
     Execute mode only. The judge model. A cheap model is appropriate: the task
     is a single forced-choice selection, not reasoning.
 
+.PARAMETER Dispatch
+    Execute mode only. How the prompts reach the backend.
+
+    Batch (default) sends the whole sweep through Invoke-ShpBatch, which runs
+    items concurrently in a bounded runspace pool. Every item is dispatched
+    with -History @(), so a batch neither seeds from nor writes to the session
+    conversation and no reset is needed. A failed item comes back as data with
+    Success false rather than aborting the sweep. Results arrive in COMPLETION
+    order, so replies are correlated on the item Id - never on position.
+
+    Sequential preserves the original one-call-at-a-time path, including the
+    Clear-ShpChat reset it depends on. Keep it to reproduce an older run, or to
+    fall back to a ShellPilot without Invoke-ShpBatch.
+
+.PARAMETER ThrottleLimit
+    Execute mode only, Batch dispatch only. Concurrent judge calls. The default
+    of 4 matches Invoke-ShpBatch's own deliberately conservative default; raise
+    it on evidence, because a 429 storm mid-sweep is a worse outcome than a slow
+    sweep.
+
 .PARAMETER Temperature
     Execute mode only. Sampling temperature for the judge, 0 to 2. Pass 0 to pin
     the run: selection is stochastic, so without it a query that scores 1 of 3
@@ -85,9 +103,9 @@
     measurement describes the sampler as much as the description under test.
     Omitted entirely from the call when you do not pass it, so the backend
     default applies and an existing run's operating point does not move. Needs a
-    ShellPilot new enough to expose Invoke-Shp -Temperature, first shipped in
-    0.4.0-preview0004; Execute mode checks for the parameter once and throws
-    before the first call rather than failing every call in the binder.
+    ShellPilot new enough to expose -Temperature on the dispatch command, first
+    shipped in 0.4.0-preview0004; Execute mode checks for the parameter once and
+    throws before the first call rather than failing every call in the binder.
 
 .PARAMETER MaxBudgetUSD
     Execute mode only. Hard ceiling passed to each call.
@@ -107,6 +125,11 @@
     Pins the judge so a repeated run measures the description rather than the
     sampler. Compare against an unpinned run to see how much of a partial score
     was noise.
+
+.EXAMPLE
+    ./run-trigger-evals.ps1 -Mode Execute -QueryFile ../assets/trigger-queries.skill-creator.json -TargetSkill skill-creator -SkillRoot ../../ -WorkDir "$env:TEMP/trigger-evals/skill-creator" -Dispatch Sequential
+
+    Reproduces a run made before batch dispatch existed, one call at a time.
 
 .EXAMPLE
     ./run-trigger-evals.ps1 -Mode Grade -QueryFile ../assets/trigger-queries.skill-creator.json -TargetSkill skill-creator -WorkDir "$env:TEMP/trigger-evals/skill-creator"
@@ -136,6 +159,12 @@ param(
     [double] $TriggerThreshold = 0.5,
 
     [string] $Model = 'claude-haiku-4.5',
+
+    [ValidateSet('Batch', 'Sequential')]
+    [string] $Dispatch = 'Batch',
+
+    [ValidateRange(1, 32)]
+    [int] $ThrottleLimit = 4,
 
     [ValidateRange(0.0, 2.0)]
     [double] $Temperature,
@@ -295,9 +324,17 @@ switch ($Mode) {
 
     'Execute' {
         if (-not $SkillRoot) { throw '-SkillRoot is required in Execute mode.' }
-        $shp = Get-Command Invoke-Shp -ErrorAction SilentlyContinue
-        if (-not $shp) {
-            throw 'Execute mode needs the ShellPilot module (Invoke-Shp). Use -Mode Prepare instead.'
+
+        $dispatchCommandName = if ($Dispatch -eq 'Batch') { 'Invoke-ShpBatch' } else { 'Invoke-Shp' }
+        $dispatchCommand = Get-Command $dispatchCommandName -ErrorAction SilentlyContinue
+        if (-not $dispatchCommand) {
+            $hint = if ($Dispatch -eq 'Batch') {
+                'Invoke-ShpBatch first shipped in ShellPilot 0.4.0-preview0005; use -Dispatch Sequential against an older build, or -Mode Prepare with no backend at all.'
+            }
+            else {
+                'Use -Mode Prepare instead.'
+            }
+            throw "Execute mode needs the ShellPilot module ($dispatchCommandName). $hint"
         }
 
         # Probe the parameter, not the version: 0.4.0-preview0003 reports version
@@ -306,17 +343,17 @@ switch ($Mode) {
         # ShellPilot is fine as long as -Temperature was not asked for. Without
         # this, a stale module fails every call in the parameter binder and a
         # 54-call run reports 54 failures that never name the cause.
-        if ($PSBoundParameters.ContainsKey('Temperature') -and -not $shp.Parameters.ContainsKey('Temperature')) {
-            $module = $shp.Module
+        if ($PSBoundParameters.ContainsKey('Temperature') -and -not $dispatchCommand.Parameters.ContainsKey('Temperature')) {
+            $module = $dispatchCommand.Module
             $resolved = if ($module) {
                 $prerelease = if ($module.PrivateData.PSData.Prerelease) { "-$($module.PrivateData.PSData.Prerelease)" }
                 "$($module.Name) $($module.Version)$prerelease at $($module.ModuleBase)"
             }
             else {
-                "an Invoke-Shp defined outside any module ($($shp.CommandType))"
+                "an $dispatchCommandName defined outside any module ($($dispatchCommand.CommandType))"
             }
 
-            throw "-Temperature requires a ShellPilot that exposes Invoke-Shp -Temperature. " +
+            throw "-Temperature requires a ShellPilot that exposes $dispatchCommandName -Temperature. " +
                 "The resolved module is $resolved. Import a newer build by path " +
                 "(Import-Module <dir>/ShellPilot.psd1 -Force) or install one. " +
                 'Omit -Temperature to run against the resolved build.'
@@ -334,55 +371,115 @@ switch ($Mode) {
         $samplingParams = @{}
         if ($PSBoundParameters.ContainsKey('Temperature')) { $samplingParams['Temperature'] = $Temperature }
 
+        # One pass to write every prompt file and decide what still needs an
+        # answer, shared by both dispatch paths. The reply path is keyed by the
+        # item id here, so a result can only ever be written to a stem this run
+        # created - a returned id is never concatenated into a path.
+        $outPathById = @{}
+        $pending = [System.Collections.Generic.List[object]]::new()
         foreach ($item in $set) {
-            $stem = Join-Path $WorkDir "$($item.Id).rep$($item.Rep)"
+            $id = "$($item.Id).rep$($item.Rep)"
+            $stem = Join-Path $WorkDir $id
             [System.IO.File]::WriteAllText("$stem.prompt.txt", $item.Prompt, $enc)
-            $outPath = "$stem.out.txt"
 
-            if ((Test-Path -LiteralPath $outPath -PathType Leaf) -and -not $Force) {
+            if ((Test-Path -LiteralPath "$stem.out.txt" -PathType Leaf) -and -not $Force) {
                 $done++
                 continue
             }
 
-            try {
-                # Every Invoke-Shp -Prompt call seeds from AND writes back to the
-                # module-scoped session conversation, so a loop like this one
-                # accumulates every prompt and reply. Measured 2026-08-11 on this
-                # query set: calls 1-18 succeeded and calls 19-54 all failed with
-                # HTTP 400 model_max_prompt_tokens_exceeded once the accumulated
-                # conversation passed claude-haiku-4.5's 136k window - and never
-                # recovered, because a failed call does not write back. Re-running
-                # the script "fixed" it only because a fresh process starts with
-                # an empty conversation, which is what made the failure look
-                # transient and get misread as rate limiting.
-                #
-                # Resetting here also restores the isolation this harness claims:
-                # a judge that carries 18 previous verdicts is not a fresh
-                # context, so the scores were contaminated well before the first
-                # 400. Do not remove without re-measuring.
-                Clear-ShpChat
-
-                $r = Invoke-Shp -Prompt $item.Prompt -Model $Model `
-                    -DisableUserTools -DisableBrowsing -DisableFileAccess `
-                    -DisableTerminal -DisableUserPrompts -DisableTodoList `
-                    -MaxBudgetUSD $MaxBudgetUSD -TimeoutSec 120 @samplingParams -ErrorAction Stop
-                [System.IO.File]::WriteAllText($outPath, [string]$r.Content, $enc)
-                if ($null -ne $r.CostUSD) { $spent += [double]$r.CostUSD }
-                $done++
-            }
-            catch {
-                # Record the failure rather than aborting: one bad call should not
-                # discard the rest of the run. Grade counts missing replies.
-                Write-Warning "$($item.Id) rep$($item.Rep) failed: $($_.Exception.Message)"
-                $failed++
-            }
-
-            Write-Progress -Activity 'Trigger eval' -Status "$done/$($set.Count)" `
-                -PercentComplete (100.0 * $done / $set.Count)
+            $outPathById[$id] = "$stem.out.txt"
+            $pending.Add([pscustomobject]@{ Id = $id; Prompt = $item.Prompt })
         }
+
+        $writeReply = {
+            param($Id, $Content)
+
+            $target = $outPathById[$Id]
+            if (-not $target) {
+                Write-Warning "Ignoring a reply for unknown id '$Id'."
+                return
+            }
+            [System.IO.File]::WriteAllText($target, [string]$Content, $enc)
+        }
+
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+
+        if ($Dispatch -eq 'Batch') {
+            # Invoke-ShpBatch dispatches every item with -History @(), so the
+            # session conversation is neither read nor written and the
+            # Clear-ShpChat reset the sequential path needs is unnecessary here.
+            # Results arrive in COMPLETION order, so identity travels on Id and
+            # position means nothing. ForEach-Object runs in the caller's scope,
+            # which is what lets the counters below accumulate.
+            $pending | Invoke-ShpBatch -ThrottleLimit $ThrottleLimit -Model $Model `
+                -DisableUserTools -DisableBrowsing -DisableFileAccess `
+                -DisableTerminal -DisableTodoList `
+                -MaxBudgetUSD $MaxBudgetUSD -TimeoutSec 120 @samplingParams |
+                ForEach-Object {
+                    if (-not $_.Success) {
+                        # A failed item is data, not a terminating error: the
+                        # batch already isolated it, so record and carry on.
+                        Write-Warning "$($_.Id) failed: $($_.Error)"
+                        $failed++
+                    }
+                    else {
+                        & $writeReply $_.Id $_.Content
+                        if ($null -ne $_.CostUSD) { $spent += [double]$_.CostUSD }
+                        $done++
+                    }
+
+                    Write-Progress -Activity 'Trigger eval' -Status "$($done + $failed)/$($set.Count)" `
+                        -PercentComplete (100.0 * ($done + $failed) / $set.Count)
+                }
+        }
+        else {
+            foreach ($item in $pending) {
+                try {
+                    # Every Invoke-Shp -Prompt call seeds from AND writes back to
+                    # the module-scoped session conversation, so a loop like this
+                    # one accumulates every prompt and reply. Measured 2026-08-11
+                    # on this query set: calls 1-18 succeeded and calls 19-54 all
+                    # failed with HTTP 400 model_max_prompt_tokens_exceeded once
+                    # the accumulated conversation passed claude-haiku-4.5's 136k
+                    # window - and never recovered, because a failed call does not
+                    # write back. Re-running the script "fixed" it only because a
+                    # fresh process starts with an empty conversation, which is
+                    # what made the failure look transient and get misread as rate
+                    # limiting.
+                    #
+                    # Resetting here also restores the isolation this harness
+                    # claims: a judge that carries 18 previous verdicts is not a
+                    # fresh context, so the scores were contaminated well before
+                    # the first 400. Do not remove without re-measuring. The batch
+                    # path needs no equivalent because each item is stateless by
+                    # contract.
+                    Clear-ShpChat
+
+                    $r = Invoke-Shp -Prompt $item.Prompt -Model $Model `
+                        -DisableUserTools -DisableBrowsing -DisableFileAccess `
+                        -DisableTerminal -DisableUserPrompts -DisableTodoList `
+                        -MaxBudgetUSD $MaxBudgetUSD -TimeoutSec 120 @samplingParams -ErrorAction Stop
+                    & $writeReply $item.Id $r.Content
+                    if ($null -ne $r.CostUSD) { $spent += [double]$r.CostUSD }
+                    $done++
+                }
+                catch {
+                    # Record the failure rather than aborting: one bad call should not
+                    # discard the rest of the run. Grade counts missing replies.
+                    Write-Warning "$($item.Id) failed: $($_.Exception.Message)"
+                    $failed++
+                }
+
+                Write-Progress -Activity 'Trigger eval' -Status "$done/$($set.Count)" `
+                    -PercentComplete (100.0 * $done / $set.Count)
+            }
+        }
+
+        $sw.Stop()
         Write-Progress -Activity 'Trigger eval' -Completed
 
-        Write-Host "Executed $done/$($set.Count) prompts against $Model  failures=$failed  cost=$([math]::Round($spent, 4)) USD" -ForegroundColor Cyan
+        $suffix = if ($Dispatch -eq 'Batch') { "$Dispatch x$ThrottleLimit" } else { $Dispatch }
+        Write-Host "Executed $done/$($set.Count) prompts against $Model via $suffix  failures=$failed  elapsed=$([math]::Round($sw.Elapsed.TotalSeconds, 1))s  cost=$([math]::Round($spent, 4)) USD" -ForegroundColor Cyan
         Write-Host "Now: -Mode Grade -WorkDir '$WorkDir'" -ForegroundColor Cyan
     }
 

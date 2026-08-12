@@ -17,11 +17,11 @@ description: >-
   pester-patterns), security review of an agent (use agent-security-review).
 compatibility: >-
   The bundled harnesses need PowerShell 7. run-trigger-evals.ps1 also needs the
-  powershell-yaml module, and its -Mode Execute needs ShellPilot 0.4.0 or later
-  plus a paid model backend; -Mode Prepare and -Mode Grade need neither. Its
-  -Temperature needs a build exposing Invoke-Shp -Temperature, first shipped in
-  0.4.0-preview0004 - a version test cannot decide this, because preview0003
-  reports 0.4.0 and rejects the parameter.
+  powershell-yaml module, and its -Mode Execute needs ShellPilot plus a paid
+  model backend; -Mode Prepare and -Mode Grade need neither. Its default
+  -Dispatch Batch needs 0.4.0-preview0005 for Invoke-ShpBatch, -Dispatch
+  Sequential runs on 0.4.0, and -Temperature needs preview0004 - a version test
+  cannot decide that, because preview0003 reports 0.4.0 and rejects it.
 ---
 
 # Agent Evals
@@ -144,7 +144,7 @@ Full field tables, grading principles, aggregation rules, and the iteration loop
 
 ## Harness prerequisites
 
-Both bundled scripts need **PowerShell 7**. [`scripts/run-trigger-evals.ps1`](scripts/run-trigger-evals.ps1) also needs **`powershell-yaml`** (`Install-Module powershell-yaml -Scope CurrentUser`) to read the skill catalogue, and its `-Mode Execute` needs **ShellPilot 0.4.0 or later** plus a model backend that bills real money — 54 judge calls against `claude-haiku-4.5` cost 0.60 USD. `-Mode Prepare` and `-Mode Grade` need neither, so an author with no backend can still generate the judge prompts, answer them in any fresh chat, and grade the replies.
+Both bundled scripts need **PowerShell 7**. [`scripts/run-trigger-evals.ps1`](scripts/run-trigger-evals.ps1) also needs **`powershell-yaml`** (`Install-Module powershell-yaml -Scope CurrentUser`) to read the skill catalogue, and its `-Mode Execute` needs **ShellPilot** plus a model backend that bills real money — 69 judge calls against `claude-haiku-4.5` cost 0.76 USD. It dispatches through `Invoke-ShpBatch` by default, which ran that sweep in 26 s against 104 s sequentially at `-ThrottleLimit 4` for the same cost; `-Dispatch Sequential` keeps the older one-call-at-a-time path for reproducing an earlier run. `-Mode Prepare` and `-Mode Grade` need neither backend nor module, so an author with no backend can still generate the judge prompts, answer them in any fresh chat, and grade the replies.
 
 Point `-WorkDir` **outside the repository**. `Skills/` is the published module payload, so scratch written under a skill folder is copied into the built module; the build prunes it and `.gitignore` catches it, but neither is a reason to aim there.
 

@@ -1,4 +1,4 @@
-Describe 'run-trigger-evals -Temperature' -Tag 'Unit' {
+Describe 'run-trigger-evals Execute mode' -Tag 'Unit' {
     BeforeAll {
         $script:scriptPath = Join-Path $PSScriptRoot (
             '../Skills/agent-evals/scripts/run-trigger-evals.ps1'
@@ -72,13 +72,76 @@ description: Use this skill for $name work.
             [pscustomobject]@{ Content = 'SELECTED: none'; CostUSD = 0.0 }
         }
 
-        # Execute mode also calls Clear-ShpChat between prompts. Leaving it
-        # unstubbed makes PowerShell auto-load the INSTALLED ShellPilot to
-        # resolve it, and that import then overwrites the Invoke-Shp stub above -
-        # which is how this test first reached the live backend, and later failed
-        # against an installed build too old to accept -Temperature. Every
-        # ShellPilot command the harness touches has to be stubbed.
-        $script:clearShpStub = { }
+        # Execute mode also calls Clear-ShpChat between prompts on the sequential
+        # path. Leaving it unstubbed makes PowerShell auto-load the INSTALLED
+        # ShellPilot to resolve it, and that import then overwrites the Invoke-Shp
+        # stub above - which is how this test first reached the live backend, and
+        # later failed against an installed build too old to accept -Temperature.
+        # Every ShellPilot command the harness touches has to be stubbed. The
+        # counter is what proves the batch path does not reset a conversation it
+        # never uses.
+        $script:clearShpStub = { $global:ShpClearCalls++ }
+
+        # Batch dispatch: one call for the whole sweep, results emitted in
+        # COMPLETION order. The stub reverses the input deliberately, so a
+        # harness that correlated replies by position would write every answer
+        # to the wrong file and the identity test would fail loudly.
+        $script:batchShpStub = {
+            [CmdletBinding()]
+            param(
+                [Parameter(ValueFromPipeline)]
+                [object[]] $Prompt,
+                [int] $ThrottleLimit,
+                [string] $Model,
+                [object] $Temperature,
+                [double] $MaxBudgetUSD,
+                [int] $TimeoutSec,
+                [switch] $DisableUserTools,
+                [switch] $DisableBrowsing,
+                [switch] $DisableFileAccess,
+                [switch] $DisableTerminal,
+                [switch] $DisableTodoList
+            )
+
+            begin
+            {
+                $items = [System.Collections.Generic.List[object]]::new()
+            }
+
+            process
+            {
+                foreach ($p in $Prompt) { $items.Add($p) }
+            }
+
+            end
+            {
+                $global:ShpBatchCalls.Add([pscustomobject]@{
+                        ThrottleLimit = $ThrottleLimit
+                        Model         = $Model
+                        Temperature   = $Temperature
+                        HadTemp       = ($null -ne $Temperature)
+                        Ids           = @($items | ForEach-Object { $_.Id })
+                    })
+
+                $ordered = @($items)
+                [array]::Reverse($ordered)
+
+                foreach ($item in $ordered)
+                {
+                    $failing = $global:ShpBatchFailIds -contains $item.Id
+
+                    [pscustomobject]@{
+                        PSTypeName = 'ShellPilot.BatchResult'
+                        Index      = $items.IndexOf($item)
+                        Id         = $item.Id
+                        Success    = (-not $failing)
+                        Content    = $(if ($failing) { $null } else { "SELECTED: none`nanswered:$($item.Id)" })
+                        CostUSD    = $(if ($failing) { $null } else { 0.25 })
+                        Error      = $(if ($failing) { 'simulated backend failure' } else { $null })
+                    }
+                }
+            }
+        }
 
         # A real module on disk, not a bare function, standing in for the stale
         # install that prompted the guard: ShellPilot 0.4.0-preview0003 reports
@@ -111,6 +174,36 @@ function Invoke-Shp
     [pscustomobject]@{ Content = 'SELECTED: none'; CostUSD = 0.0 }
 }
 
+# A batch command without -Temperature. The guard has to notice that the
+# DISPATCH command lacks the parameter, not that Invoke-Shp happens to have it.
+function Invoke-ShpBatch
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(ValueFromPipeline)]
+        [object[]] $Prompt,
+        [int] $ThrottleLimit,
+        [string] $Model,
+        [double] $MaxBudgetUSD,
+        [int] $TimeoutSec,
+        [switch] $DisableUserTools,
+        [switch] $DisableBrowsing,
+        [switch] $DisableFileAccess,
+        [switch] $DisableTerminal,
+        [switch] $DisableTodoList
+    )
+
+    process
+    {
+        foreach ($p in $Prompt)
+        {
+            $global:ShpStubCalls.Add([pscustomobject]@{ Temperature = $null; HadTemp = $false })
+
+            [pscustomobject]@{ Id = $p.Id; Success = $true; Content = 'SELECTED: none'; CostUSD = 0.0; Error = $null }
+        }
+    }
+}
+
 function Clear-ShpChat { }
 '@
 
@@ -120,7 +213,7 @@ function Clear-ShpChat { }
     ModuleVersion     = '0.4.0'
     GUID              = '$([guid]::NewGuid())'
     Author            = 'trigger-eval tests'
-    FunctionsToExport = @('Invoke-Shp', 'Clear-ShpChat')
+    FunctionsToExport = @('Invoke-Shp', 'Invoke-ShpBatch', 'Clear-ShpChat')
     PrivateData       = @{ PSData = @{ Prerelease = 'preview0003' } }
 }
 "@
@@ -132,7 +225,10 @@ function Clear-ShpChat { }
 
                 # Imports the stale module last so it wins the function table,
                 # exactly as the real installed build did.
-                [switch] $LegacyShellPilot
+                [switch] $LegacyShellPilot,
+
+                # Ids the batch stub should return as failed results.
+                [string[]] $FailIds = @()
             )
 
             # Re-assert the stubs immediately before each run, after removing any
@@ -143,6 +239,7 @@ function Clear-ShpChat { }
             Remove-Module -Name ShellPilot -Force -ErrorAction SilentlyContinue
             Set-Item -LiteralPath 'function:global:Invoke-Shp' -Value $script:modernShpStub
             Set-Item -LiteralPath 'function:global:Clear-ShpChat' -Value $script:clearShpStub
+            Set-Item -LiteralPath 'function:global:Invoke-ShpBatch' -Value $script:batchShpStub
 
             if ($LegacyShellPilot)
             {
@@ -150,8 +247,14 @@ function Clear-ShpChat { }
             }
 
             $global:ShpStubCalls = [System.Collections.Generic.List[object]]::new()
+            $global:ShpBatchCalls = [System.Collections.Generic.List[object]]::new()
+            $global:ShpClearCalls = 0
+            $global:ShpBatchFailIds = $FailIds
             Get-ChildItem -LiteralPath $script:workDir -File -ErrorAction SilentlyContinue | Remove-Item -Force
 
+            # Sequential unless a test asks otherwise: the contexts below assert
+            # on the per-call Invoke-Shp stub, so they have to measure the path
+            # that makes those calls. Batch dispatch has its own context.
             $params = @{
                 Mode        = 'Execute'
                 QueryFile   = $script:queryFile
@@ -159,8 +262,18 @@ function Clear-ShpChat { }
                 SkillRoot   = $script:skillRoot
                 WorkDir     = $script:workDir
                 Repetitions = 1
+                Dispatch    = 'Sequential'
             }
-            & $script:scriptPath @params @Extra -WarningAction SilentlyContinue | Out-Null
+            foreach ($key in $Extra.Keys) { $params[$key] = $Extra[$key] }
+
+            # *>$null keeps the harness's own progress and Write-Host output out
+            # of the test log. It does not silence the one warning the
+            # failure-isolation case provokes: Pester surfaces a warning raised
+            # inside the batch ForEach-Object block into the build output even
+            # through -WarningAction SilentlyContinue, -WarningAction Ignore and
+            # a stream redirect, all three measured. That build warning names a
+            # deliberately failed stub item and is expected.
+            & $script:scriptPath @params *>$null
             $global:ShpStubCalls
         }
     }
@@ -169,8 +282,12 @@ function Clear-ShpChat { }
         Remove-Module -Name ShellPilot -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $script:tempRoot -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath 'function:global:Invoke-Shp' -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath 'function:global:Invoke-ShpBatch' -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath 'function:global:Clear-ShpChat' -Force -ErrorAction SilentlyContinue
         Remove-Variable -Name ShpStubCalls -Scope Global -ErrorAction SilentlyContinue
+        Remove-Variable -Name ShpBatchCalls -Scope Global -ErrorAction SilentlyContinue
+        Remove-Variable -Name ShpClearCalls -Scope Global -ErrorAction SilentlyContinue
+        Remove-Variable -Name ShpBatchFailIds -Scope Global -ErrorAction SilentlyContinue
     }
 
     Context 'Parameter surface' {
@@ -264,6 +381,109 @@ function Clear-ShpChat { }
 
             $calls.Count | Should -Be 4
             @($calls | Where-Object HadTemp) | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'Batch dispatch parameter surface' {
+        It 'Defaults -Dispatch to Batch and still offers Sequential' {
+            $parameter = (Get-Command -Name $script:scriptPath).Parameters['Dispatch']
+            $parameter | Should -Not -BeNullOrEmpty
+
+            $set = $parameter.Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
+            $set.ValidValues | Should -Contain 'Batch'
+            $set.ValidValues | Should -Contain 'Sequential'
+
+            $raw = Get-Content -LiteralPath $script:scriptPath -Raw
+            $raw | Should -Match "(?m)^\s*\[string\]\s*\`$Dispatch\s*=\s*'Batch'"
+        }
+
+        It 'Exposes a -ThrottleLimit that defaults to the conservative 4' {
+            $raw = Get-Content -LiteralPath $script:scriptPath -Raw
+            $raw | Should -Match "(?m)^\s*\[int\]\s*\`$ThrottleLimit\s*=\s*4"
+        }
+
+        It 'Documents both new parameters in the comment-based help' {
+            $raw = Get-Content -LiteralPath $script:scriptPath -Raw
+            $raw | Should -Match '(?m)^\.PARAMETER Dispatch\s*$'
+            $raw | Should -Match '(?m)^\.PARAMETER ThrottleLimit\s*$'
+        }
+    }
+
+    Context 'Batch dispatch' {
+        It 'Sends the whole sweep in one batch instead of one call per prompt' {
+            Invoke-Harness -Extra @{ Dispatch = 'Batch' } | Out-Null
+
+            $global:ShpBatchCalls.Count | Should -Be 1
+            $global:ShpBatchCalls[0].Ids.Count | Should -Be 4
+            $global:ShpStubCalls | Should -BeNullOrEmpty -Because 'batch dispatch must not fall back to per-prompt calls'
+        }
+
+        # Every batch item is dispatched with -History @(), so there is no
+        # session conversation to reset. Calling Clear-ShpChat anyway would be
+        # harmless but would misdescribe the contract.
+        It 'Never resets a session conversation the batch does not use' {
+            Invoke-Harness -Extra @{ Dispatch = 'Batch' } | Out-Null
+
+            $global:ShpClearCalls | Should -Be 0
+        }
+
+        It 'Still resets the conversation on the sequential path' {
+            Invoke-Harness -Extra @{ Dispatch = 'Sequential' } | Out-Null
+
+            $global:ShpClearCalls | Should -Be 4
+        }
+
+        It 'Forwards -ThrottleLimit and -Temperature to the batch' {
+            Invoke-Harness -Extra @{ Dispatch = 'Batch'; ThrottleLimit = 7; Temperature = 0 } | Out-Null
+
+            $global:ShpBatchCalls[0].ThrottleLimit | Should -Be 7
+            $global:ShpBatchCalls[0].HadTemp | Should -BeTrue
+            $global:ShpBatchCalls[0].Temperature | Should -Be 0
+        }
+
+        It 'Sends no temperature at all when the batch parameter is omitted' {
+            Invoke-Harness -Extra @{ Dispatch = 'Batch' } | Out-Null
+
+            $global:ShpBatchCalls[0].HadTemp | Should -BeFalse
+        }
+
+        # The stub returns results reversed on purpose. Correlating on position
+        # would put every reply in the wrong file and still look successful, so
+        # this asserts the content of each file, not just that files exist.
+        It 'Writes each reply to the file named by its own id' {
+            Invoke-Harness -Extra @{ Dispatch = 'Batch' } | Out-Null
+
+            foreach ($id in 'pos-01', 'neg-01', 'pos-02', 'neg-02')
+            {
+                $path = Join-Path $script:workDir "$id.rep1.out.txt"
+                Test-Path -LiteralPath $path | Should -BeTrue
+                (Get-Content -LiteralPath $path -Raw) | Should -Match "answered:$id\.rep1"
+            }
+        }
+
+        It 'Keeps every other reply when one item fails' {
+            Invoke-Harness -Extra @{ Dispatch = 'Batch' } -FailIds 'neg-01.rep1' | Out-Null
+
+            Test-Path -LiteralPath (Join-Path $script:workDir 'neg-01.rep1.out.txt') |
+                Should -BeFalse -Because 'a failed item has no content to record'
+
+            foreach ($id in 'pos-01', 'pos-02', 'neg-02')
+            {
+                Test-Path -LiteralPath (Join-Path $script:workDir "$id.rep1.out.txt") | Should -BeTrue
+            }
+        }
+
+        It 'Names the batch command when a stale ShellPilot batch lacks -Temperature' {
+            $thrown = { Invoke-Harness -LegacyShellPilot -Extra @{ Dispatch = 'Batch'; Temperature = 0 } } |
+                Should -Throw -PassThru
+
+            # The guard has to probe the command that will actually dispatch, so
+            # the message names Invoke-ShpBatch even though Invoke-Shp is the
+            # command the sequential path checks.
+            $thrown.Exception.Message | Should -BeLike '*Invoke-ShpBatch -Temperature*'
+            $thrown.Exception.Message | Should -BeLike '*0.4.0-preview0003*'
+            $global:ShpStubCalls.Count | Should -Be 0
         }
     }
 }
