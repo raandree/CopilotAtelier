@@ -10,29 +10,9 @@ source: .memory-bank/decisions
 Current architecture and Decision record index. Read linked records only when
 the task needs their rationale, consequences, or confirmation evidence.
 
-## Architecture overview
-
-```text
-CopilotAtelier repository (Sampler project)
-├── Agents, Instructions, Skills, Prompts, Hooks, Keybindings
-│   └── copied into the built module by Copy_Customizations_To_Output
-├── source/
-│   ├── CopilotAtelier.psd1 (ModuleVersion replaced by GitVersion)
-│   ├── Public/  Install-, Update-, Get-CopilotAtelierVersion
-│   └── Private/ path, link, JSONC, and keybinding helpers
-├── build.ps1, build.yaml, .build/, GitVersion.yml, .github/workflows/ci.yml
-├── Setup-CopilotSettings.ps1 (clone entry point shim)
-│   └── one Canonical target: OneDrive when available, user profile otherwise
-│       ├── ~/.copilot Discovery links
-│       └── .copilotatelier.json Deployment record
-├── plugin.json
-├── tests and Reference
-└── .memory-bank
-    ├── index.md, routed canonical files
-    ├── decisions/
-    ├── topics/
-    └── session/
-```
+The repository layout is not restated here: `techContext.md` carries the module
+layout, the deployment boundary, and the discovery model, and the working tree
+carries the rest.
 
 ## Decision index
 
@@ -57,6 +37,7 @@ CopilotAtelier repository (Sampler project)
 | 17 | [Keep MCP curation out of scope](decisions/0017-keep-mcp-curation-out-of-scope.md) | Accepted | 2026-07-28 |
 | 18 | [Distribute as a Sampler-built PowerShell module](decisions/0018-distribute-as-powershell-module.md) | Accepted | 2026-07-29 |
 | 19 | [Gate Skills on the reference validator](decisions/0019-gate-skills-on-the-reference-validator.md) | Accepted | 2026-08-11 |
+| 20 | [Refuse a lossy customization merge](decisions/0020-refuse-lossy-customization-merges.md) | Accepted | 2026-08-11 |
 
 ## Live relationships
 

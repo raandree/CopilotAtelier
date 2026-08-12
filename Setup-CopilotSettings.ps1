@@ -22,6 +22,12 @@
         locations, so enabling this registers every Skill more than once in
         VS Code. Create-only, because an existing path belongs to that tool.
 
+    .PARAMETER Force
+        Replaces a discovery folder that already holds real content, after
+        merging that content into the canonical target. Without it such a folder
+        is left alone and reported, so a first run over an existing profile
+        never removes anything the user put there.
+
     .EXAMPLE
         ./Setup-CopilotSettings.ps1
 
@@ -38,7 +44,10 @@ param
     [switch]$SkipCopilotCliEnvironment,
 
     [Parameter()]
-    [switch]$IncludeClaudeCodeLinks
+    [switch]$IncludeClaudeCodeLinks,
+
+    [Parameter()]
+    [switch]$Force
 )
 
 $ErrorActionPreference = 'Stop'

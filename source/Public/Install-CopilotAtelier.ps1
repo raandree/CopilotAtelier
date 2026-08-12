@@ -36,6 +36,14 @@ function Install-CopilotAtelier
             more than once in VS Code. Create-only, because an existing path
             belongs to that other tool.
 
+        .PARAMETER Force
+            Replaces a discovery folder that already holds real content, after
+            merging that content into the canonical target. Without it such a
+            folder is left alone and reported, so a first run over an existing
+            profile never removes anything the user put there. A child that
+            differs from the target's copy, or that is or contains a reparse
+            point, still stops the merge and is reported.
+
         .OUTPUTS
             System.Management.Automation.PSCustomObject
 
@@ -67,7 +75,11 @@ function Install-CopilotAtelier
 
         [Parameter()]
         [System.Management.Automation.SwitchParameter]
-        $IncludeClaudeCodeLinks
+        $IncludeClaudeCodeLinks,
+
+        [Parameter()]
+        [System.Management.Automation.SwitchParameter]
+        $Force
     )
 
     $ErrorActionPreference = 'Stop'
@@ -283,6 +295,7 @@ function Install-CopilotAtelier
             LinkPath     = Join-Path -Path $path.CopilotRoot -ChildPath $customizationDirectory[$directoryName]
             TargetPath   = Join-Path -Path $path.TargetPath -ChildPath $directoryName
             LinkItemType = $path.LinkItemType
+            Force        = $Force
         }
 
         Set-CustomizationLink @setCustomizationLink

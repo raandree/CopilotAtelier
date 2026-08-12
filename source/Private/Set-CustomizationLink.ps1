@@ -12,9 +12,10 @@ function Set-CustomizationLink
 
             An existing link is recreated so it always points at the current
             target. An empty real directory is removed silently. A non-empty
-            real directory is only replaced after the caller confirms, and its
-            contents are merged into the target first without overwriting files
-            already there.
+            real directory is only replaced when -Force is supplied, and only
+            when every child can be merged without loss: a child that differs
+            from the copy already in the target, or a child that is or contains
+            a reparse point, stops the merge and is reported instead.
 
         .PARAMETER LinkPath
             The discovery path to create or refresh.
@@ -30,6 +31,13 @@ function Set-CustomizationLink
             Leaves an existing path untouched. Used for third-party roots such
             as ~/.claude that belong to another tool and must never be adopted,
             merged, or repointed.
+
+        .PARAMETER Force
+            Merges a non-empty real directory into the target and replaces it
+            with a link. Without it such a directory is left alone and reported,
+            because the caller may be unattended: this function is reachable
+            from Update-CopilotAtelier -Force, where there is no console to
+            confirm on.
 
         .OUTPUTS
             None.
@@ -60,7 +68,11 @@ function Set-CustomizationLink
 
         [Parameter()]
         [System.Management.Automation.SwitchParameter]
-        $CreateOnly
+        $CreateOnly,
+
+        [Parameter()]
+        [System.Management.Automation.SwitchParameter]
+        $Force
     )
 
     if (-not (Test-Path -LiteralPath $TargetPath))
@@ -131,16 +143,90 @@ function Set-CustomizationLink
                 Write-Information -MessageData "Directory '$LinkPath' is not empty ($($children.Count) item(s))."
                 Write-Information -MessageData "It must be replaced with a link to '$TargetPath'."
 
+                <#
+                    No console read. This function is reachable unattended
+                    through Update-CopilotAtelier -Force, and a prompt there does
+                    not fail, it waits forever on a host that may have no input
+                    at all. The opt-in is a parameter, so an unattended caller
+                    either supplies it or is told what to supply.
+                #>
+                if (-not $Force)
+                {
+                    Write-Information -MessageData "Skipped link: '$LinkPath' is not empty. Re-run with -Force to merge it into '$TargetPath' and replace it with a link."
+
+                    return
+                }
+
                 if (-not $PSCmdlet.ShouldProcess($LinkPath, "Merge into '$TargetPath' and remove"))
                 {
                     return
                 }
 
-                $answer = Read-Host -Prompt 'Copy its contents into the target and then delete it? [y/N]'
+                <#
+                    Decide the whole merge before touching anything. The previous
+                    version copied what it could and then deleted the directory,
+                    so a child it had skipped was destroyed with it. Every child
+                    that cannot be merged without loss is collected here and the
+                    merge is abandoned intact.
+                #>
+                $blocker = [System.Collections.Generic.List[System.String]]::new()
 
-                if ($answer -notmatch '^(y|yes)$')
+                foreach ($child in $children)
                 {
-                    Write-Information -MessageData "Skipped link: user declined to remove '$LinkPath'."
+                    if ($child.Attributes.HasFlag([System.IO.FileAttributes]::ReparsePoint))
+                    {
+                        $blocker.Add("$($child.Name) is a reparse point; copying it would follow the link out of '$LinkPath'.")
+
+                        continue
+                    }
+
+                    if ($child.PSIsContainer)
+                    {
+                        <#
+                            Get-ChildItem does not descend through a reparse point
+                            without -FollowSymlink, so this finds a nested link
+                            without walking into whatever it addresses.
+                        #>
+                        $nestedLink = @(
+                            Get-ChildItem -LiteralPath $child.FullName -Recurse -Force -ErrorAction SilentlyContinue |
+                                Where-Object -FilterScript {
+                                    $_.Attributes.HasFlag([System.IO.FileAttributes]::ReparsePoint)
+                                }
+                        )
+
+                        if ($nestedLink)
+                        {
+                            $blocker.Add("$($child.Name) contains $($nestedLink.Count) reparse point(s), the first at '$($nestedLink[0].FullName)'.")
+
+                            continue
+                        }
+                    }
+
+                    $destinationChild = Join-Path -Path $TargetPath -ChildPath $child.Name
+
+                    if (-not (Test-Path -LiteralPath $destinationChild))
+                    {
+                        continue
+                    }
+
+                    if ((Test-CustomizationChildMatch -Path $child.FullName -DestinationPath $destinationChild))
+                    {
+                        continue
+                    }
+
+                    $blocker.Add("$($child.Name) differs from the copy already in '$TargetPath'.")
+                }
+
+                if ($blocker.Count -gt 0)
+                {
+                    Write-Information -MessageData "Skipped link: '$LinkPath' cannot be merged without losing content."
+
+                    foreach ($reason in $blocker)
+                    {
+                        Write-Information -MessageData "  $reason"
+                    }
+
+                    Write-Information -MessageData "Reconcile those item(s) by hand, then re-run. Nothing was copied or removed."
 
                     return
                 }
@@ -151,7 +237,7 @@ function Set-CustomizationLink
 
                     if (Test-Path -LiteralPath $destinationChild)
                     {
-                        Write-Information -MessageData "  Skip (already present in target): $($child.Name)"
+                        Write-Information -MessageData "  Skip (identical copy already in target): $($child.Name)"
 
                         continue
                     }
