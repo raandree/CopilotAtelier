@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-07-29
+last-verified: 2026-08-13
 owner: software-engineer
 source: .memory-bank/decisions
 ---
@@ -85,6 +85,10 @@ carries the rest.
 - Frontmatter is the live control surface: Custom agent tools, model priority,
     subagent eligibility, and handoffs; Instruction `applyTo` scope; Prompt
     Custom agent binding.
+- Memory Bank routing has two eval layers. Human-labelled routes test the
+    deterministic resolver and context reduction; label-free task prompts test
+    natural-language Memory Bank route selection with pass@k and pass^k.
+    Durable-write, Decision-record, and task-quality evals remain separate.
 
 Read those source files for changing inventories. This file indexes durable
 relationships and Decision records only.

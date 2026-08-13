@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-14
+last-verified: 2026-08-19
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,90 +9,68 @@ source: current task evidence
 
 ## Current focus
 
-Packaged a repeated workflow as a Skill. A project brand identity was produced
-by hand twice in one session, and the second run rediscovered the same failures
-as the first, which is the signal that a procedure belongs in a Skill rather
-than in a conversation.
-
-The Skill then stopped one step short. It produced a library set and left wiring
-the mark into a repository to improvisation, which `WindowsAccessControl` proved
-by needing three passes over its README header. Step 5 now covers integration,
-and it asks which repository before writing, because the library holds many
-projects and a session usually has several open.
+Measure natural-language Memory Bank route selection independently from the
+deterministic resolver that consumes human-labelled routes. Rebased onto `main`
+on 2026-08-19; the `brand-logo-system` findings below were carried forward from
+the focus this replaced, because nothing in this change resolves them.
 
 ## Implemented
 
-- `Skills/brand-logo-system/SKILL.md` — 192 lines. Carries the eleven-slot
-  shared-library layout, the rule that a mark is recovered from a project's
-  existing artwork by pixel count before anything is designed, the
-  dark-mode-means-reversed convention, and a verification gate that is measured
-  rather than eyeballed.
-- `Skills/brand-logo-system/scripts/Export-BrandLogoSet.ps1` — composes all
-  eleven slots from one `.psd1` definition plus two or three glyph fragments,
-  so a project's only bespoke artwork is its glyph. Rasterizes through headless
-  Microsoft Edge.
-- `Skills/agent-evals/assets/trigger-queries.brand-logo-system.json` — fourteen
-  positives and ten near-miss negatives, both splits populated. The negatives
-  come from sibling Skills that share vocabulary but not intent:
-  `windows-gui-screenshot-capture` (twice, once for a screenshot placed in a
-  README), `marp-slide-overflow`, `pswritehtml-reporting`, and a rendering bug
-  that belongs to `debugging-and-error-recovery`. The `sampler-framework`
-  negative ("add an IconUri") became a positive when integration entered scope;
-  the query set had encoded the opposite of the new boundary.
-- `README.md` and `CHANGELOG.md` — the remaining two artifacts of the Skill
-  atomic change set.
-- `Prompts/brand-logo.prompt.md` — starts the process the Skill executes. It
-  searches for an existing mark before asking anything, then interviews in two
-  `vscode_askQuestions` clusters (subject, treatment, character; colour source,
-  wordmark split, delivery target) and proposes 256 px concept proofs before any
-  asset set is built.
+- `Invoke-MemoryBankRouteSelectionEval.ps1` has offline `Prepare` and `Grade`
+  modes. Prompts contain only one natural-language task and the Memory Bank
+  index; human routes, required files, provenance, and resolver flags stay
+  hidden.
+- Grade mode accepts only exact JSON objects with a route array and Boolean
+  fallback, compares routes without relying on order, and reports pass@k and
+  pass^k while separating wrong, malformed, and missing replies.
+- `MemoryBankRouteSelection.Tests.ps1` covers prompt isolation, label leakage,
+  fallback, strict shape, reliability aggregation, and failure accounting.
+- The Skill, eval notes, README catalogue, changelog, and Decision 0014 explain
+  the deterministic resolver gate versus the natural-language selection gate.
 
 ## Focused evidence
 
-- `SkillFrontmatter`, `SkillsRefValidate`, `CustomizationFrontmatter`,
-  `SkillTriggerCoverage`, `TriggerEvalHarness`, `SecretScan`: 438 passed,
-  0 failed, 60 skipped, run detached.
-- The first run of that set failed exactly one test,
-  `brand-logo-system has a trigger-query set`. The atomic-change-set gate fired
-  on its own author, which is the strongest evidence the gate works.
-- End-to-end proof against `C:\Git\AutomatedLab`: eleven assets rendered, slot
-  numbers matching a sibling project, canvases exactly 1536x1024 or 1254x1254,
-  corner alpha 0 on the six transparent slots and 255 on the five opaque ones,
-  no transparent slot touching its canvas edge, horizontal skew within 3 %.
-- The AutomatedLab palette and gear-and-flask mark were recovered from that
-  project's own 2025 logo by counting pixels, not invented. Five colours carry
-  percentage-level shares; everything else is anti-aliasing.
+- The first focused run failed because the evaluator did not exist; four tests
+  now pass. A second red-green cycle proved scalar `routes` was accepted before
+  the parser required an array.
+- Prepare mode generated 75 isolated prompt files from all 25 real routing
+  cases at three repetitions without contacting a model.
+- The full build passes 607 tests with 0 failures and 105 skips, coverage
+  78.44 %, 17 tasks, 0 errors, and the known simulated-backend warning.
+- Memory Bank health has 0 warnings; deterministic routing has 0 misses and
+  58.42 % average version-controlled context reduction.
+- Both changed PowerShell files parse cleanly and have 0 PSScriptAnalyzer
+  warning or error findings; editor diagnostics report 0 errors.
 
 ## Open findings
 
-- **The query set is authored but unmeasured.** Same caveat as the five sets
-  before it: the gate proves the queries exist, not that the description
-  triggers. It has not been through `run-trigger-evals.ps1`.
-- **The board's cell numbering does not match the file slot numbering.** Cells
-  order dark variants first, then light; files pair dark and light per type.
-  Every sibling board in the library shares the quirk, so it was kept for family
-  consistency rather than corrected.
-- **`WindowsAccessControl` was rendered by a repository-local script, not by
-  this Skill**, and its slots 1 and 2 use the older ink-variant reading of
-  dark/light rather than reversed-for-dark. Two sets in one library therefore
-  disagree on what "dark mode" means. Migrating it to a brand definition would
-  settle it.
-- **The integration step was written from one project, not two.** Every claim in
-  Step 5 was measured on `WindowsAccessControl`; the float, the sanitiser
-  behaviour, and the `IconUri` rule are general, but the asset-folder default
-  and the 300 px wordmark width are one project's convention until a second one
-  confirms them.
-- The README *Available Skills* table still has no gate. This change added its
-  row because the atomic checklist says so, not because CI would have caught the
-  omission.
-- `Skills/german-employment-law/` is still an empty untracked folder shipping no
+- The 75 prompts are prepared but unanswered, so no route-selection pass@k or
+  pass^k result exists yet.
+- The first stage infers routes and fallback only. The deterministic resolver
+  still receives human labels for `durableWrite`, role files, and relevant
+  Decision records.
+- Total context-window cost, latency, and answer quality under routed versus
+  full loading remain unmeasured.
+- Grading demands an exact route set, so a safe superset that loses no context
+  scores the same as a miss. The deterministic gate grades critical-file misses
+  instead, and Decision 0014 now asks every case to clear pass^k against the
+  stricter rule.
+
+## Carried forward from the previous focus
+
+- Six trigger-query sets, `brand-logo-system` among them, are authored but have
+  never been through `run-trigger-evals.ps1`.
+- `WindowsAccessControl` slots 1 and 2 use the older ink-variant reading of
+  dark/light, so two sets in one shared library disagree on "dark mode".
+- The `brand-logo-system` integration step was measured on one project only.
+- The README *Available Skills* table still has no gate.
+- `Skills/german-employment-law/` is an empty untracked folder with no
   `SKILL.md`.
-- **The `skill-creator` description edit is still not proven.** Train climbed to
-  100 % while validation fell, which is the overfitting signal. It remains for
-  the owner to accept or revert.
+- The `skill-creator` description edit remains unproven: train reached 100 %
+  while validation fell, which is the overfitting signal.
 
 ## Next step
 
-Sweep `brand-logo-system` through `run-trigger-evals.ps1` together with the five
-unmeasured sets, and decide the `WindowsAccessControl` migration — it is the
-only thing keeping two definitions of "dark mode" in one library.
+Run the 75 prepared prompts against one pinned model in fresh contexts, save the
+strict JSON replies, and grade them. Then add separate stages for durable-write
+and Decision-record selection before comparing routed and full task outcomes.

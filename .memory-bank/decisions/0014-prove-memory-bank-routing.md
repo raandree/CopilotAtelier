@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-07-24
-last-verified: 2026-07-25
+last-verified: 2026-08-13
 owner: software-engineer
 source: .memory-bank/index.md
 supersedes: full-base-only-loading
@@ -37,3 +37,9 @@ Run `tests/MemoryBankRouting.Tests.ps1`; require zero independently labeled
 critical-file misses, zero routine prompt-history loads, a complete Full-read
 fallback, and at least 50 percent average version-controlled context reduction
 across the real-task baseline.
+
+Then run `Invoke-MemoryBankRouteSelectionEval.ps1` in `Prepare` and `Grade`
+modes with at least three fresh-context repetitions. Require every case to pass
+pass^k before claiming natural-language Memory Bank route reliability. This
+second gate does not cover durable-write or Decision-record selection, latency,
+or routed-versus-full task quality.

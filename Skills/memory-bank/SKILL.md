@@ -266,6 +266,28 @@ gate alone never sees it:
 & "$HOME/.copilot/skills/memory-bank/scripts/Test-MemoryBankHealth.ps1" -Path $PWD.Path
 ```
 
+Routing has two separate checks. `Test-MemoryBankRouting.ps1` proves that
+human-labelled routes resolve the required files without losing the compactness
+benefit. `Invoke-MemoryBankRouteSelectionEval.ps1` tests the prior question:
+whether a fresh model infers those routes from the natural-language task.
+
+```powershell
+$workDir = Join-Path $env:TEMP 'memory-bank-route-selection'
+$evalFile = './Skills/memory-bank/evals/routing-cases.json'
+$script = './Skills/memory-bank/scripts/Invoke-MemoryBankRouteSelectionEval.ps1'
+
+& $script -Mode Prepare -Path $PWD.Path -EvalFile $evalFile `
+  -WorkDir $workDir -Repetitions 3
+# Run each *.prompt.txt in a fresh context and save its exact JSON reply as
+# the matching *.out.json file.
+& $script -Mode Grade -Path $PWD.Path -EvalFile $evalFile `
+  -WorkDir $workDir -Repetitions 3
+```
+
+Prepare mode never sends a model request. Grade mode requires strict JSON,
+compares route sets without relying on order, and reports both pass@k and
+pass^k. `Passed = True` means every repetition of every case selected safely.
+
 - All seven required files exist and are non-empty; local `promptHistory.md`
   exists when the initializer ran for the current durable turn.
 - The health result reports `Passed = True` and no error findings.

@@ -34,3 +34,20 @@
 Run each case in a fresh chat. The capability cases must name `memory-bank` in
 the Pre-flight acknowledgment and preserve existing files. Decoy cases must not
 create `.memory-bank/`.
+
+## Route-selection evaluation
+
+[`evals/routing-cases.json`](evals/routing-cases.json) contains 25 real,
+provenance-labelled tasks. The two routing checks answer different questions:
+
+- `Test-MemoryBankRouting.ps1` consumes the human labels and proves that the
+   deterministic resolver selects required files, avoids routine history, and
+   preserves the Full-read fallback and context-reduction floor.
+- `Invoke-MemoryBankRouteSelectionEval.ps1` presents only the task and Memory
+   Bank index to a fresh model. Prepare mode emits isolated prompts; Grade mode
+   compares strict JSON replies with the hidden route labels and reports pass@k
+   and pass^k.
+
+The route-selection harness does not yet evaluate which relevant Decision
+records the model chooses, total context-window cost, task latency, or answer
+quality under routed versus full loading. Those remain separate eval stages.

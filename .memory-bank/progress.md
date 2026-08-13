@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-14
+last-verified: 2026-08-19
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -51,6 +51,16 @@ published to the PowerShell Gallery. Incremental work is tracked under
   to guess at — what the mark should actually show — and skipping it entirely
   when the repository already carries a logo.
 
+- **2026-08-13**: Added an offline natural-language Memory Bank route-selection
+  evaluator, rebased onto `main` on 2026-08-19. `Prepare` emits label-free
+  prompts containing one real task and the compact index; `Grade` accepts strict
+  JSON route arrays, handles Full-read fallback explicitly, and reports pass@k
+  plus pass^k. Twenty-five real cases produced 75 isolated prompts without
+  contacting a model, and the replies are not executed yet, so reliability is
+  not claimed. Grading demands an exact route set, which scores a safe superset
+  as a miss even though it loses no context — the open question the harness
+  raises against its own criterion.
+
 - **2026-08-12**: Adopted four items from a review of an external Copilot
   catalogue, reimplemented rather than copied. `pester-patterns` gained an AST
   detector for Pester v4 constructs plus a v4-to-v5 reference; against this
@@ -77,60 +87,35 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 - **2026-08-11**: Took the worst over-budget Skill and the tighter Memory Bank
   file back under budget. `pester-patterns` split from a 796-line body to 149,
-  with patterns 1-13 moved into two one-level references and patterns 0 and 14
-  — the rules that apply to every run — kept in the body; its baseline entry is
-  gone, so the gate proves the fix instead of documenting the intent. Its
-  description was not touched, so the trigger surface is unchanged. Nine Skills
-  remain baselined. `systemPatterns.md` dropped from 106 lines to 86 by deleting
-  the repository tree, a changing inventory that duplicated `techContext.md` and
-  broke this file's own rule; its build warning is gone. Two premises did not
-  hold on inspection: `techContext.md`'s per-test-file inventory was already
-  curated away, and the routing reduction is 56.11 % rather than the recorded
-  49.57 %, moving further above the floor with each curation.
+  keeping only the rules that apply to every run in the body and moving the rest
+  into two one-level references; its baseline entry is gone, so the gate proves
+  the fix instead of documenting the intent. `systemPatterns.md` dropped to 86
+  lines by deleting the repository tree, which duplicated `techContext.md`.
 
 - **2026-08-11**: Closed the three deferred `Set-CustomizationLink` findings,
-  all of which still reproduced. The `Read-Host` is gone: the opt-in is now
-  `-Force`, surfaced on `Install-CopilotAtelier` and `Setup-CopilotSettings.ps1`,
-  because the function is reachable unattended through
-  `Update-CopilotAtelier -Force` where a prompt waits forever rather than
-  failing. Measured before the fix: a child present in both places lost the
-  deployed copy (`126 lines` gone, `106 lines` left), and `Copy-Item -Recurse`
-  materialised a junction's outside content inside the target. Decision 0020
-  settles the policy — anything that cannot merge without loss stops the merge
-  and nothing is copied or removed, with equality proven by SHA-256 rather than
-  by presence. 7 tests, red against the previous implementation, green against
-  the fix.
+  all of which still reproduced. The `Read-Host` opt-in became `-Force`, because
+  the function is reachable unattended through `Update-CopilotAtelier -Force`
+  where a prompt waits forever rather than failing. Decision 0020 settles the
+  policy: anything that cannot merge without loss stops the merge, and equality
+  is proven by SHA-256 rather than by presence. 7 tests, red then green.
 
 - **2026-08-11**: Moved the trigger-eval sweep onto `Invoke-ShpBatch`. The
   identical pinned 69-call sweep runs in 26.3 s batched at `-ThrottleLimit 4`
   against 103.9 s sequential for the same 0.76 USD, which is what makes the
-  N x R x M model-tier comparison practical. `-Dispatch Sequential` is kept so
-  an older run stays reproducible. Batch items are stateless by contract, so
-  `Clear-ShpChat` is gone from that path; failures arrive as data; and replies
-  are correlated on `Id`, because results land in completion order. The
-  measurement itself did not move — but the control did the real work: two
+  N x R x M model-tier comparison practical. The control did the real work: two
   *sequential* runs of one description disagreed with each other as much as
-  batch disagreed with sequential (`pos-09` 1/3 then 2/3, `pos-06` 3/3 then
-  1/3). `-Temperature 0` reduces run-to-run judge variance without removing it,
-  so any query near the 0.5 threshold moves between runs. 21 harness tests,
-  still hermetic.
+  batch disagreed with sequential, so `-Temperature 0` reduces run-to-run judge
+  variance without removing it and any query near the 0.5 threshold moves
+  between runs. 21 harness tests, still hermetic.
 
 - **2026-08-11**: Re-measured `skill-creator`'s two standing trigger gaps and
-  found the recorded cause wrong. A pinned baseline over an extended query set
-  gave train 13/14 and validation 7/8: `pos-09` now scores 3/3, so the "1 of 3"
-  recorded against it no longer reproduces. An 18-call probe then isolated the
-  `pos-07` variable — its literal English translation fails 0/3 while a
-  differently worded German request passes 3/3, so the miss is the concept
-  "build a skill out of existing material", not the language. Two train
-  stand-ins for that concept and for the scoping decision, plus two matched
-  near-miss negatives, are now in the query set. Editing the description
-  against train only (990 to 989 characters, dropping `output evals`,
-  `degrees-of-freedom calibration` and the duplicated gotchas and overlap
-  entries) took train to 15/15 — but validation fell to 6/8, because `pos-09`
-  dropped from 3/3 to 1/3 while its train stand-in rose to 3/3. Train climbing
-  while validation falls is the overfitting signal, so the edit is left
-  uncommitted for the owner rather than claimed as an improvement. 198 judge
-  calls, 2.19 USD.
+  found the recorded cause wrong. A pinned baseline gave train 13/14 and
+  validation 7/8, and an 18-call probe isolated the real variable: the miss is
+  the concept "build a skill out of existing material", not the language.
+  Editing the description against train only took train to 15/15 while
+  validation fell to 6/8. Train climbing while validation falls is the
+  overfitting signal, so the edit is left uncommitted for the owner rather than
+  claimed as an improvement. 198 judge calls, 2.19 USD.
 
 ## Stable capabilities
 
