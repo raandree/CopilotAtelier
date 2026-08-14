@@ -1,0 +1,136 @@
+[
+  {
+    "id": "pos-01",
+    "query": "please generate an icon for this repo",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-02",
+    "query": "we keep one folder per project under Downloads/Logos, add this project to it and follow the same structure",
+    "should_trigger": true,
+    "split": "train",
+    "note": "names the shared library but never says logo, icon, or brand"
+  },
+  {
+    "id": "pos-03",
+    "query": "the mark sits too small inside the rounded square and looks off centre, tighten it up",
+    "should_trigger": true,
+    "split": "train",
+    "note": "app icon geometry work with no branding vocabulary at all"
+  },
+  {
+    "id": "pos-04",
+    "query": "I need light and dark variants of the wordmark plus a favicon and a 1024px app icon",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-05",
+    "query": "our logo only exists as a 512 png, can you rebuild it as vector so it scales cleanly",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-06",
+    "query": "the transparent pngs from the design folder show a grey checkerboard when I drop them on a blue slide",
+    "should_trigger": true,
+    "split": "train",
+    "note": "the checkerboard-baked-into-pixels failure; user has no idea it is an alpha problem"
+  },
+  {
+    "id": "pos-07",
+    "query": "put together a brand board that shows the palette, the typography and how the mark reduces at small sizes",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-08",
+    "query": "our icon turns into mush at 16 pixels in the browser tab, what do we do",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-09",
+    "query": "pull the exact hex values out of the existing logo png so we stop guessing the blues",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "palette extraction is step 1 of this skill; the request sounds like a colour-picker task"
+  },
+  {
+    "id": "pos-10",
+    "query": "the mark changed, regenerate every asset we ship and make sure the sizes still match",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "neg-01",
+    "query": "grab a screenshot of the settings window for the user manual",
+    "should_trigger": false,
+    "split": "train",
+    "note": "windows-gui-screenshot-capture"
+  },
+  {
+    "id": "neg-02",
+    "query": "draw a diagram of how the modules depend on each other",
+    "should_trigger": false,
+    "split": "train",
+    "note": "Mermaid, not brand artwork, though both are 'make me a picture'"
+  },
+  {
+    "id": "neg-03",
+    "query": "the powershell script that renders our images throws a null path error, work out why",
+    "should_trigger": false,
+    "split": "train",
+    "note": "debugging-and-error-recovery; mentions rendering images but the task is a bug hunt"
+  },
+  {
+    "id": "neg-04",
+    "query": "my marp deck overflows the slide on the third bullet",
+    "should_trigger": false,
+    "split": "train",
+    "note": "marp-slide-overflow"
+  },
+  {
+    "id": "neg-05",
+    "query": "make the buttons in the app use our brand palette instead of the default blue",
+    "should_trigger": false,
+    "split": "train",
+    "note": "UI theming; says brand palette but produces no brand asset"
+  },
+  {
+    "id": "neg-06",
+    "query": "add an IconUri to the module manifest before we publish to the gallery",
+    "should_trigger": false,
+    "split": "train",
+    "note": "sampler-framework; says icon but is manifest metadata"
+  },
+  {
+    "id": "neg-07",
+    "query": "crop these product photos and knock out the background",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "photo editing, explicitly out of scope"
+  },
+  {
+    "id": "neg-08",
+    "query": "write the opening section of the README so it explains what the project does",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "technical-writer"
+  },
+  {
+    "id": "neg-09",
+    "query": "our html report should show the company logo in the header",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "pswritehtml-reporting; consumes an existing asset rather than producing one"
+  },
+  {
+    "id": "neg-10",
+    "query": "convert this folder of svg icons into an icon font for the web app",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "font tooling; svg in, but nothing to do with a project identity"
+  }
+]

@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-12
+last-verified: 2026-08-14
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,6 +14,25 @@ published to the PowerShell Gallery. Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-08-14**: Added `brand-logo-system`, harvested from a task rather than
+  written from general knowledge. A project identity had been produced by hand
+  twice in one session and the second run hit the first run's failures again,
+  so the Skill carries the three that cost real time: a text substitution over
+  `width=`/`height=` also rescales every nested `<use>` and `<rect>` to the full
+  canvas; the shared library's "transparent" assets are opaque PNGs with a
+  checkerboard painted into their pixels, measured at 0 % transparent; and a
+  board claiming the mark survives favicon size is a claim until a 16 px render
+  proves it, which for a detailed mark it does not. The bundled renderer
+  composes all eleven library slots from one definition plus two or three glyph
+  fragments. Proven end to end against AutomatedLab, whose palette and
+  gear-and-flask mark were recovered from its own 2025 logo by pixel count. The
+  atomic-change-set gate fired on its own author: the first test run failed only
+  `brand-logo-system has a trigger-query set`, and passed at 438/0 once the
+  twenty labelled queries were added. `Prompts/brand-logo.prompt.md` starts the
+  process the Skill executes, front-loading the question an agent is most likely
+  to guess at — what the mark should actually show — and skipping it entirely
+  when the repository already carries a logo.
 
 - **2026-08-12**: Adopted four items from a review of an external Copilot
   catalogue, reimplemented rather than copied. `pester-patterns` gained an AST
@@ -95,25 +114,6 @@ published to the PowerShell Gallery. Incremental work is tracked under
   while validation falls is the overfitting signal, so the edit is left
   uncommitted for the owner rather than claimed as an improvement. 198 judge
   calls, 2.19 USD.
-
-- **2026-08-11**: Withdrew the claim that the trigger-eval grader scores a prose
-  reply like a wrong selection. All 162 stored replies parse; the regex is
-  multiline, so it matches a compliant line anywhere. Two latent defects were
-  logged instead: markdown-wrapped, quoted and parenthesised answers do not
-  match, and `SELECTED: x.` scores as a different skill, not a format failure.
-
-- **2026-08-11**: Audited the customization library against the live upstream
-  sources and closed six gaps. The category-level `USE FOR:` rewrite had
-  conflated two different upstream rules — the specification wants domain
-  keywords, only failed-query wording overfits — which is what `pos-09` had been
-  paying for; the rule now reads "keep the domain vocabulary, drop the
-  failed-query wording" in all four files. `skill-creator` gained the fifth
-  upstream authoring page it never cited, `using-scripts`, plus a pointer to the
-  optional frontmatter fields. The primer's "third person, always"
-  contradiction and its Anthropic-first source list are fixed. Three guards
-  landed: `plugin.json` is validated for the first time, including version drift
-  and the `$schema`-versus-capital-`Skills` trap, and the over-budget Skill
-  baseline and the near-cap descriptions both became per-Skill high-water marks.
 
 ## Stable capabilities
 
