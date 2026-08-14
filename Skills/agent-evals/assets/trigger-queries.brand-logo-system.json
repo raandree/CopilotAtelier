@@ -99,13 +99,6 @@
     "note": "UI theming; says brand palette but produces no brand asset"
   },
   {
-    "id": "neg-06",
-    "query": "add an IconUri to the module manifest before we publish to the gallery",
-    "should_trigger": false,
-    "split": "train",
-    "note": "sampler-framework; says icon but is manifest metadata"
-  },
-  {
     "id": "neg-07",
     "query": "crop these product photos and knock out the background",
     "should_trigger": false,
@@ -124,7 +117,7 @@
     "query": "our html report should show the company logo in the header",
     "should_trigger": false,
     "split": "validation",
-    "note": "pswritehtml-reporting; consumes an existing asset rather than producing one"
+    "note": "pswritehtml-reporting; embeds a mark in generated output rather than wiring one into the project's own surfaces"
   },
   {
     "id": "neg-10",
@@ -132,5 +125,39 @@
     "should_trigger": false,
     "split": "validation",
     "note": "font tooling; svg in, but nothing to do with a project identity"
+  },
+  {
+    "id": "pos-11",
+    "query": "add an IconUri to the module manifest before we publish to the gallery",
+    "should_trigger": true,
+    "split": "train",
+    "note": "integration step 5; the icon asset and the direct-image-URL rule are this skill's, not the build framework's"
+  },
+  {
+    "id": "pos-12",
+    "query": "the logo at the top of the readme takes up too much room, can we move it into the corner",
+    "should_trigger": true,
+    "split": "train",
+    "note": "header layout; the user names no asset and no brand vocabulary"
+  },
+  {
+    "id": "pos-13",
+    "query": "our package shows the default placeholder image on the powershell gallery",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "describes the symptom of a missing icon rather than asking for one"
+  },
+  {
+    "id": "pos-14",
+    "query": "set the social preview image on the github repo so links unfurl properly",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "neg-11",
+    "query": "put a screenshot of the main window at the top of the readme",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "windows-gui-screenshot-capture; README image work, but the artwork is a capture rather than the project's mark"
   }
 ]

@@ -2,21 +2,22 @@
 name: brand-logo-system
 compatibility: Requires Windows with Microsoft Edge (used headless as the SVG rasterizer) and PowerShell 5.1+ with System.Drawing for verification. No design tool, font install, or network access is needed.
 description: >-
-  Designs a project's visual identity and renders it as editable SVG masters
-  plus deterministic PNG deliverables, then exports the eleven-slot asset set
-  a shared logo library expects. Covers deriving a palette and mark from a
-  project's existing artwork, composing primary lockups, glyph-only marks, app
-  icons, splash screens and monochrome variants, headless rasterisation at
-  exact canvas sizes, and measured verification of dimensions, transparency,
-  centring, and small-size legibility.
+  Designs a project's visual identity, renders SVG masters and PNG
+  deliverables, exports the eleven-slot set a shared logo library expects, and
+  wires the chosen variants into the project itself. Covers palette
+  extraction, lockups, glyph marks, app icons, monochrome variants, and
+  measured verification.
   USE FOR: create a logo or icon for a repository, design a brand mark or
-  glyph, generate an app icon or favicon, build a logo system or brand board,
-  produce light, dark and monochrome logo variants, render SVG to PNG at exact
-  pixel sizes, add a project to a shared Logos folder, regenerate brand assets
-  after the mark changes.
+  glyph, generate an app icon or favicon, build a brand board, produce light,
+  dark and monochrome variants, render SVG to PNG at exact sizes, add a
+  project to a shared Logos folder, regenerate assets after the mark changes,
+  put the mark in a README header or fix one that wastes space, give a package
+  its icon so a gallery entry stops showing a placeholder, set a repository
+  social preview.
   DO NOT USE FOR: photo editing, marketing copy, architecture diagrams (use
-  Mermaid), slide decks (use marp-slide-overflow), application screenshots
-  (use windows-gui-screenshot-capture).
+  Mermaid), slide decks (use marp-slide-overflow), screenshots (use
+  windows-gui-screenshot-capture), logos inside generated reports (use
+  pswritehtml-reporting).
 ---
 
 # Brand Logo System
@@ -31,12 +32,16 @@ concept, and the small-size behaviour. Every claim the board makes must be backe
 - "Add this project to the shared Logos folder."
 - "Make light and dark versions, an app icon, and a favicon."
 - "Regenerate the brand assets, the mark changed."
+- "Put the logo in the README." / "The header takes too much space."
+- "Our package has no icon on the gallery."
 
 ## Outcome
 
 Eleven PNG files in the library folder, named `<Initials> #<N> - <slot>.png`, all rendered from one
 brand definition plus two or three glyph fragments, with dimensions, alpha, centring, and
-small-size legibility verified by measurement rather than by eye.
+small-size legibility verified by measurement rather than by eye. When the user names a project to
+integrate, that repository also carries the variants it needs and renders them in its README,
+package metadata, and social preview.
 
 ## Dependencies
 
@@ -135,6 +140,87 @@ scaling and alpha faults; only viewing catches a broken layout or an overlapping
 For small-size legibility, measure ink coverage of the favicon glyph at 32 px and 16 px. Coverage
 that collapses toward 0 or saturates toward 100 means the glyph has dissolved or blobbed.
 
+## Step 5 - Integrate into the project
+
+Steps 1-4 produce a library set and touch no repository. Integration is the opposite: it writes
+into a project. Do it only when the user asks for it and only against a repository they have named.
+
+### Ask which project, do not infer one
+
+The library folder holds many projects and a session often has several repositories in view, so the
+target is rarely implied by "add the logo". Ask before writing, following
+[`Reference/interactive-questions.md`](../../Reference/interactive-questions.md): use
+`vscode_askQuestions` when it is available, and fall back to plain bullets when it is not.
+
+Ask, in one cluster:
+
+- Which repository receives the assets. Offer the open workspace folders as options, and leave
+  freeform input on so the user can name a path that is not open.
+- Which surfaces to wire: README header, package or manifest icon, GitHub social preview.
+
+Never guess from "this repo" when more than one repository is open, and never write into a
+repository the user has not named. A brand commit in the wrong project is noise the owner has to
+find and revert.
+
+### Copy only what the project uses
+
+Copy into a repository-local `assets/` folder, and keep the library set as the source. A project
+needs the wordmark pair, the glyph pair, one icon, and the social preview; it does not need the
+board or the splash slots. Add an `assets/README.md` recording the palette, the file table, and the
+rule for choosing a variant, so the next contributor does not recolour a mark by hand.
+
+### README header
+
+Float the wordmark left so the intro fills the space beside it, rather than stacking a centred
+block above the text:
+
+```html
+<!-- markdownlint-disable MD033 MD041 -->
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="assets/logo-wordmark-dark.png">
+  <img align="left" width="300" alt="<Project> logo"
+       src="assets/logo-wordmark-light.png">
+</picture>
+<!-- markdownlint-enable MD033 -->
+
+<the intro paragraph, which wraps to the right of the mark>
+
+<!-- markdownlint-disable MD033 -->
+<br clear="left">
+<!-- markdownlint-enable MD033 -->
+```
+
+- **A `<table>` cannot do this on github.com.** The obvious two-column layout draws a 1px border on
+  every cell from GitHub's markdown CSS, and the inline style or `border="0"` that would remove it
+  is stripped by the sanitiser. The float is the only borderless option that survives.
+- `<br clear="left">` ends the float. Without it the next section wraps around the mark.
+- The wordmark contains the project name, so it replaces the `<h1>` rather than sitting above one.
+  That is why `MD041` stays disabled for the whole file while `MD033` is re-enabled after the
+  picture. Re-adding a text heading beside a wordmark prints the name twice.
+- Serve both variants through `<picture>`. Editor markdown previews mis-resolve
+  `prefers-color-scheme`, so judge the result on github.com, not in the preview pane.
+
+### Package and repository metadata
+
+| Surface | Asset | Rule |
+|---|---|---|
+| PowerShell module `IconUri`, npm `icon`, NuGet `icon` | `icon-256.png` | A direct image URL, never a repository or release page. Raw hosting: `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/assets/icon-256.png` |
+| GitHub social preview | `social-preview.png` | 1280x640, opaque. Uploaded in repository settings; it is not a committed reference |
+| Favicon or docs site | reduced glyph | Below 32 px use the chunky favicon glyph, not the detailed mark |
+
+Size decides the variant, not the surface: at roughly 128 px and below the wordmark loses its
+lettering, so use the glyph; below 32 px use the icon.
+
+### Verify the integration
+
+- Every referenced path resolves from the repository root. A README image that 404s on github.com
+  still renders locally from a stale working copy.
+- The metadata URL returns an image, not an HTML page. A repository URL pasted into `IconUri` is
+  the common failure and the gallery silently shows a placeholder.
+- Open the rendered README on github.com in both colour themes.
+- Record the change where the project records changes; a header swap is user-visible.
+
 ## The eleven slots
 
 | # | Slot | Canvas | Background | Artwork |
@@ -190,3 +276,12 @@ variants first, then light. Sibling boards share this quirk; keep it for family 
   cannot leave an orphan behind.
 - **Long wordmark overflows the lockup.** Reduce the wordmark font size in the composer rather than
   shrinking the glyph; the glyph is the recognisable element.
+- **The user says "add the logo" with several repositories open.** Ask which one. Do not infer from
+  the active editor or the last repository discussed.
+- **The project is not yours to change.** Render into the library only, and hand the user the
+  README block and the metadata line to paste. Integration is opt-in, never a side effect of
+  producing the assets.
+- **The README already has a header.** Replace it rather than adding a second mark, and say in the
+  change record what the old header was, so the swap is reviewable.
+- **The repository is private.** A raw metadata URL will not resolve for anyone outside it. Say so
+  rather than shipping a link that works only for the owner.
