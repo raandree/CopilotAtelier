@@ -164,10 +164,11 @@ find and revert.
 
 ### Copy only what the project uses
 
-Copy into a repository-local `assets/` folder, and keep the library set as the source. A project
-needs the wordmark pair, the glyph pair, one icon, and the social preview; it does not need the
-board or the splash slots. Add an `assets/README.md` recording the palette, the file table, and the
-rule for choosing a variant, so the next contributor does not recolour a mark by hand.
+Copy into the repository's own asset folder - `assets/` unless the project already keeps artwork
+somewhere else, such as `docs/brand/` - and keep the library set as the source. A project needs the
+wordmark pair, the glyph pair, one icon, and the social preview; it does not need the board or the
+splash slots. Add a README beside them recording the palette, the file table, and the rule for
+choosing a variant, so the next contributor does not recolour a mark by hand.
 
 ### README header
 

@@ -1,6 +1,6 @@
 ---
 agent: software-engineer
-description: Start a project's logo and icon design — interview the user on how the mark should look, then build, render, and verify the full brand asset set.
+description: Start a project's logo and icon design — interview the user on how the mark should look, build, render, and verify the full brand asset set, then wire it into the project.
 ---
 
 # Start the Brand Logo Process
@@ -37,7 +37,7 @@ Cluster 2 — the system:
 |---|---|
 | Colour source | options: reuse the project's existing colours, match a named product, describe a mood, no preference |
 | Wordmark split (line 1 / line 2) and tagline | freeform |
-| Delivery target | options: repository `docs/brand/`, shared Logos library, both |
+| Delivery target | options: shared Logos library, the project repository, both |
 
 ## Phase 3 — Propose before building
 
@@ -54,6 +54,13 @@ guess.
 4. Run the skill's measured gate: count, naming, slot parity, canvas size, corner
    alpha, painted bounds, centring, and ink coverage at 32 and 16 px.
 5. Open the board and one composed slot and look at them.
+
+## Phase 5 — Integrate, only when asked
+
+Skip this phase when the delivery target is the library alone. Otherwise follow the skill's
+Step 5: name the repository before writing to it, copy only the variants the project uses, float
+the wordmark in the README header, set the package icon to a direct image URL, and upload the
+social preview. Record the change where the project records changes.
 
 ## Rules
 

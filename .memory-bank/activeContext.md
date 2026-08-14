@@ -14,6 +14,12 @@ by hand twice in one session, and the second run rediscovered the same failures
 as the first, which is the signal that a procedure belongs in a Skill rather
 than in a conversation.
 
+The Skill then stopped one step short. It produced a library set and left wiring
+the mark into a repository to improvisation, which `WindowsAccessControl` proved
+by needing three passes over its README header. Step 5 now covers integration,
+and it asks which repository before writing, because the library holds many
+projects and a session usually has several open.
+
 ## Implemented
 
 - `Skills/brand-logo-system/SKILL.md` — 192 lines. Carries the eleven-slot
@@ -25,12 +31,14 @@ than in a conversation.
   eleven slots from one `.psd1` definition plus two or three glyph fragments,
   so a project's only bespoke artwork is its glyph. Rasterizes through headless
   Microsoft Edge.
-- `Skills/agent-evals/assets/trigger-queries.brand-logo-system.json` — ten
+- `Skills/agent-evals/assets/trigger-queries.brand-logo-system.json` — fourteen
   positives and ten near-miss negatives, both splits populated. The negatives
   come from sibling Skills that share vocabulary but not intent:
-  `windows-gui-screenshot-capture`, `marp-slide-overflow`, `sampler-framework`
-  ("add an IconUri"), `pswritehtml-reporting`, and a rendering bug that belongs
-  to `debugging-and-error-recovery`.
+  `windows-gui-screenshot-capture` (twice, once for a screenshot placed in a
+  README), `marp-slide-overflow`, `pswritehtml-reporting`, and a rendering bug
+  that belongs to `debugging-and-error-recovery`. The `sampler-framework`
+  negative ("add an IconUri") became a positive when integration entered scope;
+  the query set had encoded the opposite of the new boundary.
 - `README.md` and `CHANGELOG.md` — the remaining two artifacts of the Skill
   atomic change set.
 - `Prompts/brand-logo.prompt.md` — starts the process the Skill executes. It
@@ -69,6 +77,11 @@ than in a conversation.
   dark/light rather than reversed-for-dark. Two sets in one library therefore
   disagree on what "dark mode" means. Migrating it to a brand definition would
   settle it.
+- **The integration step was written from one project, not two.** Every claim in
+  Step 5 was measured on `WindowsAccessControl`; the float, the sanitiser
+  behaviour, and the `IconUri` rule are general, but the asset-folder default
+  and the 300 px wordmark width are one project's convention until a second one
+  confirms them.
 - The README *Available Skills* table still has no gate. This change added its
   row because the atomic checklist says so, not because CI would have caught the
   omission.

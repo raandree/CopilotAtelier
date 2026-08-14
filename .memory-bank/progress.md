@@ -15,6 +15,23 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-14**: Extended `brand-logo-system` to cover integrating the assets
+  into a project, which is where the Skill had stopped: it produced a library
+  set and left the wiring to improvisation, and `WindowsAccessControl` proved
+  the cost by taking three passes over its README header. Step 5 carries the
+  non-guessable parts — a `<table>` cannot give a borderless two-column header
+  on github.com because the markdown CSS borders every cell and the sanitiser
+  strips the style that would remove it, the wordmark replaces the `<h1>` so
+  `MD041` stays disabled, and a package `IconUri` must be a direct image URL
+  because a repository URL is accepted and then silently shows a placeholder.
+  Integration names the target repository before writing to it. The trigger
+  queries had encoded the opposite boundary: "add an IconUri to the module
+  manifest" was a negative pointing at `sampler-framework` and is now a
+  positive, with a screenshot-in-the-README negative added so the widened scope
+  does not swallow `windows-gui-screenshot-capture`. Shipped as the full atomic
+  change set — Skill, queries, README row, changelog — after the first commit
+  shipped only half of it.
+
 - **2026-08-14**: Added `brand-logo-system`, harvested from a task rather than
   written from general knowledge. A project identity had been produced by hand
   twice in one session and the second run hit the first run's failures again,
