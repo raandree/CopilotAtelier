@@ -27,20 +27,23 @@ the focus this replaced, because nothing in this change resolves them.
   fallback, strict shape, reliability aggregation, and failure accounting.
 - The Skill, eval notes, README catalogue, changelog, and Decision 0014 explain
   the deterministic resolver gate versus the natural-language selection gate.
+- Grading asks whether anything required went missing rather than demanding an
+  exact route set, so a superset is scored as cost. `RecallPercent`,
+  `PrecisionPercent`, `ExtraRouteCount`, and `ExactReplies` carry that cost.
 
 ## Focused evidence
 
 - The first focused run failed because the evaluator did not exist; four tests
   now pass. A second red-green cycle proved scalar `routes` was accepted before
   the parser required an array.
+- A third red-green cycle covered the grading criterion: three of four new tests
+  failed against exact-set equality, and all eight pass against the safety rule.
 - Prepare mode generated 75 isolated prompt files from all 25 real routing
   cases at three repetitions without contacting a model.
-- The full build passes 607 tests with 0 failures and 105 skips, coverage
-  78.44 %, 17 tasks, 0 errors, and the known simulated-backend warning.
 - Memory Bank health has 0 warnings; deterministic routing has 0 misses and
   58.42 % average version-controlled context reduction.
 - Both changed PowerShell files parse cleanly and have 0 PSScriptAnalyzer
-  warning or error findings; editor diagnostics report 0 errors.
+  warning or error findings.
 
 ## Open findings
 
@@ -51,10 +54,9 @@ the focus this replaced, because nothing in this change resolves them.
   Decision records.
 - Total context-window cost, latency, and answer quality under routed versus
   full loading remain unmeasured.
-- Grading demands an exact route set, so a safe superset that loses no context
-  scores the same as a miss. The deterministic gate grades critical-file misses
-  instead, and Decision 0014 now asks every case to clear pass^k against the
-  stricter rule.
+- Safety is gameable on its own: a reply naming every route never misses. No
+  precision floor is set, because no measured baseline exists to derive one
+  from, so `Passed = True` at low precision is not yet a failing build.
 
 ## Carried forward from the previous focus
 

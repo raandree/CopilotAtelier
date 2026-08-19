@@ -6,13 +6,19 @@
 .DESCRIPTION
     Prepare mode writes isolated judge prompts containing only the Memory Bank
     index and one task prompt. Grade mode compares strict JSON replies with the
-    human-labelled routes in the eval set and reports pass@k and pass^k.
+    human-labelled routes in the eval set. A reply is safe when it misses no
+    labelled route, matching the critical-file-miss criterion of the
+    deterministic resolver eval, so a superset costs context rather than
+    correctness. Recall, precision, and over-selection are reported separately
+    so that selecting every route is visible as low precision instead of
+    passing silently.
 .PARAMETER Mode
     Prepare writes judge prompts. Grade scores existing JSON replies.
 .PARAMETER Path
     Repository root containing .memory-bank/index.md.
 .PARAMETER EvalFile
-    Provenance-labelled routing cases used by the deterministic resolver eval.
+    Provenance-labelled routing cases whose route labels are the hidden
+    grading key.
 .PARAMETER WorkDir
     Directory for generated prompts and model replies.
 .PARAMETER Repetitions
@@ -100,6 +106,50 @@ function Test-StringSetEqual {
     @(
         Compare-Object -ReferenceObject $leftSet -DifferenceObject $rightSet
     ).Count -eq 0
+}
+
+function Measure-RouteSelection {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [string[]]$SelectedRoute,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [string[]]$LabelledRoute
+    )
+
+    $selected = @($SelectedRoute | Sort-Object -Unique)
+    $labelled = @($LabelledRoute | Sort-Object -Unique)
+    $matchedCount = @($labelled | Where-Object { $_ -in $selected }).Count
+
+    [PSCustomObject]@{
+        MatchedCount = $matchedCount
+        LabelledCount = $labelled.Count
+        SelectedCount = $selected.Count
+        MissingCount = $labelled.Count - $matchedCount
+        ExtraCount = $selected.Count - $matchedCount
+    }
+}
+
+function Get-RouteRatioPercent {
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter(Mandatory)]
+        [int]$Numerator,
+
+        [Parameter(Mandatory)]
+        [int]$Denominator
+    )
+
+    if ($Denominator -le 0) {
+        return $null
+    }
+
+    [Math]::Round(100 * $Numerator / $Denominator, 2)
 }
 
 function ConvertFrom-RouteSelectionReply {
@@ -248,8 +298,13 @@ $($case.prompt)
 
 $correctReplies = 0
 $incorrectReplies = 0
+$exactReplies = 0
 $malformedReplies = 0
 $missingReplies = 0
+$matchedRoutes = 0
+$labelledRoutes = 0
+$selectedRoutes = 0
+$extraRoutes = 0
 $details = @()
 
 foreach ($case in $cases) {
@@ -258,6 +313,11 @@ foreach ($case in $cases) {
         [bool]$case.expectFallback
     )
     $caseCorrectReplies = 0
+    $caseExactReplies = 0
+    $caseMatched = 0
+    $caseLabelled = 0
+    $caseSelected = 0
+    $caseExtra = 0
 
     foreach ($repetition in 1..$Repetitions) {
         $replyPath = Join-Path $WorkDir (
@@ -277,27 +337,53 @@ foreach ($case in $cases) {
             continue
         }
 
-        $isCorrect = $reply.Fallback -eq $expectedFallback
-        if ($isCorrect -and -not $expectedFallback) {
-            $isCorrect = Test-StringSetEqual `
-                -Left $reply.Routes `
-                -Right ([string[]]@($case.routes))
+        $isSafe = $reply.Fallback -eq $expectedFallback
+        $isExact = $isSafe
+
+        # Route statistics only apply where the reply is a route selection.
+        if (-not $expectedFallback -and -not $reply.Fallback) {
+            $measure = Measure-RouteSelection `
+                -SelectedRoute $reply.Routes `
+                -LabelledRoute ([string[]]@($case.routes))
+
+            $caseMatched += $measure.MatchedCount
+            $caseLabelled += $measure.LabelledCount
+            $caseSelected += $measure.SelectedCount
+            $caseExtra += $measure.ExtraCount
+
+            $isSafe = $measure.MissingCount -eq 0
+            $isExact = $isSafe -and $measure.ExtraCount -eq 0
         }
 
-        if ($isCorrect) {
+        if ($isSafe) {
             $correctReplies++
             $caseCorrectReplies++
+            if ($isExact) {
+                $exactReplies++
+                $caseExactReplies++
+            }
         } else {
             $incorrectReplies++
         }
     }
 
+    $matchedRoutes += $caseMatched
+    $labelledRoutes += $caseLabelled
+    $selectedRoutes += $caseSelected
+    $extraRoutes += $caseExtra
+
     $details += [PSCustomObject]@{
         Id = [string]$case.id
         CorrectReplies = $caseCorrectReplies
+        ExactReplies = $caseExactReplies
         Repetitions = $Repetitions
         PassAtK = $caseCorrectReplies -gt 0
         PassHatK = $caseCorrectReplies -eq $Repetitions
+        RecallPercent = Get-RouteRatioPercent `
+            -Numerator $caseMatched -Denominator $caseLabelled
+        PrecisionPercent = Get-RouteRatioPercent `
+            -Numerator $caseMatched -Denominator $caseSelected
+        ExtraRouteCount = $caseExtra
     }
 }
 
@@ -311,6 +397,7 @@ $passHatKCaseCount = @($details | Where-Object PassHatK).Count
     Repetitions = $Repetitions
     CorrectReplies = $correctReplies
     IncorrectReplies = $incorrectReplies
+    ExactReplies = $exactReplies
     MalformedReplies = $malformedReplies
     MissingReplies = $missingReplies
     PassAtKCaseCount = $passAtKCaseCount
@@ -323,5 +410,10 @@ $passHatKCaseCount = @($details | Where-Object PassHatK).Count
         100 * $passHatKCaseCount / $cases.Count,
         2
     )
+    RecallPercent = Get-RouteRatioPercent `
+        -Numerator $matchedRoutes -Denominator $labelledRoutes
+    PrecisionPercent = Get-RouteRatioPercent `
+        -Numerator $matchedRoutes -Denominator $selectedRoutes
+    ExtraRouteCount = $extraRoutes
     Details = $details
 }

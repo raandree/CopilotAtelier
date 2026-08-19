@@ -27,10 +27,8 @@ published to the PowerShell Gallery. Incremental work is tracked under
   Integration names the target repository before writing to it. The trigger
   queries had encoded the opposite boundary: "add an IconUri to the module
   manifest" was a negative pointing at `sampler-framework` and is now a
-  positive, with a screenshot-in-the-README negative added so the widened scope
-  does not swallow `windows-gui-screenshot-capture`. Shipped as the full atomic
-  change set — Skill, queries, README row, changelog — after the first commit
-  shipped only half of it.
+  positive. Shipped as the full atomic change set after the first commit shipped
+  only half of it.
 
 - **2026-08-14**: Added `brand-logo-system`, harvested from a task rather than
   written from general knowledge. A project identity had been produced by hand
@@ -47,9 +45,19 @@ published to the PowerShell Gallery. Incremental work is tracked under
   atomic-change-set gate fired on its own author: the first test run failed only
   `brand-logo-system has a trigger-query set`, and passed at 438/0 once the
   twenty labelled queries were added. `Prompts/brand-logo.prompt.md` starts the
-  process the Skill executes, front-loading the question an agent is most likely
-  to guess at — what the mark should actually show — and skipping it entirely
-  when the repository already carries a logo.
+  process the Skill executes, and skips the interview entirely when the
+  repository already carries a logo.
+
+- **2026-08-19**: Replaced exact-set grading in the route-selection evaluator
+  after review found it misaligned with the risk it exists to catch. A reply
+  selecting a superset reads more context but loses none, yet scored the same as
+  a dropped route, and Decision 0014 had turned that into a pass^k demand no run
+  could meet. Grading now asks the sibling gate's question — did anything
+  required go missing — and reports recall, precision, over-selection, and exact
+  matches as cost. The obvious hole was closed in a test, not in prose: a reply
+  naming every route passes safety at 100 % recall and 50 % precision. No
+  precision floor is set; inventing one unbacked by a baseline is the mistake
+  being undone.
 
 - **2026-08-13**: Added an offline natural-language Memory Bank route-selection
   evaluator, rebased onto `main` on 2026-08-19. `Prepare` emits label-free
@@ -57,33 +65,25 @@ published to the PowerShell Gallery. Incremental work is tracked under
   JSON route arrays, handles Full-read fallback explicitly, and reports pass@k
   plus pass^k. Twenty-five real cases produced 75 isolated prompts without
   contacting a model, and the replies are not executed yet, so reliability is
-  not claimed. Grading demands an exact route set, which scores a safe superset
-  as a miss even though it loses no context — the open question the harness
-  raises against its own criterion.
-
+  not claimed.
 - **2026-08-12**: Adopted four items from a review of an external Copilot
   catalogue, reimplemented rather than copied. `pester-patterns` gained an AST
   detector for Pester v4 constructs plus a v4-to-v5 reference; against this
   repository's own suite it returns 0 `BlockBodyCommand` and 18
-  `TopLevelCommand` findings, all of them deliberate discovery-time `-ForEach`
-  builders, which is the signal-to-noise a detector needs to survive.
+  `TopLevelCommand` findings, all deliberate discovery-time `-ForEach` builders,
+  which is the signal-to-noise a detector needs to survive.
   `SkillTriggerCoverage` turns "1 Skill of 44 has ever been measured for
-  discovery" into a shrink-only baseline of 38, with five sets shipped for the
-  Pester and Sampler cluster whose negatives are near misses lifted from each
-  other. `SecretScan` and `CustomizationFrontmatter` close the two gates that
-  did not exist, the former carrying a planted-credential test because a gate
-  never shown to reject is not a gate. `AGENTS.md` now names the atomic change
-  set per Customization type. 603 passed, 0 failed, coverage 78.44 %.
+  discovery" into a shrink-only baseline of 38. `SecretScan` and
+  `CustomizationFrontmatter` close the two gates that did not exist, the former
+  carrying a planted-credential test because a gate never shown to reject is not
+  a gate. `AGENTS.md` now names the atomic change set per Customization type.
 
 - **2026-08-12**: Unblocked CI. Every test leg failed at *Prepare all required
   actions* on `Unable to resolve action astral-sh/setup-uv@v9`. The action
-  publishes no floating major alias past `v7` — `v9.0.0` is a release tag,
-  `refs/tags/v9` does not exist — so the reference was never resolvable and no
-  upstream deletion occurred. Pinned to `v9.0.0`; the step takes no inputs, so
-  the major bump carries no configuration risk. The lesson generalises: a
-  `@vN` reference is an assumption about the publisher's tagging habit, and it
-  has to be verified against the tag API rather than inferred from the release
-  number.
+  publishes no floating major alias past `v7`, so the reference was never
+  resolvable and no upstream deletion occurred. The lesson generalises: a `@vN`
+  reference is an assumption about the publisher's tagging habit, and it has to
+  be verified against the tag API rather than inferred from the release number.
 
 - **2026-08-11**: Took the worst over-budget Skill and the tighter Memory Bank
   file back under budget. `pester-patterns` split from a 796-line body to 149,

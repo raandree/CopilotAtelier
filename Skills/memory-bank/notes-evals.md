@@ -48,6 +48,13 @@ provenance-labelled tasks. The two routing checks answer different questions:
    compares strict JSON replies with the hidden route labels and reports pass@k
    and pass^k.
 
+Grading separates safety from cost. A reply is safe when it misses no labelled
+route, so a superset loses no context and is not scored as a miss. Because a
+reply naming every route is trivially safe, `PrecisionPercent` and
+`ExtraRouteCount` carry the cost signal and have to be read with `Passed`.
+No precision floor is set yet — there is no measured baseline to derive one
+from, and inventing a threshold is the mistake the exact-set rule made.
+
 The route-selection harness does not yet evaluate which relevant Decision
 records the model chooses, total context-window cost, task latency, or answer
 quality under routed versus full loading. Those remain separate eval stages.

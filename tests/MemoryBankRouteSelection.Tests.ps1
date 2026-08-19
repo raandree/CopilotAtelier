@@ -69,6 +69,15 @@ loading-mode: routed
             -Repetitions 2
     }
 
+    function Invoke-RouteSelectionGrade {
+        & $script:evaluatorPath `
+            -Mode Grade `
+            -Path $script:fixtureRoot `
+            -EvalFile $script:evalFile `
+            -WorkDir $script:workDir `
+            -Repetitions 2
+    }
+
     function Write-RouteSelectionReply {
         param(
             [Parameter(Mandatory)]
@@ -132,12 +141,7 @@ Describe 'Memory Bank route selection evaluation' -Tag 'Unit' {
         Write-RouteSelectionReply 'ambiguous-continuation.rep2.out.json' `
             '{"routes":["general"],"fallback":true}'
 
-        $result = & $script:evaluatorPath `
-            -Mode Grade `
-            -Path $script:fixtureRoot `
-            -EvalFile $script:evalFile `
-            -WorkDir $script:workDir `
-            -Repetitions 2
+        $result = Invoke-RouteSelectionGrade
 
         $result.Passed | Should -BeFalse
         $result.CorrectReplies | Should -Be 5
@@ -148,6 +152,72 @@ Describe 'Memory Bank route selection evaluation' -Tag 'Unit' {
         $result.PassHatKCaseCount | Should -Be 2
     }
 
+    It 'accepts a superset that loses no labelled route' {
+        Invoke-RouteSelectionPrepare | Out-Null
+
+        Write-RouteSelectionReply 'architecture-status.rep1.out.json' `
+            '{"routes":["architecture","status","general"],"fallback":false}'
+        Write-RouteSelectionReply 'architecture-status.rep2.out.json' `
+            '{"routes":["architecture","status"],"fallback":false}'
+
+        $result = Invoke-RouteSelectionGrade
+        $case = $result.Details | Where-Object Id -EQ 'architecture-status'
+
+        $case.CorrectReplies | Should -Be 2
+        $case.PassHatK | Should -BeTrue
+        $case.ExactReplies | Should -Be 1
+        $case.ExtraRouteCount | Should -Be 1
+    }
+
+    It 'rejects a reply that drops a labelled route even when it adds one' {
+        Invoke-RouteSelectionPrepare | Out-Null
+
+        Write-RouteSelectionReply 'architecture-status.rep1.out.json' `
+            '{"routes":["architecture","general"],"fallback":false}'
+        Write-RouteSelectionReply 'architecture-status.rep2.out.json' `
+            '{"routes":["architecture","status"],"fallback":false}'
+
+        $result = Invoke-RouteSelectionGrade
+        $case = $result.Details | Where-Object Id -EQ 'architecture-status'
+
+        $case.CorrectReplies | Should -Be 1
+        $case.PassAtK | Should -BeTrue
+        $case.PassHatK | Should -BeFalse
+    }
+
+    It 'reports recall and precision apart from the safety verdict' {
+        Invoke-RouteSelectionPrepare | Out-Null
+
+        # Selecting every route never misses, so only precision can expose it.
+        Write-RouteSelectionReply 'architecture-status.rep1.out.json' `
+            ('{"routes":["general","architecture","status",' +
+            '"interaction-history"],"fallback":false}')
+        Write-RouteSelectionReply 'architecture-status.rep2.out.json' `
+            ('{"routes":["general","architecture","status",' +
+            '"interaction-history"],"fallback":false}')
+
+        $result = Invoke-RouteSelectionGrade
+        $case = $result.Details | Where-Object Id -EQ 'architecture-status'
+
+        $case.PassHatK | Should -BeTrue
+        $case.RecallPercent | Should -Be 100
+        $case.PrecisionPercent | Should -Be 50
+        $result.ExtraRouteCount | Should -Be 4
+    }
+
+    It 'omits route statistics when no reply carries a route selection' {
+        Invoke-RouteSelectionPrepare | Out-Null
+        Write-RouteSelectionReply 'ambiguous-continuation.rep1.out.json' `
+            '{"routes":[],"fallback":true}'
+
+        $result = Invoke-RouteSelectionGrade
+
+        $result.CorrectReplies | Should -Be 1
+        $result.RecallPercent | Should -BeNullOrEmpty
+        $result.PrecisionPercent | Should -BeNullOrEmpty
+        $result.ExtraRouteCount | Should -Be 0
+    }
+
     It 'counts malformed and missing replies as reliability failures' {
         Invoke-RouteSelectionPrepare | Out-Null
         Write-RouteSelectionReply 'architecture-status.rep1.out.json' `
@@ -155,12 +225,7 @@ Describe 'Memory Bank route selection evaluation' -Tag 'Unit' {
         Write-RouteSelectionReply 'architecture-status.rep2.out.json' `
             '{"routes":"architecture","fallback":false}'
 
-        $result = & $script:evaluatorPath `
-            -Mode Grade `
-            -Path $script:fixtureRoot `
-            -EvalFile $script:evalFile `
-            -WorkDir $script:workDir `
-            -Repetitions 2
+        $result = Invoke-RouteSelectionGrade
 
         $result.Passed | Should -BeFalse
         $result.MalformedReplies | Should -Be 2

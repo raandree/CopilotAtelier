@@ -284,9 +284,17 @@ $script = './Skills/memory-bank/scripts/Invoke-MemoryBankRouteSelectionEval.ps1'
   -WorkDir $workDir -Repetitions 3
 ```
 
-Prepare mode never sends a model request. Grade mode requires strict JSON,
-compares route sets without relying on order, and reports both pass@k and
-pass^k. `Passed = True` means every repetition of every case selected safely.
+Prepare mode never sends a model request. Grade mode requires strict JSON and
+splits the verdict from the cost. A reply is safe when it misses no labelled
+route, so a superset costs context rather than correctness — the same criterion
+the deterministic resolver uses when it counts critical-file misses. `Passed =
+True` means every repetition of every case selected safely.
+
+Safety alone is gameable: a reply naming every route never misses. Read
+`PrecisionPercent` and `ExtraRouteCount` next to `Passed`, because that is where
+the degenerate strategy shows up. `RecallPercent` reports how much of the
+labelled context survived, and `ExactReplies` counts the replies that matched
+the label with nothing added.
 
 - All seven required files exist and are non-empty; local `promptHistory.md`
   exists when the initializer ran for the current durable turn.

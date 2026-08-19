@@ -87,7 +87,9 @@ carries the rest.
     Custom agent binding.
 - Memory Bank routing has two eval layers. Human-labelled routes test the
     deterministic resolver and context reduction; label-free task prompts test
-    natural-language Memory Bank route selection with pass@k and pass^k.
+    natural-language Memory Bank route selection with pass@k and pass^k. Both
+    layers grade safety as "no required context missing" and report
+    over-selection as a separate cost, so neither rewards reading everything.
     Durable-write, Decision-record, and task-quality evals remain separate.
 
 Read those source files for changing inventories. This file indexes durable

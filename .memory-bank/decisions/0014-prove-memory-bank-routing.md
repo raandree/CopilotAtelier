@@ -39,7 +39,10 @@ fallback, and at least 50 percent average version-controlled context reduction
 across the real-task baseline.
 
 Then run `Invoke-MemoryBankRouteSelectionEval.ps1` in `Prepare` and `Grade`
-modes with at least three fresh-context repetitions. Require every case to pass
-pass^k before claiming natural-language Memory Bank route reliability. This
-second gate does not cover durable-write or Decision-record selection, latency,
-or routed-versus-full task quality.
+modes with at least three fresh-context repetitions. A reply is safe when it
+misses no labelled route, matching the critical-file-miss criterion above, so a
+superset is scored as cost rather than failure. Require every case to pass
+pass^k on that safety criterion, and read `PrecisionPercent` with it, because a
+reply naming every route is safe by construction. This second gate does not
+cover durable-write or Decision-record selection, latency, or routed-versus-full
+task quality, and it sets no precision floor until a measured baseline exists.
