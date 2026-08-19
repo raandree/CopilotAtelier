@@ -1,4 +1,4 @@
-#requires -Version 7.0
+﻿#requires -Version 7.0
 <#
 .SYNOPSIS
     Computes the deemed notification date and the resulting deadline for a German tax notice.
