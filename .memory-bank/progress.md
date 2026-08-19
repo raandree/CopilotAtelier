@@ -15,6 +15,13 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-19**: Stored `Get-SteuerFrist.ps1` as UTF-8 with a BOM; the script
+  emits German legal text, so the ANSI fallback would reach a Finanzamt as
+  mojibake. The triage is the durable part: `ai/german-tax-research-skill`
+  looked unmerged under three-dot `git diff main...branch`, which reports only
+  the branch side of the merge base. `main` already held the Skill
+  byte-identical and the branch was 38 commits behind. Compare trees two-dot.
+
 - **2026-08-14**: Extended `brand-logo-system` to cover integrating the assets
   into a project, which is where the Skill had stopped: it produced a library
   set and left the wiring to improvisation, and `WindowsAccessControl` proved
@@ -99,23 +106,16 @@ published to the PowerShell Gallery. Incremental work is tracked under
   policy: anything that cannot merge without loss stops the merge, and equality
   is proven by SHA-256 rather than by presence. 7 tests, red then green.
 
-- **2026-08-11**: Moved the trigger-eval sweep onto `Invoke-ShpBatch`. The
-  identical pinned 69-call sweep runs in 26.3 s batched at `-ThrottleLimit 4`
-  against 103.9 s sequential for the same 0.76 USD, which is what makes the
-  N x R x M model-tier comparison practical. The control did the real work: two
-  *sequential* runs of one description disagreed with each other as much as
-  batch disagreed with sequential, so `-Temperature 0` reduces run-to-run judge
-  variance without removing it and any query near the 0.5 threshold moves
-  between runs. 21 harness tests, still hermetic.
-
-- **2026-08-11**: Re-measured `skill-creator`'s two standing trigger gaps and
-  found the recorded cause wrong. A pinned baseline gave train 13/14 and
-  validation 7/8, and an 18-call probe isolated the real variable: the miss is
-  the concept "build a skill out of existing material", not the language.
-  Editing the description against train only took train to 15/15 while
-  validation fell to 6/8. Train climbing while validation falls is the
-  overfitting signal, so the edit is left uncommitted for the owner rather than
-  claimed as an improvement. 198 judge calls, 2.19 USD.
+- **2026-08-11**: Moved the trigger-eval sweep onto `Invoke-ShpBatch` and
+  re-measured `skill-creator`'s two standing trigger gaps. Batching runs the
+  pinned 69-call sweep in 26.3 s against 103.9 s sequential for the same cost,
+  which is what makes the N x R x M tier comparison practical; the control also
+  showed two *sequential* runs disagreeing as much as batch disagreed with
+  sequential, so `-Temperature 0` reduces judge variance without removing it.
+  The `skill-creator` re-measure found the recorded cause wrong — the miss is
+  the concept "build a skill out of existing material", not the language — and
+  editing against train only took train to 15/15 while validation fell to 6/8,
+  so the overfitting signal left the edit uncommitted for the owner.
 
 ## Stable capabilities
 
