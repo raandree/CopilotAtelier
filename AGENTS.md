@@ -96,6 +96,7 @@ disagreeing with each other, and only some of that drift is caught by CI.
 | Skill name, description cap, body budget | [`tests/SkillFrontmatter.Tests.ps1`](tests/SkillFrontmatter.Tests.ps1) |
 | Skill conformance against the open specification | [`tests/SkillsRefValidate.Tests.ps1`](tests/SkillsRefValidate.Tests.ps1) |
 | Trigger coverage, query schema, orphaned query sets | [`tests/SkillTriggerCoverage.Tests.ps1`](tests/SkillTriggerCoverage.Tests.ps1) |
+| README catalogue rows against shipped Skills | [`tests/SkillCatalogue.Tests.ps1`](tests/SkillCatalogue.Tests.ps1) |
 | Agent, Instruction, and Prompt frontmatter | [`tests/CustomizationFrontmatter.Tests.ps1`](tests/CustomizationFrontmatter.Tests.ps1) |
 | Plugin manifest shape and version | [`tests/PluginManifest.Tests.ps1`](tests/PluginManifest.Tests.ps1) |
 | Committed credentials | [`tests/SecretScan.Tests.ps1`](tests/SecretScan.Tests.ps1) |

@@ -199,7 +199,6 @@ Stop and re-enter the process when any of these is true right now:
 - An internal caveat, status marker, or disclaimer is still in the submission draft.
 - Classifying a document from its subject line, filename, or a category column instead of the operative sentence.
 - Summing a transaction set with a sign filter, so credits and reversals cannot appear.
-- Editing one row of a table without printing its neighbours afterwards.
 
 ## Verification
 

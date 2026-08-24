@@ -9,44 +9,65 @@ source: current task evidence
 
 ## Current focus
 
-Record the uncommitted `german-tax-research` hardening in the repository's
-durable records. The Skill body had already gained two evidence rules and three
-red flags; the changelog and the Memory Bank were the parts still missing.
+Work the open findings on `main` without committing, at the user's explicit
+request. Two landed: the unsupported `german-tax-research` red flag is gone, and
+the README *Available Skills* catalogue has both its missing rows and a gate.
 
 ## Implemented
 
-- `Skills/german-tax-research/SKILL.md` carries *Read the operative sentence,
-  not the label* and *Aggregate both directions* under the evidence rules, each
-  resting on a measured counterexample rather than on a maxim.
-- Three red flags extend the stop-and-re-enter list: classifying a document from
-  its label, summing a transaction set through a sign filter, and editing one
-  table row without printing its neighbours.
-- `CHANGELOG.md` records the change under `[Unreleased]` / `Changed`.
-- `progress.md` gained the 2026-08-24 milestone, and the three oldest
-  2026-08-11 entries were condensed in the same edit so the append did not push
-  the file into a curation warning.
+- `Skills/german-tax-research/SKILL.md` no longer carries *Editing one row of a
+  table without printing its neighbours afterwards*. The flag pointed at nothing
+  the Skill or its six references teaches, and it is editing-tool hygiene rather
+  than tax material. Removed instead of retro-fitted with invented evidence.
+- `README.md` gained the nine missing catalogue rows: `agent-evals`,
+  `agent-security-review`, `doc-coauthoring`, `evidence-package-assembly`,
+  `gilb-requirements-engineering`, `grill-me`, `mcp-builder`,
+  `pswritehtml-reporting`, `skill-creator`.
+- `tests/SkillCatalogue.Tests.ps1` is the new gate: every shipped Skill has a
+  row, every row names a shipped Skill, every row carries a description, and a
+  count assertion guards the parser itself.
+- `AGENTS.md` lists the gate in its enforcement table.
+- `CHANGELOG.md` records the gate, the catalogue repair, and the dropped flag,
+  and the unreleased tax-research entry no longer claims the third red flag.
 
 ## Focused evidence
 
-- The frontmatter `description` is unchanged, so the trigger surface is the one
-  already on the documented `SkillTriggerCoverage` uncovered baseline: no eval
-  sweep is owed and no query set changes.
-- The body is 244 lines against the 500-line progressive-disclosure budget, so
-  the two new sections need no reference split.
-- Memory Bank health passes with 0 errors and 0 warnings across 7 canonical
-  files and 20 Decision records. `progress.md` sits at 179 of 200 lines, one
-  line below the `LineBudgetNearLimit` threshold.
-- No `README.md` row changes, because the catalogue lists the description and
-  the description did not move.
+- Drift measured before the fix: 36 catalogue rows against 45 shipped Skills,
+  0 orphan rows.
+- The gate was shown to reject before it was accepted. With the `agent-evals`
+  row removed the run is 133 passed and 1 failed, naming
+  `agent-evals has a catalogue row`; restored, 136 of 136 pass.
+- `SkillCatalogue`, `SkillTriggerCoverage`, `SkillFrontmatter`, and
+  `SkillsRefValidate` together: 488 passed, 0 failed, 60 skipped, exit 0.
+- `markdownlint-cli2` reports 0 issues across `README.md`, `AGENTS.md`, and
+  `Skills/german-tax-research/SKILL.md`.
+- The parser reads the `## Available Skills` section only. A whole-file scan
+  reads `**Agents**` and `**Instructions**` from the folder table as Skills, so
+  the orphan check would fail on rows never meant to name one.
+- `techContext.md` needs no matching edit: it delegates to `Skills/` rather than
+  holding a per-Skill inventory.
+- Nothing is committed. The working tree holds all five changed files.
+
+## Blocked, not deferred
+
+The ShellPilot module and `Invoke-ShpBatch` are absent on this machine, so
+`-Mode Execute` is unavailable for both eval harnesses. That blocks the two
+measurement items outright rather than by choice of priority:
+
+- The 75 prepared route-selection prompts cannot be answered, so no
+  pass@k or pass^k result exists yet.
+- The seven authored trigger-query sets cannot be swept, so `german-tax-research`
+  and the other 37 baselined Skills stay unmeasured for discovery.
+
+Both need ShellPilot plus a paid model backend, and a sweep costs money, so the
+run needs an explicit go-ahead rather than an assumption.
 
 ## Open findings
 
-- The third red flag has nothing behind it. Neither the Skill body nor its six
-  references tells the reader to print a table's neighbouring rows after an
-  edit, so the flag names a discipline the Skill never teaches. Either add the
-  rule where the control table is built, or drop the flag.
-- `german-tax-research` has still never been measured for discovery. The two new
-  sections are body content, so this change neither improves nor worsens that.
+- No trigger-query set was authored for `german-tax-research`. Adding one would
+  flip its coverage test from skipped to enforced while the sweep that gives it
+  meaning cannot run, growing the "authored but never measured" debt the seven
+  existing sets already represent. Author it with the sweep, not before.
 
 ## Carried forward from the route-selection eval
 
@@ -54,8 +75,6 @@ red flags; the changelog and the Memory Bank were the parts still missing.
   modes, and `MemoryBankRouteSelection.Tests.ps1` covers prompt isolation, label
   leakage, fallback, strict shape, reliability aggregation, and failure
   accounting.
-- The 75 prompts prepared from 25 real routing cases are unanswered, so no
-  route-selection pass@k or pass^k result exists yet.
 - The first stage infers routes and fallback only. The deterministic resolver
   still receives human labels for `durableWrite`, role files, and relevant
   Decision records.
@@ -67,20 +86,19 @@ red flags; the changelog and the Memory Bank were the parts still missing.
 
 ## Carried forward from earlier focuses
 
-- Six trigger-query sets, `brand-logo-system` among them, are authored but have
-  never been through `run-trigger-evals.ps1`.
 - `WindowsAccessControl` slots 1 and 2 use the older ink-variant reading of
-  dark/light, so two sets in one shared library disagree on "dark mode".
+  dark/light, so two sets in one shared library disagree on "dark mode". That
+  repository is not in this workspace.
 - The `brand-logo-system` integration step was measured on one project only.
-- The README *Available Skills* table still has no gate.
-- `Skills/german-employment-law/` is an empty untracked folder with no
-  `SKILL.md`.
 - The `skill-creator` description edit remains unproven: train reached 100 %
   while validation fell, which is the overfitting signal.
+- `Skills/german-employment-law/` is gone; the working tree is clean of it.
 
 ## Next step
 
-Decide the unsupported red flag, then return to the route-selection eval: run
-the 75 prepared prompts against one pinned model in fresh contexts, save the
-strict JSON replies, and grade them. Then add separate stages for durable-write
-and Decision-record selection before comparing routed and full task outcomes.
+Get a decision on running the paid sweeps. With a go-ahead: install ShellPilot,
+answer the 75 route-selection prompts against one pinned model in fresh
+contexts, grade them, then sweep the seven trigger-query sets and author
+`german-tax-research`'s set in the same pass. Without one, the remaining
+unblocked work is splitting the nine over-budget Skill bodies, starting with
+`german-legal-research` at 780 lines.

@@ -15,6 +15,19 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-08-24**: Closed the README catalogue gap and built the gate that would
+  have caught it. `AGENTS.md` had required an *Available Skills* row per Skill
+  since 2026-08-12 with nothing checking it, and the drift was 36 rows against
+  45 shipped Skills — `skill-creator` and `agent-evals` among the nine missing,
+  which are the two a new contributor needs first. `SkillCatalogue.Tests.ps1`
+  checks both directions and guards its own parser with a count assertion,
+  because a moved heading would otherwise pass with zero cases. Shown to reject
+  before being accepted: one row removed gives 133 passed and 1 failed on
+  `agent-evals has a catalogue row`; restored, 136 of 136 pass. In the same
+  change the unsupported `german-tax-research` red flag was dropped rather than
+  retro-fitted with invented evidence — it named editing-tool hygiene, not a tax
+  rule, and no reference taught it.
+
 - **2026-08-24**: Hardened `german-tax-research` against two failures that
   produce a confidently wrong number instead of a visible error. A title,
   filename, or category column is metadata written for another purpose, so the
@@ -32,37 +45,24 @@ published to the PowerShell Gallery. Incremental work is tracked under
   byte-identical and the branch was 38 commits behind. Compare trees two-dot.
 
 - **2026-08-14**: Extended `brand-logo-system` to cover integrating the assets
-  into a project, which is where the Skill had stopped: it produced a library
-  set and left the wiring to improvisation, and `WindowsAccessControl` proved
-  the cost by taking three passes over its README header. Step 5 carries the
-  non-guessable parts — a `<table>` cannot give a borderless two-column header
-  on github.com because the markdown CSS borders every cell and the sanitiser
-  strips the style that would remove it, the wordmark replaces the `<h1>` so
-  `MD041` stays disabled, and a package `IconUri` must be a direct image URL
-  because a repository URL is accepted and then silently shows a placeholder.
-  Integration names the target repository before writing to it. The trigger
-  queries had encoded the opposite boundary: "add an IconUri to the module
-  manifest" was a negative pointing at `sampler-framework` and is now a
-  positive. Shipped as the full atomic change set after the first commit shipped
-  only half of it.
+  into a project, where the Skill had stopped and left the wiring to
+  improvisation. Step 5 carries the non-guessable parts: github.com borders
+  every table cell and strips the style that would remove it, so a borderless
+  two-column README header needs a float rather than a `<table>`, and a package
+  `IconUri` must be a direct image URL because a repository URL is accepted and
+  then silently shows a placeholder. Integration names the target repository
+  before writing to it. Shipped as the full atomic change set after the first
+  commit shipped only half of it.
 
-- **2026-08-14**: Added `brand-logo-system`, harvested from a task rather than
-  written from general knowledge. A project identity had been produced by hand
-  twice in one session and the second run hit the first run's failures again,
-  so the Skill carries the three that cost real time: a text substitution over
-  `width=`/`height=` also rescales every nested `<use>` and `<rect>` to the full
-  canvas; the shared library's "transparent" assets are opaque PNGs with a
-  checkerboard painted into their pixels, measured at 0 % transparent; and a
-  board claiming the mark survives favicon size is a claim until a 16 px render
-  proves it, which for a detailed mark it does not. The bundled renderer
-  composes all eleven library slots from one definition plus two or three glyph
-  fragments. Proven end to end against AutomatedLab, whose palette and
-  gear-and-flask mark were recovered from its own 2025 logo by pixel count. The
-  atomic-change-set gate fired on its own author: the first test run failed only
-  `brand-logo-system has a trigger-query set`, and passed at 438/0 once the
-  twenty labelled queries were added. `Prompts/brand-logo.prompt.md` starts the
-  process the Skill executes, and skips the interview entirely when the
-  repository already carries a logo.
+- **2026-08-14**: Added `brand-logo-system` and the `brand-logo` Prompt that
+  starts it, harvested from a task that had been done by hand twice and hit the
+  same three failures both times: resizing an SVG by text substitution rescales
+  every nested `<use>` and `<rect>`, the shared library's "transparent" assets
+  are opaque PNGs measured at 0 % transparent pixels, and favicon legibility is
+  a claim until a 16 px render proves it. Proven end to end against
+  AutomatedLab, whose palette and mark were recovered from its own 2025 logo by
+  pixel count. The atomic-change-set gate fired on its own author: the first run
+  failed only `brand-logo-system has a trigger-query set`, then passed 438/0.
 
 - **2026-08-19**: Replaced exact-set grading in the route-selection evaluator
   after review found it misaligned with the risk it exists to catch. A reply
@@ -101,21 +101,16 @@ published to the PowerShell Gallery. Incremental work is tracked under
   reference is an assumption about the publisher's tagging habit, and it has to
   be verified against the tag API rather than inferred from the release number.
 
-- **2026-08-11**: Took `pester-patterns` from a 796-line body to 149 and
-  `systemPatterns.md` to 86, each by moving detail to where it belongs rather
-  than by raising a budget. Both baseline entries went in the same change, so
-  each gate proves its fix instead of recording the intent.
-
-- **2026-08-11**: Closed the three deferred `Set-CustomizationLink` findings,
-  all of which still reproduced. Decision 0020 settles the policy: anything that
-  cannot merge without loss stops the merge, and equality is proven by SHA-256
-  rather than by presence. The unattended `Update-CopilotAtelier -Force` path is
-  why the `Read-Host` opt-in became `-Force`. 7 tests, red then green.
-
-- **2026-08-11**: Moved the trigger-eval sweep onto `Invoke-ShpBatch` — 26.3 s
-  against 103.9 s sequential for the same cost — and re-measured
-  `skill-creator`, where editing against train took train to 15/15 while
-  validation fell to 6/8, so the overfitting signal left the edit uncommitted.
+- **2026-08-11**: Three curation and correctness landings. `pester-patterns`
+  went from a 796-line body to 149 and `systemPatterns.md` to 86, each by moving
+  detail rather than raising a budget, with both baseline entries removed in the
+  same change. The three deferred `Set-CustomizationLink` findings all still
+  reproduced and were closed red-then-green under Decision 0020: nothing merges
+  that cannot merge without loss, equality is proven by SHA-256, and the
+  `Read-Host` opt-in became `-Force` because `Update-CopilotAtelier -Force` runs
+  unattended. The trigger-eval sweep moved onto `Invoke-ShpBatch` at 26.3 s
+  against 103.9 s sequential, and the `skill-creator` re-measurement left its
+  edit uncommitted: train reached 15/15 while validation fell to 6/8.
 
 ## Stable capabilities
 
@@ -143,9 +138,10 @@ published to the PowerShell Gallery. Incremental work is tracked under
 
 ## Open work
 
-- Run the five shipped trigger-query sets, then cover the 38 Skills still on the
-  `SkillTriggerCoverage` uncovered baseline. The sets are authored but
-  unmeasured, so the gate currently proves only that the queries exist.
+- Run the seven shipped trigger-query sets, then cover the 38 Skills still on
+  the `SkillTriggerCoverage` uncovered baseline. The sets are authored but
+  unmeasured, so the gate currently proves only that the queries exist. Execute
+  mode needs ShellPilot plus a paid backend, neither present on this machine.
 - Split the nine Skills still on the `SkillFrontmatter` over-budget baseline
   into bodies under 500 lines plus one-level references, one per change,
   removing each from the baseline as it lands. `german-legal-research` at 780
