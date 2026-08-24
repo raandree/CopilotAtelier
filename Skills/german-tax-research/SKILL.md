@@ -132,6 +132,14 @@ An invoice alone proves none of the other three. Where a proof type is missing, 
 
 Since 2017 receipts are generally kept rather than filed (`Belegvorhaltepflicht`), so the Finanzamt asks for them later — sometimes years later. Keep the evidence with the case, not with the return.
 
+### Read the operative sentence, not the label
+
+A document's title, subject line, filename, or category column is metadata written by someone else for another purpose. It is not the finding. Three cases from one session: an e-mail headed `Your sessions at NIC Cloud Connect 2023` read *have not been accepted* in the body; a file named `240108 Überschussabrechnung` was the December statement, not a January one; a `Zinsbescheinigung` column that looked like *sonstige Kosten* held the `Tilgung`. Open the document, find the sentence that decides the point, and quote that one.
+
+### Aggregate both directions
+
+Never filter a transaction set by sign. A refund, a reversal, a credit note, or a `Storno` is precisely the entry that changes the answer, and an expenses-only filter makes it structurally invisible. A flight that showed `1.725,05 €` in charges cost `848,12 €` after the airline refunded one of two bookings three days later. Sum the whole ledger, then explain the net.
+
 ## Reconcile against the transmitted return
 
 Before answering any `Belegaufforderung`, build a control table with one row per contested item and four columns: **transmitted**, **now evidenced**, **difference**, **treatment**. The comparison base is the data set that was actually transmitted — the ELSTER or provider record — never the current working spreadsheet, which drifts as the analysis progresses.
@@ -189,6 +197,9 @@ Stop and re-enter the process when any of these is true right now:
 - Quoting a notice from an OCR text file without opening the PDF.
 - The letter names an `Anlage` that has not been built.
 - An internal caveat, status marker, or disclaimer is still in the submission draft.
+- Classifying a document from its subject line, filename, or a category column instead of the operative sentence.
+- Summing a transaction set with a sign filter, so credits and reversals cannot appear.
+- Editing one row of a table without printing its neighbours afterwards.
 
 ## Verification
 

@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-19
+last-verified: 2026-08-24
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,46 +9,53 @@ source: current task evidence
 
 ## Current focus
 
-Measure natural-language Memory Bank route selection independently from the
-deterministic resolver that consumes human-labelled routes. Rebased onto `main`
-on 2026-08-19; the `brand-logo-system` findings below were carried forward from
-the focus this replaced, because nothing in this change resolves them.
+Record the uncommitted `german-tax-research` hardening in the repository's
+durable records. The Skill body had already gained two evidence rules and three
+red flags; the changelog and the Memory Bank were the parts still missing.
 
 ## Implemented
 
-- `Invoke-MemoryBankRouteSelectionEval.ps1` has offline `Prepare` and `Grade`
-  modes. Prompts contain only one natural-language task and the Memory Bank
-  index; human routes, required files, provenance, and resolver flags stay
-  hidden.
-- Grade mode accepts only exact JSON objects with a route array and Boolean
-  fallback, compares routes without relying on order, and reports pass@k and
-  pass^k while separating wrong, malformed, and missing replies.
-- `MemoryBankRouteSelection.Tests.ps1` covers prompt isolation, label leakage,
-  fallback, strict shape, reliability aggregation, and failure accounting.
-- The Skill, eval notes, README catalogue, changelog, and Decision 0014 explain
-  the deterministic resolver gate versus the natural-language selection gate.
-- Grading asks whether anything required went missing rather than demanding an
-  exact route set, so a superset is scored as cost. `RecallPercent`,
-  `PrecisionPercent`, `ExtraRouteCount`, and `ExactReplies` carry that cost.
+- `Skills/german-tax-research/SKILL.md` carries *Read the operative sentence,
+  not the label* and *Aggregate both directions* under the evidence rules, each
+  resting on a measured counterexample rather than on a maxim.
+- Three red flags extend the stop-and-re-enter list: classifying a document from
+  its label, summing a transaction set through a sign filter, and editing one
+  table row without printing its neighbours.
+- `CHANGELOG.md` records the change under `[Unreleased]` / `Changed`.
+- `progress.md` gained the 2026-08-24 milestone, and the three oldest
+  2026-08-11 entries were condensed in the same edit so the append did not push
+  the file into a curation warning.
 
 ## Focused evidence
 
-- The first focused run failed because the evaluator did not exist; four tests
-  now pass. A second red-green cycle proved scalar `routes` was accepted before
-  the parser required an array.
-- A third red-green cycle covered the grading criterion: three of four new tests
-  failed against exact-set equality, and all eight pass against the safety rule.
-- Prepare mode generated 75 isolated prompt files from all 25 real routing
-  cases at three repetitions without contacting a model.
-- Memory Bank health has 0 warnings; deterministic routing has 0 misses and
-  58.42 % average version-controlled context reduction.
-- Both changed PowerShell files parse cleanly and have 0 PSScriptAnalyzer
-  warning or error findings.
+- The frontmatter `description` is unchanged, so the trigger surface is the one
+  already on the documented `SkillTriggerCoverage` uncovered baseline: no eval
+  sweep is owed and no query set changes.
+- The body is 244 lines against the 500-line progressive-disclosure budget, so
+  the two new sections need no reference split.
+- Memory Bank health passes with 0 errors and 0 warnings across 7 canonical
+  files and 20 Decision records. `progress.md` sits at 179 of 200 lines, one
+  line below the `LineBudgetNearLimit` threshold.
+- No `README.md` row changes, because the catalogue lists the description and
+  the description did not move.
 
 ## Open findings
 
-- The 75 prompts are prepared but unanswered, so no route-selection pass@k or
-  pass^k result exists yet.
+- The third red flag has nothing behind it. Neither the Skill body nor its six
+  references tells the reader to print a table's neighbouring rows after an
+  edit, so the flag names a discipline the Skill never teaches. Either add the
+  rule where the control table is built, or drop the flag.
+- `german-tax-research` has still never been measured for discovery. The two new
+  sections are body content, so this change neither improves nor worsens that.
+
+## Carried forward from the route-selection eval
+
+- `Invoke-MemoryBankRouteSelectionEval.ps1` has offline `Prepare` and `Grade`
+  modes, and `MemoryBankRouteSelection.Tests.ps1` covers prompt isolation, label
+  leakage, fallback, strict shape, reliability aggregation, and failure
+  accounting.
+- The 75 prompts prepared from 25 real routing cases are unanswered, so no
+  route-selection pass@k or pass^k result exists yet.
 - The first stage infers routes and fallback only. The deterministic resolver
   still receives human labels for `durableWrite`, role files, and relevant
   Decision records.
@@ -58,7 +65,7 @@ the focus this replaced, because nothing in this change resolves them.
   precision floor is set, because no measured baseline exists to derive one
   from, so `Passed = True` at low precision is not yet a failing build.
 
-## Carried forward from the previous focus
+## Carried forward from earlier focuses
 
 - Six trigger-query sets, `brand-logo-system` among them, are authored but have
   never been through `run-trigger-evals.ps1`.
@@ -73,6 +80,7 @@ the focus this replaced, because nothing in this change resolves them.
 
 ## Next step
 
-Run the 75 prepared prompts against one pinned model in fresh contexts, save the
+Decide the unsupported red flag, then return to the route-selection eval: run
+the 75 prepared prompts against one pinned model in fresh contexts, save the
 strict JSON replies, and grade them. Then add separate stages for durable-write
 and Decision-record selection before comparing routed and full task outcomes.

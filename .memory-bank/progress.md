@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-19
+last-verified: 2026-08-24
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,6 +14,15 @@ published to the PowerShell Gallery. Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-08-24**: Hardened `german-tax-research` against two failures that
+  produce a confidently wrong number instead of a visible error. A title,
+  filename, or category column is metadata written for another purpose, so the
+  finding must be the operative sentence: an e-mail headed `Your sessions at
+  NIC Cloud Connect 2023` read *have not been accepted* in its body. And a
+  transaction set filtered by sign hides the entry that changes the answer —
+  `1.725,05 €` of flight charges netted `848,12 €` after a refund three days
+  later. The `description` is untouched, so no eval sweep is owed.
 
 - **2026-08-19**: Stored `Get-SteuerFrist.ps1` as UTF-8 with a BOM; the script
   emits German legal text, so the ANSI fallback would reach a Finanzamt as
@@ -92,30 +101,21 @@ published to the PowerShell Gallery. Incremental work is tracked under
   reference is an assumption about the publisher's tagging habit, and it has to
   be verified against the tag API rather than inferred from the release number.
 
-- **2026-08-11**: Took the worst over-budget Skill and the tighter Memory Bank
-  file back under budget. `pester-patterns` split from a 796-line body to 149,
-  keeping only the rules that apply to every run in the body and moving the rest
-  into two one-level references; its baseline entry is gone, so the gate proves
-  the fix instead of documenting the intent. `systemPatterns.md` dropped to 86
-  lines by deleting the repository tree, which duplicated `techContext.md`.
+- **2026-08-11**: Took `pester-patterns` from a 796-line body to 149 and
+  `systemPatterns.md` to 86, each by moving detail to where it belongs rather
+  than by raising a budget. Both baseline entries went in the same change, so
+  each gate proves its fix instead of recording the intent.
 
 - **2026-08-11**: Closed the three deferred `Set-CustomizationLink` findings,
-  all of which still reproduced. The `Read-Host` opt-in became `-Force`, because
-  the function is reachable unattended through `Update-CopilotAtelier -Force`
-  where a prompt waits forever rather than failing. Decision 0020 settles the
-  policy: anything that cannot merge without loss stops the merge, and equality
-  is proven by SHA-256 rather than by presence. 7 tests, red then green.
+  all of which still reproduced. Decision 0020 settles the policy: anything that
+  cannot merge without loss stops the merge, and equality is proven by SHA-256
+  rather than by presence. The unattended `Update-CopilotAtelier -Force` path is
+  why the `Read-Host` opt-in became `-Force`. 7 tests, red then green.
 
-- **2026-08-11**: Moved the trigger-eval sweep onto `Invoke-ShpBatch` and
-  re-measured `skill-creator`'s two standing trigger gaps. Batching runs the
-  pinned 69-call sweep in 26.3 s against 103.9 s sequential for the same cost,
-  which is what makes the N x R x M tier comparison practical; the control also
-  showed two *sequential* runs disagreeing as much as batch disagreed with
-  sequential, so `-Temperature 0` reduces judge variance without removing it.
-  The `skill-creator` re-measure found the recorded cause wrong — the miss is
-  the concept "build a skill out of existing material", not the language — and
-  editing against train only took train to 15/15 while validation fell to 6/8,
-  so the overfitting signal left the edit uncommitted for the owner.
+- **2026-08-11**: Moved the trigger-eval sweep onto `Invoke-ShpBatch` — 26.3 s
+  against 103.9 s sequential for the same cost — and re-measured
+  `skill-creator`, where editing against train took train to 15/15 while
+  validation fell to 6/8, so the overfitting signal left the edit uncommitted.
 
 ## Stable capabilities
 
