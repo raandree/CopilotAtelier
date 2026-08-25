@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-24
+last-verified: 2026-08-25
 owner: software-engineer
 source: current task evidence
 ---
@@ -10,43 +10,48 @@ source: current task evidence
 ## Current focus
 
 Work the open findings on `main` without committing, at the user's explicit
-request. Two landed: the unsupported `german-tax-research` red flag is gone, and
-the README *Available Skills* catalogue has both its missing rows and a gate.
+request. Latest: `plugin.json` announced `2.0.0` while `v3.1.0` was the
+published release, because the changelog rollover for `v3.0.0` and `v3.1.0`
+never reached `main`.
 
 ## Implemented
 
-- `Skills/german-tax-research/SKILL.md` no longer carries *Editing one row of a
-  table without printing its neighbours afterwards*. The flag pointed at nothing
-  the Skill or its six references teaches, and it is editing-tool hygiene rather
-  than tax material. Removed instead of retro-fitted with invented evidence.
-- `README.md` gained the nine missing catalogue rows: `agent-evals`,
-  `agent-security-review`, `doc-coauthoring`, `evidence-package-assembly`,
-  `gilb-requirements-engineering`, `grill-me`, `mcp-builder`,
-  `pswritehtml-reporting`, `skill-creator`.
-- `tests/SkillCatalogue.Tests.ps1` is the new gate: every shipped Skill has a
-  row, every row names a shipped Skill, every row carries a description, and a
-  count assertion guards the parser itself.
-- `AGENTS.md` lists the gate in its enforcement table.
-- `CHANGELOG.md` records the gate, the catalogue repair, and the dropped flag,
-  and the unreleased tax-research entry no longer claims the third red flag.
+- `CHANGELOG.md` gained `[3.0.0] - 2026-08-01` and `[3.1.0] - 2026-08-07`,
+  reconstructed from the two unmerged rollover commits rather than from the
+  commit log, so each entry sits under the release it shipped in. 13 entries to
+  `3.0.0`, 5 to `3.1.0`, 31 stay unreleased. Compare links filled in.
+- `plugin.json` moved to `3.1.0`.
+- `tests/PluginManifest.Tests.ps1` gained the release provenance gate: every
+  non-preview tag reachable from `HEAD` needs a matching release section, with a
+  tag at `HEAD` exempt so a tag push cannot deadlock on its own gate.
+- The same file pins `plugin.json.version` to `major.minor.patch`, never a
+  pre-release, so the question is not renegotiated.
 
 ## Focused evidence
 
-- Drift measured before the fix: 36 catalogue rows against 45 shipped Skills,
-  0 orphan rows.
-- The gate was shown to reject before it was accepted. With the `agent-evals`
-  row removed the run is 133 passed and 1 failed, naming
-  `agent-evals has a catalogue row`; restored, 136 of 136 pass.
-- `SkillCatalogue`, `SkillTriggerCoverage`, `SkillFrontmatter`, and
-  `SkillsRefValidate` together: 488 passed, 0 failed, 60 skipped, exit 0.
-- `markdownlint-cli2` reports 0 issues across `README.md`, `AGENTS.md`, and
-  `Skills/german-tax-research/SKILL.md`.
-- The parser reads the `## Available Skills` section only. A whole-file scan
-  reads `**Agents**` and `**Instructions**` from the folder table as Skills, so
-  the orphan check would fail on rows never meant to name one.
-- `techContext.md` needs no matching edit: it delegates to `Skills/` rather than
-  holding a per-Skill inventory.
-- Nothing is committed. The working tree holds all five changed files.
+- Root cause is a merge gap, not a pipeline gap. `Create_ChangeLog_GitHub_PR`
+  ran and produced `origin/updateChangelogAfterv3.0.0` (`e594924`) and
+  `origin/updateChangelogAfterv3.1.0` (`13a16d3`). Nobody merged the pull
+  requests, the task swallows failures in a `catch` that only logs, and no test
+  compared tags against sections.
+- Merging those branches today would misfile the July entries: `13a16d3` was cut
+  from a `main` that still lacked the `3.0.0` section.
+- The gate was shown to reject before it was accepted: 8 passed and 3 failed,
+  naming `v3.0.0` and `v3.1.0`; after the fix 12 of 12 pass.
+- Full suite after the change: 807 passed, 0 failed, 61 skipped, coverage
+  78.44 % against the 65 % target, `Build succeeded with warnings` (the one
+  warning is the pre-existing simulated eval backend failure).
+- The changelog move is provably lossless: compared byte-exactly against the
+  committed file, 0 lines lost, and the only 8 additions are the two release
+  headers and their six subsection headers.
+- Side effect: the `[Unreleased]` release body drops from 83,271 to 54,733
+  characters, restoring headroom under the 100,000-character gate that broke a
+  release on 2026-08-01.
+- Writing a literal level-two release header inside changelog prose breaks
+  `Get-ChangelogData`; it parsed the example as a real section and cut
+  `Unreleased` to 420 characters.
+- Nothing is committed. The working tree holds the three changed files plus the
+  Memory Bank updates.
 
 ## Blocked, not deferred
 

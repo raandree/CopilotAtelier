@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-24
+last-verified: 2026-08-25
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -9,11 +9,23 @@ source: CHANGELOG.md and git history
 
 ## Project status
 
-Copilot Atelier is released at `v1.1.0`. The next release is `2.0.0`, the first
-published to the PowerShell Gallery. Incremental work is tracked under
-`[Unreleased]` in `CHANGELOG.md`.
+Copilot Atelier is published to the PowerShell Gallery and released at `v3.1.0`
+(2026-08-07). `main` builds as `4.0.0-preview*`. Incremental work is tracked
+under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-08-25**: Closed the release provenance gap. `plugin.json` had announced
+  `2.0.0` through two releases because the changelog rollover for `v3.0.0` and
+  `v3.1.0` never reached `main` — `Create_ChangeLog_GitHub_PR` ran and opened
+  both pull requests (`origin/updateChangelogAfterv3.0.0`,
+  `origin/updateChangelogAfterv3.1.0`), nobody merged them, and the task cannot
+  fail a build because it swallows every error in a `catch` that only logs. The
+  missing sections are reconstructed from those two commits rather than from the
+  commit log, verified lossless line by line, and the new gate in
+  `PluginManifest.Tests.ps1` fails whenever a published non-preview tag has no
+  section — with a tag at `HEAD` exempt, or every tag push would deadlock on its
+  own gate before `deploy` ever runs.
 
 - **2026-08-24**: Closed the README catalogue gap and built the gate that would
   have caught it. `AGENTS.md` had required an *Available Skills* row per Skill
