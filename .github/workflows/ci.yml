@@ -73,16 +73,29 @@ jobs:
           $env:PATH = (Join-Path -Path $HOME -ChildPath '.dotnet/tools') + [System.IO.Path]::PathSeparator + $env:PATH
           Write-Host -Object "Resolved dotnet-gitversion: $((Get-Command -Name dotnet-gitversion).Source)"
 
-          # GitVersion writes its diagnostic log to standard output when it fails,
-          # so piping straight into ConvertFrom-Json replaces the real error with a
-          # parser error and the cause is lost.
+          # GitVersion writes diagnostics and JSON to the same standard output
+          # stream, so piping straight into ConvertFrom-Json replaces the real
+          # error with a parser error and the cause is lost, and requiring the
+          # output to start with '{' fails a run that actually succeeded.
           # GitHub sets $ErrorActionPreference to Stop, which would otherwise make a
           # non-zero exit throw before the output can be shown.
           $PSNativeCommandUseErrorActionPreference = $false
           $gitVersionOutput = (& dotnet-gitversion 2>&1 | Out-String).Trim()
           $gitVersionExitCode = $LASTEXITCODE
 
-          if ($gitVersionExitCode -ne 0 -or -not $gitVersionOutput.StartsWith('{'))
+          $outputLine = $gitVersionOutput -split '\r?\n'
+          $jsonStartIndex = -1
+
+          for ($i = 0; $i -lt $outputLine.Length; $i++)
+          {
+              if ($outputLine[$i].Trim() -eq '{')
+              {
+                  $jsonStartIndex = $i
+                  break
+              }
+          }
+
+          if ($gitVersionExitCode -ne 0 -or $jsonStartIndex -lt 0)
           {
               Write-Host -Object '--- dotnet-gitversion output ---'
               Write-Host -Object $gitVersionOutput
@@ -90,7 +103,29 @@ jobs:
               throw "dotnet-gitversion exited with code $gitVersionExitCode and did not return JSON."
           }
 
-          $gitVersionObject = $gitVersionOutput | ConvertFrom-Json
+          if ($jsonStartIndex -gt 0)
+          {
+              # Surfaced, not swallowed: a branch-configuration multi-match shows up
+              # here, and GitVersion.yml is what has to change when it does.
+              Write-Host -Object '--- dotnet-gitversion diagnostics ---'
+              Write-Host -Object ($outputLine[0..($jsonStartIndex - 1)] -join [System.Environment]::NewLine)
+              Write-Host -Object '--- end of diagnostics ---'
+          }
+
+          $gitVersionJson = $outputLine[$jsonStartIndex..($outputLine.Length - 1)] -join [System.Environment]::NewLine
+
+          try
+          {
+              $gitVersionObject = $gitVersionJson | ConvertFrom-Json -ErrorAction Stop
+          }
+          catch
+          {
+              Write-Host -Object '--- dotnet-gitversion output ---'
+              Write-Host -Object $gitVersionOutput
+              Write-Host -Object '--- end of output ---'
+              throw "dotnet-gitversion returned output that is not valid JSON: $($_.Exception.Message)"
+          }
+
           $gitVersionObject.PSObject.Properties.ForEach{
               Write-Host -Object "Setting output '$($_.Name)' with value '$($_.Value)'."
               "$($_.Name)=$($_.Value)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8

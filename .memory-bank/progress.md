@@ -15,6 +15,27 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-25**: Fixed the PR pipeline, where GitVersion had *succeeded* and
+  the step that reads it threw anyway. `GitVersion.yml` left `feature` and
+  `hotfix` unanchored, so `ai/fix-manifest-bom-ps51` matched both — `ai/` and
+  `fix-` — and GitVersion warned about the extra match on the same stdout the
+  pipeline parses as JSON, where `ci.yml` required the output to start with
+  `{`. Both anchored, the step now locates the JSON block and echoes any
+  preamble instead of discarding it, and a `-ForEach` gate asserts each
+  representative branch name matches exactly one configuration.
+
+- **2026-08-25**: Fixed `Install-Module` failing on Windows PowerShell 5.1 with
+  "not a properly-formed module" on every release since `2.0.0`.
+  `Create_Changelog_Release_Output` writes the changelog's release section into
+  the manifest's `ReleaseNotes` and saves it without a byte-order mark; this
+  repository's prose carries em dashes and, since `german-tax-research`, literal
+  `€`/`§`, and Windows PowerShell 5.1 decodes a BOM-less file with the ANSI code
+  page, corrupting those into mojibake that breaks the manifest's
+  restricted-language parser. Reproduced directly with `Test-ModuleManifest`
+  under `powershell.exe`; a new `Repair_ManifestEncoding` build task re-saves
+  the manifest as UTF-8 with a BOM whenever one is missing, and a regression
+  test in `module.tests.ps1` pins it.
+
 - **2026-08-25**: Split `skill-creator` from 492 lines to 344 behind two
   references. The Skill carrying the progressive-disclosure rules broke them
   worst — 8 lines from the budget, no references, and an unapplied splitting
@@ -84,36 +105,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   the branch side of the merge base. `main` already held the Skill
   byte-identical and the branch was 38 commits behind. Compare trees two-dot.
 
-- **2026-08-14**: Added `brand-logo-system` and the `brand-logo` Prompt that
-  starts it, then extended the Skill to cover integrating the assets into a
-  project. Harvested from a task done by hand twice that hit the same failures
-  both times: resizing an SVG by text substitution rescales every nested `<use>`
-  and `<rect>`, the shared library's "transparent" assets are opaque PNGs at 0 %
-  transparent pixels, favicon legibility is a claim until a 16 px render proves
-  it, github.com borders every table cell so a borderless README header needs a
-  float, and a package `IconUri` must be a direct image URL or it silently shows
-  a placeholder. The atomic-change-set gate fired on its own author: the first
-  run failed only `brand-logo-system has a trigger-query set`, then 438/0.
-
-- **2026-08-19**: Replaced exact-set grading in the route-selection evaluator.
-  A superset reply reads more context but loses none, yet scored the same as a
-  dropped route. Grading now asks whether anything required went missing and
-  reports recall, precision, and over-selection as cost. No precision floor is
-  set; inventing one unbacked by a baseline is the mistake being undone.
-
-- **2026-08-13**: Added an offline natural-language Memory Bank route-selection
-  evaluator, rebased onto `main` on 2026-08-19. `Prepare` emits label-free
-  prompts; `Grade` accepts strict JSON route arrays, handles Full-read fallback,
-  and reports pass@k plus pass^k. Twenty-five real cases produced 75 prompts
-  without contacting a model, so reliability is not yet claimed.
-- **2026-08-12**: Added the Pester v4 AST detector, the shrink-only
-  `SkillTriggerCoverage` baseline, and the `SecretScan` and
-  `CustomizationFrontmatter` gates, each reimplemented rather than copied from
-  the external catalogue that suggested them; `SecretScan` carries a planted
-  credential, because a gate never shown to reject is not a gate. Unblocked CI
-  the same day — a `@vN` action reference is an assumption about the publisher's
-  tagging habit, and `astral-sh/setup-uv@v9` never existed.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -140,6 +131,10 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
+- Restore a Windows PowerShell 5.1 CI leg now that `Repair_ManifestEncoding`
+  fixes the manifest instead of working around it. The leg was dropped
+  2026-07-29 for the defect this fix closes; re-adding it guards the fix and
+  needs the `ci.yml` `shell: pwsh` steps distinguished from `powershell.exe`.
 - Run the seven shipped trigger-query sets, then cover the 38 Skills still on
   the `SkillTriggerCoverage` uncovered baseline. The sets are authored but
   unmeasured, so the gate currently proves only that the queries exist. Execute
