@@ -1,0 +1,84 @@
+[
+  {
+    "id": "pos-01",
+    "query": "how many tokens has this project used so far?",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-02",
+    "query": "what did this repo cost me in Copilot over the last month",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-03",
+    "query": "which model has burned the most context in this workspace",
+    "should_trigger": true,
+    "split": "train",
+    "note": "asks for attribution, not for advice on spending less"
+  },
+  {
+    "id": "pos-04",
+    "query": "how much of my input is cache reads versus actually fresh context",
+    "should_trigger": true,
+    "split": "train",
+    "note": "the cache_read subset fact is the whole point of the Skill"
+  },
+  {
+    "id": "pos-05",
+    "query": "break my usage down by day for the last two weeks",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "never says token, cost, or Copilot"
+  },
+  {
+    "id": "pos-06",
+    "query": "am I spending more through the CLI or through the chat view on this repo",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "agent_name split across surfaces"
+  },
+  {
+    "id": "neg-01",
+    "query": "give me some tips for reducing how many tokens I burn",
+    "should_trigger": false,
+    "split": "train",
+    "note": "advice, not measurement — belongs to chronicle cost-tips"
+  },
+  {
+    "id": "neg-02",
+    "query": "write my standup for yesterday",
+    "should_trigger": false,
+    "split": "train",
+    "note": "chronicle standup"
+  },
+  {
+    "id": "neg-03",
+    "query": "find the session where I fixed the compaction hook",
+    "should_trigger": false,
+    "split": "train",
+    "note": "chronicle session search"
+  },
+  {
+    "id": "neg-04",
+    "query": "does my new skill actually get picked up reliably or was that one lucky run",
+    "should_trigger": false,
+    "split": "train",
+    "note": "agent-evals trigger-rate work"
+  },
+  {
+    "id": "neg-05",
+    "query": "which model should I hand this subagent",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "subagent-dispatch model selection, not usage attribution"
+  },
+  {
+    "id": "neg-06",
+    "query": "this deployment has been running for 40 minutes, is it stuck or still working",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "long-running-job-monitor"
+  }
+]

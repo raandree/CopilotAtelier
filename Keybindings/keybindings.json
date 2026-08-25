@@ -16,6 +16,14 @@
         "when": "chatIsEnabled"
     },
     {
+        "key": "ctrl+k u",
+        "command": "workbench.action.chat.open",
+        "args": {
+            "query": "/usage"
+        },
+        "when": "chatIsEnabled"
+    },
+    {
         "key": "enter",
         "command": "-workbench.action.chat.submit",
         "when": "inChatInput && chatCursorAtTop && !chatIsEditing && !suggestWidgetVisible"

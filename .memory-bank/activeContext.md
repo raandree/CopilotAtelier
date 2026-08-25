@@ -9,11 +9,22 @@ source: current task evidence
 
 ## Current focus
 
-Three change sets are in flight: the compaction checkpoint, committed on
+Four change sets are in flight: the compaction checkpoint, committed on
 `ai/precompact-checkpoint`; the authoring schema refresh, shipped in `39dd690`
 with a follow-on `description` fix on `ai/authoring-instruction-description`;
-and the `skill-creator` split stacked on that branch. The release provenance
-fix already shipped in `f7f302d`.
+the `skill-creator` split stacked on that branch; and the usage-stats Skill and
+`/usage` Prompt. The release provenance fix already shipped in `f7f302d`.
+
+## Implemented — usage stats
+
+- `Skills/copilot-usage-stats/SKILL.md` and the `/usage` Prompt on `Ctrl+K U`
+  answer "how much has this project consumed" from `session_usage`.
+- A hook was ruled out on evidence: no hook event carries usage, the transcript
+  records `assistant.turn_end` as `{"turnId":"0"}`, and the local
+  `session-store.db` has no `events` table and no token column.
+- `input_tokens` already contains `cache_read_tokens`; the difference is the
+  fresh share. `sessions.repository` is unnormalized, so scope with `ILIKE`
+  over both `repository` and `cwd` or most of a project's history is dropped.
 
 ## Implemented — skill-creator split
 

@@ -12,7 +12,8 @@ the task needs their rationale, consequences, or confirmation evidence.
 
 The repository layout is not restated here: `techContext.md` carries the module
 layout, the deployment boundary, and the discovery model, and the working tree
-carries the rest.
+carries the rest. This file indexes durable relationships and Decision records
+only.
 
 ## Decision index
 
@@ -62,7 +63,6 @@ carries the rest.
 - VS Code spawns a hook command without a shell, so no `%VAR%` or `$VAR` token
     is expanded. Each command resolves its own path inside the interpreter and
     propagates the exit code explicitly.
-
 - A capability measured on one configuration is scoped to what was measured and
     encoded as attempt, validate, escalate — never a verdict. The content gate
     decides at run time; the engine name only orders which path is tried first.
@@ -93,6 +93,6 @@ carries the rest.
     Instruction survives, because Instructions are re-sent per request while the
     conversation becomes a summary; a `PreCompact` hook carries no
     `additionalContext`, so it writes the on-disk anchor and Pre-flight reads it.
-
-Read those source files for changing inventories. This file indexes durable
-relationships and Decision records only.
+- Copilot token usage exists only in the cloud session store. No hook payload,
+    transcript record, or local `session-store.db` table carries it, so usage
+    telemetry is a Skill over `copilot_sessionStoreSql`, never a hook.

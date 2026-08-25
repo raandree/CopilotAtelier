@@ -15,6 +15,14 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-25**: Added the `copilot-usage-stats` Skill and the `/usage` Prompt
+  on `Ctrl+K U`. A hook cannot report token consumption: no hook event carries
+  usage, the transcript records none, and the local `session-store.db` has no
+  token column — the data exists only in the cloud session store. Two measured
+  facts justify a Skill over an improvised query: `input_tokens` already
+  contains `cache_read_tokens`, and `sessions.repository` holds three spellings
+  of one repository, so an equality filter returns a confident wrong number.
+
 - **2026-08-25**: Split `skill-creator` from 492 lines to 344 behind two
   references. The Skill carrying the progressive-disclosure rules broke them
   worst — 8 lines from the budget, no references, and an unapplied splitting
@@ -103,16 +111,10 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 - **2026-08-13**: Added an offline natural-language Memory Bank route-selection
   evaluator, rebased onto `main` on 2026-08-19. `Prepare` emits label-free
-  prompts; `Grade` accepts strict JSON route arrays, handles Full-read fallback,
-  and reports pass@k plus pass^k. Twenty-five real cases produced 75 prompts
-  without contacting a model, so reliability is not yet claimed.
+  prompts, `Grade` reports pass@k and pass^k; no model was contacted yet.
 - **2026-08-12**: Added the Pester v4 AST detector, the shrink-only
   `SkillTriggerCoverage` baseline, and the `SecretScan` and
-  `CustomizationFrontmatter` gates, each reimplemented rather than copied from
-  the external catalogue that suggested them; `SecretScan` carries a planted
-  credential, because a gate never shown to reject is not a gate. Unblocked CI
-  the same day — a `@vN` action reference is an assumption about the publisher's
-  tagging habit, and `astral-sh/setup-uv@v9` never existed.
+  `CustomizationFrontmatter` gates; a planted credential proves it rejects.
 
 ## Stable capabilities
 
@@ -162,9 +164,8 @@ under `[Unreleased]` in `CHANGELOG.md`.
   the agent host and its harness selection, `chat.assistedPermissions.enabled`,
   and organization-level instructions and agents.
 - Curate `techContext.md` and `systemPatterns.md` when either approaches its
-  line budget. The per-test-file inventory `techContext.md` once carried is
-  already gone, and `systemPatterns.md` is down to 7 lines of headroom, which
-  the Decision index consumes one line at a time.
+  line budget; `systemPatterns.md` has 12 lines of headroom, which the Decision
+  index consumes one line at a time.
 
 ## Retention policy
 

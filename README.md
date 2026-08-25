@@ -123,6 +123,7 @@ The folder name of the canonical target is `CopilotAtelier`, matching the module
 | **doc-coauthoring** | Three-stage workflow for co-authoring a substantive document with a user: Context Gathering (meta-questions, info dump, clarifying questions), section-by-section Refinement (clarify → brainstorm → curate → draft → surgical edits), and Reader Testing, where a fresh assistant or subagent reads the document cold and answers predicted reader questions to surface blind spots. |
 | **pswritehtml-reporting** | Generate interactive HTML reports, dashboards, tables, charts, and network diagrams from PowerShell objects with the PSWriteHTML module — no hand-written HTML, CSS, or JavaScript. Covers `New-HTML`, `New-HTMLTable` (DataTables filtering, paging, conditional formatting), `New-HTMLChart`, Section/Panel/Tab layout, `New-HTMLDiagram`, `Out-HtmlView`, large-dataset tuning, and HTML email bodies. |
 | **evidence-package-assembly** | Assemble paginated evidence packages (`Anlagen`) for authorities, courts, and insurers on Windows: verify documents against the claims made about them, decide which sheets may be omitted, render a Markdown cover with a locator index to PDF via pandoc and headless Edge, merge with pypdf, and verify page ranges, text layer, and the sources' own page numbering. |
+| **copilot-usage-stats** | Report how many tokens, API calls, and how much time a project has consumed, broken down by model, session, day, or surface, from the session store's `session_usage` and `events` usage rows. Carries the repository-scoped join that survives the three unnormalized spellings of the same repository, the verified fact that `input_tokens` already contains `cache_read_tokens`, the unpopulated `cost` column, and the reason no hook, transcript, or local database can answer the question. Paired with the `/usage` Prompt on `Ctrl+K U`. |
 
 ## VS Code Settings Applied
 
@@ -184,6 +185,7 @@ The setup script merges the bindings in [`Keybindings/keybindings.json`](Keybind
 | `Ctrl+K X` | `PowerShell.RestartSession` | Restart the PowerShell integrated console |
 | `Ctrl+K N` | `workbench.action.terminal.moveIntoNewWindow` | Pop the active terminal into a new window |
 | `Ctrl+K K` | `workbench.action.chat.openInNewWindow` | Pop the Chat view into a new window |
+| `Ctrl+K U` | `workbench.action.chat.open` | Run the `/usage` Prompt — this project's Copilot token and model usage |
 | `Ctrl+Enter` | `workbench.action.chat.submit` | Submit chat prompt (replaces plain `Enter`) |
 | `Enter` | `-workbench.action.chat.submit` | Disabled so plain `Enter` always inserts a newline in the chat input |
 
