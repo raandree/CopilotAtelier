@@ -2,18 +2,20 @@
 name: copilot-usage-stats
 description: >-
   Report how many tokens, API calls, and how much wall time a project has
-  consumed in Copilot, broken down by model, session, day, or surface, from the
-  session store's usage rows. Carries the repository-scoped join, the verified
-  fact that `input_tokens` already contains `cache_read_tokens`, the
-  unpopulated `cost` column, and why the local store cannot answer at all.
-  USE FOR: how many tokens has this project used, token consumption per
-  repository or branch, usage for a day or a date range, which model burned the
-  most context, cache-hit ratio, API call counts, per-session totals, what this
-  repo cost me, comparing VS Code chat against Copilot CLI usage.
+  consumed in Copilot, and convert those tokens into GitHub AI Credits and
+  dollars at the published per-model rates. Carries the repository-scoped join,
+  the verified fact that `input_tokens` already contains `cache_read_tokens`,
+  and the `cost` column that holds a legacy request multiplier rather than
+  money.
+  USE FOR: how many tokens has this project used, what did this repo cost me in
+  credits or dollars, token consumption per repository or branch, usage for a
+  day or a date range, which model burned the most context, cache-hit ratio,
+  API call counts, per-session totals, comparing VS Code chat against Copilot
+  CLI usage.
   DO NOT USE FOR: advice on lowering spend or token-reduction tips (use
   chronicle cost-tips), standups and session search (use chronicle), measuring
-  whether a Customization triggers or works (use agent-evals), Copilot
-  subscription or premium-request billing questions.
+  whether a Customization triggers or works (use agent-evals), choosing a
+  Copilot plan, invoices, or seat management.
 compatibility: >-
   Requires the `copilot_sessionStoreSql` tool with
   `github.copilot.chat.localIndex.enabled` enabled, plus cloud sync
@@ -101,9 +103,10 @@ misleading thing this Skill can do — most of it is one conversation re-read.
 
 Other traps:
 
-- **`cost` is usually `0`.** It is not populated for subscription-billed
-  requests, so it is not a spend figure. Report it only when non-zero, and name
-  it as provider-reported rather than as an invoice.
+- **`cost` is not dollars.** It carries the legacy premium-request multiplier:
+  a Claude Haiku 4.5 row reads `0.33`, which is exactly that model's legacy
+  multiplier, not seven cents of tokens. Never present it as spend. Compute
+  money from tokens instead (Step 5).
 - **The current session is missing.** Sync lags, so today's session usually has
   no rows yet. State the `max(last_used_at)` you actually saw.
 - **`duration` is per model per session in milliseconds**, not wall time for
@@ -118,6 +121,49 @@ Lead with one sentence answering the question that was asked, then the
 per-model table, then caveats. Split by `agent_name` whenever more than one
 surface appears — `VS Code Chat` and `Copilot CLI` have different cost shapes
 and mixing them hides both.
+
+## Step 5 — Convert to AI credits and dollars
+
+Since 2026-06-01 Copilot bills usage, not requests: tokens are priced per model
+and converted to GitHub AI Credits at **1 credit = $0.01**. So money *is*
+derivable from the token counts.
+
+Never quote rates from memory — they change, and models come and go. Fetch
+[Models and pricing for GitHub Copilot](https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing)
+and read the current per-1M-token rates for input, cached input, cache write,
+and output.
+
+The formula, with `input_tokens` already containing `cache_read_tokens`:
+
+```text
+cost = (input_tokens - cache_read_tokens) / 1e6 * input_rate
+     +  cache_read_tokens                 / 1e6 * cached_rate
+     +  cache_write_tokens                / 1e6 * cache_write_rate
+     +  output_tokens                     / 1e6 * output_rate
+credits = cost * 100
+```
+
+Billing the full `input_tokens` at the input rate is the error this step
+exists to prevent — cached input is typically a tenth of the input rate, and
+cache reads dominate an agentic workload, so the mistake inflates the answer by
+roughly an order of magnitude.
+
+Ground the total against the monthly allowances — Pro 1,500 credits, Pro+
+7,000, Max 20,000 — and say plainly that only overage beyond the allowance is
+actually charged. Deduct 10 % when auto model selection was used.
+
+Four things make the result an estimate, and all four must be stated:
+
+- **Recorded cache writes can be zero** where the store logged reads but no
+  writes, so the figure is a floor rather than a bill.
+- **A model may be absent from the pricing table** (older helper models such as
+  `gpt-4o-mini`). Leave it unpriced and bound its contribution rather than
+  substituting a neighbouring model's rate.
+- **Promotional rates expire.** The table footnotes carry the end dates.
+- **Legacy request-based billing still exists** for Pro and Pro+ subscribers who
+  stayed on an annual plan. For them cost is multiplier × prompts and tokens do
+  not determine it at all, so ask before presenting a token-derived figure as
+  their bill.
 
 ## Variants
 

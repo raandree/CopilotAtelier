@@ -16,12 +16,13 @@ under `[Unreleased]` in `CHANGELOG.md`.
 ## Recent milestones
 
 - **2026-08-25**: Added the `copilot-usage-stats` Skill and the `/usage` Prompt
-  on `Ctrl+K U`. A hook cannot report token consumption: no hook event carries
-  usage, the transcript records none, and the local `session-store.db` has no
-  token column — the data exists only in the cloud session store. Two measured
-  facts justify a Skill over an improvised query: `input_tokens` already
-  contains `cache_read_tokens`, and `sessions.repository` holds three spellings
-  of one repository, so an equality filter returns a confident wrong number.
+  on `Ctrl+K U`, then extended it to convert tokens into AI credits and dollars.
+  A hook cannot report consumption — no hook event carries usage, the transcript
+  records none, and the local `session-store.db` has no token column. Three
+  measured facts: `input_tokens` already contains `cache_read_tokens`;
+  `sessions.repository` holds three spellings of one repository; and `cost` is a
+  legacy request multiplier, not money. Copilot has billed per token since
+  2026-06-01, so cached input priced at the input rate inflates by ~10x.
 
 - **2026-08-25**: Split `skill-creator` from 492 lines to 344 behind two
   references. The Skill carrying the progressive-disclosure rules broke them

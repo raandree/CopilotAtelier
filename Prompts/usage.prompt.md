@@ -20,8 +20,12 @@ Report in this order:
 1. One sentence answering the question that was asked.
 2. Per-model table: sessions, API calls, total input, fresh input, cache read, output.
 3. A split by `agent_name` when more than one surface appears.
-4. Only the caveats that apply: unsynced current session, `cost` of `0`, folded repository spellings.
+4. AI credits and dollars per model, computed from the current published rates,
+   with the plan's monthly allowance for context.
+5. Only the caveats that apply: unsynced current session, unrecorded cache
+   writes, unpriced models, folded repository spellings.
 
 Never add `input_tokens` and `cache_read_tokens` — the first already contains
-the second. Report no rows as no rows; never estimate a figure the store did
+the second. Never present the `cost` column as money; it holds a legacy request
+multiplier. Report no rows as no rows; never estimate a figure the store did
 not return.

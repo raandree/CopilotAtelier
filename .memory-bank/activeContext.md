@@ -25,6 +25,9 @@ the `skill-creator` split stacked on that branch; and the usage-stats Skill and
 - `input_tokens` already contains `cache_read_tokens`; the difference is the
   fresh share. `sessions.repository` is unnormalized, so scope with `ILIKE`
   over both `repository` and `cwd` or most of a project's history is dropped.
+- Copilot bills usage, not requests, since 2026-06-01, so tokens convert to AI
+  credits at 1 credit = $0.01. The `cost` column is a legacy request multiplier,
+  not money. Billing cached input at the input rate inflates by ~10x.
 
 ## Implemented — skill-creator split
 
