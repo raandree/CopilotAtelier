@@ -15,6 +15,15 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-25**: Added the `copilot-usage-stats` Skill and the `/usage` Prompt
+  on `Ctrl+K U`, then extended it to convert tokens into AI credits and dollars.
+  A hook cannot report consumption — no hook event carries usage, the transcript
+  records none, and the local `session-store.db` has no token column. Three
+  measured facts: `input_tokens` already contains `cache_read_tokens`;
+  `sessions.repository` holds three spellings of one repository; and `cost` is a
+  legacy request multiplier, not money. Copilot has billed per token since
+  2026-06-01, so cached input priced at the input rate inflates by ~10x.
+
 - **2026-08-25**: Fixed the PR pipeline, where GitVersion had *succeeded* and
   the step that reads it threw anyway. `GitVersion.yml` left `feature` and
   `hotfix` unanchored, so `ai/fix-manifest-bom-ps51` matched both — `ai/` and
@@ -98,12 +107,11 @@ under `[Unreleased]` in `CHANGELOG.md`.
   `1.725,05 €` of flight charges netted `848,12 €` after a refund three days
   later. The `description` is untouched, so no eval sweep is owed.
 
-- **2026-08-19**: Stored `Get-SteuerFrist.ps1` as UTF-8 with a BOM; the script
-  emits German legal text, so the ANSI fallback would reach a Finanzamt as
-  mojibake. The triage is the durable part: `ai/german-tax-research-skill`
-  looked unmerged under three-dot `git diff main...branch`, which reports only
-  the branch side of the merge base. `main` already held the Skill
-  byte-identical and the branch was 38 commits behind. Compare trees two-dot.
+- **2026-08-19**: Stored `Get-SteuerFrist.ps1` as UTF-8 with a BOM; it emits
+  German legal text, so the ANSI fallback would reach a Finanzamt as mojibake.
+  The durable part is the triage: `ai/german-tax-research-skill` looked unmerged
+  under three-dot `git diff main...branch`, which reports only the branch side
+  of the merge base. Compare trees two-dot.
 
 ## Stable capabilities
 
@@ -157,9 +165,8 @@ under `[Unreleased]` in `CHANGELOG.md`.
   the agent host and its harness selection, `chat.assistedPermissions.enabled`,
   and organization-level instructions and agents.
 - Curate `techContext.md` and `systemPatterns.md` when either approaches its
-  line budget. The per-test-file inventory `techContext.md` once carried is
-  already gone, and `systemPatterns.md` is down to 7 lines of headroom, which
-  the Decision index consumes one line at a time.
+  line budget; `systemPatterns.md` has 12 lines of headroom, which the Decision
+  index consumes one line at a time.
 
 ## Retention policy
 

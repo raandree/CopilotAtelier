@@ -9,13 +9,28 @@ source: current task evidence
 
 ## Current focus
 
-PR 47 on `ai/fix-manifest-bom-ps51` carries two fixes: the Windows PowerShell
-5.1 `Install-Module` regression that affected every release since `2.0.0`, and
-the CI failure its own pipeline then hit. Three other change sets are in flight:
-the compaction checkpoint, committed on `ai/precompact-checkpoint`; the
-authoring schema refresh, shipped in `39dd690` with a follow-on `description`
-fix on `ai/authoring-instruction-description`; and the `skill-creator` split
-stacked on that branch. The release provenance fix shipped in `f7f302d`.
+PR 47 shipped in `345a25e`, carrying two fixes: the Windows PowerShell 5.1
+`Install-Module` regression that affected every release since `2.0.0`, and the
+CI failure its own pipeline then hit. The usage-stats Skill and `/usage` Prompt
+land with this merge. Three other change sets are in flight: the compaction
+checkpoint, committed on `ai/precompact-checkpoint`; the authoring schema
+refresh, shipped in `39dd690` with a follow-on `description` fix on
+`ai/authoring-instruction-description`; and the `skill-creator` split stacked on
+that branch. The release provenance fix shipped in `f7f302d`.
+
+## Implemented — usage stats
+
+- `Skills/copilot-usage-stats/SKILL.md` and the `/usage` Prompt on `Ctrl+K U`
+  answer "how much has this project consumed" from `session_usage`.
+- A hook was ruled out on evidence: no hook event carries usage, the transcript
+  records `assistant.turn_end` as `{"turnId":"0"}`, and the local
+  `session-store.db` has no `events` table and no token column.
+- `input_tokens` already contains `cache_read_tokens`; the difference is the
+  fresh share. `sessions.repository` is unnormalized, so scope with `ILIKE`
+  over both `repository` and `cwd` or most of a project's history is dropped.
+- Copilot bills usage, not requests, since 2026-06-01, so tokens convert to AI
+  credits at 1 credit = $0.01. The `cost` column is a legacy request multiplier,
+  not money. Billing cached input at the input rate inflates by ~10x.
 
 ## Implemented — PR 47, manifest encoding
 
@@ -59,26 +74,22 @@ stacked on that branch. The release provenance fix shipped in `f7f302d`.
   `references/scripts-and-evaluation.md`, both one level deep.
 - The cut line is "only add context the model does not already have": what
   upstream already teaches moved out, what only this repository knows stayed.
-- Settled the standing question of whether an `instruction-creator` Skill is
-  owed. It is not — creation is owned by `copilot-authoring`, verification by
-  `agent-evals`, and a third file would duplicate both.
+- Settled whether an `instruction-creator` Skill is owed. It is not: creation is
+  owned by `copilot-authoring` and verification by `agent-evals`.
 
-## Implemented — authoring schema refresh
+## Implemented — authoring schema refresh (shipped in `39dd690`)
 
-- `Instructions/copilot-authoring.instructions.md` re-verified against the
-  current VS Code and agentskills.io documentation. Prompt `agent` is optional
-  and accepts `plan` or a Custom agent name; Instructions also activate by
-  semantic match on `description`; Agents gained `target`, `mcp-servers`, and
-  `handoffs.model`; the hook stdout contract is documented alongside the exit
-  codes; keys the repository requires but the platform does not are labelled.
-- Two portability traps are now named: a Claude-format `matcher` is parsed and
-  ignored, and tool input keys are camelCase here where Claude uses snake_case.
-- The Instruction now declares its own `description`. Its `applyTo` matches only
-  existing Customization files, so "should this be an Instruction, a Skill, or a
-  Hook?" — asked before anything is created — could never reach it. This closed
-  the last gap that argued for a separate instruction-authoring Skill: creation
-  is owned here, verification by `agent-evals`, so no new Skill was added.
-- Not changed, and reported instead: `plugin.json` is the legacy Copilot format
+- `Instructions/copilot-authoring.instructions.md` re-verified against current
+  VS Code and agentskills.io documentation: Prompt `agent` is optional,
+  Instructions also activate by semantic match on `description`, Agents gained
+  `target`, `mcp-servers`, and `handoffs.model`, and the hook stdout contract
+  now joins the exit codes. House rules are labelled as such.
+- Two portability traps: a Claude-format `matcher` is parsed then ignored, and
+  tool input keys are camelCase here where Claude uses snake_case.
+- The Instruction declares its own `description`; `applyTo` matches only files
+  that already exist, so the "Instruction, Skill, or Hook?" question asked
+  before anything is created could never reach it.
+- Open and reported, not changed: `plugin.json` is the legacy Copilot format
   and its description claims hooks are outside the plugin format, which Agent
   Plugins 1.0 no longer makes true.
 
