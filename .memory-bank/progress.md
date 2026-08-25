@@ -21,7 +21,9 @@ under `[Unreleased]` in `CHANGELOG.md`.
   `agent: agent | ask` while eight name a Custom agent and one declares none.
   Corrected the Prompt, Instruction, Agent, Skill, and Hook schemas, added the
   stdout half of the hook contract, and marked which keys are house rules
-  rather than platform requirements.
+  rather than platform requirements. Then applied the new rule to the file
+  itself: it had no `description`, so the authoring question that arrives
+  before any file exists could not activate it.
 
 - **2026-08-25**: Closed the compaction gap. The Memory Bank had a deterministic
   entry gate and no exit gate: Post-flight is the only durable write point and

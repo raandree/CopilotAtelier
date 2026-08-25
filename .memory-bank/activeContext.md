@@ -23,6 +23,11 @@ in the working tree. The release provenance fix already shipped in `f7f302d`.
   codes; keys the repository requires but the platform does not are labelled.
 - Two portability traps are now named: a Claude-format `matcher` is parsed and
   ignored, and tool input keys are camelCase here where Claude uses snake_case.
+- The Instruction now declares its own `description`. Its `applyTo` matches only
+  existing Customization files, so "should this be an Instruction, a Skill, or a
+  Hook?" — asked before anything is created — could never reach it. This closed
+  the last gap that argued for a separate instruction-authoring Skill: creation
+  is owned here, verification by `agent-evals`, so no new Skill was added.
 - Not changed, and reported instead: `plugin.json` is the legacy Copilot format
   and its description claims hooks are outside the plugin format, which Agent
   Plugins 1.0 no longer makes true.
