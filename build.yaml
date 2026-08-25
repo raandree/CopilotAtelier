@@ -48,6 +48,7 @@ BuildWorkflow:
     - Copy_Customizations_To_Output
     - Build_NestedModules_ModuleBuilder
     - Create_Changelog_Release_Output
+    - Repair_ManifestEncoding
 
   pack:
     - build

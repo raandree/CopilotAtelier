@@ -15,6 +15,18 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-25**: Fixed `Install-Module` failing on Windows PowerShell 5.1 with
+  "not a properly-formed module" on every release since `2.0.0`.
+  `Create_Changelog_Release_Output` writes the changelog's release section into
+  the manifest's `ReleaseNotes` and saves it without a byte-order mark; this
+  repository's prose carries em dashes and, since `german-tax-research`, literal
+  `€`/`§`, and Windows PowerShell 5.1 decodes a BOM-less file with the ANSI code
+  page, corrupting those into mojibake that breaks the manifest's
+  restricted-language parser. Reproduced directly with `Test-ModuleManifest`
+  under `powershell.exe`; a new `Repair_ManifestEncoding` build task re-saves
+  the manifest as UTF-8 with a BOM whenever one is missing, and a regression
+  test in `module.tests.ps1` pins it.
+
 - **2026-08-25**: Split `skill-creator` from 492 lines to 344 behind two
   references. The Skill carrying the progressive-disclosure rules broke them
   worst — 8 lines from the budget, no references, and an unapplied splitting
@@ -140,6 +152,10 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
+- Restore a Windows PowerShell 5.1 CI leg now that `Repair_ManifestEncoding`
+  fixes the manifest instead of working around it. The leg was dropped
+  2026-07-29 for the defect this fix closes; re-adding it guards the fix and
+  needs the `ci.yml` `shell: pwsh` steps distinguished from `powershell.exe`.
 - Run the seven shipped trigger-query sets, then cover the 38 Skills still on
   the `SkillTriggerCoverage` uncovered baseline. The sets are authored but
   unmeasured, so the gate currently proves only that the queries exist. Execute

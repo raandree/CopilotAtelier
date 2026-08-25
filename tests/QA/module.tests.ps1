@@ -58,6 +58,32 @@ Describe 'Changelog management' -Tag 'QA' {
     }
 }
 
+Describe 'Manifest encoding' -Tag 'QA' {
+    BeforeAll {
+        $script:builtManifestPath = (
+            Get-ChildItem -Path (Join-Path -Path $script:projectPath -ChildPath "output/*/$script:moduleName/*/$script:moduleName.psd1") -ErrorAction SilentlyContinue |
+                Sort-Object -Property { [System.Version] $_.Directory.Name } -Descending |
+                Select-Object -First 1
+        ).FullName
+    }
+
+    It 'Should carry a UTF-8 byte-order mark so Windows PowerShell 5.1 decodes non-ASCII release notes correctly' {
+        <#
+            A BOM-less file is decoded by Windows PowerShell 5.1 with the system
+            ANSI code page, not UTF-8. The release notes embedded here come from
+            CHANGELOG.md and routinely contain non-ASCII characters (em dashes,
+            curly quotes, section signs), which then corrupt into mojibake that
+            breaks the manifest's restricted-language parser -- Install-Module
+            reports it only as "not a properly-formed module".
+        #>
+        $bytes = [System.IO.File]::ReadAllBytes($script:builtManifestPath)
+
+        $hasBom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+
+        $hasBom | Should -BeTrue -Because 'Repair_ManifestEncoding must re-save the manifest with a UTF-8 BOM'
+    }
+}
+
 Describe 'Release versioning' -Tag 'QA' {
     BeforeAll {
         $script:gitVersionConfiguration = Get-Content -Raw -LiteralPath (Join-Path -Path $script:projectPath -ChildPath 'GitVersion.yml') |

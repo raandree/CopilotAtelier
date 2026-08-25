@@ -9,11 +9,45 @@ source: current task evidence
 
 ## Current focus
 
-Three change sets are in flight: the compaction checkpoint, committed on
+A Windows PowerShell 5.1 `Install-Module` regression affecting every release
+since `2.0.0` was diagnosed and fixed this turn: see *Implemented — manifest
+encoding fix* below. Three other change sets are in flight: the compaction
+checkpoint, committed on
 `ai/precompact-checkpoint`; the authoring schema refresh, shipped in `39dd690`
 with a follow-on `description` fix on `ai/authoring-instruction-description`;
 and the `skill-creator` split stacked on that branch. The release provenance
 fix already shipped in `f7f302d`.
+
+## Implemented — manifest encoding fix
+
+- Root cause reproduced directly: `Test-ModuleManifest` against the built
+  `4.0.0` manifest under real `powershell.exe` failed with "not a valid
+  Windows PowerShell restricted language file", pointing at an em dash from a
+  German-tax-research changelog entry that had been mis-decoded into mojibake.
+  `Install-Module`'s wrapper error, "cannot be installed or updated because it
+  is not a properly-formed module", discards that detail entirely.
+- This exact defect was already diagnosed once, on 2026-07-29, and left
+  unfixed on purpose: the CI leg that caught it was dropped instead, on the
+  premise that nobody installs the module on "an interpreter nobody runs this
+  module on". A real user's bug report falsified that premise directly — a
+  plain `Install-Module` under genuine Windows PowerShell 5.1 hit exactly this
+  error today.
+- Cause: `Create_Changelog_Release_Output` writes the changelog's release
+  section into the manifest's `PrivateData.PSData.ReleaseNotes` and saves the
+  file without a byte-order mark. Windows PowerShell 5.1 decodes a BOM-less
+  file with the system ANSI code page, not UTF-8, so any non-ASCII character
+  in that prose — em dashes throughout, `€`/`§` since `german-tax-research`
+  shipped — corrupts on read.
+- Fix: `.build/Repair_ManifestEncoding.build.ps1`, a new task appended to the
+  `build` workflow right after `Create_Changelog_Release_Output`, re-saves the
+  manifest as UTF-8 with a BOM whenever one is missing, changing no other byte.
+  `tests/QA/module.tests.ps1` gained a regression assertion on the BOM.
+- Verified end to end: full `./build.ps1 -Tasks build, test` — 815 of 815
+  Pester tests passed — then `Test-ModuleManifest` under real
+  `powershell.exe` against the rebuilt manifest passed.
+- Every prior Gallery release (`2.0.0` through `4.0.0-preview0010`) shipped
+  this defect; only a future release carries the fix. The dropped CI leg was
+  not restored in this change and is tracked as follow-up.
 
 ## Implemented — skill-creator split
 
