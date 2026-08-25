@@ -15,6 +15,15 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-25**: Fixed the PR pipeline, where GitVersion had *succeeded* and
+  the step that reads it threw anyway. `GitVersion.yml` left `feature` and
+  `hotfix` unanchored, so `ai/fix-manifest-bom-ps51` matched both — `ai/` and
+  `fix-` — and GitVersion warned about the extra match on the same stdout the
+  pipeline parses as JSON, where `ci.yml` required the output to start with
+  `{`. Both anchored, the step now locates the JSON block and echoes any
+  preamble instead of discarding it, and a `-ForEach` gate asserts each
+  representative branch name matches exactly one configuration.
+
 - **2026-08-25**: Fixed `Install-Module` failing on Windows PowerShell 5.1 with
   "not a properly-formed module" on every release since `2.0.0`.
   `Create_Changelog_Release_Output` writes the changelog's release section into
@@ -95,36 +104,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   looked unmerged under three-dot `git diff main...branch`, which reports only
   the branch side of the merge base. `main` already held the Skill
   byte-identical and the branch was 38 commits behind. Compare trees two-dot.
-
-- **2026-08-14**: Added `brand-logo-system` and the `brand-logo` Prompt that
-  starts it, then extended the Skill to cover integrating the assets into a
-  project. Harvested from a task done by hand twice that hit the same failures
-  both times: resizing an SVG by text substitution rescales every nested `<use>`
-  and `<rect>`, the shared library's "transparent" assets are opaque PNGs at 0 %
-  transparent pixels, favicon legibility is a claim until a 16 px render proves
-  it, github.com borders every table cell so a borderless README header needs a
-  float, and a package `IconUri` must be a direct image URL or it silently shows
-  a placeholder. The atomic-change-set gate fired on its own author: the first
-  run failed only `brand-logo-system has a trigger-query set`, then 438/0.
-
-- **2026-08-19**: Replaced exact-set grading in the route-selection evaluator.
-  A superset reply reads more context but loses none, yet scored the same as a
-  dropped route. Grading now asks whether anything required went missing and
-  reports recall, precision, and over-selection as cost. No precision floor is
-  set; inventing one unbacked by a baseline is the mistake being undone.
-
-- **2026-08-13**: Added an offline natural-language Memory Bank route-selection
-  evaluator, rebased onto `main` on 2026-08-19. `Prepare` emits label-free
-  prompts; `Grade` accepts strict JSON route arrays, handles Full-read fallback,
-  and reports pass@k plus pass^k. Twenty-five real cases produced 75 prompts
-  without contacting a model, so reliability is not yet claimed.
-- **2026-08-12**: Added the Pester v4 AST detector, the shrink-only
-  `SkillTriggerCoverage` baseline, and the `SecretScan` and
-  `CustomizationFrontmatter` gates, each reimplemented rather than copied from
-  the external catalogue that suggested them; `SecretScan` carries a planted
-  credential, because a gate never shown to reject is not a gate. Unblocked CI
-  the same day — a `@vN` action reference is an assumption about the publisher's
-  tagging habit, and `astral-sh/setup-uv@v9` never existed.
 
 ## Stable capabilities
 

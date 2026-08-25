@@ -101,6 +101,33 @@ Describe 'Release versioning' -Tag 'QA' {
 
         $matchingBranch | Should -Not -BeNullOrEmpty -Because 'GitVersion aborts a tag build when no branch configuration matches'
     }
+
+    It 'Should match <BranchName> to exactly one branch configuration' -ForEach @(
+        @{ BranchName = 'main' }
+        @{ BranchName = 'ai/fix-manifest-bom-ps51' }
+        @{ BranchName = 'ai/precompact-checkpoint' }
+        @{ BranchName = 'feature/new-skill' }
+        @{ BranchName = 'fix/broken-link' }
+        @{ BranchName = 'hotfix/urgent' }
+        @{ BranchName = 'tags/v4.0.0' }
+    ) {
+        <#
+            GitVersion takes the first matching configuration and warns about the
+            others on standard output -- the same stream the pipeline reads its
+            JSON from, so a second match is enough to fail the build step. An
+            unanchored regex is how one branch name matches two configurations.
+        #>
+        $matchingBranch = @(
+            $script:gitVersionConfiguration.branches.GetEnumerator() |
+                Where-Object -FilterScript {
+                    $_.Value.regex -and $BranchName -match $_.Value.regex
+                } |
+                ForEach-Object -Process { $_.Key }
+        )
+
+        $matchingBranch.Count |
+            Should -Be 1 -Because "'$BranchName' matched: $($matchingBranch -join ', ')"
+    }
 }
 
 Describe 'General module control' -Tag 'QA' {

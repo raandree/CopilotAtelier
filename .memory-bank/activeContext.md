@@ -9,45 +9,49 @@ source: current task evidence
 
 ## Current focus
 
-A Windows PowerShell 5.1 `Install-Module` regression affecting every release
-since `2.0.0` was diagnosed and fixed this turn: see *Implemented — manifest
-encoding fix* below. Three other change sets are in flight: the compaction
-checkpoint, committed on
-`ai/precompact-checkpoint`; the authoring schema refresh, shipped in `39dd690`
-with a follow-on `description` fix on `ai/authoring-instruction-description`;
-and the `skill-creator` split stacked on that branch. The release provenance
-fix already shipped in `f7f302d`.
+PR 47 on `ai/fix-manifest-bom-ps51` carries two fixes: the Windows PowerShell
+5.1 `Install-Module` regression that affected every release since `2.0.0`, and
+the CI failure its own pipeline then hit. Three other change sets are in flight:
+the compaction checkpoint, committed on `ai/precompact-checkpoint`; the
+authoring schema refresh, shipped in `39dd690` with a follow-on `description`
+fix on `ai/authoring-instruction-description`; and the `skill-creator` split
+stacked on that branch. The release provenance fix shipped in `f7f302d`.
 
-## Implemented — manifest encoding fix
+## Implemented — PR 47, manifest encoding
 
 - Root cause reproduced directly: `Test-ModuleManifest` against the built
-  `4.0.0` manifest under real `powershell.exe` failed with "not a valid
-  Windows PowerShell restricted language file", pointing at an em dash from a
-  German-tax-research changelog entry that had been mis-decoded into mojibake.
-  `Install-Module`'s wrapper error, "cannot be installed or updated because it
-  is not a properly-formed module", discards that detail entirely.
-- This exact defect was already diagnosed once, on 2026-07-29, and left
-  unfixed on purpose: the CI leg that caught it was dropped instead, on the
-  premise that nobody installs the module on "an interpreter nobody runs this
-  module on". A real user's bug report falsified that premise directly — a
-  plain `Install-Module` under genuine Windows PowerShell 5.1 hit exactly this
-  error today.
-- Cause: `Create_Changelog_Release_Output` writes the changelog's release
-  section into the manifest's `PrivateData.PSData.ReleaseNotes` and saves the
-  file without a byte-order mark. Windows PowerShell 5.1 decodes a BOM-less
-  file with the system ANSI code page, not UTF-8, so any non-ASCII character
-  in that prose — em dashes throughout, `€`/`§` since `german-tax-research`
-  shipped — corrupts on read.
-- Fix: `.build/Repair_ManifestEncoding.build.ps1`, a new task appended to the
-  `build` workflow right after `Create_Changelog_Release_Output`, re-saves the
-  manifest as UTF-8 with a BOM whenever one is missing, changing no other byte.
-  `tests/QA/module.tests.ps1` gained a regression assertion on the BOM.
-- Verified end to end: full `./build.ps1 -Tasks build, test` — 815 of 815
-  Pester tests passed — then `Test-ModuleManifest` under real
-  `powershell.exe` against the rebuilt manifest passed.
-- Every prior Gallery release (`2.0.0` through `4.0.0-preview0010`) shipped
-  this defect; only a future release carries the fix. The dropped CI leg was
-  not restored in this change and is tracked as follow-up.
+  `4.0.0` manifest under real `powershell.exe` failed with "not a valid Windows
+  PowerShell restricted language file" at an em dash that had been mis-decoded
+  into mojibake. `Install-Module` discards that detail and reports only "not a
+  properly-formed module", which is why issue #20 could not be actioned from
+  the error text alone.
+- `Create_Changelog_Release_Output` saves the manifest without a byte-order
+  mark; Windows PowerShell 5.1 decodes a BOM-less file with the ANSI code page,
+  so every non-ASCII character in the embedded release notes corrupts on read.
+- The same defect was diagnosed on 2026-07-29 and closed by deleting the CI leg
+  that caught it, on the premise that nobody runs the module on that host.
+  Issue #20 falsified the premise. Fixed at the source this time:
+  `.build/Repair_ManifestEncoding.build.ps1` re-saves the manifest as UTF-8 with
+  a BOM, with a regression assertion in `tests/QA/module.tests.ps1`.
+
+## Implemented — PR 47, the CI failure it exposed
+
+- The PR build failed in `Package Module` while GitVersion had actually
+  **succeeded**: exit code 0 and valid JSON. Two independent defects stacked.
+- `GitVersion.yml` left `feature` and `hotfix` unanchored, so
+  `ai/fix-manifest-bom-ps51` matched both — `ai/` and `fix-`. GitVersion takes
+  the first match and warns about the rest on stdout.
+- `ci.yml` read that same stdout and required it to start with `{`, so the
+  warning turned a good run into `did not return JSON`. It now locates the JSON
+  block, echoes any preamble as diagnostics instead of discarding it, and fails
+  with the parser message when the block will not parse.
+- Both regexes are anchored, and a new `-ForEach` gate asserts every
+  representative branch name matches exactly one configuration. Shown to reject
+  first: `'ai/fix-manifest-bom-ps51' matched: feature, hotfix, but got 2`, 821
+  passed and 1 failed; after the fix 822 of 822 pass.
+- The parsing change was exercised against the captured CI output before it
+  shipped: the run CI rejected now yields `4.0.0-PR0021.43`, clean output still
+  parses, and output with no JSON is still rejected.
 
 ## Implemented — skill-creator split
 
@@ -89,18 +93,6 @@ fix already shipped in `f7f302d`.
 - Decision 0021 records the split and what it cannot do; `.gitignore`,
   `.memory-bank/session/README.md`, and `Hooks/README.md` carry the artifact.
 
-## Implemented - release provenance (shipped in `f7f302d`)
-
-- `CHANGELOG.md` gained `[3.0.0] - 2026-08-01` and `[3.1.0] - 2026-08-07`,
-  reconstructed from the two unmerged rollover commits rather than from the
-  commit log, so each entry sits under the release it shipped in. 13 entries to
-  `3.0.0`, 5 to `3.1.0`. Compare links filled in.
-- `plugin.json` moved to `3.1.0`.
-- `tests/PluginManifest.Tests.ps1` gained the release provenance gate: every
-  non-preview tag reachable from `HEAD` needs a matching release section, with a
-  tag at `HEAD` exempt so a tag push cannot deadlock on its own gate. The same
-  file pins `plugin.json.version` to `major.minor.patch`, never a pre-release.
-
 ## Focused evidence
 
 - `PreCompact` supports the common output format only. There is no
@@ -115,16 +107,6 @@ fix already shipped in `f7f302d`.
   names no workspace. Guessing from the spawn directory would drop a checkpoint
   into an unrelated repository, which the unreadable-payload test would have
   done against this repo.
-- Release provenance root cause is a merge gap, not a pipeline gap.
-  `Create_ChangeLog_GitHub_PR` ran and produced
-  `origin/updateChangelogAfterv3.0.0` (`e594924`) and
-  `origin/updateChangelogAfterv3.1.0` (`13a16d3`). Nobody merged the pull
-  requests, the task swallows failures in a `catch` that only logs, and no test
-  compared tags against sections. Merging those branches today would misfile the
-  July entries.
-- That gate was shown to reject before it was accepted: 8 passed and 3 failed,
-  naming `v3.0.0` and `v3.1.0`; after the fix 12 of 12 pass. Full suite at that
-  point: 807 passed, 0 failed, 61 skipped, coverage 78.44 % against 65 %.
 - Writing a literal level-two release header inside changelog prose breaks
   `Get-ChangelogData`; it parsed the example as a real section.
 - `Instructions/copilot-authoring.instructions.md` carries unrelated in-progress
@@ -175,7 +157,6 @@ run needs an explicit go-ahead rather than an assumption.
 - The `brand-logo-system` integration step was measured on one project only.
 - The `skill-creator` description edit remains unproven: train reached 100 %
   while validation fell, which is the overfitting signal.
-- `Skills/german-employment-law/` is gone; the working tree is clean of it.
 
 ## Next step
 

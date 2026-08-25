@@ -14,15 +14,18 @@ branches:
     source-branches: []
   pull-request:
     tag: PR
+  # Both regexes are anchored. Unanchored, they match anywhere in the branch
+  # name, so 'ai/fix-...' matched feature *and* hotfix; GitVersion then warns
+  # about the extra match on the same stdout stream the pipeline parses as JSON.
   feature:
     tag: useBranchName
     increment: Minor
-    regex: (f(eature(s)?)?|ai)[\/-]
+    regex: ^(f(eature(s)?)?|ai)[\/-]
     source-branches: ['main']
   hotfix:
     tag: fix
     increment: Patch
-    regex: (hot)?fix(es)?[\/-]
+    regex: ^(hot)?fix(es)?[\/-]
     source-branches: ['main']
   # A tag push checks out refs/tags/<tag> with a detached HEAD, so GitVersion
   # takes the branch name from GITHUB_REF and works on a synthetic 'tags/<tag>'
