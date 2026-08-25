@@ -141,23 +141,9 @@ Agents typically consult a skill only for tasks that need knowledge or capabilit
 
 ## Trigger evals: prove the description works
 
-Do not tune a description by intuition. Build a labelled query set and measure.
+Do not tune a description by intuition. Build a labelled query set and measure: roughly 20 queries split 8–10 positive and 8–10 **near-miss** negative, a fixed 60/40 train/validation split, 3 runs per query against a 0.5 trigger-rate threshold, iteration driven by train-set failures only, and selection by validation pass rate rather than by recency. A negative like "write a fibonacci function" tests nothing; the useful ones share vocabulary with the skill and still belong elsewhere.
 
-1. **Write ~20 queries** — 8–10 that should trigger, 8–10 that should not, each labelled `should_trigger`.
-   - **Positives** vary along phrasing (formal, casual, typos), explicitness (some name the domain, some only describe the need), detail (terse and context-heavy), and complexity (single-step and multi-step). The most useful positives are the ones where the skill helps but the connection is not obvious from the query.
-   - **Negatives must be near-misses.** "Write a fibonacci function" tests nothing. "Update the formulas in my Excel budget spreadsheet" shares concepts with a CSV-analysis skill but needs something else — that is a real test of precision.
-   - Make them realistic: file paths, personal context ("my manager asked me to"), specific column and company names, abbreviations.
-2. **Split 60/40 into train and validation**, each with a proportional mix of positives and negatives. Shuffle once and keep the split fixed across iterations.
-3. **Run each query 3 times** and compute a trigger rate. A positive passes above 0.5; a negative passes below it. Model behaviour is nondeterministic — one run is noise.
-4. **Iterate on train-set failures only.** Keep validation results out of the revision process entirely.
-   - Positives failing → the description is too narrow. Broaden the scope or add context about when the skill is useful.
-   - Negatives firing → the description is too broad. Add specificity about what the skill does *not* do, or sharpen `DO NOT USE FOR:`.
-   - Stuck after several rounds → try a structurally different framing rather than another incremental tweak.
-   - Watch the 1024-char cap; descriptions grow during optimisation.
-5. **Select by validation pass rate, not by recency.** The best description is often not the last one you wrote — a later iteration may have overfitted the train set. Five iterations is usually enough; if nothing improves, the queries are the problem (too easy, too hard, or mislabelled), not the description.
-6. **Sanity-check with fresh queries.** Write 5–10 new labelled queries that were never part of optimisation and run them for an honest generalisation check.
-
-[`agent-evals`](../agent-evals/SKILL.md) owns the harness and the file layout.
+In this repository the query set is a committed asset at `Skills/agent-evals/assets/trigger-queries.<name>.json`, and [`tests/SkillTriggerCoverage.Tests.ps1`](../../tests/SkillTriggerCoverage.Tests.ps1) fails when a shipped skill has neither a query set nor a documented baseline entry. For the full six-step procedure read [`references/scripts-and-evaluation.md`](references/scripts-and-evaluation.md); [`agent-evals`](../agent-evals/SKILL.md) owns the harness and the file layout.
 
 ## Progressive disclosure: point, don't dump
 
@@ -193,33 +179,13 @@ When references link to further references, agents often preview them with `head
 - Never link `references/foo.md` → `references/bar.md` → `references/baz.md`.
 - Reference files longer than 100 lines must start with a `## Contents` table-of-contents so the agent sees the full scope even from a partial preview.
 
-## Degrees of freedom
+## Calibrating how prescriptive to be
 
-Match the level of specificity in your instructions to the task's fragility. Most skills mix all three; calibrate each part independently.
+Match the specificity of an instruction to the task's fragility: exact commands for fragile low-freedom steps, general direction for open-ended ones, and reasoning rather than directives wherever the agent has a real choice to make. Classify the failure first against [Match the form to the failure](#match-the-form-to-the-failure), then pick the register. The freedom table, the bridge-versus-field analogy, and the procedures-over-declarations rule are in [`references/authoring-patterns.md`](references/authoring-patterns.md); read it when you are unsure how tightly to constrain a step.
 
-| Freedom | When to use | Pattern |
-|---|---|---|
-| **High** | Multiple approaches valid; decisions depend on context | Prose checklist: "Analyse the code structure, check for edge cases, suggest improvements." |
-| **Medium** | A preferred pattern exists; some variation acceptable | Pseudocode or script with parameters: `generate_report(data, format="markdown")`. |
-| **Low** | Operations are fragile; consistency critical; specific sequence required | Exact command: `python scripts/migrate.py --verify --backup`. "Do not modify the command." |
+## Gotchas: usually the highest-value section
 
-The analogy: a narrow bridge with cliffs on both sides needs guardrails (low freedom); an open field needs only a general direction (high freedom). Database migrations are bridges; code reviews are fields.
-
-### Explain the why on flexible instructions
-
-Where the instruction is high or medium freedom, reasoning beats directive: "Do X because Y tends to cause Z" outperforms "ALWAYS do X, NEVER do Y". An agent that understands the purpose makes better context-dependent decisions. This is not in tension with the prohibitions in [Behavioural enforcement](#behavioural-enforcement-rationalizations-red-flags-evidence) below — those exist for discipline failures on fragile, low-freedom steps, where there is nothing to reason about and the only job is closing a shortcut. Classify the failure first (see [Match the form to the failure](#match-the-form-to-the-failure)), then pick the register.
-
-### Favor procedures over declarations
-
-Teach the agent *how to approach* a class of problems, not *what to produce* for one instance. "Read the schema from `references/schema.yaml`, join on the `_id` convention, apply the user's filters as WHERE clauses" generalises; "join `orders` to `customers` on `customer_id` and sum `amount`" does not. Specific details still belong in a skill — output templates, constraints like "never output PII", tool-specific commands — but the *approach* must generalise.
-
-## Pattern catalogue
-
-Reach for these before inventing structure. Not every skill needs all of them.
-
-### Pattern 1 — Gotchas section
-
-Usually the highest-value content in a skill. A gotcha is an environment-specific fact that defies a reasonable assumption — a concrete correction to a mistake the agent will otherwise make. It is not general advice.
+A gotcha is an environment-specific fact that defies a reasonable assumption — a concrete correction to a mistake the agent will otherwise make. It is not general advice.
 
 ```markdown
 ## Gotchas
@@ -233,42 +199,7 @@ Keep gotchas in SKILL.md, where the agent reads them *before* hitting the situat
 
 **Grow the list from corrections.** Every time you have to correct the agent mid-task, that correction is a gotcha. Adding it is the single most direct way to improve a skill iteratively.
 
-### Pattern 2 — High-level guide + references
-
-SKILL.md gives quick-start. Each domain or advanced topic lives in `references/<topic>.md`. Use when the skill covers one tool with multiple sub-areas (e.g. `pdf-processing` with `forms.md`, `tables.md`, `merging.md`).
-
-### Pattern 3 — Domain-organised references
-
-SKILL.md is a navigation map; references are split by domain (`finance.md`, `sales.md`, `product.md`). Use when the skill spans multiple independent data sets or topics where any one task only needs one.
-
-### Pattern 4 — Conditional workflow
-
-SKILL.md describes a decision tree; each branch points to a reference or script. Use when the workflow forks early on input type ("creating new doc → follow A; editing existing → follow B").
-
-### Pattern 5 — Workflow checklist
-
-For complex multi-step tasks, provide a copyable checklist the agent tracks across the conversation. Most valuable when steps have dependencies or validation gates.
-
-```markdown
-Task Progress:
-- [ ] Step 1: Analyse the form (run `scripts/analyze_form.py`)
-- [ ] Step 2: Create field mapping (edit `fields.json`)
-- [ ] Step 3: Validate mapping (run `scripts/validate_fields.py`)
-- [ ] Step 4: Fill the form
-- [ ] Step 5: Verify output
-```
-
-### Pattern 6 — Feedback loop
-
-`run → validate → fix → repeat`. Document the validator (script or rubric), the loop, and the exit condition. This pattern dramatically improves output quality on quality-critical tasks (form filling, XML edits, document generation). A reference document can serve as the validator: instruct the agent to check its work against it before finalising.
-
-### Pattern 7 — Output template
-
-When output must take a specific shape, provide a template rather than describing the format in prose — agents pattern-match against concrete structures far more reliably. Short templates live inline; long or conditionally-needed ones go in `assets/` and load on demand.
-
-### Pattern 8 — Examples (input → output pairs)
-
-When output quality depends on style, include two or three input/output pairs in SKILL.md. Examples beat descriptions when the user wants a specific shape.
+For the seven remaining structural patterns — guide-plus-references, domain-organised references, conditional workflow, workflow checklist, feedback loop, output template, and input/output examples — read [`references/authoring-patterns.md`](references/authoring-patterns.md) before inventing a structure of your own.
 
 ## Match the form to the failure
 
@@ -332,82 +263,13 @@ Confirm before reporting done:
 
 This mirrors the repo's turn-level post-flight gate at the skill level: the skill refuses to declare success without proof.
 
-## Scripts: solve, don't punt
+## Scripts, batch operations, and evaluation
 
-When a skill bundles executable code (`scripts/`):
+When the skill will ship anything under `scripts/`, performs batch or destructive operations, or is ready for its output evals, read [`references/scripts-and-evaluation.md`](references/scripts-and-evaluation.md). It covers solve-don't-punt error handling, the non-interactive caller interface (never prompt, structured stdout, bounded output, distinct exit codes), plan-validate-execute for destructive batches, the full trigger-eval procedure, evaluation-driven development, and how to read the results.
 
-- **Handle errors explicitly.** Catch `FileNotFoundError`, `PermissionError`, etc. and either recover with a documented default or fail with a specific actionable message. Do not let the script crash and leave the agent to guess.
-- **No voodoo constants.** Every numeric literal (`TIMEOUT = 47`, `MAX_RETRIES = 5`) needs a one-line comment justifying it. "Why 47?" must have an answer.
-- **Use forward slashes** in all paths (`scripts/helper.py`, not `scripts\helper.py`). Windows paths break on Unix.
-- **Make execution intent explicit**: "Run `analyse_form.py` to extract fields" (execute) vs "See `analyse_form.py` for the extraction algorithm" (read as reference). Default to execute.
-- **Extract anything ≥ ~30 lines** of executable code from SKILL.md into `scripts/<name>.ps1` (or `.py` / `.mjs`). SKILL.md keeps a 5-line invocation example.
-- **Bundle what the agent keeps reinventing.** If execution traces across eval runs show the agent independently rewriting the same chart builder, parser, or validator each time, write it once and ship it in `scripts/`.
+Two rules from it are load-bearing often enough to state here: extract anything ≥ ~30 lines of executable code into `scripts/`, leaving a 5-line invocation example in the body; and build the evaluations *before* writing extensive documentation, because an eval written afterwards tests what you wrote rather than what was missing.
 
-### Design the interface for a non-interactive caller
-
-The agent decides what to do next from stdout and stderr, and it cannot answer a prompt.
-
-- **Never prompt.** Agents run in non-interactive shells, so a TTY prompt, password dialog, or confirmation menu blocks until the harness gives up. Take every input from a parameter, an environment variable, or stdin, and fail with a usage line instead.
-- **Document the interface with `--help`** (comment-based help for PowerShell). It is how the agent learns the parameters. Keep it short; the output lands in the context window.
-- **Say what to try next in an error.** `--format must be one of json, csv, table. Received "xml"` costs one turn. `Validation failed` costs several.
-- **Structured data to stdout, diagnostics to stderr.** Emit JSON, CSV, or objects the agent can pipe, and keep progress and warnings out of that stream.
-- **Bound the output.** Harnesses truncate tool output somewhere around 10-30 KB and the remainder is simply lost. Default to a summary and offer an output path or paging for the full result.
-- **Use distinct exit codes** for not-found, bad arguments, and auth failure, and document them where `--help` shows them.
-- **Be idempotent, and reversible where it matters.** The agent retries: prefer create-if-absent over fail-on-duplicate, and give a destructive operation `-WhatIf` or `--dry-run`.
-- **Declare dependencies inside the script** — PEP 723 inline metadata run with `uv run script.py`, or `#Requires -Module` in PowerShell. A prerequisite stated only in prose is one the agent may never read.
-
-## Plan-validate-execute
-
-For batch or destructive operations (updating 50 form fields, applying tracked changes to a document, rewriting a config across a fleet), use the plan-validate-execute pattern:
-
-1. The agent analyses input and writes a structured plan file (`changes.json`).
-2. A validator script checks the plan against the target (`validate.py changes.json`).
-3. Only on validation pass does the agent execute the plan.
-
-Verbose error messages from the validator are critical: `"Field 'signature_date' not found. Available fields: customer_name, order_total, signature_date_signed"` lets the agent fix the plan; `"Validation failed"` does not.
-
-## Evaluation-driven development
-
-The strongest and most-skipped recommendation: **build evaluations before writing extensive documentation.** Trigger evals (above) prove the skill fires; output evals prove it helps.
-
-1. **Identify gaps.** Run the agent on representative tasks **without** the skill. Document every failure or missing context.
-2. **Write 2–3 test cases** — the exact phrasing a real user would use, plus a human-readable description of what success looks like, plus any input files. Do not over-invest before the first round of results.
-3. **Establish baseline.** Keep the without-skill outputs. When improving an existing skill, snapshot the previous version and use that as the baseline instead.
-4. **Write minimal SKILL.md** — just enough to fix the documented gaps.
-5. **Re-run with the skill loaded**, in a clean context per run. Verify the skill triggered (PRE-FLIGHT line names it). Compare with-skill against without-skill on pass rate, tokens, and duration.
-6. **Add assertions after the first run**, once you know what good output looks like, and grade each with concrete evidence.
-7. **Iterate.** Under-triggered → tighten the description. Triggered but wrong → tighten the body or references.
-
-[`agent-evals`](../agent-evals/SKILL.md) owns the file layout, assertion and grading formats, and the benchmark deltas.
-
-### Reading the results
-
-- **Assertions that always pass in both arms** measure nothing — the model handles them unaided. Remove or replace them; they inflate the with-skill pass rate without reflecting value.
-- **Assertions that always fail in both arms** are broken, or the test case is too hard. Fix before the next iteration.
-- **Assertions that pass with the skill and fail without** are where the value is. Understand *which* instruction made the difference.
-- **High variance across runs** means the eval is flaky or the instruction is ambiguous enough to be read differently each time. Add an example or sharpen the wording.
-- **Time and token outliers** warrant reading the execution transcript for the bottleneck.
-
-### Keep the skill lean — and know when to remove
-
-Fewer, better instructions often outperform exhaustive rules. If transcripts show wasted work — unnecessary validation, unneeded intermediate output — remove those instructions. **If pass rates plateau while you keep adding rules, the skill is probably over-constrained: delete instructions and check whether results hold or improve.** Adding is the reflex; subtracting is the fix more often than authors expect.
-
-Generalise every fix. The skill runs against many prompts, not just the test cases — address the underlying issue rather than patching the specific example.
-
-## Claude-A / Claude-B iteration
-
-Use two instances when refining a skill:
-
-- **A** — helps you author and refine. Sees the SKILL.md, asks "is this too verbose?", suggests reorganisations, splits references.
-- **B** — uses the skill on real tasks in a fresh chat, with no authoring context. Reveals where the agent actually struggles, ignores files, or misses connections.
-
-Observe B's behaviour and bring concrete observations back to A: "When B asked for a regional sales report, it forgot to filter test accounts even though the skill mentions this rule. Make the rule more prominent." This loop catches problems no static review finds, because the failure mode is "what an LLM actually does with this skill", not "what a human thinks the skill says".
-
-### Test across model tiers
-
-Run the skill on the weakest and strongest models it will realistically meet — Haiku, Sonnet, and Opus. Instructions that a stronger model infers from context, a weaker one needs stated. A skill that only works on the top tier is under-specified, not elegant; a skill that a weak model follows correctly will not confuse a strong one. Where the tiers diverge, the divergence names the implicit assumption to write down.
-
-For comparing two versions, try **blind comparison**: present both outputs to a judge without revealing which came from which version, and let it score organisation, formatting, and polish on its own rubric. Two outputs can pass identical assertions and still differ sharply in quality.
+For iteration technique — the Claude-A / Claude-B loop and testing across model tiers — see [`references/authoring-patterns.md`](references/authoring-patterns.md).
 
 ## Cross-skill overlap audit
 
@@ -426,17 +288,7 @@ For each overlapping pair, add the other skill's scope boundary to `DO NOT USE F
 
 ## Anti-patterns
 
-- **Description written as self-description.** "This skill converts files." Frame it as an instruction: "Use this skill when...".
-- **Description tuned to verbatim failed queries.** Overfitting. Name the category those queries represent instead.
-- **Body holds the trigger.** Invisible to the selector. Move triggers into the description.
-- **Skill generated from the model's general knowledge.** Produces generic procedure. Ground it in project artifacts.
-- **Time-sensitive info in main content.** "After August 2025, use the new API." Will be wrong. Put legacy guidance in a `<details><summary>Old patterns</summary>` block.
-- **Inconsistent terminology.** Pick one term ("API endpoint" or "URL", not both) and use it throughout.
-- **Offering too many options.** "You can use pypdf, pdfplumber, PyMuPDF, or pdf2image." Pick a default; mention alternatives only as escape hatches with a clear "use X instead when Y".
-- **Deeply nested references.** SKILL.md → `advanced.md` → `details.md` → `more.md`. Flatten.
-- **Reference pointer with no load condition.** "See `references/` for details." State when to read it.
-- **SKILL.md tries to be a tutorial.** It is reference material for an LLM that already knows the domain. Cut introductions ("PDFs are a common file format...").
-- **Folder name mismatches `name:`.** The CLI silently ignores the skill.
+The two that cost the most here: a **description written as self-description** ("This skill converts files") never competes well against a sibling that says when to act, and a **skill generated from the model's general knowledge** produces generic procedure that fails the only test that matters — whether the agent does better with it than without. The full list, including time-sensitive content, nested references, pointers with no load condition, and folder-name mismatch, is in [`references/authoring-patterns.md`](references/authoring-patterns.md).
 
 ## Skill vs. instruction vs. agent
 

@@ -15,6 +15,14 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-25**: Split `skill-creator` from 492 lines to 344 behind two
+  references. The Skill carrying the progressive-disclosure rules broke them
+  worst — 8 lines from the budget, no references, and an unapplied splitting
+  recipe of its own. What moved was decided by "only add context the model does
+  not already have": the material upstream already teaches went to
+  `references/`, and the repository-specific and original material stayed.
+  Description untouched, so no eval sweep is owed.
+
 - **2026-08-25**: Re-verified `copilot-authoring.instructions.md` against the
   current VS Code and agentskills.io documentation. It had drifted into stating
   a rule the repository's own files break — prompts documented as requiring
@@ -87,36 +95,24 @@ under `[Unreleased]` in `CHANGELOG.md`.
   a placeholder. The atomic-change-set gate fired on its own author: the first
   run failed only `brand-logo-system has a trigger-query set`, then 438/0.
 
-- **2026-08-19**: Replaced exact-set grading in the route-selection evaluator
-  after review found it misaligned with the risk it exists to catch. A reply
-  selecting a superset reads more context but loses none, yet scored the same as
-  a dropped route, and Decision 0014 had turned that into a pass^k demand no run
-  could meet. Grading now asks the sibling gate's question — did anything
-  required go missing — and reports recall, precision, over-selection, and exact
-  matches as cost. The obvious hole was closed in a test, not in prose: a reply
-  naming every route passes safety at 100 % recall and 50 % precision. No
-  precision floor is set; inventing one unbacked by a baseline is the mistake
-  being undone.
+- **2026-08-19**: Replaced exact-set grading in the route-selection evaluator.
+  A superset reply reads more context but loses none, yet scored the same as a
+  dropped route. Grading now asks whether anything required went missing and
+  reports recall, precision, and over-selection as cost. No precision floor is
+  set; inventing one unbacked by a baseline is the mistake being undone.
 
 - **2026-08-13**: Added an offline natural-language Memory Bank route-selection
   evaluator, rebased onto `main` on 2026-08-19. `Prepare` emits label-free
-  prompts containing one real task and the compact index; `Grade` accepts strict
-  JSON route arrays, handles Full-read fallback explicitly, and reports pass@k
-  plus pass^k. Twenty-five real cases produced 75 isolated prompts without
-  contacting a model, and the replies are not executed yet, so reliability is
-  not claimed.
-- **2026-08-12**: Adopted four items from a review of an external Copilot
-  catalogue, reimplemented rather than copied: an AST detector for Pester v4
-  constructs, a shrink-only `SkillTriggerCoverage` baseline of 38 unmeasured
-  Skills, and the `SecretScan` and `CustomizationFrontmatter` gates. The former
-  carries a planted-credential test, because a gate never shown to reject is not
-  a gate.
-
-- **2026-08-12**: Unblocked CI. Every test leg failed on
-  `Unable to resolve action astral-sh/setup-uv@v9`; the action publishes no
-  floating major alias past `v7`, so the reference was never resolvable. A `@vN`
-  reference is an assumption about the publisher's tagging habit and has to be
-  verified against the tag API, not inferred from the release number.
+  prompts; `Grade` accepts strict JSON route arrays, handles Full-read fallback,
+  and reports pass@k plus pass^k. Twenty-five real cases produced 75 prompts
+  without contacting a model, so reliability is not yet claimed.
+- **2026-08-12**: Added the Pester v4 AST detector, the shrink-only
+  `SkillTriggerCoverage` baseline, and the `SecretScan` and
+  `CustomizationFrontmatter` gates, each reimplemented rather than copied from
+  the external catalogue that suggested them; `SecretScan` carries a planted
+  credential, because a gate never shown to reject is not a gate. Unblocked CI
+  the same day — a `@vN` action reference is an assumption about the publisher's
+  tagging habit, and `astral-sh/setup-uv@v9` never existed.
 
 ## Stable capabilities
 

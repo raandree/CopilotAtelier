@@ -9,9 +9,21 @@ source: current task evidence
 
 ## Current focus
 
-Two change sets are in flight: the compaction checkpoint, committed on
-`ai/precompact-checkpoint`, and the authoring schema refresh, still uncommitted
-in the working tree. The release provenance fix already shipped in `f7f302d`.
+Three change sets are in flight: the compaction checkpoint, committed on
+`ai/precompact-checkpoint`; the authoring schema refresh, shipped in `39dd690`
+with a follow-on `description` fix on `ai/authoring-instruction-description`;
+and the `skill-creator` split stacked on that branch. The release provenance
+fix already shipped in `f7f302d`.
+
+## Implemented — skill-creator split
+
+- Body 492 → 344 lines behind `references/authoring-patterns.md` and
+  `references/scripts-and-evaluation.md`, both one level deep.
+- The cut line is "only add context the model does not already have": what
+  upstream already teaches moved out, what only this repository knows stayed.
+- Settled the standing question of whether an `instruction-creator` Skill is
+  owed. It is not — creation is owned by `copilot-authoring`, verification by
+  `agent-evals`, and a third file would duplicate both.
 
 ## Implemented — authoring schema refresh
 
