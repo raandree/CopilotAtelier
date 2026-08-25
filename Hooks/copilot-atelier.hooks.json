@@ -15,6 +15,14 @@
                 "command": "pwsh -NoProfile -NonInteractive -Command \"& (Join-Path $HOME '.copilot/hooks/scripts/Add-SessionContext.ps1'); exit $LASTEXITCODE\"",
                 "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Join-Path $env:USERPROFILE '.copilot\\hooks\\scripts\\Add-SessionContext.ps1'); exit $LASTEXITCODE\""
             }
+        ],
+        "PreCompact": [
+            {
+                "type": "command",
+                "timeout": 20,
+                "command": "pwsh -NoProfile -NonInteractive -Command \"& (Join-Path $HOME '.copilot/hooks/scripts/Write-CompactionCheckpoint.ps1'); exit $LASTEXITCODE\"",
+                "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Join-Path $env:USERPROFILE '.copilot\\hooks\\scripts\\Write-CompactionCheckpoint.ps1'); exit $LASTEXITCODE\""
+            }
         ]
     }
 }

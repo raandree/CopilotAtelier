@@ -20,6 +20,20 @@ Do all of these for every new user prompt. Do not skip any step silently.
 7. **Open the reply with a UTC timestamp** `[YYYY-MM-DD HH:mm UTC]`.
 8. **Emit a one-line PRE-FLIGHT acknowledgment** immediately after the timestamp on substantive turns. Name the probe result, selected Memory Bank route and files (or full-read fallback), initialized files, matching Instructions, and matching Skills. Trivial conversational turns may skip the banner.
 
+## Compaction recovery
+
+The steps above run per user prompt. Compaction happens mid-turn, so it bypasses them: the conversation is replaced by a summary, and the Memory Bank files read earlier in the session are no longer in context even though the summary says Pre-flight ran. This Instruction is re-sent with every request and therefore survives; the conversation does not.
+
+Treat the turn as compacted when the transcript shows a summary in place of earlier turns, when a checkpoint message names a compaction, or when you cannot recall a file the summary claims you read. Then, before the next edit:
+
+1. **Distrust the summary of pending or completed work.** It was produced by the truncation. Do not resume from it and do not re-do work it claims is outstanding without checking.
+2. **Read the newest `.memory-bank/session/compaction-*.md`.** The `PreCompact` hook writes it with the trigger, the transcript path, and the branch, commit, and changed paths at the moment of truncation. Delete it once the work it anchors is closed out.
+3. **Re-read `.memory-bank/index.md` and re-apply its routes.** Routed reads are conversation content, not re-injected context.
+4. **Re-read from disk any Prompt, Instruction, or Skill that was driving the run**, plus the Custom agent definition when one is active.
+5. **Verify the working tree** against the checkpoint's recorded state before continuing.
+
+State in the reply that the turn was compacted and which of these you re-read.
+
 ## Failure mode
 
 Skipping any step without an explicit reason in the acknowledgment is a process violation. If the user calls it out, stop, perform the missed steps, and continue.

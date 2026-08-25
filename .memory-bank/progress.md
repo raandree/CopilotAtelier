@@ -15,6 +15,16 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-25**: Closed the compaction gap. The Memory Bank had a deterministic
+  entry gate and no exit gate: Post-flight is the only durable write point and
+  it runs at end of turn, so a turn compacted mid-run loses everything it
+  learned while its summary still claims Pre-flight ran. A `PreCompact` hook now
+  writes `.memory-bank/session/compaction-<UTC>Z.md` with the trigger,
+  transcript path, and repository state, and Pre-flight gained a
+  *Compaction recovery* section. The split is forced by the platform, not
+  chosen: `PreCompact` carries no `additionalContext`, so a hook can never reach
+  the post-compaction context, while an Instruction is re-sent every request.
+
 - **2026-08-25**: Closed the release provenance gap. `plugin.json` had announced
   `2.0.0` through two releases because the changelog rollover for `v3.0.0` and
   `v3.1.0` never reached `main` — `Create_ChangeLog_GitHub_PR` ran and opened
@@ -56,25 +66,16 @@ under `[Unreleased]` in `CHANGELOG.md`.
   the branch side of the merge base. `main` already held the Skill
   byte-identical and the branch was 38 commits behind. Compare trees two-dot.
 
-- **2026-08-14**: Extended `brand-logo-system` to cover integrating the assets
-  into a project, where the Skill had stopped and left the wiring to
-  improvisation. Step 5 carries the non-guessable parts: github.com borders
-  every table cell and strips the style that would remove it, so a borderless
-  two-column README header needs a float rather than a `<table>`, and a package
-  `IconUri` must be a direct image URL because a repository URL is accepted and
-  then silently shows a placeholder. Integration names the target repository
-  before writing to it. Shipped as the full atomic change set after the first
-  commit shipped only half of it.
-
 - **2026-08-14**: Added `brand-logo-system` and the `brand-logo` Prompt that
-  starts it, harvested from a task that had been done by hand twice and hit the
-  same three failures both times: resizing an SVG by text substitution rescales
-  every nested `<use>` and `<rect>`, the shared library's "transparent" assets
-  are opaque PNGs measured at 0 % transparent pixels, and favicon legibility is
-  a claim until a 16 px render proves it. Proven end to end against
-  AutomatedLab, whose palette and mark were recovered from its own 2025 logo by
-  pixel count. The atomic-change-set gate fired on its own author: the first run
-  failed only `brand-logo-system has a trigger-query set`, then passed 438/0.
+  starts it, then extended the Skill to cover integrating the assets into a
+  project. Harvested from a task done by hand twice that hit the same failures
+  both times: resizing an SVG by text substitution rescales every nested `<use>`
+  and `<rect>`, the shared library's "transparent" assets are opaque PNGs at 0 %
+  transparent pixels, favicon legibility is a claim until a 16 px render proves
+  it, github.com borders every table cell so a borderless README header needs a
+  float, and a package `IconUri` must be a direct image URL or it silently shows
+  a placeholder. The atomic-change-set gate fired on its own author: the first
+  run failed only `brand-logo-system has a trigger-query set`, then 438/0.
 
 - **2026-08-19**: Replaced exact-set grading in the route-selection evaluator
   after review found it misaligned with the risk it exists to catch. A reply
@@ -95,34 +96,17 @@ under `[Unreleased]` in `CHANGELOG.md`.
   contacting a model, and the replies are not executed yet, so reliability is
   not claimed.
 - **2026-08-12**: Adopted four items from a review of an external Copilot
-  catalogue, reimplemented rather than copied. `pester-patterns` gained an AST
-  detector for Pester v4 constructs plus a v4-to-v5 reference; against this
-  repository's own suite it returns 0 `BlockBodyCommand` and 18
-  `TopLevelCommand` findings, all deliberate discovery-time `-ForEach` builders,
-  which is the signal-to-noise a detector needs to survive.
-  `SkillTriggerCoverage` turns "1 Skill of 44 has ever been measured for
-  discovery" into a shrink-only baseline of 38. `SecretScan` and
-  `CustomizationFrontmatter` close the two gates that did not exist, the former
-  carrying a planted-credential test because a gate never shown to reject is not
-  a gate. `AGENTS.md` now names the atomic change set per Customization type.
+  catalogue, reimplemented rather than copied: an AST detector for Pester v4
+  constructs, a shrink-only `SkillTriggerCoverage` baseline of 38 unmeasured
+  Skills, and the `SecretScan` and `CustomizationFrontmatter` gates. The former
+  carries a planted-credential test, because a gate never shown to reject is not
+  a gate.
 
-- **2026-08-12**: Unblocked CI. Every test leg failed at *Prepare all required
-  actions* on `Unable to resolve action astral-sh/setup-uv@v9`. The action
-  publishes no floating major alias past `v7`, so the reference was never
-  resolvable and no upstream deletion occurred. The lesson generalises: a `@vN`
-  reference is an assumption about the publisher's tagging habit, and it has to
-  be verified against the tag API rather than inferred from the release number.
-
-- **2026-08-11**: Three curation and correctness landings. `pester-patterns`
-  went from a 796-line body to 149 and `systemPatterns.md` to 86, each by moving
-  detail rather than raising a budget, with both baseline entries removed in the
-  same change. The three deferred `Set-CustomizationLink` findings all still
-  reproduced and were closed red-then-green under Decision 0020: nothing merges
-  that cannot merge without loss, equality is proven by SHA-256, and the
-  `Read-Host` opt-in became `-Force` because `Update-CopilotAtelier -Force` runs
-  unattended. The trigger-eval sweep moved onto `Invoke-ShpBatch` at 26.3 s
-  against 103.9 s sequential, and the `skill-creator` re-measurement left its
-  edit uncommitted: train reached 15/15 while validation fell to 6/8.
+- **2026-08-12**: Unblocked CI. Every test leg failed on
+  `Unable to resolve action astral-sh/setup-uv@v9`; the action publishes no
+  floating major alias past `v7`, so the reference was never resolvable. A `@vN`
+  reference is an assumption about the publisher's tagging habit and has to be
+  verified against the tag API, not inferred from the release number.
 
 ## Stable capabilities
 
@@ -173,8 +157,8 @@ under `[Unreleased]` in `CHANGELOG.md`.
   and organization-level instructions and agents.
 - Curate `techContext.md` and `systemPatterns.md` when either approaches its
   line budget. The per-test-file inventory `techContext.md` once carried is
-  already gone, and `systemPatterns.md` now has 24 lines of headroom, which the
-  Decision index consumes one line at a time.
+  already gone, and `systemPatterns.md` is down to 7 lines of headroom, which
+  the Decision index consumes one line at a time.
 
 ## Retention policy
 

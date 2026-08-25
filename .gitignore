@@ -5,6 +5,7 @@ output/
 # Curated project knowledge lives in the rest of .memory-bank/ and stays tracked.
 .memory-bank/session/handoff-*.md
 .memory-bank/session/deadline-handoff-*.md
+.memory-bank/session/compaction-*.md
 
 # Prompt log — local session ephemera, intentionally untracked.
 .memory-bank/promptHistory.md

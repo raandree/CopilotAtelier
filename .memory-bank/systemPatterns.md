@@ -38,6 +38,7 @@ carries the rest.
 | 18 | [Distribute as a Sampler-built PowerShell module](decisions/0018-distribute-as-powershell-module.md) | Accepted | 2026-07-29 |
 | 19 | [Gate Skills on the reference validator](decisions/0019-gate-skills-on-the-reference-validator.md) | Accepted | 2026-08-11 |
 | 20 | [Refuse a lossy customization merge](decisions/0020-refuse-lossy-customization-merges.md) | Accepted | 2026-08-11 |
+| 21 | [Checkpoint the session before compaction](decisions/0021-checkpoint-before-compaction.md) | Accepted | 2026-08-25 |
 
 ## Live relationships
 
@@ -61,10 +62,7 @@ carries the rest.
 - VS Code spawns a hook command without a shell, so no `%VAR%` or `$VAR` token
     is expanded. Each command resolves its own path inside the interpreter and
     propagates the exit code explicitly.
-- GUI screenshot workflows branch by ownership: modifiable applications self-
-    capture; external executables use a process-scoped driver with readiness,
-    restoration, and content verification; an already-open window inverts
-    cleanup — launch nothing, close nothing, restore only what capture changed.
+
 - A capability measured on one configuration is scoped to what was measured and
     encoded as attempt, validate, escalate — never a verdict. The content gate
     decides at run time; the engine name only orders which path is tried first.
@@ -91,6 +89,10 @@ carries the rest.
     layers grade safety as "no required context missing" and report
     over-selection as a separate cost, so neither rewards reading everything.
     Durable-write, Decision-record, and task-quality evals remain separate.
+- Compaction fires mid-turn, so it bypasses both lifecycle gates. Only an
+    Instruction survives, because Instructions are re-sent per request while the
+    conversation becomes a summary; a `PreCompact` hook carries no
+    `additionalContext`, so it writes the on-disk anchor and Pre-flight reads it.
 
 Read those source files for changing inventories. This file indexes durable
 relationships and Decision records only.

@@ -9,49 +9,62 @@ source: current task evidence
 
 ## Current focus
 
-Work the open findings on `main` without committing, at the user's explicit
-request. Latest: `plugin.json` announced `2.0.0` while `v3.1.0` was the
-published release, because the changelog rollover for `v3.0.0` and `v3.1.0`
-never reached `main`.
+Two change sets are in flight: the compaction checkpoint, committed on
+`ai/precompact-checkpoint`, and the authoring schema refresh, still uncommitted
+in the working tree. The release provenance fix already shipped in `f7f302d`.
 
-## Implemented
+## Implemented — compaction checkpoint
+
+- `Hooks/scripts/Write-CompactionCheckpoint.ps1` runs on `PreCompact` and writes
+  `.memory-bank/session/compaction-<UTC>Z.md` with the trigger, transcript path,
+  branch, commit, changed paths, and a resume protocol.
+- `Instructions/preflight.instructions.md` gained a *Compaction recovery*
+  section: distrust the summary, read the newest checkpoint, re-apply routes,
+  re-read the driving Customizations from disk, verify the working tree.
+- Decision 0021 records the split and what it cannot do; `.gitignore`,
+  `.memory-bank/session/README.md`, and `Hooks/README.md` carry the artifact.
+
+## Implemented - release provenance (shipped in `f7f302d`)
 
 - `CHANGELOG.md` gained `[3.0.0] - 2026-08-01` and `[3.1.0] - 2026-08-07`,
   reconstructed from the two unmerged rollover commits rather than from the
   commit log, so each entry sits under the release it shipped in. 13 entries to
-  `3.0.0`, 5 to `3.1.0`, 31 stay unreleased. Compare links filled in.
+  `3.0.0`, 5 to `3.1.0`. Compare links filled in.
 - `plugin.json` moved to `3.1.0`.
 - `tests/PluginManifest.Tests.ps1` gained the release provenance gate: every
   non-preview tag reachable from `HEAD` needs a matching release section, with a
-  tag at `HEAD` exempt so a tag push cannot deadlock on its own gate.
-- The same file pins `plugin.json.version` to `major.minor.patch`, never a
-  pre-release, so the question is not renegotiated.
+  tag at `HEAD` exempt so a tag push cannot deadlock on its own gate. The same
+  file pins `plugin.json.version` to `major.minor.patch`, never a pre-release.
 
 ## Focused evidence
 
-- Root cause is a merge gap, not a pipeline gap. `Create_ChangeLog_GitHub_PR`
-  ran and produced `origin/updateChangelogAfterv3.0.0` (`e594924`) and
+- `PreCompact` supports the common output format only. There is no
+  `additionalContext` field, so no hook can inject text into the
+  post-compaction context; the recovery half must be an Instruction, which is
+  re-sent with every request. This is the constraint that shaped the design, not
+  a simplification.
+- `tests/Hooks.Tests.ps1` went red first for the right reason — missing script,
+  missing event — then 48 of 48 pass. Coverage includes a payload that smuggles
+  a newline and a forged list item into a file an agent reads back.
+- The hook writes nothing when the workspace has no Memory Bank or the payload
+  names no workspace. Guessing from the spawn directory would drop a checkpoint
+  into an unrelated repository, which the unreadable-payload test would have
+  done against this repo.
+- Release provenance root cause is a merge gap, not a pipeline gap.
+  `Create_ChangeLog_GitHub_PR` ran and produced
+  `origin/updateChangelogAfterv3.0.0` (`e594924`) and
   `origin/updateChangelogAfterv3.1.0` (`13a16d3`). Nobody merged the pull
   requests, the task swallows failures in a `catch` that only logs, and no test
-  compared tags against sections.
-- Merging those branches today would misfile the July entries: `13a16d3` was cut
-  from a `main` that still lacked the `3.0.0` section.
-- The gate was shown to reject before it was accepted: 8 passed and 3 failed,
-  naming `v3.0.0` and `v3.1.0`; after the fix 12 of 12 pass.
-- Full suite after the change: 807 passed, 0 failed, 61 skipped, coverage
-  78.44 % against the 65 % target, `Build succeeded with warnings` (the one
-  warning is the pre-existing simulated eval backend failure).
-- The changelog move is provably lossless: compared byte-exactly against the
-  committed file, 0 lines lost, and the only 8 additions are the two release
-  headers and their six subsection headers.
-- Side effect: the `[Unreleased]` release body drops from 83,271 to 54,733
-  characters, restoring headroom under the 100,000-character gate that broke a
-  release on 2026-08-01.
+  compared tags against sections. Merging those branches today would misfile the
+  July entries.
+- That gate was shown to reject before it was accepted: 8 passed and 3 failed,
+  naming `v3.0.0` and `v3.1.0`; after the fix 12 of 12 pass. Full suite at that
+  point: 807 passed, 0 failed, 61 skipped, coverage 78.44 % against 65 %.
 - Writing a literal level-two release header inside changelog prose breaks
-  `Get-ChangelogData`; it parsed the example as a real section and cut
-  `Unreleased` to 420 characters.
-- Nothing is committed. The working tree holds the three changed files plus the
-  Memory Bank updates.
+  `Get-ChangelogData`; it parsed the example as a real section.
+- `Instructions/copilot-authoring.instructions.md` carries unrelated in-progress
+  frontmatter-schema work. It is deliberately excluded from the checkpoint
+  commit and left in the working tree.
 
 ## Blocked, not deferred
 

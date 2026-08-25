@@ -15,6 +15,7 @@ read as the user-level hook location.
 | [`copilot-atelier.hooks.json`](copilot-atelier.hooks.json) | — | Hook configuration loaded by VS Code |
 | [`scripts/Block-RemoteMutation.ps1`](scripts/Block-RemoteMutation.ps1) | `PreToolUse` | Blocks remote-mutating and irreversible commands |
 | [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank and injects the UTC timestamp |
+| [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated |
 
 ## Block-RemoteMutation
 
@@ -53,6 +54,27 @@ Resolves the session working directory from the hook payload, probes for
 Memory Bank exists, plus the current UTC timestamp. This removes the recurring
 failure where an agent concludes "no Memory Bank" from the workspace summary,
 which omits dotfile folders.
+
+## Write-CompactionCheckpoint
+
+Post-flight is an end-of-turn gate, so a long turn that is compacted mid-run
+never reaches it and everything the run learned goes with the conversation. This
+hook writes `.memory-bank/session/compaction-<UTC>Z.md` before the truncation,
+recording the trigger, the transcript path, and the branch, commit, and changed
+paths at that moment, followed by a resume protocol.
+
+It writes nothing when the workspace has no Memory Bank — creating one is
+reserved for a durable repository write under the `memory-bank` Skill — and
+nothing when the payload names no workspace, because falling back to the spawn
+directory would drop a checkpoint into an unrelated repository. Every failure
+path still exits `0`, so a hook fault never blocks compaction.
+
+`PreCompact` supports the common output format only: there is no
+`additionalContext` field, so a hook cannot inject text into the post-compaction
+context. The user-visible half is `systemMessage`; the model-facing half is the
+compaction-recovery section of
+[`Instructions/preflight.instructions.md`](../Instructions/preflight.instructions.md),
+which survives because Instructions are re-sent with every request.
 
 ## Verifying the hooks load
 
