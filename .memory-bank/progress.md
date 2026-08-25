@@ -15,6 +15,14 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-25**: Re-verified `copilot-authoring.instructions.md` against the
+  current VS Code and agentskills.io documentation. It had drifted into stating
+  a rule the repository's own files break — prompts documented as requiring
+  `agent: agent | ask` while eight name a Custom agent and one declares none.
+  Corrected the Prompt, Instruction, Agent, Skill, and Hook schemas, added the
+  stdout half of the hook contract, and marked which keys are house rules
+  rather than platform requirements.
+
 - **2026-08-25**: Closed the compaction gap. The Memory Bank had a deterministic
   entry gate and no exit gate: Post-flight is the only durable write point and
   it runs at end of turn, so a turn compacted mid-run loses everything it

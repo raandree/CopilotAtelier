@@ -13,6 +13,20 @@ Two change sets are in flight: the compaction checkpoint, committed on
 `ai/precompact-checkpoint`, and the authoring schema refresh, still uncommitted
 in the working tree. The release provenance fix already shipped in `f7f302d`.
 
+## Implemented — authoring schema refresh
+
+- `Instructions/copilot-authoring.instructions.md` re-verified against the
+  current VS Code and agentskills.io documentation. Prompt `agent` is optional
+  and accepts `plan` or a Custom agent name; Instructions also activate by
+  semantic match on `description`; Agents gained `target`, `mcp-servers`, and
+  `handoffs.model`; the hook stdout contract is documented alongside the exit
+  codes; keys the repository requires but the platform does not are labelled.
+- Two portability traps are now named: a Claude-format `matcher` is parsed and
+  ignored, and tool input keys are camelCase here where Claude uses snake_case.
+- Not changed, and reported instead: `plugin.json` is the legacy Copilot format
+  and its description claims hooks are outside the plugin format, which Agent
+  Plugins 1.0 no longer makes true.
+
 ## Implemented — compaction checkpoint
 
 - `Hooks/scripts/Write-CompactionCheckpoint.ps1` runs on `PreCompact` and writes

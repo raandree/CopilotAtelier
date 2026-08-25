@@ -20,6 +20,7 @@ Two tiers. Strict rules apply to AI-only files. Relaxed rules apply to human-and
 - Check existing instructions before adding rules. Update on conflict; never duplicate.
 - Start each file with YAML frontmatter. Required keys depend on file type (see Frontmatter Schemas below). Exception: `README.md` and top-level `AGENTS.md` / `copilot-instructions.md` equivalents.
 - Use `##`/`###` headings, `-` bullets, backticks for code tokens, fenced blocks for multi-line examples.
+- Reference a tool in body text as `#tool:<tool-name>` (for example `#tool:web/fetch`). Applies to Instructions, Prompts, and Agents.
 - Do not add maintenance footers (`Last Updated`, `Maintained By`, version banners). Git history is the source of truth.
 - Do not include tutorials or introductory explanations of the subject matter. Link to authoritative external docs instead.
 
@@ -38,50 +39,63 @@ Two tiers. Strict rules apply to AI-only files. Relaxed rules apply to human-and
 
 ## Frontmatter Schemas
 
-Each file type uses a distinct frontmatter shape. Values must be strings unless noted.
+Each file type uses a distinct frontmatter shape. Values must be strings unless noted. Where a key is marked *required here*, the platform treats it as optional and this repository's tests do not.
 
 ### Instructions (`Instructions/*.instructions.md`)
 
-- `applyTo` (required): comma-separated glob string. Narrowest pattern that covers the intended files. Never an array. Never `**/*` when a specific path suffices.
+- `applyTo` (required here): comma-separated glob string. Narrowest pattern that covers the intended files. Never an array. Never `**/*` when a specific path suffices. Without it the file never auto-applies and is reachable only by manual attachment.
+- `description` (recommended): one line. VS Code also activates an Instruction by semantic match of the description against the current task, so declare one whenever `applyTo` cannot express the real trigger.
+- `name` (optional): display name in the Chat view. Defaults to the file name.
+- The Claude-format equivalent in `.claude/rules` uses `paths` (array of globs, default `**`) in place of `applyTo`.
 
 ### Prompts (`Prompts/*.prompt.md`)
 
-- `agent` (required): `agent` or `ask`.
 - `description` (required): one-line summary shown in the prompt picker.
-- `tools` (optional): array of allowed tool names. Omit to inherit the caller's toolset.
+- `agent` (optional): `ask`, `agent`, `plan`, or a Custom agent name. Defaults to the active agent, or to `agent` when `tools` is set.
+- `name` (optional): slash-command name. Defaults to the file name.
+- `argument-hint` (optional): placeholder prompt shown to the user.
+- `tools` (optional): array of allowed tool names. Omit to inherit the caller's toolset. Prompt tools outrank the referenced agent's tools.
 - `model` (optional): model identifier, e.g. `Claude Opus 5 (copilot)`.
+- Prompts run only in the VS Code extension host. Agent Host, the Copilot CLI, and the cloud agent ignore them. Author a Skill instead when the workflow must be portable.
 
 ### Agents (`Agents/*.agent.md`)
 
-- `name` (required): kebab-case identifier used for handoffs.
-- `description` (required): one-line summary for the agent picker.
-- `model` (required): array of model identifiers in priority order. The first available model wins, so always declare a GA fallback.
+- `name` (required here): kebab-case identifier used for handoffs.
+- `description` (required here): one-line summary for the agent picker.
+- `model` (required here): array of model identifiers in priority order. The first available model wins, so always declare a GA fallback.
 - `argument-hint` (optional): placeholder prompt shown to the user.
-- `tools` (optional): array of allowed tool names.
-- `agents` (optional): array of agent names this agent may use as subagents. `[]` forbids subagents; omitting the key allows every agent.
+- `tools` (optional): array of allowed tool names, tool sets, or `<mcp-server>/*`.
+- `agents` (optional): array of agent names this agent may use as subagents. `*` allows all; `[]` forbids subagents; omitting the key allows every agent. Declaring it requires the `agent` tool in `tools`, and self-reference requires `chat.subagents.allowInvocationsFromSubagents`.
 - `disable-model-invocation` (optional): `true` keeps the agent in the picker but stops other agents selecting it as a subagent. Set it on domain specialists whose descriptions overlap. An agent named explicitly in another agent's `agents` array overrides this.
 - `user-invocable` (optional): `false` hides the agent from the picker while leaving it available as a subagent.
-- `handoffs` (optional): array of `{label, agent, prompt, send}` objects surfaced as UI handoff buttons.
-- `hooks` (optional): agent-scoped hook commands. Prefer shared hooks in `Hooks/`; use this only for behavior that must not apply to other agents.
+- `handoffs` (optional): array of `{label, agent, prompt, send, model}` objects surfaced as UI handoff buttons. `model` takes the qualified `Model Name (vendor)` form.
+- `target` (optional): `vscode` or `github-copilot`. Declare it only when the agent is authored for one harness.
+- `mcp-servers` (optional): MCP server configuration for `target: github-copilot`. Ignored in VS Code.
+- `hooks` (optional): agent-scoped hook commands, same shape as `Hooks/*.json`, gated on `chat.useCustomAgentHooks`. Prefer shared hooks in `Hooks/`; use this only for behavior that must not apply to other agents.
 - Never use `infer`. It is deprecated in favor of `user-invocable` and `disable-model-invocation`.
 
 ### Skills (`Skills/**/SKILL.md`)
 
-- `name` (required): kebab-case identifier matching the folder name. No namespace prefix — a prefix makes the Skill fail to load silently.
+- `name` (required): kebab-case identifier matching the folder name. Max 64 characters, lowercase alphanumerics and single hyphens only, no leading, trailing, or consecutive hyphen. No namespace prefix — a prefix makes the Skill fail to load silently. A plugin supplies its own `/<plugin>:<skill>` prefix.
 - `description` (required): block scalar. Start with a one-paragraph summary, then a `USE FOR:` list naming the general categories of request the Skill serves, then an optional `DO NOT USE FOR:` list naming adjacent Skills and near-miss requests. The description is the only text the auto-selector sees. Keep `USE FOR:` at category level, but state those categories in the domain's own vocabulary — the specification asks for specific keywords that help an agent identify relevant tasks. What overfits is pasting in the verbatim wording of queries that failed to trigger, not the domain terms themselves. Max 1024 characters.
 - `compatibility` (optional): max 500 characters. Required whenever the Skill needs a specific operating system, runtime, module, or external binary. State the hard requirement, not a preference.
 - `context` (optional): `fork` runs the Skill in a dedicated subagent and returns only its result. Use it for Skills that ingest large volumes of untrusted external content or run long investigations whose intermediate detail must not reach the parent conversation. Requires `github.copilot.chat.skillTool.enabled`.
-- `license`, `metadata`, `allowed-tools` (optional): agentskills.io fields. `allowed-tools` is experimental and support varies by client.
+- `license`, `metadata`, `allowed-tools` (optional): agentskills.io fields. `metadata` is a string-to-string map. `allowed-tools` is a space-separated string, not an array, and is experimental with client-varying support.
 - `argument-hint`, `user-invocable`, `disable-model-invocation` (optional): control slash-command presentation and whether the model may load the Skill on its own.
 - For authoring guidance see [`Reference/howto-write-skills.md`](../Reference/howto-write-skills.md) (condensed primer + canonical Anthropic links) and [`Skills/skill-creator/SKILL.md`](../Skills/skill-creator/SKILL.md) (full operating manual).
 
 ### Hooks (`Hooks/*.json`)
 
 - One `hooks` object mapping event names to arrays of command objects. Events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `SubagentStart`, `SubagentStop`, `Stop`.
-- Every command declares `type: "command"`, a `timeout`, a POSIX `command`, and a `windows` override.
+- Every command declares `type: "command"`, a `timeout` in seconds (default 30), a POSIX `command`, and a `windows` override. `cwd`, `env`, `linux`, and `osx` are also accepted.
 - VS Code spawns the command without a shell, so `%VAR%` and `$VAR` are never expanded. Let the interpreter resolve its own path and propagate the exit code: `-Command "& (Join-Path $env:USERPROFILE '...'); exit $LASTEXITCODE"`.
 - Exit `0` to allow, `2` to block with the reason on standard error, any other code for a non-blocking warning.
+- On exit `0`, stdout is parsed as JSON. Common fields: `continue` (`false` stops the whole session), `stopReason`, `systemMessage`. Event-specific control goes in `hookSpecificOutput`. The most restrictive signal wins.
+- Only `PreToolUse`, `PostToolUse`, `SessionStart`, and `SubagentStart` can inject `additionalContext`. `UserPromptSubmit` and `PreCompact` support the common output only, so no hook can add text to a post-compaction context.
+- `Stop` and `SubagentStop` must check `stop_hook_active` before returning `decision: "block"`. Every blocked stop costs another billed turn.
+- Treat `transcript_path` as unstable. Prefer the documented input fields (`tool_name`, `tool_input`, `prompt`).
 - Fail open on an unreadable payload. A hook that cannot parse its input must not block every tool call.
+- Do not rely on a Claude-format `matcher`: VS Code parses it and ignores it. Filter inside the script, and read tool input in camelCase (`tool_input.filePath`), not Claude's snake_case.
 - Encode enforcement in a hook when the rule must hold regardless of what the model decides. Leave judgement calls in Instructions.
 
 ## Emphasis Rule (All Files)
@@ -108,7 +122,8 @@ Bold and italics carry signal only when used sparingly. Overuse destroys the sig
 Before committing changes to an AI-loaded file:
 
 - [ ] Frontmatter matches the schema for the file type (Instructions/Prompts/Agents/Skills/Hooks).
-- [ ] For instructions: `applyTo` is the narrowest glob that covers the intended files.
+- [ ] For instructions: `applyTo` is the narrowest glob that covers the intended files, and `description` is present when the real trigger is a task rather than a path.
+- [ ] For prompts: the workflow is genuinely VS Code-only, otherwise it is authored as a Skill.
 - [ ] For agents: `model` is a priority array whose last entry is a GA model.
 - [ ] For skills: `compatibility` is present whenever the Skill needs a specific OS, runtime, module, or binary.
 - [ ] No rule duplicates an existing rule in another instruction file.
