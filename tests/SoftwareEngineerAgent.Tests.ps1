@@ -45,9 +45,10 @@ Describe 'Software Engineer Custom agent' {
         $script:agentTools | Should -Contain 'execute/runInTerminal'
         $script:agentTools | Should -Contain 'runTests'
         $script:agentTools | Should -Contain 'thinking'
-        $script:agentHandoffs | Should -HaveCount 2
+        $script:agentHandoffs | Should -HaveCount 3
         $script:agentHandoffs | Should -Contain 'security-reviewer'
         $script:agentHandoffs | Should -Contain 'technical-writer'
+        $script:agentHandoffs | Should -Contain 'software-architect'
     }
 
     It 'requires immediate focused executable validation and final validation' {

@@ -19,7 +19,43 @@ Each agent is designed to handle a specific phase of the software development an
 
 These agents form the primary software development and release pipeline.
 
-### 1. Software Engineer Agent
+### 1. Software Architect Agent
+
+**Role**: Requirements and Design  
+**Phase**: Before Code Exists  
+**File**: `software-architect.agent.md`
+
+**Responsibilities**:
+
+- Adversarial requirements elicitation before any artifact is produced
+- Quantification of unmeasurable quality words into Scale, Meter, and targets
+- Design option comparison with an explicit recommendation and runner-up
+- Design Concept authoring with Acceptance criteria and Non-goals
+- Decision record authoring once the user signs a durable choice off
+
+**Key Features**:
+
+- Interview depth scaled to blast radius, from a full twelve-category
+  interrogation down to no interview at all
+- Deliverable is a document; source, tests, configuration, and pseudocode are
+  out of bounds
+- Toolset omits the implementation accelerators (test runner, task runner,
+  notebook execution, code interpreter) so the productive exit is a handoff
+- Explicit sign-off gate before any implementation begins
+- Handoffs to the Software Engineer Agent and the Security & QA Agent
+- Applies the `grill-me` and `gilb-requirements-engineering` skills
+
+**When to Use**:
+
+- Starting a new system, service, or public contract
+- An epic or requirement that still contains unquantified quality words
+- Choosing between competing designs before anyone writes code
+- An irreversible data, schema, or dependency decision
+- A requirement gap the Software Engineer Agent cannot resolve locally
+
+---
+
+### 2. Software Engineer Agent
 
 **Role**: Development and Implementation  
 **Phase**: Code Development  
@@ -52,7 +88,7 @@ These agents form the primary software development and release pipeline.
 
 ---
 
-### 2. Security & Quality Assurance Agent
+### 3. Security & Quality Assurance Agent
 
 **Role**: Security Validation and Production Readiness  
 **Phase**: Pre-Production Validation  
@@ -92,7 +128,7 @@ These agents form the primary software development and release pipeline.
 
 ---
 
-### 3. Technical Writer & Documentation Agent
+### 4. Technical Writer & Documentation Agent
 
 **Role**: Content Creation and Documentation  
 **Phase**: Documentation and Knowledge Transfer  
@@ -136,7 +172,7 @@ These agents form the primary software development and release pipeline.
 
 ---
 
-### 4. Technical Troubleshooter Agent
+### 5. Technical Troubleshooter Agent
 
 **Role**: Problem Diagnosis and Resolution  
 **Phase**: Incident Response and Investigation  
@@ -185,7 +221,7 @@ These agents form the primary software development and release pipeline.
 
 These agents are **not part of the core software development pipeline**. They serve specialized domain-specific use cases and are maintained as supplementary side content.
 
-### 5. Legal Researcher Agent (DE)
+### 6. Legal Researcher Agent (DE)
 
 **Role**: German Legal Research and Document Drafting  
 **Scope**: Supplementary — not part of the SDLC pipeline  
@@ -210,7 +246,7 @@ These agents are **not part of the core software development pipeline**. They se
 
 ---
 
-### 6. Tax Researcher Agent (DE)
+### 7. Tax Researcher Agent (DE)
 
 **Role**: German Tax Research and Document Drafting  
 **Scope**: Supplementary — not part of the SDLC pipeline  
@@ -234,6 +270,8 @@ These agents are **not part of the core software development pipeline**. They se
 - Bilingual operation (analysis in English or German; tax documents always in formal German)
 
 ---
+
+### 8. QC Inspector Agent
 
 **Role**: Quality Control Inspection for Oil & Gas, Energy, and Industrial Sectors  
 **Scope**: Supplementary — not part of the SDLC pipeline  
@@ -264,13 +302,16 @@ The following pipeline covers the **core software development focus** of this pr
 
 ```mermaid
 flowchart LR
-    Dev[Software Engineer<br/>Agent] -->|Code Complete| QA[Security & QA<br/>Agent]
+    Arch[Software Architect<br/>Agent] -->|Design Signed Off| Dev[Software Engineer<br/>Agent]
+    Dev -->|Requirement Gap| Arch
+    Dev -->|Code Complete| QA[Security & QA<br/>Agent]
     QA -->|PASS| Prod[Production<br/>Deployment]
     QA -->|FAIL| Dev
     QA -->|CONDITIONAL| Risk[Risk<br/>Acceptance]
     Risk -->|Approved| Prod
     Risk -->|Rejected| Dev
-    
+
+    style Arch fill:#9C27B0
     style Dev fill:#4CAF50
     style QA fill:#FF9800
     style Prod fill:#2196F3
@@ -279,14 +320,21 @@ flowchart LR
 
 ### Recommended Workflow
 
-1. **Development Phase** (Software Engineer Agent)
+1. **Design Phase** (Software Architect Agent)
+   - Interrogate the requirement at a depth matched to the blast radius
+   - Quantify every quality word or strike it from the requirement
+   - Compare design options and name a recommendation
+   - Emit the Design Concept and wait for explicit sign-off
+   - Record the durable choice as a Decision record
+
+2. **Development Phase** (Software Engineer Agent)
    - Implement features/fixes
    - Write comprehensive tests
    - Document changes in Memory Bank
    - Ensure quality gates pass
    - Update CHANGELOG
 
-2. **Security & Quality Validation** (Security & QA Agent)
+3. **Security & Quality Validation** (Security & QA Agent)
    - Execute automated security scans (SAST, dependency audit, secrets scan)
    - Perform manual security review
    - Validate quality gates and compliance
@@ -294,7 +342,7 @@ flowchart LR
    - Generate comprehensive security report
    - Make production readiness decision
 
-3. **Production Decision**
+4. **Production Decision**
    - **PASS**: Deploy to production
    - **CONDITIONAL**: Risk acceptance required for medium severity issues
    - **FAIL**: Return to development phase for remediation
@@ -354,6 +402,7 @@ In VS Code with GitHub Copilot:
 1. Open the Chat view
 2. Select the agent from the agents dropdown
 3. Choose the appropriate agent for your current phase:
+   - **Design & Requirements**: "software-architect"
    - **Development**: "Software Engineer Agent"
    - **Troubleshooting**: "Technical Troubleshooter Agent"
    - **Security/QA**: "Security & Quality Assurance Agent"
@@ -367,6 +416,17 @@ In VS Code with GitHub Copilot:
    - **Web Research & Investigation** *(supplementary)*: "research-analyst"
 
 ### Example Workflows
+
+#### Design → Implementation
+
+```
+1. Activate: software-architect
+   Prompt: "We need a rate limiter for the public API."
+   (Interview, then a Design Concept, then explicit sign-off.)
+
+2. Handoff: Implement the Design Concept
+   Target: Software Engineer Agent
+```
 
 #### Feature Development → Security Validation
 
@@ -453,7 +513,7 @@ In VS Code with GitHub Copilot:
 - ✅ Keep threat intelligence current
 - ✅ Continuously improve detection rules and quality gates
 
-### 8. Training Content Writer Agent
+### 9. Training Content Writer Agent
 
 **Role**: Generic Training & Workshop Content Creation  
 **Scope**: Supplementary — not part of the SDLC pipeline  
@@ -489,7 +549,7 @@ In VS Code with GitHub Copilot:
 
 ---
 
-### 9. Career Coach Agent
+### 10. Career Coach Agent
 
 **Role**: Career Coaching, CV Writing, Job Search, Application Tracking, Interview Prep, Negotiation  
 **Scope**: Supplementary — not part of the SDLC pipeline  
@@ -534,7 +594,7 @@ In VS Code with GitHub Copilot:
 
 ---
 
-### 10. DevOps Training Writer Agent
+### 11. DevOps Training Writer Agent
 
 **Role**: Specialized DevOps/Ops Training Content Creation  
 **Scope**: Supplementary — not part of the SDLC pipeline  
@@ -587,7 +647,7 @@ training-writer (generic)
 
 ---
 
-### 11. Research Analyst Agent
+### 12. Research Analyst Agent
 
 **Role**: Technical and Scientific Web Research & Investigation  
 **Scope**: Supplementary — research upstream for the SDLC pipeline and the domain-specific agents  
@@ -651,4 +711,4 @@ When creating new agents:
 
 ---
 
-**Remember**: The core agents (Software Engineer, Security & QA, Technical Writer, Technical Troubleshooter) are designed to work together as a cohesive release pipeline. Use them sequentially for best results, with clear handoffs between phases documented in the Memory Bank. The domain-specific agents (Legal Researcher, Tax Researcher, QC Inspector, Training Content Writer, DevOps Training Writer, Career Coach, Research Analyst) operate independently for their respective use cases. The Research Analyst is also a natural upstream for the Technical Writer (research dossier → publication article) and for any engineering decision that needs defensible evidence.
+**Remember**: The core agents (Software Architect, Software Engineer, Security & QA, Technical Writer, Technical Troubleshooter) are designed to work together as a cohesive release pipeline. Use them sequentially for best results, with clear handoffs between phases documented in the Memory Bank. The domain-specific agents (Legal Researcher, Tax Researcher, QC Inspector, Training Content Writer, DevOps Training Writer, Career Coach, Research Analyst) operate independently for their respective use cases. The Research Analyst is also a natural upstream for the Technical Writer (research dossier → publication article) and for any engineering decision that needs defensible evidence.

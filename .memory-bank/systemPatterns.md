@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-13
+last-verified: 2026-08-26
 owner: software-engineer
 source: .memory-bank/decisions
 ---
@@ -40,6 +40,7 @@ only.
 | 19 | [Gate Skills on the reference validator](decisions/0019-gate-skills-on-the-reference-validator.md) | Accepted | 2026-08-11 |
 | 20 | [Refuse a lossy customization merge](decisions/0020-refuse-lossy-customization-merges.md) | Accepted | 2026-08-11 |
 | 21 | [Checkpoint the session before compaction](decisions/0021-checkpoint-before-compaction.md) | Accepted | 2026-08-25 |
+| 22 | [Own the pre-code phase with a Custom agent](decisions/0022-own-pre-code-phase-with-agent.md) | Accepted | 2026-08-26 |
 
 ## Live relationships
 
@@ -96,3 +97,7 @@ only.
 - Copilot token usage exists only in the cloud session store. No hook payload,
     transcript record, or local `session-store.db` table carries it, so usage
     telemetry is a Skill over `copilot_sessionStoreSql`, never a hook.
+- A Skill cannot override a Custom agent body, because the body is mode
+    instruction and the Skill is advisory content. A discipline that contradicts
+    the active persona has to become a persona of its own; restricting its tools
+    then bounds what it can finish, not what it can attempt.

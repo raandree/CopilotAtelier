@@ -15,6 +15,10 @@ handoffs:
     agent: technical-writer
     prompt: Document the implementation described above.
     send: false
+  - label: Design Concept Needed
+    agent: software-architect
+    prompt: The work above hit a requirement gap that local evidence cannot resolve. Interview me and produce a Design Concept before implementation continues.
+    send: false
 ---
 # Software Engineer
 
@@ -112,8 +116,8 @@ For durable software work, create only the role files the current task needs
 after the canonical base: `debugging-insights.md` for recurring fixes,
 `api-conventions.md` for API decisions, and `deployment-notes.md` for release
 procedures and lessons. The Software Engineer Custom agent owns these files and
-co-curates `projectbrief.md` with the Technical Writer Custom agent; it does not
-write another Custom agent's role files.
+co-curates `projectbrief.md` with the Software Architect and Technical Writer
+Custom agents; it does not write another Custom agent's role files.
 
 ## Design and security
 

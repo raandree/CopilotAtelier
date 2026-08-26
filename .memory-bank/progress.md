@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-25
+last-verified: 2026-08-26
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,6 +14,21 @@ Copilot Atelier is published to the PowerShell Gallery and released at `v3.1.0`
 under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-08-26**: Added the `software-architect` Custom agent as the first phase
+  of the release pipeline. The gap was structural rather than stylistic:
+  `grill-me` is advisory content while a Custom agent body is mode instruction,
+  so the interview lost inside the Software Engineer agent every time it was
+  tried, and nothing owned the requirement while it was still text. Its 31
+  tools withhold every sanctioned validation path, so it cannot close the
+  Definition of Done on a code change and the handoff is the only productive
+  exit; `edit/editFiles` and `execute/runInTerminal` stay because Post-flight
+  demands a Memory Bank write, a changelog entry, and a commit on every
+  Substantive turn. Interview depth scales to blast radius so the agent stays
+  selectable for small work. Decision 0022 records the reasoning,
+  `SoftwareArchitectAgent.Tests.ps1` asserts the withheld tools by name because
+  a fingerprint detects change but not correctness, and renumbering the
+  catalogue exposed a QC Inspector section that had no heading at all.
 
 - **2026-08-25**: Added the `copilot-usage-stats` Skill and the `/usage` Prompt
   on `Ctrl+K U`, then extended it to convert tokens into AI credits and dollars.
@@ -97,21 +112,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   change the unsupported `german-tax-research` red flag was dropped rather than
   retro-fitted with invented evidence — it named editing-tool hygiene, not a tax
   rule, and no reference taught it.
-
-- **2026-08-24**: Hardened `german-tax-research` against two failures that
-  produce a confidently wrong number instead of a visible error. A title,
-  filename, or category column is metadata written for another purpose, so the
-  finding must be the operative sentence: an e-mail headed `Your sessions at
-  NIC Cloud Connect 2023` read *have not been accepted* in its body. And a
-  transaction set filtered by sign hides the entry that changes the answer —
-  `1.725,05 €` of flight charges netted `848,12 €` after a refund three days
-  later. The `description` is untouched, so no eval sweep is owed.
-
-- **2026-08-19**: Stored `Get-SteuerFrist.ps1` as UTF-8 with a BOM; it emits
-  German legal text, so the ANSI fallback would reach a Finanzamt as mojibake.
-  The durable part is the triage: `ai/german-tax-research-skill` looked unmerged
-  under three-dot `git diff main...branch`, which reports only the branch side
-  of the merge base. Compare trees two-dot.
 
 ## Stable capabilities
 

@@ -66,10 +66,18 @@ BeforeAll {
         'Software Engineer Agent.agent.md' = @{
             Tools = 45
             ToolHash = 'D94007200A192204'
-            Handoffs = 2
-            HandoffHash = '54AC0FE254828B41'
+            Handoffs = 3
+            HandoffHash = 'AE1CD385148A6BF2'
             MemoryHeading = '## Memory Bank role extension'
-            MemoryHash = '7FE1A3A628018B22'
+            MemoryHash = '289672647A3DF691'
+        }
+        'software-architect.agent.md' = @{
+            Tools = 31
+            ToolHash = '87CD5E8367CD6F06'
+            Handoffs = 2
+            HandoffHash = '38056BC6D4229B1F'
+            MemoryHeading = '## Memory Bank role extension'
+            MemoryHash = '4BC6A3CD90073617'
         }
         'tax-researcher.agent.md' = @{
             Tools = 28

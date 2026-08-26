@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-25
+last-verified: 2026-08-26
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,14 +9,35 @@ source: current task evidence
 
 ## Current focus
 
-PR 47 shipped in `345a25e`, carrying two fixes: the Windows PowerShell 5.1
-`Install-Module` regression that affected every release since `2.0.0`, and the
-CI failure its own pipeline then hit. The usage-stats Skill and `/usage` Prompt
-land with this merge. Three other change sets are in flight: the compaction
-checkpoint, committed on `ai/precompact-checkpoint`; the authoring schema
-refresh, shipped in `39dd690` with a follow-on `description` fix on
-`ai/authoring-instruction-description`; and the `skill-creator` split stacked on
-that branch. The release provenance fix shipped in `f7f302d`.
+`software-architect` was added as the twelfth Custom agent and the first phase
+of the release pipeline, closing the gap where no agent owned the requirement
+while it was still text. Decision 0022 records why that discipline had to
+become a persona instead of staying a Skill. PR 47 shipped in `345a25e` and the
+release provenance fix in `f7f302d`. Three change sets remain in flight: the
+compaction checkpoint on `ai/precompact-checkpoint`, the authoring schema
+refresh on `ai/authoring-instruction-description`, and the `skill-creator`
+split stacked on that branch.
+
+## Implemented — software-architect Custom agent
+
+- `Agents/software-architect.agent.md`: 31 tools, handoffs to
+  `software-engineer` and `security-reviewer`, `disable-model-invocation: true`.
+- The gap was structural, not stylistic. `grill-me` is advisory content and the
+  Software Engineer body is mode instruction, so the Skill loses inside that
+  agent every time. The interview had to become a persona to win.
+- The tool restriction is bounded and recorded as such. Every sanctioned
+  validation path is gone — `runTests`, `codeInterpreter`, both task runners,
+  notebook execution — but `edit/editFiles` and `execute/runInTerminal` stay,
+  because Post-flight demands a Memory Bank write, a changelog entry, and a
+  commit on every Substantive turn. The agent cannot close the Definition of
+  Done on a code change; it is not stopped from typing one.
+- Interview depth scales to blast radius, and the chosen depth and its reason
+  are stated in the first reply where the user can override them.
+- `projectbrief.md` ownership moved to the architect, with the Software
+  Engineer and Technical Writer as co-curators. The Software Engineer gained a
+  return handoff for a requirement gap local evidence cannot resolve.
+- `tests/SoftwareArchitectAgent.Tests.ps1` asserts the withheld tools by name,
+  because the SharedLifecycle fingerprint detects change but not correctness.
 
 ## Implemented — usage stats
 
@@ -31,42 +52,6 @@ that branch. The release provenance fix shipped in `f7f302d`.
 - Copilot bills usage, not requests, since 2026-06-01, so tokens convert to AI
   credits at 1 credit = $0.01. The `cost` column is a legacy request multiplier,
   not money. Billing cached input at the input rate inflates by ~10x.
-
-## Implemented — PR 47, manifest encoding
-
-- Root cause reproduced directly: `Test-ModuleManifest` against the built
-  `4.0.0` manifest under real `powershell.exe` failed with "not a valid Windows
-  PowerShell restricted language file" at an em dash that had been mis-decoded
-  into mojibake. `Install-Module` discards that detail and reports only "not a
-  properly-formed module", which is why issue #20 could not be actioned from
-  the error text alone.
-- `Create_Changelog_Release_Output` saves the manifest without a byte-order
-  mark; Windows PowerShell 5.1 decodes a BOM-less file with the ANSI code page,
-  so every non-ASCII character in the embedded release notes corrupts on read.
-- The same defect was diagnosed on 2026-07-29 and closed by deleting the CI leg
-  that caught it, on the premise that nobody runs the module on that host.
-  Issue #20 falsified the premise. Fixed at the source this time:
-  `.build/Repair_ManifestEncoding.build.ps1` re-saves the manifest as UTF-8 with
-  a BOM, with a regression assertion in `tests/QA/module.tests.ps1`.
-
-## Implemented — PR 47, the CI failure it exposed
-
-- The PR build failed in `Package Module` while GitVersion had actually
-  **succeeded**: exit code 0 and valid JSON. Two independent defects stacked.
-- `GitVersion.yml` left `feature` and `hotfix` unanchored, so
-  `ai/fix-manifest-bom-ps51` matched both — `ai/` and `fix-`. GitVersion takes
-  the first match and warns about the rest on stdout.
-- `ci.yml` read that same stdout and required it to start with `{`, so the
-  warning turned a good run into `did not return JSON`. It now locates the JSON
-  block, echoes any preamble as diagnostics instead of discarding it, and fails
-  with the parser message when the block will not parse.
-- Both regexes are anchored, and a new `-ForEach` gate asserts every
-  representative branch name matches exactly one configuration. Shown to reject
-  first: `'ai/fix-manifest-bom-ps51' matched: feature, hotfix, but got 2`, 821
-  passed and 1 failed; after the fix 822 of 822 pass.
-- The parsing change was exercised against the captured CI output before it
-  shipped: the run CI rejected now yields `4.0.0-PR0021.43`, clean output still
-  parses, and output with no JSON is still rejected.
 
 ## Implemented — skill-creator split
 
