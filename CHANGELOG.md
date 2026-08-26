@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   One consequence is recorded rather than hidden. Cross-type relative links are now correct in the package and repository view and wrong in the deployed view, because `rules` and `commands` deploy as `instructions` and `prompts`. That direction is deliberate — the package is what a human browses on github.com and what a plugin install materialises — and nothing functional rests on it, since both lifecycle Instructions declare `applyTo: "**"` and load regardless. Links into the repository-only `reference/` were already dead in the deployed tree, so this widens an accepted condition rather than introducing a new class of defect.
 
+  [`README.md`](README.md) and [`AGENTS.md`](AGENTS.md) follow. The *Folder Structure* section now shows the deployed tree and the package layout side by side instead of conflating them, and the *Agent plugin* install path was rewritten: it previously told the reader that "the plugin format does not carry `.instructions.md` files or hooks, so this path gives you agents and skills only", which the migration makes false in the one direction that matters — hooks are exactly the guardrails a plugin-only user was silently missing. It now also names the two things worth knowing before choosing that path: bundled hooks execute locally and should be reviewed, and `rules`/`commands` registration is unconfirmed.
+
 ## [4.0.0] - 2026-08-26
 
 ### Added

@@ -51,27 +51,46 @@ Only one canonical location is populated per machine (no duplicate mirror). If a
 
 ## Folder Structure
 
+Two layouts are in play, and they are deliberately different shapes.
+
+What gets **deployed** to your machine — unchanged by the plugin migration:
+
 ```text
 ~/OneDrive/CopilotAtelier/       # Used when OneDrive is detected (preferred)
 ~/CopilotAtelier/                # Fallback — used only when OneDrive is not installed
-├── Agents/          # Custom agents (.agent.md files)
-├── Instructions/    # Custom instructions (.instructions.md files)
-├── Skills/          # Agent skills (folders with SKILL.md)
-├── Prompts/         # Prompt files / slash commands (.prompt.md files)
-└── Hooks/           # Lifecycle hooks (hook config JSON plus scripts)
+├── agents/          # Custom agents (.agent.md files)
+├── instructions/    # Custom instructions (.instructions.md files)
+├── skills/          # Agent skills (folders with SKILL.md)
+├── prompts/         # Prompt files / slash commands (.prompt.md files)
+└── hooks/           # Lifecycle hooks (hook config JSON plus scripts)
 ```
 
-The folder name of the canonical target is `CopilotAtelier`, matching the module name. Repository-only content such as `.memory-bank/`, `tests/`, `Reference/`, the build system, and documentation is not copied into the Canonical target. `Keybindings/keybindings.json` is merged into the VS Code user profile rather than copied there.
+How the **repository** stores them, which is also the installable plugin package ([Agent Plugins 1.0](https://agent-plugins.org/)):
+
+```text
+plugin.json                     # Declares the Agent Plugins 1.0 schema
+skills/                         # Portable component — read by any conformant client
+com.github.copilot/             # Copilot client-extension namespace
+├── agents/                      # *.agent.md
+├── rules/                       # *.instructions.md
+├── commands/                    # *.prompt.md
+└── hooks/hooks.json             # plus scripts/
+keybindings/                    # Not a plugin component type; merged into VS Code
+```
+
+`Install-CopilotAtelier` maps between them — `com.github.copilot/rules` deploys as `instructions`, `com.github.copilot/commands` as `prompts` — so the discovery links at `~/.copilot/*` are exactly what they always were.
+
+The folder name of the canonical target is `CopilotAtelier`, matching the module name. Repository-only content such as `.memory-bank/`, `tests/`, `reference/`, the build system, and documentation is not copied into the Canonical target. `keybindings/keybindings.json` is merged into the VS Code user profile rather than copied there.
 
 ## What Each Folder Contains
 
 | Folder | File Type | Purpose |
 |---|---|---|
 | **Agents** | `*.agent.md` | Custom AI personas with specific tools, instructions, and model preferences. Core agents cover the software development pipeline; supplementary agents serve domain-specific side use cases. Appear in the agents dropdown in Chat. |
-| **Instructions** | `*.instructions.md` | Coding standards, conventions, and guidelines. Can auto-apply based on file glob patterns (`applyTo`) or be attached manually. Includes [`copilot-authoring.instructions.md`](Instructions/copilot-authoring.instructions.md), which governs how the files in this repo are authored. |
+| **Instructions** | `*.instructions.md` | Coding standards, conventions, and guidelines. Can auto-apply based on file glob patterns (`applyTo`) or be attached manually. Includes [`copilot-authoring.instructions.md`](com.github.copilot/rules/copilot-authoring.instructions.md), which governs how the files in this repo are authored. |
 | **Skills** | `<name>/SKILL.md` | Specialized capabilities with scripts, examples, and resources. Loaded on-demand when relevant. Appear as `/slash` commands. |
 | **Prompts** | `*.prompt.md` | Reusable task templates invoked as `/slash` commands. Best for single, repeatable tasks like scaffolding or code review. |
-| **Hooks** | `*.json` + `scripts/` | Shell commands run at fixed points in the agent loop. Deterministic guardrails that do not depend on the model choosing to obey them. See [`Hooks/README.md`](Hooks/README.md). |
+| **Hooks** | `*.json` + `scripts/` | Shell commands run at fixed points in the agent loop. Deterministic guardrails that do not depend on the model choosing to obey them. See [`com.github.copilot/hooks/README.md`](com.github.copilot/hooks/README.md). |
 | **Keybindings** | `keybindings.json` | Shared VS Code keybindings merged idempotently into `%APPDATA%\Code\User\keybindings.json`. See [Keybindings Applied](#keybindings-applied). |
 
 ## Available Skills
@@ -116,7 +135,7 @@ The folder name of the canonical target is `CopilotAtelier`, matching the module
 | **brand-logo-system** | Design a project's visual identity and render it as SVG masters plus deterministic PNG deliverables, export the eleven-slot set a shared logo library expects, and wire the chosen variants into the project itself. Covers recovering a palette and mark from a project's existing artwork by pixel count, composing primary lockups, glyph-only marks, app icons, splash screens and monochrome variants from one brand definition, headless-Edge rasterisation at exact canvas sizes, a measured gate over count, naming, slot parity, dimensions, corner alpha, painted bounds, centring, and ink coverage at 32 and 16 px, and the integration step: naming the target repository before writing to it, the floated README header GitHub's sanitiser allows, the direct-image-URL rule for a package icon, and the social preview. Ships a definition-driven renderer. |
 | **agent-evals** | Measure whether a Customization works instead of trusting one lucky run. Covers the three stacked questions — is it discovered (trigger-rate evals), does it hold up across runs (capability and regression sets, pass@k vs pass^k, deterministic / LLM-as-judge / human graders), and does it beat no skill at all (with/without delta on pass rate, tokens, duration). Starts from native VS Code tooling and Waza and falls back to the bundled `run-evals.ps1` and `run-trigger-evals.ps1` harnesses, whose `Prepare` and `Grade` modes need no model backend. |
 | **agent-security-review** | Review AI agents, LLM-backed features, MCP servers, and prompt/skill/agent definitions for agentic-security risk. Ships the lethal-trifecta test (private data × untrusted content × outbound channel), OWASP Top 10 for LLM Applications (2025) quick checks, a containment-first checklist, and MCP / tool-permission review. Breaks the trifecta rather than filtering it, and treats every tool return value as untrusted. |
-| **skill-creator** | Author, audit, and improve `Skills/**/SKILL.md` files against the [Agent Skills open standard](https://agentskills.io/): progressive disclosure (body ≤ 500 lines, references one level deep), the six-step authoring frame, category-level descriptions with train/validation trigger evals, the 1024-character description cap, and cross-skill overlap audits. Also decides whether something deserves a Skill at all, and whether it is one Skill, two, or a reference. |
+| **skill-creator** | Author, audit, and improve `skills/**/SKILL.md` files against the [Agent Skills open standard](https://agentskills.io/): progressive disclosure (body ≤ 500 lines, references one level deep), the six-step authoring frame, category-level descriptions with train/validation trigger evals, the 1024-character description cap, and cross-skill overlap audits. Also decides whether something deserves a Skill at all, and whether it is one Skill, two, or a reference. |
 | **mcp-builder** | Design, scaffold, and ship Model Context Protocol (MCP) servers that expose an API or local capability as well-named tools an LLM can call. Four-phase workflow (research → implement → review → evaluate), TypeScript vs Python SDK choice, stdio vs streamable-HTTP transport, tool naming and description discipline, Zod / Pydantic schemas, pagination, actionable error messages, MCP Inspector testing, and a 10-question realistic-task eval rubric. Includes the Windows / VS Code Copilot stdio gotchas. |
 | **grill-me** | Adversarial requirements interview that asks 40–100 questions across purpose, users, inputs and outputs, failure modes, edge cases, security, performance, ownership, rollback, observability, non-goals, and open questions — before any code, design, or diagram is written. The transcript and the Design Concept it produces are the deliverable; everything downstream waits for explicit sign-off. |
 | **gilb-requirements-engineering** | Quantified requirements engineering with Tom and Kai Gilb's method: give every quality a Planguage `Scale` and `Meter` with benchmarks and numeric targets, rank design ideas in an Impact Estimation Table, plan delivery as measurable Evo steps, and inspect specifications with Specification Quality Control. The one rule: no quality requirement without a Scale, a Meter, and at least one number. |
@@ -152,7 +171,7 @@ Existing junctions are recreated on every run so they always point at the curren
 
 #### Claude Code and Agent Skills clients (opt-in)
 
-Run `Setup-CopilotSettings.ps1 -IncludeClaudeCodeLinks` to additionally link `~/.claude/skills` and `~/.agents/skills` to the same `Skills` directory, so Claude Code and other [agentskills.io](https://agentskills.io/) clients discover the library too. This is off by default: VS Code reads all three user-level skill locations, so enabling it registers every Skill more than once in VS Code. Use it on machines where a non-Copilot client is the primary consumer. These two links are create-only — if a path already exists it belongs to that other tool and is left untouched.
+Run `Setup-CopilotSettings.ps1 -IncludeClaudeCodeLinks` to additionally link `~/.claude/skills` and `~/.agents/skills` to the same `skills` directory, so Claude Code and other [agentskills.io](https://agentskills.io/) clients discover the library too. This is off by default: VS Code reads all three user-level skill locations, so enabling it registers every Skill more than once in VS Code. Use it on machines where a non-Copilot client is the primary consumer. These two links are create-only — if a path already exists it belongs to that other tool and is left untouched.
 
 ### Feature Flags
 
@@ -168,7 +187,7 @@ Run `Setup-CopilotSettings.ps1 -IncludeClaudeCodeLinks` to additionally link `~/
 
 ### AI Model Preferences
 
-Every agent in [`Agents/`](Agents/) declares `model` as a priority array — `['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']` — so a model retirement degrades to the GA fallback instead of breaking all eleven agents at once.
+Every agent in [`com.github.copilot/agents/`](com.github.copilot/agents/) declares `model` as a priority array — `['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']` — so a model retirement degrades to the GA fallback instead of breaking all eleven agents at once.
 
 | Setting | Value | What It Does |
 |---|---|---|
@@ -178,7 +197,7 @@ Every agent in [`Agents/`](Agents/) declares `model` as a priority array — `['
 
 ## Keybindings Applied
 
-The setup script merges the bindings in [`Keybindings/keybindings.json`](Keybindings/keybindings.json) into `%APPDATA%\Code\User\keybindings.json`. The merge is idempotent (match key: `key + command + when`), preserves user-added bindings, and creates a timestamped backup on every run.
+The setup script merges the bindings in [`keybindings/keybindings.json`](keybindings/keybindings.json) into `%APPDATA%\Code\User\keybindings.json`. The merge is idempotent (match key: `key + command + when`), preserves user-added bindings, and creates a timestamped backup on every run.
 
 | Key | Command | Purpose |
 |---|---|---|
@@ -267,14 +286,19 @@ The customizations are copied into `~/OneDrive/CopilotAtelier/` when OneDrive is
 
 ### 3. Agent plugin
 
-[`plugin.json`](plugin.json) also publishes the Agents and Skills as an agent plugin, which installs directly from the Git URL in VS Code, the GitHub Copilot CLI, and Claude Code:
+The repository is also an [Agent Plugins 1.0](https://agent-plugins.org/) package, so it installs straight from the Git URL in VS Code, the GitHub Copilot CLI, and the GitHub Copilot app — no clone, no PowerShell:
 
 1. Run **Chat: Install Plugin From Source** from the Command Palette.
 2. Enter `https://github.com/raandree/CopilotAtelier`.
 
-Plugin-provided skills appear as `/copilot-atelier:<skill>` and update automatically when VS Code checks for extension updates.
+Plugin-provided skills appear as `/copilot-atelier:<skill>` and update automatically when VS Code checks for extension updates. You can enable or disable the whole library per workspace from the **Agent Plugins - Installed** view, which the `~/.copilot` link model cannot do — that one is all-or-nothing per machine.
 
-The plugin format does not carry `.instructions.md` files or hooks, so this path gives you agents and skills only. Install the module from the Gallery when you also want the Instructions and the deterministic hook guardrails. The paths are complementary.
+[`plugin.json`](plugin.json) declares the canonical `$schema`, which is what selects the format. Skills are the portable component and are read by any conformant client from `skills/`. Custom agents, instructions (`rules`), prompt files (`commands`), and hooks are Copilot-specific and ship from the [`com.github.copilot/`](com.github.copilot/) namespace, which other clients ignore without rejecting the package.
+
+> [!NOTE]
+> Two caveats worth knowing before you choose this path. Hooks bundled in a plugin execute on your machine, so review them first — see [`com.github.copilot/hooks/README.md`](com.github.copilot/hooks/README.md). And whether `.instructions.md` and `.prompt.md` register from `rules/` and `commands/` is not documented by either client, so treat those two as unconfirmed on the plugin path; the module path delivers them either way.
+
+Keybindings are not a plugin component type at all. Install the module from the Gallery if you want those too — the paths are complementary, and the [Deployment record](#verifying-it-works) reports whichever version is actually deployed.
 
 ## Building from Source
 
@@ -292,7 +316,7 @@ The repository is a [Sampler](https://github.com/gaelcolas/Sampler) project. The
 The version comes from [GitVersion](https://gitversion.net/) via [`GitVersion.yml`](GitVersion.yml), so the built module lands in `output/module/CopilotAtelier/<version>/`. [`.github/workflows/ci.yml`](.github/workflows/ci.yml) packages once on `ubuntu-latest`, tests that artifact on Linux, macOS, Windows, and Windows PowerShell 5.1, and deploys the GitHub release and the Gallery package from `main`. Deployment needs the `GitHubToken` and `GalleryApiToken` repository secrets.
 
 > [!NOTE]
-> Run `build.ps1` and `Invoke-Pester` in a detached process rather than the VS Code integrated terminal. See [`Instructions/powershell-execution-safety.instructions.md`](Instructions/powershell-execution-safety.instructions.md).
+> Run `build.ps1` and `Invoke-Pester` in a detached process rather than the VS Code integrated terminal. See [`powershell-execution-safety.instructions.md`](com.github.copilot/rules/powershell-execution-safety.instructions.md).
 
 ## Verifying It Works
 
@@ -306,7 +330,7 @@ The version comes from [GitVersion](https://gitversion.net/) via [`GitVersion.ym
 
 ## Troubleshooting Skills
 
-If a skill in the `Skills/` folder is not being discovered by VS Code, check the following:
+If a skill in the `skills/` folder is not being discovered by VS Code, check the following:
 
 ### YAML Frontmatter Is Required
 
@@ -378,8 +402,8 @@ If a skill doesn't appear, open the ellipsis (**…**) menu in the Chat view and
 
 ## Reference
 
-- [`Reference/copilot-cli-model-routing.md`](Reference/copilot-cli-model-routing.md) — 4-tier model-routing policy for the GitHub Copilot CLI (Executors / Implementers / Tech Leads / Architects). Reference-only; not auto-attached. The document was written against the early-2026 lineup; a banner at the top maps the older model IDs (Opus 4.5 / 4.6, GPT-5.1) to the current ones (Opus 4.8, GPT-5.4 / 5.5). A full rewrite is planned post-1.1.0.
-- [`Reference/howto-write-skills.md`](Reference/howto-write-skills.md) — condensed two-page primer for authoring `Skills/**/SKILL.md` files: the six-step frame (Name/Trigger/Outcome/Dependencies/Step-by-step/Edge cases), five high-leverage rules, hard limits (1024-char description, 500-line body), description shape, degrees of freedom, eval-driven development, anti-patterns, and links to the canonical Anthropic Agent Skills docs/PDF/engineering blog plus the `anthropics/skills` repo. Pairs with [`Skills/skill-creator/SKILL.md`](Skills/skill-creator/SKILL.md) (the full operating manual, auto-loaded when a skill-authoring task triggers).
+- [`reference/copilot-cli-model-routing.md`](reference/copilot-cli-model-routing.md) — 4-tier model-routing policy for the GitHub Copilot CLI (Executors / Implementers / Tech Leads / Architects). Reference-only; not auto-attached. The document was written against the early-2026 lineup; a banner at the top maps the older model IDs (Opus 4.5 / 4.6, GPT-5.1) to the current ones (Opus 4.8, GPT-5.4 / 5.5). A full rewrite is planned post-1.1.0.
+- [`reference/howto-write-skills.md`](reference/howto-write-skills.md) — condensed two-page primer for authoring `skills/**/SKILL.md` files: the six-step frame (Name/Trigger/Outcome/Dependencies/Step-by-step/Edge cases), five high-leverage rules, hard limits (1024-char description, 500-line body), description shape, degrees of freedom, eval-driven development, anti-patterns, and links to the canonical Anthropic Agent Skills docs/PDF/engineering blog plus the `anthropics/skills` repo. Pairs with [`skills/skill-creator/SKILL.md`](skills/skill-creator/SKILL.md) (the full operating manual, auto-loaded when a skill-authoring task triggers).
 
 ## Featured In
 

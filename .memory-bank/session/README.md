@@ -6,9 +6,9 @@ Session-scoped working artifacts produced by per-session prompts. Not curated pr
 
 | File pattern | Producer | Purpose | Lifecycle |
 |---|---|---|---|
-| `handoff-YYYY-MM-DDTHHmmZ.md` | [`Prompts/session-handoff.prompt.md`](../../Prompts/session-handoff.prompt.md) | Cross-session continuation document so a fresh agent in a new session can resume without re-investigating context | One per session; prune when no longer useful |
-| `deadline-handoff-<yyyy-MM-dd-HH-mm>.md` | [`Prompts/sync-project-emails.prompt.md`](../../Prompts/sync-project-emails.prompt.md) | Phase 7a deadline payload handed to `deadline-action-handoff` in a fresh chat | One per sync run |
-| `compaction-YYYY-MM-DDTHHmmssZ.md` | [`Hooks/scripts/Write-CompactionCheckpoint.ps1`](../../Hooks/scripts/Write-CompactionCheckpoint.ps1) | Recovery anchor written by the `PreCompact` hook: trigger, transcript path, and repository state at the moment context was truncated | One per compaction; delete once the work it anchors is closed out |
+| `handoff-YYYY-MM-DDTHHmmZ.md` | [`commands/session-handoff.prompt.md`](../../com.github.copilot/commands/session-handoff.prompt.md) | Cross-session continuation document so a fresh agent in a new session can resume without re-investigating context | One per session; prune when no longer useful |
+| `deadline-handoff-<yyyy-MM-dd-HH-mm>.md` | [`commands/sync-project-emails.prompt.md`](../../com.github.copilot/commands/sync-project-emails.prompt.md) | Phase 7a deadline payload handed to `deadline-action-handoff` in a fresh chat | One per sync run |
+| `compaction-YYYY-MM-DDTHHmmssZ.md` | [`hooks/scripts/Write-CompactionCheckpoint.ps1`](../../com.github.copilot/hooks/scripts/Write-CompactionCheckpoint.ps1) | Recovery anchor written by the `PreCompact` hook: trigger, transcript path, and repository state at the moment context was truncated | One per compaction; delete once the work it anchors is closed out |
 
 ## Version control
 

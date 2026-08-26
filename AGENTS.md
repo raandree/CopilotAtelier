@@ -1,23 +1,23 @@
 # AGENTS.md — House rules for CopilotAtelier
 
-Portable operating rules for any AI agent or agentic tool (GitHub Copilot, Claude Code, Codex, Cursor, Copilot CLI, and other AGENTS.md-aware harnesses) working in this repository. This file is the tool-neutral entry point; the authoritative, auto-loaded detail lives in [`Instructions/`](Instructions/) and [`.memory-bank/`](.memory-bank/).
+Portable operating rules for any AI agent or agentic tool (GitHub Copilot, Claude Code, Codex, Cursor, Copilot CLI, and other AGENTS.md-aware harnesses) working in this repository. This file is the tool-neutral entry point; the authoritative, auto-loaded detail lives in [`com.github.copilot/rules/`](com.github.copilot/rules/) and [`.memory-bank/`](.memory-bank/).
 
-CopilotAtelier is a portable GitHub Copilot customization toolkit distributed as a PowerShell module: custom agents ([`Agents/`](Agents/)), auto-applied coding instructions ([`Instructions/`](Instructions/)), on-demand skills ([`Skills/`](Skills/)), prompt templates ([`Prompts/`](Prompts/)), and lifecycle hooks ([`Hooks/`](Hooks/)), deployed by `Install-CopilotAtelier` or, from a clone, by [`Setup-CopilotSettings.ps1`](Setup-CopilotSettings.ps1).
+CopilotAtelier is a portable GitHub Copilot customization toolkit shipped two ways: as an [Agent Plugins 1.0](https://agent-plugins.org/) package installable from the Git URL, and as a PowerShell module. The repository *is* the package: portable skills at [`skills/`](skills/), and the Copilot-specific components — custom agents ([`com.github.copilot/agents/`](com.github.copilot/agents/)), auto-applied coding instructions ([`com.github.copilot/rules/`](com.github.copilot/rules/)), prompt templates ([`com.github.copilot/commands/`](com.github.copilot/commands/)), and lifecycle hooks ([`com.github.copilot/hooks/`](com.github.copilot/hooks/)) — under the client-extension namespace. `Install-CopilotAtelier` maps those source paths onto the unchanged `~/.copilot/{agents,instructions,skills,prompts,hooks}` layout; [`Setup-CopilotSettings.ps1`](Setup-CopilotSettings.ps1) does the same from a clone.
 
 ## Every turn: pre-flight, then post-flight
 
 This repo enforces a discovery-first, close-out-clean contract on every substantive turn.
 
-**Pre-flight** (before the first tool call) — see [`Instructions/preflight.instructions.md`](Instructions/preflight.instructions.md):
+**Pre-flight** (before the first tool call) — see [`preflight.instructions.md`](com.github.copilot/rules/preflight.instructions.md):
 
 1. Probe for `.memory-bank/` (`list_dir` / `file_search` / `Test-Path`). The workspace summary is not authoritative for dotfolders — do not conclude "no Memory Bank" without probing.
 2. Read `.memory-bank/index.md`, then apply its task routes. Only the index is unconditional; `promptHistory.md` is local ephemera limited to interaction-history analysis and Memory Bank evals. Fail open to the complete available base when the index says `loading-mode: full` or routing is unsafe. Seven files are required and version-controlled; include local `promptHistory.md` and optional `glossary.md` when present. For durable writes, load the `memory-bank` Skill and create only missing files before the first project edit. Never overwrite existing files. Do not initialize for Q&A, clarification, read-only work, or transient preferences.
-3. Match `Instructions/*.instructions.md` by `applyTo` against files you will touch; read each match.
-4. Match `Skills/**/SKILL.md` by description against the task; read each match.
+3. Match `com.github.copilot/rules/*.instructions.md` by `applyTo` against files you will touch; read each match.
+4. Match `skills/**/SKILL.md` by description against the task; read each match.
 5. Do not append `promptHistory.md` at pre-flight. Post-flight owns the append for substantive turns; routine pre-flight does not read it.
 6. Open the reply with a UTC timestamp `[YYYY-MM-DD HH:mm UTC]` plus a one-line PRE-FLIGHT acknowledgment.
 
-**Post-flight** (before ending the reply) — see [`Instructions/postflight.instructions.md`](Instructions/postflight.instructions.md):
+**Post-flight** (before ending the reply) — see [`postflight.instructions.md`](com.github.copilot/rules/postflight.instructions.md):
 
 Classify the turn first. A **non-impacting** turn (pure Q&A, read-only investigation, a self-documenting git commit/merge) skips steps 1–4 and emits only `POST-FLIGHT: n/a — non-impacting turn (<reason>)`. A **substantive** turn (a file changed, a durable decision emerged, the user asked to record, a bug was found, or a tag was cut) runs all steps:
 
@@ -32,7 +32,7 @@ Classify the turn first. A **non-impacting** turn (pure Q&A, read-only investiga
 
 **Never run `git push`** (or any remote-mutating git operation) unless the user explicitly asks in the current turn. Local commits and branches are fine; pushing, force-pushing, and PR creation require explicit per-turn authorization. Do not bypass hooks (for example `--no-verify`).
 
-This rule is backed by a deterministic guardrail, not only by trust. The `PreToolUse` hook in [`Hooks/`](Hooks/) blocks push, `--no-verify`, `git reset --hard`, forced clean, and GitHub CLI resource mutation with exit code 2. It matches patterns in the command string, so treat it as defense in depth that removes the accidental path rather than as a containment boundary — the rule above still binds you. When the user authorizes a remote mutation, set `COPILOT_ATELIER_ALLOW_REMOTE=1` for that command and unset it afterwards. Never rewrite a command to evade the check.
+This rule is backed by a deterministic guardrail, not only by trust. The `PreToolUse` hook in [`com.github.copilot/hooks/`](com.github.copilot/hooks/) blocks push, `--no-verify`, `git reset --hard`, forced clean, and GitHub CLI resource mutation with exit code 2. It matches patterns in the command string, so treat it as defense in depth that removes the accidental path rather than as a containment boundary — the rule above still binds you. When the user authorizes a remote mutation, set `COPILOT_ATELIER_ALLOW_REMOTE=1` for that command and unset it afterwards. Never rewrite a command to evade the check.
 
 ## Build
 
@@ -47,21 +47,21 @@ This rule is backed by a deterministic guardrail, not only by trust. The `PreToo
 - **Approved verbs only.** Every function uses a verb from `Get-Verb` (`Get`, `Set`, `New`, `Test`, `Invoke`, `Remove`, and so on). No `Retrieve` / `Delete` / `Change`.
 - `[CmdletBinding()]` on advanced functions; validate parameters (`[ValidateNotNullOrEmpty()]`, `[ValidateSet()]`, `[ValidatePattern()]`).
 - `-ErrorAction Stop` plus try/catch for anything that must not silently fail; `[PSCredential]` / `SecureString` for secrets, never plaintext.
-- Full detail: [`Instructions/powershell.instructions.md`](Instructions/powershell.instructions.md) and [`Instructions/powershell-execution-safety.instructions.md`](Instructions/powershell-execution-safety.instructions.md).
+- Full detail: [`powershell.instructions.md`](com.github.copilot/rules/powershell.instructions.md) and [`powershell-execution-safety.instructions.md`](com.github.copilot/rules/powershell-execution-safety.instructions.md).
 
 ## Pester-first
 
 - Tests are **Pester 5**. Write or update the test alongside the code — do not ship script changes without covering tests.
-- Run Pester through the fully detached cross-platform launcher to avoid freezing the editor (see [`Instructions/powershell-execution-safety.instructions.md`](Instructions/powershell-execution-safety.instructions.md)); helper functions used inside `It` live in `BeforeAll`.
-- Patterns: [`Skills/pester-patterns/`](Skills/pester-patterns/); conventions: [`Instructions/pester.instructions.md`](Instructions/pester.instructions.md).
+- Run Pester through the fully detached cross-platform launcher to avoid freezing the editor (see [`powershell-execution-safety.instructions.md`](com.github.copilot/rules/powershell-execution-safety.instructions.md)); helper functions used inside `It` live in `BeforeAll`.
+- Patterns: [`skills/pester-patterns/`](skills/pester-patterns/); conventions: [`pester.instructions.md`](com.github.copilot/rules/pester.instructions.md).
 
 ## Authoring agents, skills, instructions, prompts
 
-- Follow [`Instructions/copilot-authoring.instructions.md`](Instructions/copilot-authoring.instructions.md): correct frontmatter per file type, narrow `applyTo`, purposeful emphasis, no maintenance footers.
+- Follow [`copilot-authoring.instructions.md`](com.github.copilot/rules/copilot-authoring.instructions.md): correct frontmatter per file type, narrow `applyTo`, purposeful emphasis, no maintenance footers.
 - New skills follow the `skill-creator` skill: third-person `description` ≤ 1024 chars with `USE FOR:` / `DO NOT USE FOR:`, body ≤ 500 lines, references one level deep, folder name matching the `name:` field. Declare `compatibility` whenever the skill needs a specific OS, runtime, module, or binary.
 - Encode a rule as a hook when it must hold regardless of what the model decides; leave judgement calls in Instructions.
 - When building agents, LLM features, or MCP servers, run the `agent-security-review` skill (lethal-trifecta test, OWASP Top 10 for LLM Applications, containment-first); measure skill/prompt/agent changes with the `agent-evals` skill.
-- Markdown must lint clean (see [`Instructions/markdown.instructions.md`](Instructions/markdown.instructions.md)).
+- Markdown must lint clean (see [`markdown.instructions.md`](com.github.copilot/rules/markdown.instructions.md)).
 - If a `glossary.md` exists in `.memory-bank/`, use only its canonical terms (Ubiquitous Language).
 
 ## Atomic change sets
@@ -72,8 +72,8 @@ disagreeing with each other, and only some of that drift is caught by CI.
 
 **Adding a Skill:**
 
-1. `Skills/<name>/SKILL.md` — folder name matching the `name:` field.
-2. `Skills/agent-evals/assets/trigger-queries.<name>.json` — labelled positives
+1. `skills/<name>/SKILL.md` — folder name matching the `name:` field.
+2. `skills/agent-evals/assets/trigger-queries.<name>.json` — labelled positives
    plus near-miss negatives taken from *sibling Skills*, both splits populated.
    If it will not be measured yet, add the Skill to `$uncoveredSkillBaseline`
    in [`tests/SkillTriggerCoverage.Tests.ps1`](tests/SkillTriggerCoverage.Tests.ps1)
@@ -83,12 +83,12 @@ disagreeing with each other, and only some of that drift is caught by CI.
 
 **Adding a Custom agent:**
 
-1. `Agents/<name>.agent.md` — the file stem is the `name` slug, lowercase and
+1. `com.github.copilot/agents/<name>.agent.md` — the file stem is the `name` slug, lowercase and
    kebab-case, plus `description` and a `model` priority array whose last entry
    is a GA model.
 2. [`tests/SharedLifecycle.Tests.ps1`](tests/SharedLifecycle.Tests.ps1) — the
    per-agent expectation map.
-3. `Agents/README.md` and `CHANGELOG.md`.
+3. `com.github.copilot/agents/README.md` and `CHANGELOG.md`.
 
 **What CI enforces**, so you find the drift before review does:
 
