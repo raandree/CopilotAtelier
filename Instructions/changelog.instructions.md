@@ -1,38 +1,9 @@
 ---
 applyTo: "**/CHANGELOG.md,**/CHANGELOG,**/changelog.md,**/HISTORY.md,**/NEWS.md,**/RELEASES.md"
+description: "Changelog standards from Keep a Changelog and Common Changelog: file format, change groups, entry wording, release sections, and what belongs in a release note."
 ---
 
 # Changelog Best Practices and Standards
-
-## Core Principles
-
-### What is a Changelog?
-
-A changelog is a file containing a curated, chronologically ordered list of notable changes for each version of a project. Its purpose is to make it easier for users and contributors to see precisely what notable changes have been made between each release.
-
-**Key Characteristics:**
-- **Human-Readable**: Written for humans, not machines
-- **Curated Content**: Notable changes only, not a git log dump
-- **Chronological Order**: Latest version first
-- **Version-Linked**: Each entry corresponds to a released version
-- **Consistent Format**: Follows a standard structure for easy navigation
-
-### Why Keep a Changelog?
-
-- **Communication**: Conveys noteworthy changes to users and contributors
-- **Discoverability**: Provides a single location for change information
-- **Decision Support**: Helps users decide whether to upgrade
-- **Trust Building**: Demonstrates project maturity and professionalism
-- **Time Saving**: Saves readers from digging through commits or documentation
-
-### Who Needs a Changelog?
-
-Everyone who uses or contributes to the project:
-- **End Users**: To understand what changed and why
-- **Developers**: To assess upgrade impact and breaking changes
-- **Contributors**: To see their work acknowledged
-- **Project Managers**: To track progress and communicate releases
-- **Security Teams**: To identify security-related changes
 
 ## Guiding Principles
 
@@ -492,33 +463,33 @@ Standardise terminology across contributors. Don't stray so far from original co
 
 ### Always Include
 
-- ✅ New features and functionality
-- ✅ Changes to existing behavior
-- ✅ Deprecated features (with deprecation warnings)
-- ✅ Removed features (especially breaking changes)
-- ✅ Bug fixes affecting users
-- ✅ Security vulnerability fixes
-- ✅ Changes to supported environments (OS, runtime versions)
-- ✅ Breaking changes of any kind
-- ✅ Significant refactorings (may have side effects)
-- ✅ New documentation (if feature was undocumented)
+- New features and functionality
+- Changes to existing behavior
+- Deprecated features (with deprecation warnings)
+- Removed features (especially breaking changes)
+- Bug fixes affecting users
+- Security vulnerability fixes
+- Changes to supported environments (OS, runtime versions)
+- Breaking changes of any kind
+- Significant refactorings (may have side effects)
+- New documentation (if feature was undocumented)
 
 ### Never Include
 
-- ❌ Internal code refactoring without user impact
-- ❌ Development dependency updates
-- ❌ CI/CD configuration changes
-- ❌ Code style/formatting changes
-- ❌ Comment updates
-- ❌ Test-only changes (unless fixing test bugs)
-- ❌ Dotfile changes (.gitignore, .editorconfig)
-- ❌ Minor documentation typo fixes
+- Internal code refactoring without user impact
+- Development dependency updates
+- CI/CD configuration changes
+- Code style/formatting changes
+- Comment updates
+- Test-only changes (unless fixing test bugs)
+- Dotfile changes (.gitignore, .editorconfig)
+- Minor documentation typo fixes
 
 ### Include with Care
 
-- ⚠️ Dependency updates (only if significant or security-related)
-- ⚠️ Performance improvements (only if measurable and notable)
-- ⚠️ Documentation improvements (only if substantial)
+- Dependency updates (only if significant or security-related)
+- Performance improvements (only if measurable and notable)
+- Documentation improvements (only if substantial)
 
 ## Antipatterns to Avoid
 
@@ -657,11 +628,11 @@ _Stable release based on 2.0.0-rc.3._
 
 | Aspect | CHANGELOG.md | GitHub Releases |
 |---|---|---|
-| Portability | ✅ Works everywhere | ❌ GitHub-only |
-| Discoverability | ✅ Standard file location | ⚠️ Requires navigating to Releases tab |
-| Version control | ✅ In the repo | ❌ Separate from code |
-| Rich features | ❌ Plain Markdown | ✅ Assets, compare view, notifications |
-| Automation | ⚠️ Manual or scripted | ✅ API and Actions support |
+| Portability | Works everywhere | GitHub-only |
+| Discoverability | Standard file location | Requires navigating to the Releases tab |
+| Version control | Lives in the repo | Separate from code |
+| Rich features | Plain Markdown | Assets, compare view, notifications |
+| Automation | Manual or scripted | API and Actions support |
 
 ### Recommendation
 
@@ -706,7 +677,7 @@ _Stable release based on 2.0.0-rc.3._
 | Aspect | Keep a Changelog 1.1.0 | Common Changelog |
 |---|---|---|
 | Categories | 6: Added, Changed, Deprecated, Removed, Fixed, Security | 4: Changed, Added, Removed, Fixed |
-| `[Unreleased]` section | ✅ Recommended | ❌ Not used |
+| `[Unreleased]` section | Recommended | Not used |
 | References (PRs, commits) | Optional | **Required** |
 | Author attribution | Not specified | Specified format |
 | Breaking change prefix | Not specified | `**Breaking:**` required |
@@ -1099,30 +1070,3 @@ To signal changelog compliance in your README:
 <!-- Common Changelog badge -->
 [![Common Changelog](https://common-changelog.org/badge.svg)](https://common-changelog.org)
 ```
-
-## Resources and References
-
-### Official Standards
-
-- **Keep a Changelog 1.1.0**: [https://keepachangelog.com/en/1.1.0/](https://keepachangelog.com/en/1.1.0/)
-- **Common Changelog**: [https://common-changelog.org/](https://common-changelog.org/)
-- **Semantic Versioning 2.0.0**: [https://semver.org/](https://semver.org/)
-- **Conventional Commits 1.0.0**: [https://www.conventionalcommits.org/](https://www.conventionalcommits.org/)
-
-### Related Tools
-
-- **Conventional Changelog**: [https://github.com/conventional-changelog/conventional-changelog](https://github.com/conventional-changelog/conventional-changelog)
-- **Hallmark**: [https://github.com/vweevers/hallmark](https://github.com/vweevers/hallmark)
-- **auto-changelog**: [https://github.com/CookPete/auto-changelog](https://github.com/CookPete/auto-changelog)
-- **release-please**: [https://github.com/googleapis/release-please](https://github.com/googleapis/release-please)
-- **ChangelogManagement (PowerShell)**: [https://github.com/natescherer/ChangelogManagement](https://github.com/natescherer/ChangelogManagement)
-
-### Related Instruction Files
-
-- **versioning.instructions.md**: Version synchronization and semantic versioning
-- **markdown.instructions.md**: Markdown formatting standards
-
-### Example Changelogs
-
-- **Level**: [https://github.com/Level/level/blob/master/CHANGELOG.md](https://github.com/Level/level/blob/master/CHANGELOG.md)
-- **Keep a Changelog**: [https://github.com/olivierlacan/keep-a-changelog/blob/main/CHANGELOG.md](https://github.com/olivierlacan/keep-a-changelog/blob/main/CHANGELOG.md)

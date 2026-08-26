@@ -1,5 +1,6 @@
 ---
 applyTo: "**/*.Tests.ps1,**/*.tests.ps1"
+description: "Pester 5 test standards: detached test execution, the discovery and run phases, Describe/Context/It structure, data-driven cases, mocking, and assertions."
 ---
 
 # Pester 5 Best Practices and Standards

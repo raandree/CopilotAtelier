@@ -1,23 +1,9 @@
 ---
 applyTo: "**/*.md"
+description: "Markdown authoring standards: file conventions, heading and list structure, emphasis, links, tables, code blocks, and markdownlint rule compliance."
 ---
 
 # Markdown Best Practices and Standards
-
-## Core Principles
-
-### What is Markdown?
-- Lightweight markup language with plain text formatting syntax
-- Created by John Gruber in 2004
-- Designed to be easy to read and write
-- Converts to HTML and other formats
-- Multiple flavors: CommonMark, GitHub Flavored Markdown (GFM), etc.
-
-### Design Philosophy
-- **Readable**: Source should be as readable as rendered output
-- **Simple**: Easy to learn and use
-- **Portable**: Works across platforms and tools
-- **Flexible**: Supports basic formatting and advanced features
 
 ## File Conventions
 
@@ -884,35 +870,6 @@ Use blockquotes with emoji and bold text to create note/warning/tip callouts:
   - `<sub>`, `<sup>` for sub/superscript when Markdown syntax is unsupported
 - Inline Markdown (bold, italic, code) does **not** work inside block-level HTML tags like `<div>`, `<table>`, or `<p>`
 
-## Best Practices Summary
-
-### Document Structure
-- ✅ Use one H1 per document (title)
-- ✅ Follow logical heading hierarchy
-- ✅ Add blank lines between sections
-- ✅ Use consistent list markers
-- ✅ Start lists and code blocks on new lines
-
-### Formatting
-- ✅ Use ATX-style headings (`#`)
-- ✅ Use asterisks for emphasis (`*italic*`, `**bold**`)
-- ✅ Use dashes for unordered lists (`-`)
-- ✅ Use fenced code blocks with language specification
-- ✅ Add alt text to all images
-
-### Readability
-- ✅ Keep lines under 100 characters when possible
-- ✅ Use blank lines generously for visual separation
-- ✅ Align table columns in source
-- ✅ Use descriptive link text
-- ✅ Write meaningful alt text for images
-
-### Compatibility
-- ✅ Test in target Markdown processor (GitHub, VS Code, etc.)
-- ✅ Avoid processor-specific syntax when portability matters
-- ✅ Use standard Markdown for maximum compatibility
-- ✅ Document when using extended syntax
-
 ## Common Pitfalls
 
 ### Pitfall 1: Missing Blank Lines
@@ -1031,19 +988,19 @@ Each folder that serves a general purpose **should** have its own `README.md` fi
 - **Examples** - Sample usage relevant to this folder's purpose
 
 **When to Create Folder READMEs:**
-- ✅ Source/module directories (`source/`, `src/`)
-- ✅ Test directories (`tests/`, `test/`)
-- ✅ Documentation directories (`docs/`, `documentation/`)
-- ✅ Script directories (`scripts/`, `tools/`)
-- ✅ Configuration directories (`config/`, `configs/`)
-- ✅ Any folder with multiple subdirectories or complex structure
-- ✅ Any folder that users or contributors will navigate to
+- Source/module directories (`source/`, `src/`)
+- Test directories (`tests/`, `test/`)
+- Documentation directories (`docs/`, `documentation/`)
+- Script directories (`scripts/`, `tools/`)
+- Configuration directories (`config/`, `configs/`)
+- Any folder with multiple subdirectories or complex structure
+- Any folder that users or contributors will navigate to
 
 **When Folder READMEs Are Optional:**
-- ❌ Simple output/build directories
-- ❌ Node_modules or dependency directories
-- ❌ Temporary/cache directories
-- ❌ Folders with obvious single purpose and few files
+- Simple output/build directories
+- Node_modules or dependency directories
+- Temporary/cache directories
+- Folders with obvious single purpose and few files
 
 **Folder README Example:**
 ```markdown
@@ -1127,20 +1084,20 @@ License information.
 **MANDATORY**: The changelog **must** be updated with **every** pull request that changes functionality, fixes bugs, adds features, or makes breaking changes.
 
 **Update the changelog when:**
-- ✅ Adding new features or functionality
-- ✅ Changing existing behavior
-- ✅ Fixing bugs or issues
-- ✅ Making breaking changes
-- ✅ Deprecating features
-- ✅ Removing features
-- ✅ Improving security
-- ✅ Updating dependencies (if significant)
+- Adding new features or functionality
+- Changing existing behavior
+- Fixing bugs or issues
+- Making breaking changes
+- Deprecating features
+- Removing features
+- Improving security
+- Updating dependencies (if significant)
 
 **Do NOT update for:**
-- ❌ Documentation-only changes (README updates, comment changes)
-- ❌ Code formatting/style changes with no functional impact
-- ❌ CI/CD pipeline changes that don't affect the module
-- ❌ Test-only changes (unless fixing test bugs)
+- Documentation-only changes (README updates, comment changes)
+- Code formatting/style changes with no functional impact
+- CI/CD pipeline changes that don't affect the module
+- Test-only changes (unless fixing test bugs)
 
 #### Changelog Structure and Format
 
@@ -1252,14 +1209,14 @@ Write for your target audience:
 - Provide examples when helpful
 
 **What to Include:**
-- ✅ "The `Name` parameter now accepts wildcards"
-- ✅ "Fixed issue where service fails to start on Windows Server 2022"
-- ✅ "BREAKING CHANGE: The default value for `Timeout` changed from 30 to 60 seconds"
+- "The `Name` parameter now accepts wildcards"
+- "Fixed issue where service fails to start on Windows Server 2022"
+- "BREAKING CHANGE: The default value for `Timeout` changed from 30 to 60 seconds"
 
 **What to Avoid:**
-- ❌ "Refactored internal helper function `Get-InternalState`"
-- ❌ "Updated unit test mocks for better coverage"
-- ❌ "Changed variable name from `$x` to `$result`"
+- "Refactored internal helper function `Get-InternalState`"
+- "Updated unit test mocks for better coverage"
+- "Changed variable name from `$x` to `$result`"
 
 #### Unreleased Section
 
@@ -1437,31 +1394,3 @@ Common rules to follow:
 - `markdownlint` - Linting and style checking
 - `Markdown All in One` - Shortcuts and formatting
 - `Markdown Preview Enhanced` - Enhanced preview
-
-## Summary Checklist
-
-- ✅ File uses `.md` extension with lowercase-hyphen naming
-- ✅ File is UTF-8 encoded and ends with a single newline (MD047)
-- ✅ Document follows title → intro → content → See Also layout
-- ✅ Lines are ≤ 80 characters (except links, tables, headings, code)
-- ✅ One H1 heading per document (MD025)
-- ✅ Logical heading hierarchy (no skipped levels) (MD001)
-- ✅ Headings use sentence case with no trailing punctuation (MD026)
-- ✅ Heading names are unique and descriptive (MD024)
-- ✅ Blank lines around headings, lists, code blocks, tables
-- ✅ Consistent emphasis syntax (prefer asterisks) with no inner spaces (MD037)
-- ✅ Emphasis is never used as a substitute for headings (MD036)
-- ✅ Consistent list markers (prefer dashes) with proper indentation (MD005, MD007)
-- ✅ List item case and punctuation are consistent
-- ✅ Ordered lists use lazy numbering (`1.`) for maintainability
-- ✅ Fenced code blocks with language specification (MD040)
-- ✅ Shell code examples don't include `$` prompt (MD014)
-- ✅ Descriptive link text (not "click here") and alt text on images (MD045, MD059)
-- ✅ Reference links defined after first use, before next heading
-- ✅ No bare URLs—wrapped in angle brackets or proper link syntax (MD034)
-- ✅ No trailing spaces—use `\` for line breaks instead
-- ✅ Escaped special characters where needed
-- ✅ Tables aligned in source, used only for genuinely tabular data
-- ✅ Markdown preferred over inline HTML (MD033)
-- ✅ Proper names spelled and capitalised correctly (MD044)
-- ✅ Tested in target Markdown processor

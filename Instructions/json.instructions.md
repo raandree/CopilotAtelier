@@ -1,5 +1,6 @@
 ---
 applyTo: "**/*.json,**/*.jsonc"
+description: "JSON and JSONC standards: RFC 8259 syntax, formatting, schema references, when comments and trailing commas are permitted, and safe parsing."
 ---
 
 # JSON and JSONC Best Practices and Standards

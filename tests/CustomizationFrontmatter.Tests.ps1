@@ -131,6 +131,18 @@ Describe 'Instruction frontmatter' -Tag 'Unit' {
         $frontmatter['applyTo'] | Should -Not -BeNullOrEmpty
         $frontmatter['applyTo'].Trim("'", '"') | Should -Not -BeNullOrEmpty
     }
+
+    It '<FileName> declares a description' -ForEach $script:instructionCase {
+        <#
+            An Instruction also activates on a semantic match of its
+            description against the task, so a file without one is reachable
+            only through a path its applyTo glob happens to cover.
+        #>
+        $frontmatter = script:Get-CustomizationFrontmatter -Path $FilePath
+
+        $frontmatter['description'] | Should -Not -BeNullOrEmpty
+        $frontmatter['description'].Trim("'", '"') | Should -Not -BeNullOrEmpty
+    }
 }
 
 Describe 'Prompt frontmatter' -Tag 'Unit' {

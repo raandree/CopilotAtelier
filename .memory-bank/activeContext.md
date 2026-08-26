@@ -9,16 +9,15 @@ source: current task evidence
 
 ## Current focus
 
-All twelve Custom agent files are now named after their `name` slug; the seven
-display-name files were renamed with `git mv` and a filename-equals-name guard
-enforces it from here. `software-architect` was added as the twelfth Custom
-agent and the first phase of the release pipeline, closing the gap where no
-agent owned the requirement while it was still text. Decision 0022 records why
-that discipline had to become a persona instead of staying a Skill. PR 47
-shipped in `345a25e` and the release provenance fix in `f7f302d`. Three change
-sets remain in flight: the compaction checkpoint on `ai/precompact-checkpoint`,
-the authoring schema refresh on `ai/authoring-instruction-description`, and the
-`skill-creator` split stacked on that branch.
+Every shipped Instruction now declares a `description`, so all sixteen can be
+selected by semantic match instead of only by `applyTo` path, and the twelve
+legacy "Best Practices and Standards" files were held against the rules in
+`copilot-authoring.instructions.md` in the same pass. That closes the follow-up
+yesterday's schema re-verification opened. The change is merged with the Custom
+agent slug rename, the `software-architect` agent, and the release provenance
+fix on `main`. The compaction checkpoint, authoring schema refresh, and
+`skill-creator` split previously listed as in flight are already in its ancestry;
+no implementation change remains open from this merge.
 
 ## Implemented — Custom agent file naming
 
@@ -56,9 +55,6 @@ the authoring schema refresh on `ai/authoring-instruction-description`, and the
 
 - `Skills/copilot-usage-stats/SKILL.md` and the `/usage` Prompt on `Ctrl+K U`
   answer "how much has this project consumed" from `session_usage`.
-- A hook was ruled out on evidence: no hook event carries usage, the transcript
-  records `assistant.turn_end` as `{"turnId":"0"}`, and the local
-  `session-store.db` has no `events` table and no token column.
 - `input_tokens` already contains `cache_read_tokens`; the difference is the
   fresh share. `sessions.repository` is unnormalized, so scope with `ILIKE`
   over both `repository` and `cwd` or most of a project's history is dropped.
@@ -75,18 +71,30 @@ the authoring schema refresh on `ai/authoring-instruction-description`, and the
 - Settled whether an `instruction-creator` Skill is owed. It is not: creation is
   owned by `copilot-authoring` and verification by `agent-evals`.
 
-## Implemented — authoring schema refresh (shipped in `39dd690`)
+## Implemented — Instruction frontmatter and authoring conformance
 
-- `Instructions/copilot-authoring.instructions.md` re-verified against current
-  VS Code and agentskills.io documentation: Prompt `agent` is optional,
-  Instructions also activate by semantic match on `description`, Agents gained
-  `target`, `mcp-servers`, and `handoffs.model`, and the hook stdout contract
-  now joins the exit codes. House rules are labelled as such.
-- Two portability traps: a Claude-format `matcher` is parsed then ignored, and
-  tool input keys are camelCase here where Claude uses snake_case.
-- The Instruction declares its own `description`; `applyTo` matches only files
-  that already exist, so the "Instruction, Skill, or Hook?" question asked
-  before anything is created could never reach it.
+- `Instructions/copilot-authoring.instructions.md` was re-verified against
+  current VS Code and agentskills.io documentation in `39dd690`: Prompt `agent`
+  is optional, Instructions also activate by semantic match on `description`,
+  Agents gained `target`, `mcp-servers`, and `handoffs.model`, and the hook
+  stdout contract now joins the exit codes. Two portability traps: a
+  Claude-format `matcher` is parsed then ignored, and tool input keys are
+  camelCase here where Claude uses snake_case.
+- That semantic-match fact is what made the missing `description` a defect
+  rather than a cosmetic gap. Twelve of sixteen files had none, so their only
+  route in was a path match. All twelve now declare one, `description` moved to
+  *required here* in the schema, and `CustomizationFrontmatter.Tests.ps1`
+  enforces it — red on 12 of 16 cases at the previous commit.
+- Held the same twelve against the rules: removed five `## Summary Checklist`
+  and three `## Best Practices Summary` sections that restated the body, four
+  introductory explanations the Strict tier forbids, two trailing link farms,
+  and 78 decorative marks. 355 lines.
+- Kept `csharp`'s `## Additional Resources` against the option chosen, because
+  it holds that file's only authoritative external links and the rules ask for
+  linking in place of explaining. Bare URLs converted to proper links.
+- `applyTo` narrowing was limited to patterns fully subsumed by a sibling, so
+  no file's match set changed. `powershell-execution-safety` still claims
+  `**/*.yml`; narrowing that changes coverage and belongs in its own change.
 - Open and reported, not changed: `plugin.json` is the legacy Copilot format
   and its description claims hooks are outside the plugin format, which Agent
   Plugins 1.0 no longer makes true.

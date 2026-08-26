@@ -1,5 +1,6 @@
 ---
 applyTo: "**/.gitconfig,**/.gitignore,**/.gitattributes,**/COMMIT_EDITMSG"
+description: "Git standards: Conventional Commit messages, branch naming, .gitignore and .gitattributes content, and line-ending configuration."
 ---
 
 # Git Best Practices and Standards

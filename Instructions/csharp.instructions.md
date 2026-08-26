@@ -1,5 +1,6 @@
 ---
 applyTo: "**/*.cs,**/*.csx"
+description: "C# coding standards: naming, formatting, nullable reference types, async, exception handling, dependency injection, input validation and security, and XML documentation."
 ---
 
 # C# Best Practices and Standards
@@ -1226,32 +1227,10 @@ public class WellOrganizedClass
 }
 ```
 
-## Summary Checklist
-
-- ✅ Use PascalCase for public members, camelCase with underscore for private fields
-- ✅ Use Allman brace style (opening brace on new line)
-- ✅ Use language keywords (`string`, `int`) instead of runtime types
-- ✅ Use `var` only when type is obvious
-- ✅ Always validate and sanitize user input
-- ✅ Use parameterized queries to prevent SQL injection
-- ✅ Encode output to prevent XSS
-- ✅ Never hardcode secrets or credentials
-- ✅ Use secure password hashing (PBKDF2, bcrypt, Argon2)
-- ✅ Implement proper exception handling with specific exception types
-- ✅ Use `async`/`await` for I/O operations
-- ✅ Suffix async methods with "Async"
-- ✅ Enable nullable reference types
-- ✅ Use dependency injection for testability
-- ✅ Write XML documentation for public APIs
-- ✅ Enable static code analysis
-- ✅ Use modern C# features appropriately (records, pattern matching, etc.)
-- ✅ Follow SOLID principles
-- ✅ Write unit tests for all business logic
-
 ## Additional Resources
 
-- **Microsoft Documentation**: https://learn.microsoft.com/en-us/dotnet/csharp/
-- **.NET Runtime Coding Style**: https://github.com/dotnet/runtime/blob/main/docs/coding-guidelines/coding-style.md
-- **OWASP Security Guidelines**: https://owasp.org/www-project-top-ten/
-- **C# Compiler (Roslyn) Guidelines**: https://github.com/dotnet/roslyn/blob/main/CONTRIBUTING.md
-- **Framework Design Guidelines**: https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/
+- [C# documentation](https://learn.microsoft.com/en-us/dotnet/csharp/)
+- [.NET runtime coding style](https://github.com/dotnet/runtime/blob/main/docs/coding-guidelines/coding-style.md)
+- [OWASP Top Ten](https://owasp.org/www-project-top-ten/)
+- [Roslyn contributing guidelines](https://github.com/dotnet/roslyn/blob/main/CONTRIBUTING.md)
+- [Framework design guidelines](https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/)

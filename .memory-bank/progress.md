@@ -15,6 +15,20 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-26**: Gave a `description` to the twelve Instructions that lacked
+  one and held the same twelve against the authoring rules. Without a
+  description an Instruction is reachable only through a path its `applyTo`
+  glob happens to cover, so `versioning` could not answer a pre-release
+  question and `pester` could not reach the first test in a repository that has
+  none. The gate is a per-file case in `CustomizationFrontmatter.Tests.ps1`,
+  shown red on 12 of its 16 cases against the previous commit. The same pass
+  removed eight sections that only restated rules the file had already given,
+  four introductory explanations the Strict tier forbids, two link farms whose
+  normative links already appear inline, and 78 decorative marks: 355 lines.
+  Two defects surfaced while reading — a cross-reference naming `markdown`
+  where `changelog` was meant, and two `applyTo` lists carrying patterns fully
+  subsumed by a sibling pattern.
+
 - **2026-08-26**: Renamed the seven display-name Custom agent files to their
   declared `name` slug, so every agent is addressed the same way on disk, in a
   handoff, and in a test. The defect was two addresses for one agent rather
@@ -105,13 +119,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   `PluginManifest.Tests.ps1` fails whenever a published non-preview tag has no
   section — with a tag at `HEAD` exempt, or every tag push would deadlock on its
   own gate before `deploy` ever runs.
-
-- **2026-08-24**: Closed the README catalogue gap and built the gate that would
-  have caught it. `AGENTS.md` had required an *Available Skills* row per Skill
-  since 2026-08-12 with nothing checking it; the drift was 36 rows against 45
-  Skills. `SkillCatalogue.Tests.ps1` checks both directions and guards its own
-  parser with a count assertion, because a moved heading would otherwise pass
-  with zero cases.
 
 ## Stable capabilities
 

@@ -1,22 +1,9 @@
 ---
 applyTo: "**/*.yml,**/*.yaml"
+description: "YAML authoring standards: indentation, quoting, booleans and nulls, anchors and aliases, multi-document files, safe loading, and linting."
 ---
 
 # YAML Best Practices and Standards
-
-## Core Principles
-
-### What is YAML?
-- **Y**AML **A**in't **M**arkup **L**anguage
-- Human-readable data serialization format
-- Superset of JSON (all JSON is valid YAML)
-- Three basic data structures: mappings (hashes/dictionaries), sequences (arrays/lists), scalars (strings/numbers)
-
-### Design Goals
-- **Readable**: Easy for humans to read and write
-- **Portable**: Works across programming languages
-- **Expressive**: Supports complex data structures
-- **Minimal**: Low syntax overhead
 
 ## File Conventions
 
@@ -681,35 +668,6 @@ colours_equivalent:
   blue: null
 ```
 
-## Best Practices Summary
-
-### DO
-- ✅ Use 2-space indentation consistently
-- ✅ Use lowercase `true`/`false` for booleans
-- ✅ Quote strings that contain special characters
-- ✅ Use block style for lists (better readability)
-- ✅ Add comments to explain WHY, not WHAT
-- ✅ Use anchors and aliases to avoid repetition
-- ✅ Keep lines under 100 characters when possible
-- ✅ Use meaningful key names
-- ✅ Validate YAML with a linter
-- ✅ Use `---` at document start for multi-document files
-
-### DON'T
-- ❌ Never use tabs for indentation
-- ❌ Don't mix indentation widths
-- ❌ Don't over-use flow style (less readable)
-- ❌ Don't use complex keys unless necessary
-- ❌ Don't leave trailing whitespace
-- ❌ Don't trust unquoted strings with special characters
-- ❌ Don't use deprecated YAML 1.0/1.1 syntax
-- ❌ Don't repeat configuration (use anchors instead)
-- ❌ Don't use `yaml.load()` — always use `safe_load()` or equivalent
-- ❌ Don't commit secrets, tokens, or passwords in YAML files
-- ❌ Don't rely on `yes`/`no`/`on`/`off` as booleans — use `true`/`false`
-- ❌ Don't leave version numbers unquoted (`1.0` → `"1.0"`)
-- ❌ Don't use `.yml` and `.yaml` extensions interchangeably in the same project
-
 ## Common Pitfalls
 
 ### Pitfall 1: Unquoted Special Characters
@@ -946,26 +904,3 @@ steps:
       targetType: 'inline'
       script: Write-Host "Building..."
 ```
-
-## Summary Checklist
-
-- ✅ Use `.yaml` file extension consistently
-- ✅ UTF-8 encoding, no BOM, UNIX line endings
-- ✅ End every file with a single newline
-- ✅ Spaces only, never tabs
-- ✅ Consistent 2-space indentation throughout the file
-- ✅ Quote strings containing special characters or reserved sequences
-- ✅ Quote values that look like dates (`"2024-01-15"`), versions (`"1.0"`), or booleans (`"yes"`)
-- ✅ Use lowercase `true`/`false` for booleans — never `yes`/`no`/`on`/`off`
-- ✅ Use `null` explicitly instead of empty values
-- ✅ Comment WHY, not WHAT
-- ✅ Use anchors and aliases to avoid repetition (DRY)
-- ✅ Use `---` document start marker; use `...` end marker in multi-document files
-- ✅ Use `safe_load` / `SafeLoader` — never `yaml.load()` with untrusted input
-- ✅ Never commit secrets, tokens, or passwords in YAML files
-- ✅ Validate with yamllint before committing
-- ✅ Enable `truthy` rule to catch ambiguous booleans
-- ✅ Keep lines under 120 characters (80 preferred)
-- ✅ Use block style for readability; flow style only for short inline structures
-- ✅ Be explicit when ambiguous (use quotes or type tags)
-- ✅ Use consistent key naming convention (snake_case preferred)

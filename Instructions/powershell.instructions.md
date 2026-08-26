@@ -1,5 +1,6 @@
 ---
 applyTo: "**/*.ps1,**/*.psm1,**/*.psd1"
+description: "PowerShell coding standards: approved verbs, advanced functions, parameter validation, error handling, object output, comment-based help, and safe test and build execution."
 ---
 
 # PowerShell Best Practices and Standards
@@ -1253,31 +1254,3 @@ try {
 ### Prefer Native PowerShell
 - Use built-in cmdlets before reaching for .NET classes, COM, or external executables
 - If you must use a non-PowerShell tool, document why in a comment and wrap it in an advanced function
-
-## Summary Checklist
-
-- ✅ Use approved verbs
-- ✅ Include `[CmdletBinding()]`
-- ✅ Add complete comment-based help
-- ✅ Use proper parameter validation
-- ✅ Implement error handling (no empty catch blocks, no `$?` checks)
-- ✅ Follow naming conventions
-- ✅ Return objects, not formatted text
-- ✅ Use PSScriptAnalyzer and fix all warnings
-- ✅ Write Pester tests for all public functions
-- ✅ Use 4-space indentation
-- ✅ Avoid aliases in scripts
-- ✅ Implement `-WhatIf` and `-Confirm` for state changes
-- ✅ Add `-Force` when using `ShouldContinue`
-- ✅ Support `-PassThru` on state-changing cmdlets
-- ✅ Use secure credentials with `[Credential()]` attribute
-- ✅ Document with examples
-- ✅ Use single quotes for constant strings
-- ✅ Save files as UTF-8 (no BOM)
-- ✅ No commented-out code in checked-in files
-- ✅ Use CIM cmdlets, not WMI
-- ✅ Use `$using:` in remote/parallel runspaces
-- ✅ Use `begin`/`process`/`end` blocks for pipeline functions
-- ✅ Provide `Path`/`LiteralPath` parameter sets for file operations
-- ✅ Call `Write-Progress` for long-running loops
-- ✅ Add `#Requires` for version, modules, and elevation
