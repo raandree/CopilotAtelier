@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-08-26
+
 ### Added
 
 - **`software-architect` Custom agent** (2026-08-26). The pipeline in [`Agents/README.md`](Agents/README.md) opened at *"Phase: Code Development"*. Eleven agents covered build, verify, diagnose, document, research, and train, and none owned the phase where the requirement is still text — which is the phase Brooks argues is the cheapest place to fix a defect. The gap was not theoretical. [`Skills/grill-me/SKILL.md`](Skills/grill-me/SKILL.md) has shipped a forty-to-hundred-question adversarial requirements interview since 2026-07, and inside the Software Engineer agent it loses every time it is tried, because a Skill is advisory content while the Custom agent body is mode instruction: that body directs the model to *"not ask for confirmation when the next action is reversible"* and opens its loop on *"Start from the named file, symbol, failing behavior"*. Two directives point in opposite directions and only one of them is a mode instruction. Making the interview a persona rather than a suggestion is also what the platform recommends — VS Code documents a reduced-tool planning agent as the counterpart to an implementation agent, and Planning → Implementation as the canonical handoff — so [`Agents/software-architect.agent.md`](Agents/software-architect.agent.md) hands off to `software-engineer` on sign-off and to `security-reviewer` for a pre-code threat model, and the Software Engineer agent gained the return path for a requirement gap it cannot resolve locally.
