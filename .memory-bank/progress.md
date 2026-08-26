@@ -9,9 +9,9 @@ source: CHANGELOG.md and git history
 
 ## Project status
 
-Copilot Atelier is published to the PowerShell Gallery and released at `v3.1.0`
-(2026-08-07). `main` builds as `4.0.0-preview*`. Incremental work is tracked
-under `[Unreleased]` in `CHANGELOG.md`.
+Copilot Atelier is published to the PowerShell Gallery and released at `v4.0.0`
+(2026-08-26), whose changelog section landed on `main` in #22. Incremental work
+is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 

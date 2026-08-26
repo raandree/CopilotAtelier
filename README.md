@@ -64,7 +64,7 @@ Update-CopilotAtelier -InformationAction Continue
 ```
 
 > [!NOTE]
-> The Gallery package is not published yet — `2.0.0` is the first planned release. Until then use the [repository clone](#2-repository-clone) or the [agent plugin](#3-agent-plugin) path.
+> Two other paths exist: a [repository clone](#2-repository-clone) for working on the library itself, and an [agent plugin](#3-agent-plugin) that installs straight from the Git URL and needs no PowerShell at all.
 
 Full detail: [Setup on a New Machine](#setup-on-a-new-machine) · [Verifying It Works](#verifying-it-works) · [Building from Source](#building-from-source).
 
@@ -279,9 +279,9 @@ Update-CopilotAtelier -InformationAction Continue
 `Get-CopilotAtelierVersion` answers "is what I have actually deployed?":
 
 ```text
-Version         : 2.0.0
-DeployedVersion : 2.0.0
-DeployedOn      : 2026-07-29 10:12:44
+Version         : 4.0.0
+DeployedVersion : 4.0.0
+DeployedOn      : 2026-08-26 10:12:44
 TargetPath      : C:\Users\you\OneDrive\CopilotAtelier
 IsCurrent       : True
 ```
@@ -431,7 +431,7 @@ If a skill doesn't appear, open the ellipsis (**…**) menu in the Chat view and
 
 ## Reference
 
-- [`reference/copilot-cli-model-routing.md`](reference/copilot-cli-model-routing.md) — 4-tier model-routing policy for the GitHub Copilot CLI (Executors / Implementers / Tech Leads / Architects). Reference-only; not auto-attached. The document was written against the early-2026 lineup; a banner at the top maps the older model IDs (Opus 4.5 / 4.6, GPT-5.1) to the current ones (Opus 4.8, GPT-5.4 / 5.5). A full rewrite is planned post-1.1.0.
+- [`reference/copilot-cli-model-routing.md`](reference/copilot-cli-model-routing.md) — 4-tier model-routing policy for the GitHub Copilot CLI (Executors / Implementers / Tech Leads / Architects). Reference-only; not auto-attached. The document was written against the early-2026 lineup; a banner at the top maps the older model IDs (Opus 4.5 / 4.6, GPT-5.1) to the current ones (Opus 4.8, GPT-5.4 / 5.5). A full rewrite is still outstanding.
 - [`reference/howto-write-skills.md`](reference/howto-write-skills.md) — condensed two-page primer for authoring `skills/**/SKILL.md` files: the six-step frame (Name/Trigger/Outcome/Dependencies/Step-by-step/Edge cases), five high-leverage rules, hard limits (1024-char description, 500-line body), description shape, degrees of freedom, eval-driven development, anti-patterns, and links to the canonical Anthropic Agent Skills docs/PDF/engineering blog plus the `anthropics/skills` repo. Pairs with [`skills/skill-creator/SKILL.md`](skills/skill-creator/SKILL.md) (the full operating manual, auto-loaded when a skill-authoring task triggers).
 
 ## Featured In
