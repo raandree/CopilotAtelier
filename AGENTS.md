@@ -83,8 +83,9 @@ disagreeing with each other, and only some of that drift is caught by CI.
 
 **Adding a Custom agent:**
 
-1. `Agents/<Name>.agent.md` — `name`, `description`, and a `model` priority
-   array whose last entry is a GA model.
+1. `Agents/<name>.agent.md` — the file stem is the `name` slug, lowercase and
+   kebab-case, plus `description` and a `model` priority array whose last entry
+   is a GA model.
 2. [`tests/SharedLifecycle.Tests.ps1`](tests/SharedLifecycle.Tests.ps1) — the
    per-agent expectation map.
 3. `Agents/README.md` and `CHANGELOG.md`.

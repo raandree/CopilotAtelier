@@ -83,6 +83,16 @@ Describe 'Custom agent frontmatter' -Tag 'Unit' {
         $frontmatter['name'].Trim("'", '"') | Should -Match '^[a-z0-9]+(-[a-z0-9]+)*$'
     }
 
+    It '<FileName> is named after its slug' -ForEach $script:agentCase {
+        <#
+            A file whose stem differs from the declared name is addressed one
+            way on disk and another way in a handoff, a Prompt, or a test.
+        #>
+        $frontmatter = script:Get-CustomizationFrontmatter -Path $FilePath
+
+        $FileName | Should -BeExactly "$($frontmatter['name'].Trim("'", '"')).agent.md"
+    }
+
     It '<FileName> declares a description' -ForEach $script:agentCase {
         $frontmatter = script:Get-CustomizationFrontmatter -Path $FilePath
 

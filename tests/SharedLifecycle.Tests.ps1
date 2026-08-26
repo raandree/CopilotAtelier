@@ -23,7 +23,7 @@ BeforeAll {
             MemoryHeading = "## Memory Bank $emDash Persistent Career Knowledge"
             MemoryHash = '17404EE805887082'
         }
-        'DevOps Training Writer.agent.md' = @{
+        'devops-training-writer.agent.md' = @{
             Tools = 29
             ToolHash = '29767FFDB6C09FA7'
             Handoffs = 2
@@ -39,7 +39,7 @@ BeforeAll {
             MemoryHeading = "## Memory Bank $emDash Persistent Case Knowledge"
             MemoryHash = 'DCEEB414C2F56C4D'
         }
-        'QC Inspector Agent.agent.md' = @{
+        'qc-inspector.agent.md' = @{
             Tools = 28
             ToolHash = 'AE7F3D50F1B6DFEE'
             Handoffs = 0
@@ -55,21 +55,13 @@ BeforeAll {
             MemoryHeading = "## Memory Bank $emDash Investigation Persistence"
             MemoryHash = 'CAD590ADFA11950D'
         }
-        'Security & Quality Assurance Agent.agent.md' = @{
+        'security-reviewer.agent.md' = @{
             Tools = 38
             ToolHash = '52CDF89BF13B35FE'
             Handoffs = 1
             HandoffHash = 'E8D34666ABE6B96D'
             MemoryHeading = '## Memory Bank'
             MemoryHash = 'E5550363574EE4B8'
-        }
-        'Software Engineer Agent.agent.md' = @{
-            Tools = 45
-            ToolHash = 'D94007200A192204'
-            Handoffs = 3
-            HandoffHash = 'AE1CD385148A6BF2'
-            MemoryHeading = '## Memory Bank role extension'
-            MemoryHash = '289672647A3DF691'
         }
         'software-architect.agent.md' = @{
             Tools = 31
@@ -79,6 +71,14 @@ BeforeAll {
             MemoryHeading = '## Memory Bank role extension'
             MemoryHash = '4BC6A3CD90073617'
         }
+        'software-engineer.agent.md' = @{
+            Tools = 45
+            ToolHash = 'D94007200A192204'
+            Handoffs = 3
+            HandoffHash = 'AE1CD385148A6BF2'
+            MemoryHeading = '## Memory Bank role extension'
+            MemoryHash = '289672647A3DF691'
+        }
         'tax-researcher.agent.md' = @{
             Tools = 28
             ToolHash = 'AE7F3D50F1B6DFEE'
@@ -87,15 +87,7 @@ BeforeAll {
             MemoryHeading = "## Memory Bank $emDash Persistent Case Knowledge"
             MemoryHash = 'D5D3D207CC5EAB57'
         }
-        'Technical Troubleshooter Agent.agent.md' = @{
-            Tools = 41
-            ToolHash = '86AF3D5241574039'
-            Handoffs = 2
-            HandoffHash = '38AF6E22FA343FDC'
-            MemoryHeading = '## Memory Bank'
-            MemoryHash = '30AD211A671D5598'
-        }
-        'Technical Writer & Documentation Agent.agent.md' = @{
+        'technical-writer.agent.md' = @{
             Tools = 36
             ToolHash = '55719116741CC126'
             Handoffs = 1
@@ -103,13 +95,21 @@ BeforeAll {
             MemoryHeading = '## Memory Bank'
             MemoryHash = '90EBC5F69900F153'
         }
-        'Training Content Writer.agent.md' = @{
+        'training-writer.agent.md' = @{
             Tools = 29
             ToolHash = '29767FFDB6C09FA7'
             Handoffs = 1
             HandoffHash = '42173AE92365EB75'
             MemoryHeading = '## 11. Memory Bank'
             MemoryHash = 'DFE92372EF752612'
+        }
+        'troubleshooter.agent.md' = @{
+            Tools = 41
+            ToolHash = '86AF3D5241574039'
+            Handoffs = 2
+            HandoffHash = '38AF6E22FA343FDC'
+            MemoryHeading = '## Memory Bank'
+            MemoryHash = '30AD211A671D5598'
         }
     }
 

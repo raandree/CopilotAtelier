@@ -9,14 +9,27 @@ source: current task evidence
 
 ## Current focus
 
-`software-architect` was added as the twelfth Custom agent and the first phase
-of the release pipeline, closing the gap where no agent owned the requirement
-while it was still text. Decision 0022 records why that discipline had to
-become a persona instead of staying a Skill. PR 47 shipped in `345a25e` and the
-release provenance fix in `f7f302d`. Three change sets remain in flight: the
-compaction checkpoint on `ai/precompact-checkpoint`, the authoring schema
-refresh on `ai/authoring-instruction-description`, and the `skill-creator`
-split stacked on that branch.
+All twelve Custom agent files are now named after their `name` slug; the seven
+display-name files were renamed with `git mv` and a filename-equals-name guard
+enforces it from here. `software-architect` was added as the twelfth Custom
+agent and the first phase of the release pipeline, closing the gap where no
+agent owned the requirement while it was still text. Decision 0022 records why
+that discipline had to become a persona instead of staying a Skill. PR 47
+shipped in `345a25e` and the release provenance fix in `f7f302d`. Three change
+sets remain in flight: the compaction checkpoint on `ai/precompact-checkpoint`,
+the authoring schema refresh on `ai/authoring-instruction-description`, and the
+`skill-creator` split stacked on that branch.
+
+## Implemented — Custom agent file naming
+
+- Seven files carried display names with spaces and `&` while declaring a
+  kebab-case `name:`, which is the value a handoff, an `agents:` allow-list, and
+  a Prompt `agent:` key resolve against. Two addresses for one agent.
+- The guard asserts the file stem equals the declared `name` rather than that
+  the stem is lowercase: a mismatched pair passes any casing check and is still
+  unfindable by anyone who read the other spelling.
+- Nothing about agent identity moved, so no handoff, allow-list, or Prompt
+  target needed editing.
 
 ## Implemented — software-architect Custom agent
 
