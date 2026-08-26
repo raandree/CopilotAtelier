@@ -25,7 +25,7 @@ compatibility: >-
 
 Turn a Finanzamt letter and a pile of receipts into a filing that survives an examiner: every figure traceable to a document, every legal statement carrying its § citation, every deadline computed rather than estimated.
 
-This Skill supplies the domain material for the [`tax-researcher`](../../Agents/tax-researcher.agent.md) agent, and works standalone in any repository that holds a tax case.
+This Skill supplies the domain material for the [`tax-researcher`](../../com.github.copilot/agents/tax-researcher.agent.md) agent, and works standalone in any repository that holds a tax case.
 
 ## When to Use
 

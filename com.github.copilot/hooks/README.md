@@ -12,7 +12,7 @@ read as the user-level hook location.
 
 | File | Event | Purpose |
 |---|---|---|
-| [`copilot-atelier.hooks.json`](copilot-atelier.hooks.json) | — | Hook configuration loaded by VS Code |
+| [`hooks.json`](hooks.json) | — | Hook configuration loaded by VS Code |
 | [`scripts/Block-RemoteMutation.ps1`](scripts/Block-RemoteMutation.ps1) | `PreToolUse` | Blocks remote-mutating and irreversible commands |
 | [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank and injects the UTC timestamp |
 | [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated |
@@ -85,9 +85,9 @@ which survives because Instructions are re-sent with every request.
 
 ## Troubleshooting
 
-- **Hook never fires.** Confirm `copilot-atelier.hooks.json` is present under
+- **Hook never fires.** Confirm `hooks.json` is present under
   `~/.copilot/hooks` and that the link resolves. Re-run
-  [`Setup-CopilotSettings.ps1`](../Setup-CopilotSettings.ps1).
+  [`Setup-CopilotSettings.ps1`](../../Setup-CopilotSettings.ps1).
 - **A workspace `.github/hooks/*.json` never fires.** `chat.hookFilesLocations`
   replaces the default location map rather than extending it. A settings value
   of `{ "~/.copilot/hooks": true }` therefore drops `.github/hooks`, and the
@@ -100,7 +100,7 @@ which survives because Instructions are re-sent with every request.
   therefore resolves its own path inside PowerShell — `$env:USERPROFILE` on
   Windows, `$HOME` elsewhere. If you deploy the scripts outside
   `~/.copilot/hooks`, replace the `Join-Path` expression in
-  `copilot-atelier.hooks.json` with an absolute path.
+  `hooks.json` with an absolute path.
 - **Timeout.** The default hook timeout is 30 seconds; these hooks declare 20.
   Increase `timeout` if a slow filesystem delays the Memory Bank probe.
 
@@ -108,7 +108,7 @@ which survives because Instructions are re-sent with every request.
 
 The `PreToolUse` block is pattern matching over the command string, not a
 sandbox. An obfuscated or indirectly invoked push can evade it. Treat it as
-defense in depth that removes the accidental path; [`AGENTS.md`](../AGENTS.md)
+defense in depth that removes the accidental path; [`AGENTS.md`](../../AGENTS.md)
 still carries the rule itself.
 
 An agent that can edit these scripts can rewrite its own guardrails. Keep the
@@ -119,4 +119,4 @@ hook scripts outside the agent's auto-approved edit scope with
 
 - [Agent hooks in VS Code](https://code.visualstudio.com/docs/agent-customization/hooks)
 - [Hooks reference](https://code.visualstudio.com/docs/agents/reference/hooks-reference)
-- [`AGENTS.md`](../AGENTS.md) — the house rules these hooks enforce
+- [`AGENTS.md`](../../AGENTS.md) — the house rules these hooks enforce

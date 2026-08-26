@@ -71,7 +71,7 @@ read-only or transient tasks.
 | `progress.md` | What works, dated change log. |
 | `systemPatterns.md` | Recurring architectural patterns. |
 | `productContext.md` | Why the project exists, UX intent. |
-| `glossary.md` | Optional Ubiquitous Language table selected by the `language` route. See [`Instructions/ubiquitous-language.instructions.md`](../Instructions/ubiquitous-language.instructions.md). |
+| `glossary.md` | Optional Ubiquitous Language table selected by the `language` route. See [`Instructions/ubiquitous-language.instructions.md`](../com.github.copilot/rules/ubiquitous-language.instructions.md). |
 | `promptHistory.md` | Optional local Substantive-turn intent log with 90-day retention; interaction-history and eval routes only. |
 
 Decision records live under `decisions/`; optional Memory Bank topics live

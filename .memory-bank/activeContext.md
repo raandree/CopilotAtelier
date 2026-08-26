@@ -42,96 +42,14 @@ and fully restored from git; no corruption reached a commit.
 Until the cause is found, edit files through the editor tooling, and treat any
 scripted bulk rewrite of this tree as unsafe. `git grep -l -e nnkteuotnon -e\naeelyTo` detects it in one pass.
 
-## Implemented — Custom agent file naming
+## Released in v4.0.0
 
-- Seven files carried display names with spaces and `&` while declaring a
-  kebab-case `name:`, which is the value a handoff, an `agents:` allow-list, and
-  a Prompt `agent:` key resolve against. Two addresses for one agent.
-- The guard asserts the file stem equals the declared `name` rather than that
-  the stem is lowercase: a mismatched pair passes any casing check and is still
-  unfindable by anyone who read the other spelling.
-- Nothing about agent identity moved, so no handoff, allow-list, or Prompt
-  target needed editing.
-
-## Implemented — software-architect Custom agent
-
-- `Agents/software-architect.agent.md`: 31 tools, handoffs to
-  `software-engineer` and `security-reviewer`, `disable-model-invocation: true`.
-- The gap was structural, not stylistic. `grill-me` is advisory content and the
-  Software Engineer body is mode instruction, so the Skill loses inside that
-  agent every time. The interview had to become a persona to win.
-- The tool restriction is bounded and recorded as such. Every sanctioned
-  validation path is gone — `runTests`, `codeInterpreter`, both task runners,
-  notebook execution — but `edit/editFiles` and `execute/runInTerminal` stay,
-  because Post-flight demands a Memory Bank write, a changelog entry, and a
-  commit on every Substantive turn. The agent cannot close the Definition of
-  Done on a code change; it is not stopped from typing one.
-- Interview depth scales to blast radius, and the chosen depth and its reason
-  are stated in the first reply where the user can override them.
-- `projectbrief.md` ownership moved to the architect, with the Software
-  Engineer and Technical Writer as co-curators. The Software Engineer gained a
-  return handoff for a requirement gap local evidence cannot resolve.
-- `tests/SoftwareArchitectAgent.Tests.ps1` asserts the withheld tools by name,
-  because the SharedLifecycle fingerprint detects change but not correctness.
-
-## Implemented — usage stats
-
-- `Skills/copilot-usage-stats/SKILL.md` and the `/usage` Prompt on `Ctrl+K U`
-  answer "how much has this project consumed" from `session_usage`.
-- `input_tokens` already contains `cache_read_tokens`; the difference is the
-  fresh share. `sessions.repository` is unnormalized, so scope with `ILIKE`
-  over both `repository` and `cwd` or most of a project's history is dropped.
-- Copilot bills usage, not requests, since 2026-06-01, so tokens convert to AI
-  credits at 1 credit = $0.01. The `cost` column is a legacy request multiplier,
-  not money. Billing cached input at the input rate inflates by ~10x.
-
-## Implemented — skill-creator split
-
-- Body 492 → 344 lines behind `references/authoring-patterns.md` and
-  `references/scripts-and-evaluation.md`, both one level deep.
-- The cut line is "only add context the model does not already have": what
-  upstream already teaches moved out, what only this repository knows stayed.
-- Settled whether an `instruction-creator` Skill is owed. It is not: creation is
-  owned by `copilot-authoring` and verification by `agent-evals`.
-
-## Implemented — Instruction frontmatter and authoring conformance
-
-- `Instructions/copilot-authoring.instructions.md` was re-verified against
-  current VS Code and agentskills.io documentation in `39dd690`: Prompt `agent`
-  is optional, Instructions also activate by semantic match on `description`,
-  Agents gained `target`, `mcp-servers`, and `handoffs.model`, and the hook
-  stdout contract now joins the exit codes. Two portability traps: a
-  Claude-format `matcher` is parsed then ignored, and tool input keys are
-  camelCase here where Claude uses snake_case.
-- That semantic-match fact is what made the missing `description` a defect
-  rather than a cosmetic gap. Twelve of sixteen files had none, so their only
-  route in was a path match. All twelve now declare one, `description` moved to
-  *required here* in the schema, and `CustomizationFrontmatter.Tests.ps1`
-  enforces it — red on 12 of 16 cases at the previous commit.
-- Held the same twelve against the rules: removed five `## Summary Checklist`
-  and three `## Best Practices Summary` sections that restated the body, four
-  introductory explanations the Strict tier forbids, two trailing link farms,
-  and 78 decorative marks. 355 lines.
-- Kept `csharp`'s `## Additional Resources` against the option chosen, because
-  it holds that file's only authoritative external links and the rules ask for
-  linking in place of explaining. Bare URLs converted to proper links.
-- `applyTo` narrowing was limited to patterns fully subsumed by a sibling, so
-  no file's match set changed. `powershell-execution-safety` still claims
-  `**/*.yml`; narrowing that changes coverage and belongs in its own change.
-- Open and reported, not changed: `plugin.json` is the legacy Copilot format
-  and its description claims hooks are outside the plugin format, which Agent
-  Plugins 1.0 no longer makes true.
-
-## Implemented — compaction checkpoint
-
-- `Hooks/scripts/Write-CompactionCheckpoint.ps1` runs on `PreCompact` and writes
-  `.memory-bank/session/compaction-<UTC>Z.md` with the trigger, transcript path,
-  branch, commit, changed paths, and a resume protocol.
-- `Instructions/preflight.instructions.md` gained a *Compaction recovery*
-  section: distrust the summary, read the newest checkpoint, re-apply routes,
-  re-read the driving Customizations from disk, verify the working tree.
-- Decision 0021 records the split and what it cannot do; `.gitignore`,
-  `.memory-bank/session/README.md`, and `Hooks/README.md` carry the artifact.
+The Custom agent slug rename, the `software-architect` agent, the usage-stats
+Skill and `/usage` Prompt, the `skill-creator` split, the Instruction
+`description` pass, and the compaction checkpoint all shipped in `v4.0.0`.
+Their rationale lives in the `[4.0.0]` changelog section and decisions 0021
+and 0022; the durable relationships they established are in
+`systemPatterns.md`. Nothing from them is still open.
 
 ## Focused evidence
 

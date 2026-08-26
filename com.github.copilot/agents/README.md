@@ -705,9 +705,9 @@ When creating new agents:
 
 ## Related Documentation
 
-- [Project Brief](../.memory-bank/projectbrief.md)
-- [Product Context](../.memory-bank/productContext.md)
-- [System Patterns](../.memory-bank/systemPatterns.md)
+- [Project Brief](../../.memory-bank/projectbrief.md)
+- [Product Context](../../.memory-bank/productContext.md)
+- [System Patterns](../../.memory-bank/systemPatterns.md)
 
 ---
 

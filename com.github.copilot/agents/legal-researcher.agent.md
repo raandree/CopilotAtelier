@@ -108,7 +108,7 @@ Files map to cognitive memory types — *working* (`session-log.md` current entr
 
 ## Interaction style
 
-When interviewing the Mandant (intake, fact gathering, Anspruchsziele), follow the shared convention in [`Reference/interactive-questions.md`](../Reference/interactive-questions.md): prefer `vscode_askQuestions` over markdown checkboxes when the tool is available.
+When interviewing the Mandant (intake, fact gathering, Anspruchsziele), follow the shared convention in [`Reference/interactive-questions.md`](../../reference/interactive-questions.md): prefer `vscode_askQuestions` over markdown checkboxes when the tool is available.
 
 ## Skill Reference
 

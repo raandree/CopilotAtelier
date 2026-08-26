@@ -83,7 +83,7 @@ Each file type uses a distinct frontmatter shape. Values must be strings unless 
 - `context` (optional): `fork` runs the Skill in a dedicated subagent and returns only its result. Use it for Skills that ingest large volumes of untrusted external content or run long investigations whose intermediate detail must not reach the parent conversation. Requires `github.copilot.chat.skillTool.enabled`.
 - `license`, `metadata`, `allowed-tools` (optional): agentskills.io fields. `metadata` is a string-to-string map. `allowed-tools` is a space-separated string, not an array, and is experimental with client-varying support.
 - `argument-hint`, `user-invocable`, `disable-model-invocation` (optional): control slash-command presentation and whether the model may load the Skill on its own.
-- For authoring guidance see [`Reference/howto-write-skills.md`](../Reference/howto-write-skills.md) (condensed primer + canonical Anthropic links) and [`Skills/skill-creator/SKILL.md`](../Skills/skill-creator/SKILL.md) (full operating manual).
+- For authoring guidance see [`Reference/howto-write-skills.md`](../../reference/howto-write-skills.md) (condensed primer + canonical Anthropic links) and [`Skills/skill-creator/SKILL.md`](../../skills/skill-creator/SKILL.md) (full operating manual).
 
 ### Hooks (`Hooks/*.json`)
 

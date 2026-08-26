@@ -124,7 +124,7 @@ External sources, in order of authority:
 ## In-repo references
 
 - [`Skills/skill-creator/SKILL.md`](../Skills/skill-creator/SKILL.md) — full operating manual; load via prompt "create a skill", "audit a skill", etc.
-- [`Instructions/copilot-authoring.instructions.md`](../Instructions/copilot-authoring.instructions.md) — schema and style rules for SKILL.md, agent, instruction, and prompt files. Auto-loaded when editing any of them.
+- [`Instructions/copilot-authoring.instructions.md`](../com.github.copilot/rules/copilot-authoring.instructions.md) — schema and style rules for SKILL.md, agent, instruction, and prompt files. Auto-loaded when editing any of them.
 - [`Skills/sampler-framework/`](../Skills/sampler-framework/), [`Skills/automatedlab-deployment/`](../Skills/automatedlab-deployment/), [`Skills/datum-configuration/`](../Skills/datum-configuration/) — worked examples of the SKILL.md-as-navigation-map + `references/` pattern after Pass-B split (May 2026).
 
 ## When in doubt — skill, instruction, agent, or prompt?
