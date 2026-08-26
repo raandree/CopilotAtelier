@@ -36,7 +36,7 @@ Ready-to-use test patterns for common PowerShell testing scenarios using Pester 
 > can stall the pipe. Always use the canonical fully detached launcher.
 
 Use the encoded cross-platform wrapper in
-[`powershell-execution-safety.instructions.md`](../../Instructions/powershell-execution-safety.instructions.md).
+[`powershell-execution-safety.instructions.md`](../../com.github.copilot/rules/powershell-execution-safety.instructions.md).
 It creates GUID-scoped `$env:TEMP` log/result files and returns `ProcessId`,
 `LogPath`, and `ResultPath`.
 

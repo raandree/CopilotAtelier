@@ -158,12 +158,14 @@ Describe 'Agent plugin manifest' -Tag 'Unit' {
 
     It 'Should expose <Component> from the Copilot client-extension namespace' -ForEach @(
         @{ Component = 'agents'; RelativePath = 'com.github.copilot/agents'; Filter = '*.agent.md' }
+        @{ Component = 'rules'; RelativePath = 'com.github.copilot/rules'; Filter = '*.instructions.md' }
+        @{ Component = 'commands'; RelativePath = 'com.github.copilot/commands'; Filter = '*.prompt.md' }
     ) {
         <#
-            Custom agents are not a portable 1.0 component type. VS Code and the
-            other Copilot clients read them from com.github.copilot/, and a
-            client that does not own that namespace ignores it without
-            rejecting the package.
+            Custom agents, rules, and slash commands are not portable 1.0
+            component types. VS Code and the other Copilot clients read them
+            from com.github.copilot/, and a client that does not own that
+            namespace ignores it without rejecting the package.
         #>
         $componentPath = Join-Path -Path $script:repoRoot -ChildPath $RelativePath
 

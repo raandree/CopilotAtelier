@@ -79,7 +79,7 @@ Make failures loud so they stay debuggable:
 - `-ErrorAction SilentlyContinue` is for expected, handled absences (a probe that may return nothing), never a tool to mute a real error.
 - Preserve context on rethrow (`throw` inside `catch`, or `$PSCmdlet.ThrowTerminatingError($_)`); do not replace a rich error record with a bare string.
 
-See [`powershell.instructions.md`](../../Instructions/powershell.instructions.md) for the repo's error-handling rules.
+See [`powershell.instructions.md`](../../com.github.copilot/rules/powershell.instructions.md) for the repo's error-handling rules.
 
 ## Tactics for PowerShell
 
@@ -121,7 +121,7 @@ Done under this skill means:
 
 - A deterministic reproduction existed before the fix.
 - The root cause is named, not just the symptom masked.
-- A regression test fails without the fix and passes with it; the suite is green, run in a separate process per [`powershell-execution-safety.instructions.md`](../../Instructions/powershell-execution-safety.instructions.md).
+- A regression test fails without the fix and passes with it; the suite is green, run in a separate process per [`powershell-execution-safety.instructions.md`](../../com.github.copilot/rules/powershell-execution-safety.instructions.md).
 - The change clears the shared Post-flight Definition of Done gate.
 
 ## Related

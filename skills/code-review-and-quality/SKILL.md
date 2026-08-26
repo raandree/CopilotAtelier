@@ -19,7 +19,7 @@ description: >-
 
 # Code Review & Quality
 
-A structured workflow for reviewing a code change — as the reviewer, or as the author self-reviewing before asking for one. Scope is general engineering quality, PowerShell/DSC-flavoured. For a dedicated security audit use the [`code-review`](../../Prompts/code-review.prompt.md) prompt (SARIF + CVSS via the security-reviewer agent) or [`agent-security-review`](../agent-security-review/SKILL.md) for LLM/agent wiring; for adversarial design critique use [`devils-advocate-review`](../devils-advocate-review/SKILL.md).
+A structured workflow for reviewing a code change — as the reviewer, or as the author self-reviewing before asking for one. Scope is general engineering quality, PowerShell/DSC-flavoured. For a dedicated security audit use the [`code-review`](../../com.github.copilot/commands/code-review.prompt.md) prompt (SARIF + CVSS via the security-reviewer agent) or [`agent-security-review`](../agent-security-review/SKILL.md) for LLM/agent wiring; for adversarial design critique use [`devils-advocate-review`](../devils-advocate-review/SKILL.md).
 
 ## When to Use
 
@@ -35,7 +35,7 @@ Review every change against these, in order — design first, because a well-nam
 2. **Correctness.** Does it do what it claims across the real input range — empty, `$null`, pipeline vs parameter, large input, non-ASCII, wrong types? Are error paths handled (`-ErrorAction Stop`, `try/catch`) rather than swallowed?
 3. **Complexity.** Is it as simple as it can be for what it does? Flag dead code, needless indirection, and cleverness a maintainer must decode. Do not require more generality than the task needs.
 4. **Tests.** Is the new behaviour covered by a test that would fail without the change? Do the tests assert behaviour, not internals? See [`test-driven-development`](../test-driven-development/SKILL.md) and [`pester-patterns`](../pester-patterns/SKILL.md).
-5. **Clarity & naming.** Approved verbs (`Get-Verb`) and intention-revealing names; comments explain the reason, not the mechanics; consistent terminology. See [`powershell.instructions.md`](../../Instructions/powershell.instructions.md).
+5. **Clarity & naming.** Approved verbs (`Get-Verb`) and intention-revealing names; comments explain the reason, not the mechanics; consistent terminology. See [`powershell.instructions.md`](../../com.github.copilot/rules/powershell.instructions.md).
 
 ## Severity labels
 
@@ -92,7 +92,7 @@ A review is done when:
 
 ## Related
 
-- [`code-review`](../../Prompts/code-review.prompt.md) prompt and the security-reviewer agent — deep security review with SARIF + CVSS.
+- [`code-review`](../../com.github.copilot/commands/code-review.prompt.md) prompt and the security-reviewer agent — deep security review with SARIF + CVSS.
 - [`agent-security-review`](../agent-security-review/SKILL.md) — reviewing agent, LLM, or MCP wiring.
 - [`devils-advocate-review`](../devils-advocate-review/SKILL.md) — adversarial critique of a design or claim.
 - [`test-driven-development`](../test-driven-development/SKILL.md), [`pester-patterns`](../pester-patterns/SKILL.md) — the testing axis.

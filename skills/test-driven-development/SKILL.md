@@ -19,7 +19,7 @@ description: >-
 
 # Test-Driven Development
 
-The discipline of writing the test before the code, for PowerShell modules and DSC configurations. This skill is the workflow — the loop, what to test, and the gates. It is not a Pester tutorial: for mocking recipes and templates use [`pester-patterns`](../pester-patterns/SKILL.md), for Pester 5 syntax see [`pester.instructions.md`](../../Instructions/pester.instructions.md), and to run tests without freezing VS Code see [`powershell-execution-safety.instructions.md`](../../Instructions/powershell-execution-safety.instructions.md).
+The discipline of writing the test before the code, for PowerShell modules and DSC configurations. This skill is the workflow — the loop, what to test, and the gates. It is not a Pester tutorial: for mocking recipes and templates use [`pester-patterns`](../pester-patterns/SKILL.md), for Pester 5 syntax see [`pester.instructions.md`](../../com.github.copilot/rules/pester.instructions.md), and to run tests without freezing VS Code see [`powershell-execution-safety.instructions.md`](../../com.github.copilot/rules/powershell-execution-safety.instructions.md).
 
 ## When to Use
 
@@ -36,7 +36,7 @@ One behaviour at a time. Never write production code with no failing test demand
 2. **Green.** Write the least code that makes the test pass. Resist gold-plating; the test defines done for this slice.
 3. **Refactor.** With the test green, improve names, remove duplication, extract helpers — re-running the test after each step. Green stays green.
 
-Commit at green (see [`git.instructions.md`](../../Instructions/git.instructions.md)); each commit is a working save point.
+Commit at green (see [`git.instructions.md`](../../com.github.copilot/rules/git.instructions.md)); each commit is a working save point.
 
 ## What to test, and at which level
 
@@ -103,7 +103,7 @@ When a red flag fires, stop and restore the loop — do not push code past a bro
 A change is done under this skill only when:
 
 - The new or changed behaviour has a test that failed before the code and passes after it.
-- The full suite is green, run in a separate process per [`powershell-execution-safety.instructions.md`](../../Instructions/powershell-execution-safety.instructions.md).
+- The full suite is green, run in a separate process per [`powershell-execution-safety.instructions.md`](../../com.github.copilot/rules/powershell-execution-safety.instructions.md).
 - `Invoke-ScriptAnalyzer` is clean on the changed files.
 - The change clears the shared Post-flight Definition of Done gate.
 

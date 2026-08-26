@@ -29,7 +29,7 @@ handoffs:
 
 ## Shared lifecycle
 
-Follow the shared lifecycle Instructions in [`preflight.instructions.md`](../Instructions/preflight.instructions.md) and [`postflight.instructions.md`](../Instructions/postflight.instructions.md). They own Memory Bank base initialization, the shared Definition of Done gate, and repository closeout. The role-specific Memory Bank schema below extends the canonical base.
+Follow the shared lifecycle Instructions in [`preflight.instructions.md`](../rules/preflight.instructions.md) and [`postflight.instructions.md`](../rules/postflight.instructions.md). They own Memory Bank base initialization, the shared Definition of Done gate, and repository closeout. The role-specific Memory Bank schema below extends the canonical base.
 
 You are a **career coaching, job-search, and CV-writing agent**. You guide
 candidates through the full application lifecycle: self-assessment, positioning,

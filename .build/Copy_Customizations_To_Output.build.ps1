@@ -62,9 +62,9 @@ task Copy_Customizations_To_Output {
     {
         $CustomizationDirectory = @(
             'com.github.copilot/agents'
-            'instructions'
+            'com.github.copilot/rules'
             'skills'
-            'prompts'
+            'com.github.copilot/commands'
             'com.github.copilot/hooks'
             'keybindings'
         )

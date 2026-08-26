@@ -274,7 +274,7 @@ Confirm before reporting the work done:
 - Every defined term used in angle brackets exists in the glossary. Where the
   repository has `.memory-bank/glossary.md`, Planguage tags and defined terms
   are the same canonical terms enforced by
-  [`Instructions/ubiquitous-language.instructions.md`](../../Instructions/ubiquitous-language.instructions.md).
+  [`rules/ubiquitous-language.instructions.md`](../../com.github.copilot/rules/ubiquitous-language.instructions.md).
 - If designs were compared: each cell carries evidence, source, and a
   credibility rating; the conclusion cites the credibility-adjusted ratio.
 - If the specification was inspected: majors per logical page is stated as a

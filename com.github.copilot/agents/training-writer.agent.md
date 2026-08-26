@@ -19,7 +19,7 @@ You are an expert-level training content writer and instructional designer. Your
 
 ## Shared lifecycle
 
-Follow the shared lifecycle Instructions in [`preflight.instructions.md`](../Instructions/preflight.instructions.md) and [`postflight.instructions.md`](../Instructions/postflight.instructions.md). They own Memory Bank base initialization, the shared Definition of Done gate, and repository closeout. The training schema below extends the canonical base.
+Follow the shared lifecycle Instructions in [`preflight.instructions.md`](../rules/preflight.instructions.md) and [`postflight.instructions.md`](../rules/postflight.instructions.md). They own Memory Bank base initialization, the shared Definition of Done gate, and repository closeout. The training schema below extends the canonical base.
 
 ## Core Agent Principles
 

@@ -9,14 +9,21 @@ source: current task evidence
 
 ## Current focus
 
-The plugin package moved to Agent Plugins 1.0. `plugin.json` declares the
-canonical `$schema`, the legacy `agents` and `skills` path fields are gone,
-`Skills/` is now root `skills/`, and agents and hooks moved to
-`com.github.copilot/{agents,hooks}` with the mandated `hooks.json` filename.
-`Instructions/` and `Prompts/` were only lowercased — the `rules` and
-`commands` namespace formats are undocumented, and moving them would break
-every cross-type relative link in the deployed tree. Decision 0023 records the
-split and the one bounded cost it accepts.
+The plugin package moved to Agent Plugins 1.0, and the package is now the
+primary layout rather than a second view of the module payload. `plugin.json`
+declares the canonical `$schema`, the legacy `agents` and `skills` path fields
+are gone, `Skills/` is root `skills/`, and all four Copilot-specific component
+types live under `com.github.copilot/{agents,rules,commands,hooks}`. The module
+deployment is preserved by translation: the installer maps deployed name to
+source path, so `~/.copilot/{agents,instructions,skills,prompts,hooks}` is
+unchanged. Decision 0023 records the trade-off it accepts — cross-type relative
+links are now correct in the package view and wrong in the deployed view.
+
+Unverified and deliberately so: no documentation states whether
+`.instructions.md` and `.prompt.md` register from `com.github.copilot/rules`
+and `com.github.copilot/commands`. The bet is one-sided, since the module path
+delivers both regardless. Confirming it needs one empirical test — install from
+source and check whether the instructions and prompts appear.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 

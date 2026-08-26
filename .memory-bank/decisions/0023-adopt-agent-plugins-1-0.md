@@ -6,7 +6,7 @@ owner: software-engineer
 source: Agent Plugins 1.0 specification and VS Code agent plugin documentation
 ---
 
-# Adopt Agent Plugins 1.0 without moving Instructions and Prompts
+# Adopt Agent Plugins 1.0 as the primary layout
 
 ## Context and problem statement
 
@@ -34,24 +34,28 @@ are siblings with the same names.
 
 ## Decision outcome
 
-Adopt 1.0 for the components whose location the format actually specifies, and
-leave the rest at the repository root.
+Treat the Agent Plugins 1.0 package as the primary layout and let the module
+deployment map onto it, rather than the other way round.
 
 - `Skills/` → `skills/`. Required by the format, and the one rename that also
   fixes a latent defect: the deployed folder is `~/.copilot/skills`, so every
   case-only mismatch was already broken on a case-sensitive filesystem.
-- `Agents/` → `com.github.copilot/agents/` and `Hooks/` →
-  `com.github.copilot/hooks/` with the format-mandated `hooks.json` filename.
-  Hooks are a net gain: the legacy manifest never carried them, so a plugin
-  install previously had no guardrails at all.
-- `Instructions/` and `Prompts/` are lowercased in place rather than moved to
-  `com.github.copilot/rules/` and `com.github.copilot/commands/`. The file
-  formats those two namespaces expect are undocumented, and moving them would
-  break every cross-type relative link in the deployed tree in exchange for a
-  gain that cannot be verified from the specification.
-- The deployment contract does not change. The installer carries an explicit
-  deployed-name → source-path map, because the source layout and the deployed
-  layout are no longer the same shape.
+- Every Copilot-specific component moves into the client-extension namespace
+  under the names the format gives them: `Agents/` → `com.github.copilot/agents/`,
+  `Instructions/` → `com.github.copilot/rules/`, `Prompts/` →
+  `com.github.copilot/commands/`, and `Hooks/` → `com.github.copilot/hooks/`
+  with the mandated `hooks.json` filename.
+- `Install-CopilotAtelier` carries an explicit deployed-name → source-path map,
+  so `~/.copilot/{agents,instructions,skills,prompts,hooks}` is unchanged. The
+  deployment contract is preserved by translation, not by layout.
+- `keybindings/` stays at the root. It is not a plugin component type at all.
+
+The `rules/` and `commands/` file formats are not documented by VS Code or the
+Copilot CLI, so whether `.instructions.md` and `.prompt.md` register from a
+plugin install is unverified. The downside is bounded and one-sided: if a
+client rejects them, those components simply do not load *from the plugin*,
+while the module path continues to deliver them to the same deployed
+locations. There is no state in which this is worse than not moving them.
 
 Rejected: renaming the deployed directories to match the namespace. That would
 require pinning `chat.instructionsFilesLocations`, and this repository already
@@ -61,11 +65,14 @@ location once already.
 
 ## Consequences
 
-- A relative link such as `../Instructions/preflight.instructions.md` inside an
-  agent file now resolves in the deployed tree but not in the package layout,
-  because 1.0 puts agents one directory deeper. Nothing functional rests on it:
-  both lifecycle Instructions declare `applyTo: "**"` and load regardless. No
-  layout satisfies both trees, so this is a bounded cost, not an oversight.
+- Cross-type relative links are now correct in the package and repository view
+  and wrong in the deployed view, because `rules` and `commands` are deployed
+  as `instructions` and `prompts`. That direction was chosen deliberately: the
+  package is what a human browses on github.com and what a plugin install
+  materialises. Nothing functional rests on these links — both lifecycle
+  Instructions declare `applyTo: "**"` and load regardless — and links into the
+  repository-only `reference/` were already dead in the deployed tree, so this
+  is a widening of an accepted condition rather than a new class of defect.
 - Hook commands must resolve two roots. A plugin is installed outside the
   workspace so a relative path cannot work, and the same file also ships to
   `~/.copilot/hooks`; each command resolves `$env:PLUGIN_ROOT` when a plugin

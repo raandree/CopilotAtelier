@@ -213,6 +213,6 @@ occupy several rows. Fold them by name before presenting a ranking.
 
 ## See also
 
-- [`Prompts/usage.prompt.md`](../../Prompts/usage.prompt.md) — the `/usage`
+- [`commands/usage.prompt.md`](../../com.github.copilot/commands/usage.prompt.md) — the `/usage`
   slash command and its keybinding
 - `chronicle` — standups, session search, and cost-reduction advice

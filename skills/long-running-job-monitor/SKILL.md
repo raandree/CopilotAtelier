@@ -32,7 +32,7 @@ Runs, monitors, and reports on jobs that take many minutes to tens of minutes â€
 This skill is the monitoring layer on top of the terminal execution contract.
 For sync versus async execution, passive completion notifications, stream
 redirection, and interactive prompts, read
-[`Instructions/powershell-execution-safety.instructions.md`](../../Instructions/powershell-execution-safety.instructions.md).
+[`rules/powershell-execution-safety.instructions.md`](../../com.github.copilot/rules/powershell-execution-safety.instructions.md).
 
 What this skill adds: self-timestamping instrumented logs, heartbeats, out-of-band target verification, a ~5-minute status cadence, a stuck-vs-working heuristic, and completion/cleanup.
 

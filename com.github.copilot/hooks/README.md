@@ -73,7 +73,7 @@ path still exits `0`, so a hook fault never blocks compaction.
 `additionalContext` field, so a hook cannot inject text into the post-compaction
 context. The user-visible half is `systemMessage`; the model-facing half is the
 compaction-recovery section of
-[`Instructions/preflight.instructions.md`](../Instructions/preflight.instructions.md),
+[`rules/preflight.instructions.md`](../rules/preflight.instructions.md),
 which survives because Instructions are re-sent with every request.
 
 ## Verifying the hooks load

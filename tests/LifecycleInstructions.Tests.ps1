@@ -1,6 +1,6 @@
 BeforeAll {
     $repoRoot = Split-Path -Parent $PSScriptRoot
-    $preflightPath = Join-Path $repoRoot 'instructions/preflight.instructions.md'
+    $preflightPath = Join-Path $repoRoot 'com.github.copilot/rules/preflight.instructions.md'
     $memoryBankIndexPath = Join-Path $repoRoot '.memory-bank/index.md'
     $script:preflightContent = Get-Content -LiteralPath $preflightPath -Raw
     $script:preflightLineCount = @(Get-Content -LiteralPath $preflightPath).Count

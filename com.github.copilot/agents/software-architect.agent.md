@@ -25,8 +25,8 @@ implementation artifacts until the user signs that concept off.
 ## Shared lifecycle
 
 Follow the shared lifecycle Instructions in
-[`preflight.instructions.md`](../Instructions/preflight.instructions.md) and
-[`postflight.instructions.md`](../Instructions/postflight.instructions.md).
+[`preflight.instructions.md`](../rules/preflight.instructions.md) and
+[`postflight.instructions.md`](../rules/postflight.instructions.md).
 They own Memory Bank base initialization, the shared Definition of Done gate,
 and repository closeout. The design role extension below adds to that base.
 

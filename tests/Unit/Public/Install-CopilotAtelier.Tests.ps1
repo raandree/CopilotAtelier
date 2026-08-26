@@ -34,7 +34,7 @@ BeforeAll {
             $Path
         )
 
-        foreach ($directoryName in @('com.github.copilot/agents', 'instructions', 'skills', 'prompts', 'com.github.copilot/hooks'))
+        foreach ($directoryName in @('com.github.copilot/agents', 'com.github.copilot/rules', 'skills', 'com.github.copilot/commands', 'com.github.copilot/hooks'))
         {
             $directoryPath = Join-Path -Path $Path -ChildPath $directoryName
 

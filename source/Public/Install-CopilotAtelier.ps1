@@ -90,15 +90,16 @@ function Install-CopilotAtelier
     }
 
     <#
-        Deployed directory name -> source path inside the content root. Agents
-        and hooks live under the Agent Plugins 1.0 client-extension namespace,
-        so the source layout no longer matches the deployed layout.
+        Deployed directory name -> source path inside the content root. Every
+        Copilot-specific component lives under the Agent Plugins 1.0 client
+        extension namespace, where the format names them rules and commands, so
+        the source layout no longer matches the deployed layout.
     #>
     $customizationDirectory = [ordered] @{
         agents       = 'com.github.copilot/agents'
-        instructions = 'instructions'
+        instructions = 'com.github.copilot/rules'
         skills       = 'skills'
-        prompts      = 'prompts'
+        prompts      = 'com.github.copilot/commands'
         hooks        = 'com.github.copilot/hooks'
     }
 

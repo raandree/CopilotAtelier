@@ -6,12 +6,12 @@ $script:agentCase = @(
 )
 
 $script:instructionCase = @(
-    Get-ChildItem -LiteralPath (Join-Path $script:repoRoot 'instructions') -File -Filter '*.instructions.md' |
+    Get-ChildItem -LiteralPath (Join-Path $script:repoRoot 'com.github.copilot/rules') -File -Filter '*.instructions.md' |
         ForEach-Object { @{ FileName = $_.Name; FilePath = $_.FullName } }
 )
 
 $script:promptCase = @(
-    Get-ChildItem -LiteralPath (Join-Path $script:repoRoot 'prompts') -File -Filter '*.prompt.md' |
+    Get-ChildItem -LiteralPath (Join-Path $script:repoRoot 'com.github.copilot/commands') -File -Filter '*.prompt.md' |
         ForEach-Object { @{ FileName = $_.Name; FilePath = $_.FullName } }
 )
 
