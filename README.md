@@ -17,6 +17,35 @@ well-known `~/.copilot/` folders that VS Code and the Copilot CLI both read.
 <br clear="left">
 <!-- markdownlint-enable MD033 -->
 
+## Contents
+
+- [Quick Start](#quick-start)
+- [Purpose](#purpose)
+- [Folder Structure](#folder-structure)
+- [What Each Folder Contains](#what-each-folder-contains)
+- [Available Skills](#available-skills)
+- [VS Code Settings Applied](#vs-code-settings-applied)
+  - [File Locations](#file-locations)
+  - [Feature Flags](#feature-flags)
+  - [AI Model Preferences](#ai-model-preferences)
+- [Keybindings Applied](#keybindings-applied)
+- [Setup on a New Machine](#setup-on-a-new-machine)
+  - [1. PowerShell Gallery (recommended)](#1-powershell-gallery-recommended)
+  - [2. Repository clone](#2-repository-clone)
+  - [What either path does](#what-either-path-does)
+  - [3. Agent plugin](#3-agent-plugin)
+- [Building from Source](#building-from-source)
+- [Verifying It Works](#verifying-it-works)
+- [Troubleshooting Skills](#troubleshooting-skills)
+  - [YAML Frontmatter Is Required](#yaml-frontmatter-is-required)
+  - [Blank Line After Frontmatter](#blank-line-after-frontmatter)
+  - [Reload Required](#reload-required)
+  - [Verifying Skills Are Loaded](#verifying-skills-are-loaded)
+- [Useful Chat Shortcuts](#useful-chat-shortcuts)
+- [Reference](#reference)
+- [Featured In](#featured-in)
+- [License](#license)
+
 ## Quick Start
 
 You need PowerShell 5.1 or later, VS Code, and the GitHub Copilot Chat extension. No elevation is required.
