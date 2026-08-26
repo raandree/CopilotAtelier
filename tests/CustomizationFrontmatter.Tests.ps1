@@ -1,17 +1,17 @@
 $script:repoRoot = Split-Path -Parent $PSScriptRoot
 
 $script:agentCase = @(
-    Get-ChildItem -LiteralPath (Join-Path $script:repoRoot 'Agents') -File -Filter '*.agent.md' |
+    Get-ChildItem -LiteralPath (Join-Path $script:repoRoot 'com.github.copilot/agents') -File -Filter '*.agent.md' |
         ForEach-Object { @{ FileName = $_.Name; FilePath = $_.FullName } }
 )
 
 $script:instructionCase = @(
-    Get-ChildItem -LiteralPath (Join-Path $script:repoRoot 'Instructions') -File -Filter '*.instructions.md' |
+    Get-ChildItem -LiteralPath (Join-Path $script:repoRoot 'instructions') -File -Filter '*.instructions.md' |
         ForEach-Object { @{ FileName = $_.Name; FilePath = $_.FullName } }
 )
 
 $script:promptCase = @(
-    Get-ChildItem -LiteralPath (Join-Path $script:repoRoot 'Prompts') -File -Filter '*.prompt.md' |
+    Get-ChildItem -LiteralPath (Join-Path $script:repoRoot 'prompts') -File -Filter '*.prompt.md' |
         ForEach-Object { @{ FileName = $_.Name; FilePath = $_.FullName } }
 )
 

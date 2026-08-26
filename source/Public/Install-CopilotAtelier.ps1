@@ -89,19 +89,23 @@ function Install-CopilotAtelier
         $ContentPath = Get-CopilotAtelierContentPath
     }
 
-    # The directories deployed to the canonical target, in discovery-link order.
+    <#
+        Deployed directory name -> source path inside the content root. Agents
+        and hooks live under the Agent Plugins 1.0 client-extension namespace,
+        so the source layout no longer matches the deployed layout.
+    #>
     $customizationDirectory = [ordered] @{
-        Agents       = 'agents'
-        Instructions = 'instructions'
-        Skills       = 'skills'
-        Prompts      = 'prompts'
-        Hooks        = 'hooks'
+        agents       = 'com.github.copilot/agents'
+        instructions = 'instructions'
+        skills       = 'skills'
+        prompts      = 'prompts'
+        hooks        = 'com.github.copilot/hooks'
     }
 
     $presentDirectory = @(
         $customizationDirectory.Keys |
             Where-Object -FilterScript {
-                Test-Path -LiteralPath (Join-Path -Path $ContentPath -ChildPath $_) -PathType Container
+                Test-Path -LiteralPath (Join-Path -Path $ContentPath -ChildPath $customizationDirectory[$_]) -PathType Container
             }
     )
 
@@ -254,7 +258,7 @@ function Install-CopilotAtelier
 
         Write-Information -MessageData "Created: $destination"
 
-        $source = Join-Path -Path $ContentPath -ChildPath $directoryName
+        $source = Join-Path -Path $ContentPath -ChildPath $customizationDirectory[$directoryName]
 
         if (Test-Path -LiteralPath $source)
         {
@@ -266,6 +270,26 @@ function Install-CopilotAtelier
         {
             Write-Information -MessageData "Skipped: $source (not found in the module content)"
         }
+    }
+
+    <#
+        Releases before the Agent Plugins 1.0 layout deployed capitalised names.
+        A case-insensitive filesystem reuses the directory the loop above just
+        rebuilt, but a case-sensitive one keeps the old copy beside the new one,
+        where it would shadow nothing yet drift forever.
+    #>
+    $legacyDirectoryName = @('Agents', 'Instructions', 'Skills', 'Prompts', 'Hooks', 'Keybindings')
+
+    $staleDirectory = @(
+        Get-ChildItem -LiteralPath $path.TargetPath -Directory |
+            Where-Object -FilterScript { $_.Name -cin $legacyDirectoryName }
+    )
+
+    foreach ($directory in $staleDirectory)
+    {
+        Remove-Item -LiteralPath $directory.FullName -Recurse -Force
+
+        Write-Information -MessageData "Removed legacy directory: $($directory.FullName)"
     }
 
     $moduleVersion = $ExecutionContext.SessionState.Module.Version
@@ -292,7 +316,7 @@ function Install-CopilotAtelier
     foreach ($directoryName in $customizationDirectory.Keys)
     {
         $setCustomizationLink = @{
-            LinkPath     = Join-Path -Path $path.CopilotRoot -ChildPath $customizationDirectory[$directoryName]
+            LinkPath     = Join-Path -Path $path.CopilotRoot -ChildPath $directoryName
             TargetPath   = Join-Path -Path $path.TargetPath -ChildPath $directoryName
             LinkItemType = $path.LinkItemType
             Force        = $Force
@@ -320,7 +344,7 @@ function Install-CopilotAtelier
         {
             $setCustomizationLink = @{
                 LinkPath     = $linkPath
-                TargetPath   = Join-Path -Path $path.TargetPath -ChildPath 'Skills'
+                TargetPath   = Join-Path -Path $path.TargetPath -ChildPath 'skills'
                 LinkItemType = $path.LinkItemType
                 CreateOnly   = $true
             }
@@ -366,7 +390,7 @@ function Install-CopilotAtelier
         Idempotent keybinding merge: match on the (key, command, when) tuple so
         re-runs do not duplicate entries and user-added bindings are preserved.
     #>
-    $keybindingSourcePath = Join-Path -Path (Join-Path -Path $ContentPath -ChildPath 'Keybindings') -ChildPath 'keybindings.json'
+    $keybindingSourcePath = Join-Path -Path (Join-Path -Path $ContentPath -ChildPath 'keybindings') -ChildPath 'keybindings.json'
 
     if (Test-Path -LiteralPath $keybindingSourcePath)
     {

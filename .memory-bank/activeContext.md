@@ -9,15 +9,31 @@ source: current task evidence
 
 ## Current focus
 
-Every shipped Instruction now declares a `description`, so all sixteen can be
-selected by semantic match instead of only by `applyTo` path, and the twelve
-legacy "Best Practices and Standards" files were held against the rules in
-`copilot-authoring.instructions.md` in the same pass. That closes the follow-up
-yesterday's schema re-verification opened. The change is merged with the Custom
-agent slug rename, the `software-architect` agent, and the release provenance
-fix on `main`. The compaction checkpoint, authoring schema refresh, and
-`skill-creator` split previously listed as in flight are already in its ancestry;
-no implementation change remains open from this merge.
+The plugin package moved to Agent Plugins 1.0. `plugin.json` declares the
+canonical `$schema`, the legacy `agents` and `skills` path fields are gone,
+`Skills/` is now root `skills/`, and agents and hooks moved to
+`com.github.copilot/{agents,hooks}` with the mandated `hooks.json` filename.
+`Instructions/` and `Prompts/` were only lowercased — the `rules` and
+`commands` namespace formats are undocumented, and moving them would break
+every cross-type relative link in the deployed tree. Decision 0023 records the
+split and the one bounded cost it accepts.
+
+## Environment hazard — scripted bulk writes corrupt file content
+
+Two bulk PowerShell read-modify-write passes over this working tree replaced
+whole file contents with a monoalphabetic substitution cipher (`instructions`
+→ `nnkteuotnonk`, `applyTo` → `aeelyTo`), 129 files each time. Both were caught
+and fully restored from git; no corruption reached a commit.
+
+- It is asynchronous. The script's own byte-exact read-back verification passed
+  for all 175 files, and `git diff` showed the corruption afterwards, so the
+  rewrite lands after the write returns. A verify-after-write loop cannot
+  detect it.
+- A single-file scripted write was clean, so it correlates with volume.
+- Every `replace_string_in_file` edit was clean, across roughly forty files.
+
+Until the cause is found, edit files through the editor tooling, and treat any
+scripted bulk rewrite of this tree as unsafe. `git grep -l -e nnkteuotnon -e\naeelyTo` detects it in one pass.
 
 ## Implemented — Custom agent file naming
 

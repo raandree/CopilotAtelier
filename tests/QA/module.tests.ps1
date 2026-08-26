@@ -155,7 +155,7 @@ Describe 'General module control' -Tag 'QA' {
     It 'Should ship the customization directories inside the built module' {
         $moduleBase = (Get-Module -Name $script:moduleName).ModuleBase
 
-        foreach ($directoryName in @('Agents', 'Instructions', 'Skills', 'Prompts', 'Hooks', 'Keybindings'))
+        foreach ($directoryName in @('com.github.copilot/agents', 'instructions', 'skills', 'prompts', 'com.github.copilot/hooks', 'keybindings'))
         {
             $directoryPath = Join-Path -Path $moduleBase -ChildPath $directoryName
 

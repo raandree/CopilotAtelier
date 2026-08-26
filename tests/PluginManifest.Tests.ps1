@@ -61,8 +61,13 @@ Describe 'Agent plugin manifest' -Tag 'Unit' {
     }
 
     It 'Should declare a name the plugin loaders accept' {
-        # A slash, colon, or uppercase letter makes the plugin fail to load silently.
-        $script:manifest.name | Should -Match '^[a-z0-9]+(-[a-z0-9]+)*$'
+        <#
+            Agent Plugins 1.0 name rules: 1-64 characters, lowercase letters,
+            digits, hyphens and periods only, alphanumeric at both ends, and no
+            doubled separator. A slash, colon, or uppercase letter makes the
+            plugin fail to load silently.
+        #>
+        $script:manifest.name | Should -MatchExactly '^[a-z0-9]([a-z0-9]|-(?!-)|\.(?!\.))*[a-z0-9]$|^[a-z0-9]$'
         $script:manifest.name.Length | Should -BeLessOrEqual 64
     }
 
@@ -94,39 +99,125 @@ Describe 'Agent plugin manifest' -Tag 'Unit' {
         $script:manifest.version | Should -MatchExactly '^\d+\.\d+\.\d+$'
     }
 
-    It 'Should point the agents component path at the shipped custom agents' {
-        $agentPath = Join-Path -Path $script:repoRoot -ChildPath $script:manifest.agents
-
-        Test-Path -LiteralPath $agentPath -PathType Container | Should -BeTrue
-        @(Get-ChildItem -LiteralPath $agentPath -Filter '*.agent.md' -File) | Should -Not -BeNullOrEmpty
+    It 'Should declare the canonical Agent Plugins 1.0 schema' {
+        <#
+            The $schema value is the format selector, not decoration. Without
+            it the manifest loads in the legacy Copilot format, where component
+            paths come from the agents and skills fields this package no longer
+            declares - so every component would be looked up in the wrong place.
+        #>
+        $script:manifest.'$schema' |
+            Should -Be 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json'
     }
 
-    It 'Should point the skills component path at the shipped skills' {
-        $skillPath = Join-Path -Path $script:repoRoot -ChildPath $script:manifest.skills
+    It 'Should declare only the fields the closed manifest schema permits' {
+        <#
+            The 1.0 manifest schema is closed. A client reports and ignores an
+            unknown top-level field, so a stale component-path field such as
+            'agents' or 'skills' does not fail the build - it silently does
+            nothing, which is exactly the failure this assertion catches.
+        #>
+        $permitted = @(
+            '$schema', 'name', 'version', 'description', 'author'
+            'homepage', 'repository', 'license', 'keywords', 'extensions'
+        )
 
-        Test-Path -LiteralPath $skillPath -PathType Container | Should -BeTrue
+        $unknown = @(
+            $script:manifest.PSObject.Properties.Name |
+                Where-Object -FilterScript { $permitted -notcontains $_ }
+        )
+
+        $unknown -join ', ' | Should -BeNullOrEmpty
+    }
+
+    It 'Should carry a description within the manifest limit' {
+        $script:manifest.description | Should -Not -BeNullOrEmpty
+        $script:manifest.description.Length | Should -BeLessOrEqual 1024
+    }
+
+    It 'Should discover skills from the portable root location' {
+        <#
+            Agent Plugins 1.0 reads skills only from a lowercase ./skills at the
+            plugin root and the location cannot be overridden. The name is
+            compared case-sensitively because a case-insensitive filesystem
+            would otherwise let a capitalised folder pass here and drop every
+            skill on Linux.
+        #>
+        $skillDirectory = @(
+            Get-ChildItem -LiteralPath $script:repoRoot -Directory |
+                Where-Object -FilterScript { $_.Name -ceq 'skills' }
+        )
+
+        $skillDirectory | Should -HaveCount 1
+
         @(
-            Get-ChildItem -LiteralPath $skillPath -Directory |
+            Get-ChildItem -LiteralPath $skillDirectory[0].FullName -Directory |
                 Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'SKILL.md') -PathType Leaf }
         ) | Should -Not -BeNullOrEmpty
     }
 
-    It 'Should not declare the Agent Plugins schema while the skills folder is capitalised' {
+    It 'Should expose <Component> from the Copilot client-extension namespace' -ForEach @(
+        @{ Component = 'agents'; RelativePath = 'com.github.copilot/agents'; Filter = '*.agent.md' }
+    ) {
         <#
-            Without $schema the manifest loads in the legacy Copilot format, where
-            the agents and skills fields override the default component paths -
-            which is the only reason the capital-S Skills folder is discovered.
-            Agent Plugins 1.0 ignores those fields and reads skills solely from a
-            lowercase ./skills, so adding the schema without renaming the folder
-            drops every skill with no error.
+            Custom agents are not a portable 1.0 component type. VS Code and the
+            other Copilot clients read them from com.github.copilot/, and a
+            client that does not own that namespace ignores it without
+            rejecting the package.
         #>
-        $declaresSchema = @($script:manifest.PSObject.Properties.Name) -contains '$schema'
-        $hasLowercaseSkills = @(
-            Get-ChildItem -LiteralPath $script:repoRoot -Directory |
-                Where-Object { $_.Name -ceq 'skills' }
-        ).Count -gt 0
+        $componentPath = Join-Path -Path $script:repoRoot -ChildPath $RelativePath
 
-        ($declaresSchema -and -not $hasLowercaseSkills) | Should -BeFalse
+        Test-Path -LiteralPath $componentPath -PathType Container | Should -BeTrue
+
+        @(Get-ChildItem -LiteralPath $componentPath -File -Filter $Filter) |
+            Should -Not -BeNullOrEmpty -Because "$Component must ship from the namespace directory"
+    }
+
+    It 'Should place the hook configuration where the 1.0 format expects it' {
+        <#
+            The Copilot format reads hooks.json at the plugin root; the 1.0
+            format reads com.github.copilot/hooks/hooks.json. Declaring the
+            schema without moving the file drops every hook with no error.
+        #>
+        $hookConfigPath = Join-Path -Path $script:repoRoot -ChildPath 'com.github.copilot/hooks/hooks.json'
+
+        Test-Path -LiteralPath $hookConfigPath -PathType Leaf | Should -BeTrue
+
+        $hookConfig = Get-Content -LiteralPath $hookConfigPath -Raw | ConvertFrom-Json
+
+        @($hookConfig.hooks.PSObject.Properties.Name) | Should -Not -BeNullOrEmpty
+    }
+
+    It 'Should resolve hook scripts from the plugin root as well as the user profile' {
+        <#
+            A plugin is installed outside the workspace, so a hook command
+            cannot use a relative path. The same file also ships to
+            ~/.copilot/hooks through the module, so each command has to resolve
+            both roots - PLUGIN_ROOT when the client sets it, the user profile
+            otherwise. Losing either branch breaks one distribution path
+            silently.
+        #>
+        $hookConfigPath = Join-Path -Path $script:repoRoot -ChildPath 'com.github.copilot/hooks/hooks.json'
+        $hookConfig = Get-Content -LiteralPath $hookConfigPath -Raw | ConvertFrom-Json
+
+        $command = @(
+            foreach ($hookEvent in $hookConfig.hooks.PSObject.Properties)
+            {
+                foreach ($entry in $hookEvent.Value)
+                {
+                    $entry.command
+                    $entry.windows
+                }
+            }
+        )
+
+        $command | Should -Not -BeNullOrEmpty
+
+        foreach ($commandText in $command)
+        {
+            $commandText | Should -Match 'PLUGIN_ROOT'
+            $commandText | Should -Match '\.copilot'
+        }
     }
 }
 

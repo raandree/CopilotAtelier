@@ -61,12 +61,12 @@ task Copy_Customizations_To_Output {
     if (-not $CustomizationDirectory)
     {
         $CustomizationDirectory = @(
-            'Agents'
-            'Instructions'
-            'Skills'
-            'Prompts'
-            'Hooks'
-            'Keybindings'
+            'com.github.copilot/agents'
+            'instructions'
+            'skills'
+            'prompts'
+            'com.github.copilot/hooks'
+            'keybindings'
         )
     }
 

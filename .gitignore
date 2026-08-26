@@ -14,5 +14,5 @@ output/
 .evalwork/
 
 # Trigger-eval scratch. -WorkDir belongs outside the repository; this catches
-# the runs where it was not, because Skills/ is the published module payload.
-Skills/*/scripts/work/
+# the runs where it was not, because skills/ is the published module payload.
+skills/*/scripts/work/

@@ -14,7 +14,7 @@ BeforeDiscovery {
 Describe 'Windows GUI screenshot native-dialog helper' -Tag 'Unit' -Skip:(-not $script:isSupportedHost) {
     BeforeAll {
         $script:helperPath = Join-Path $PSScriptRoot (
-            '..\Skills\windows-gui-screenshot-capture\scripts\DialogCapture.ps1'
+            '..\skills\windows-gui-screenshot-capture\scripts\DialogCapture.ps1'
         )
         . $script:helperPath
         $script:helperContent = Get-Content -LiteralPath $script:helperPath -Raw -Encoding UTF8
@@ -97,7 +97,7 @@ Describe 'Windows GUI screenshot native-dialog helper' -Tag 'Unit' -Skip:(-not $
 Describe 'Windows GUI screenshot already-open-window helper' -Tag 'Unit' -Skip:(-not $script:isSupportedHost) {
     BeforeAll {
         $script:capturePath = Join-Path $PSScriptRoot (
-            '..\Skills\windows-gui-screenshot-capture\scripts\WindowCapture.ps1'
+            '..\skills\windows-gui-screenshot-capture\scripts\WindowCapture.ps1'
         )
         . $script:capturePath
         $script:captureContent = Get-Content -LiteralPath $script:capturePath -Raw -Encoding UTF8

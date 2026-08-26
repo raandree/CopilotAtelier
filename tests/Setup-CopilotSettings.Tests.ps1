@@ -207,7 +207,7 @@ Describe 'Setup-CopilotSettings' -Tag 'Integration' {
         Test-Path -LiteralPath $keybindingsPath -PathType Leaf | Should -BeTrue
 
         $targetPath = Join-Path $homePath 'CopilotAtelier'
-        Test-Path -LiteralPath (Join-Path $targetPath 'Agents') -PathType Container |
+        Test-Path -LiteralPath (Join-Path $targetPath 'agents') -PathType Container |
             Should -BeTrue
 
         $agentLinkPath = Join-Path $homePath '.copilot/agents'

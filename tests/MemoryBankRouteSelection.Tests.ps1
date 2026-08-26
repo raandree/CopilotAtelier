@@ -1,7 +1,7 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
     $script:evaluatorPath = Join-Path $script:repoRoot (
-        'Skills/memory-bank/scripts/Invoke-MemoryBankRouteSelectionEval.ps1'
+        'skills/memory-bank/scripts/Invoke-MemoryBankRouteSelectionEval.ps1'
     )
     $script:fixtureRoot = Join-Path $TestDrive 'repository'
     $script:memoryBankPath = Join-Path $script:fixtureRoot '.memory-bank'

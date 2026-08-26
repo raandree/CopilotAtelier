@@ -1,6 +1,7 @@
 {
+    "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
     "name": "copilot-atelier",
-    "description": "Portable GitHub Copilot customization library: role-specific custom agents with handoffs and subagent allow-lists, and on-demand Agent Skills for PowerShell/DSC engineering (Sampler, Pester, Datum, AutomatedLab, WinRM, MECM), document conversion (PDF, DOCX, XLSX, Marp, pandoc), Outlook and Microsoft To Do automation, research and citation integrity, agentic-security review, and skill/prompt/agent evaluation. Instructions and hooks are not part of the plugin format; install the CopilotAtelier module from the PowerShell Gallery to get those too.",
+    "description": "Portable GitHub Copilot customization library: role-specific custom agents with handoffs and subagent allow-lists, deterministic lifecycle hooks, and on-demand Agent Skills for PowerShell/DSC engineering (Sampler, Pester, Datum, AutomatedLab, WinRM, MECM), document conversion (PDF, DOCX, XLSX, Marp, pandoc), Outlook and Microsoft To Do automation, research and citation integrity, agentic-security review, and skill/prompt/agent evaluation. Skills are portable; agents and hooks load in GitHub Copilot clients. Auto-applied instructions, prompt files, and keybindings are not plugin component types; install the CopilotAtelier module from the PowerShell Gallery to get those too.",
     "version": "3.1.0",
     "author": {
         "name": "raandree",
@@ -17,7 +18,5 @@
         "dsc",
         "sampler",
         "pester"
-    ],
-    "agents": "Agents/",
-    "skills": "Skills/"
+    ]
 }

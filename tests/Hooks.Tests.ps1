@@ -1,8 +1,8 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
-    $script:hooksRoot = Join-Path $script:repoRoot 'Hooks'
+    $script:hooksRoot = Join-Path $script:repoRoot 'com.github.copilot/hooks'
     $script:hookScriptRoot = Join-Path $script:hooksRoot 'scripts'
-    $script:hookConfigPath = Join-Path $script:hooksRoot 'copilot-atelier.hooks.json'
+    $script:hookConfigPath = Join-Path $script:hooksRoot 'hooks.json'
     $script:blockScript = Join-Path $script:hookScriptRoot 'Block-RemoteMutation.ps1'
     $script:sessionScript = Join-Path $script:hookScriptRoot 'Add-SessionContext.ps1'
     $script:compactScript = Join-Path $script:hookScriptRoot 'Write-CompactionCheckpoint.ps1'
@@ -432,6 +432,10 @@ Describe 'Hook configuration' -Tag 'Unit' {
         $processInfo.RedirectStandardOutput = $true
         $processInfo.RedirectStandardError = $true
         $processInfo.EnvironmentVariables[$(if ($isWindowsPlatform) { 'USERPROFILE' } else { 'HOME' })] = $fakeHome
+
+        # The shipped command prefers PLUGIN_ROOT when a plugin host sets it, so
+        # the user-profile branch is only exercised with that variable cleared.
+        $processInfo.EnvironmentVariables.Remove('PLUGIN_ROOT')
 
         $process = [Diagnostics.Process]::Start($processInfo)
         $process.StandardInput.Write((script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'))

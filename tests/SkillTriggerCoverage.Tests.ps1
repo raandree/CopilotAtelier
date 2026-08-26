@@ -1,5 +1,5 @@
 $script:repoRoot = Split-Path -Parent $PSScriptRoot
-$script:skillRoot = Join-Path $script:repoRoot 'Skills'
+$script:skillRoot = Join-Path $script:repoRoot 'skills'
 $script:queryRoot = Join-Path $script:skillRoot 'agent-evals/assets'
 
 # Query files that deliberately do not name a shipped Skill.
@@ -83,7 +83,7 @@ BeforeAll {
     # Discovery-scope variables are not visible inside It; every path an
     # assertion touches has to be re-established here.
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
-    $script:skillRoot = Join-Path $script:repoRoot 'Skills'
+    $script:skillRoot = Join-Path $script:repoRoot 'skills'
     $script:queryRoot = Join-Path $script:skillRoot 'agent-evals/assets'
 }
 

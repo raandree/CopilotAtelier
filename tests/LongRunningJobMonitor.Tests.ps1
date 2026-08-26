@@ -1,7 +1,7 @@
 Describe 'Start-JobHeartbeat' -Tag 'Unit' {
     BeforeAll {
         $script:scriptPath = Join-Path $PSScriptRoot (
-            '../Skills/long-running-job-monitor/scripts/Start-JobHeartbeat.ps1'
+            '../skills/long-running-job-monitor/scripts/Start-JobHeartbeat.ps1'
         )
         $script:scriptContent = Get-Content -LiteralPath $script:scriptPath -Raw -Encoding UTF8
 

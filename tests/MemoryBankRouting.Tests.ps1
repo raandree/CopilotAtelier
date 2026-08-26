@@ -1,10 +1,10 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
     $script:evalFile = Join-Path $script:repoRoot (
-        'Skills/memory-bank/evals/routing-cases.json'
+        'skills/memory-bank/evals/routing-cases.json'
     )
     $script:evaluatorPath = Join-Path $script:repoRoot (
-        'Skills/memory-bank/scripts/Test-MemoryBankRouting.ps1'
+        'skills/memory-bank/scripts/Test-MemoryBankRouting.ps1'
     )
     $script:indexPath = Join-Path $script:repoRoot '.memory-bank/index.md'
     $script:decisionsPath = Join-Path $script:repoRoot '.memory-bank/decisions'
@@ -82,7 +82,7 @@ Describe 'Memory Bank routing evaluation' {
         New-Item -ItemType Directory -Path $repositoryPath -Force | Out-Null
         $memoryBankPath = Join-Path $repositoryPath '.memory-bank'
         & (Join-Path $script:repoRoot (
-            'Skills/memory-bank/scripts/Initialize-MemoryBank.ps1'
+            'skills/memory-bank/scripts/Initialize-MemoryBank.ps1'
         )) -Path $repositoryPath -Confirm:$false | Out-Null
         Remove-Item -LiteralPath (Join-Path $memoryBankPath 'promptHistory.md')
         Set-Content -LiteralPath (Join-Path $memoryBankPath 'legal-case.md') `

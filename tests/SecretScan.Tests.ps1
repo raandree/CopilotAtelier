@@ -110,8 +110,8 @@ Describe 'Secret scan' -Tag 'Unit' {
 
     It 'finds no credential in the repository' {
         $scanRoot = @(
-            'Agents', 'Instructions', 'Skills', 'Prompts', 'Hooks', 'Keybindings'
-            'source', 'tests', 'Reference', '.github', '.build', '.memory-bank'
+            'com.github.copilot/agents', 'instructions', 'skills', 'prompts', 'com.github.copilot/hooks', 'keybindings'
+            'source', 'tests', 'reference', '.github', '.build', '.memory-bank'
         ) | ForEach-Object { Join-Path $script:repoRoot $_ }
 
         $scanRoot += @(

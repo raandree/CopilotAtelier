@@ -1,9 +1,9 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
-    $script:agentsPath = Join-Path $script:repoRoot 'Agents'
-    $script:preflightPath = Join-Path $script:repoRoot 'Instructions/preflight.instructions.md'
-    $script:postflightPath = Join-Path $script:repoRoot 'Instructions/postflight.instructions.md'
-    $script:memoryBankSkillPath = Join-Path $script:repoRoot 'Skills/memory-bank/SKILL.md'
+    $script:agentsPath = Join-Path $script:repoRoot 'com.github.copilot/agents'
+    $script:preflightPath = Join-Path $script:repoRoot 'instructions/preflight.instructions.md'
+    $script:postflightPath = Join-Path $script:repoRoot 'instructions/postflight.instructions.md'
+    $script:memoryBankSkillPath = Join-Path $script:repoRoot 'skills/memory-bank/SKILL.md'
 
     $script:preflightContent = Get-Content -LiteralPath $script:preflightPath -Raw -Encoding UTF8
     $script:postflightContent = Get-Content -LiteralPath $script:postflightPath -Raw -Encoding UTF8
@@ -218,15 +218,15 @@ Describe 'Shared lifecycle Customizations' {
 
     It 'keeps deployed Customizations independent of repository-only references' {
         $deployedFiles = Get-ChildItem -Path @(
-            (Join-Path $script:repoRoot 'Agents')
-            (Join-Path $script:repoRoot 'Instructions')
-            (Join-Path $script:repoRoot 'Skills')
-            (Join-Path $script:repoRoot 'Prompts')
+            (Join-Path $script:repoRoot 'com.github.copilot/agents')
+            (Join-Path $script:repoRoot 'instructions')
+            (Join-Path $script:repoRoot 'skills')
+            (Join-Path $script:repoRoot 'prompts')
         ) -Recurse -File
 
         $referenceMatches = @(
             $deployedFiles |
-                Select-String -Pattern 'Reference/definition-of-done\.md'
+                Select-String -Pattern 'reference/definition-of-done\.md'
         )
         $referenceMatches | Should -HaveCount 0
     }

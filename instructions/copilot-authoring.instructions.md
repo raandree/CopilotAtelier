@@ -1,5 +1,5 @@
 ---
-applyTo: "{Instructions/*.instructions.md,Prompts/*.prompt.md,Skills/**/SKILL.md,Agents/*.agent.md,Hooks/*.json}"
+applyTo: "{instructions/*.instructions.md,prompts/*.prompt.md,skills/**/SKILL.md,com.github.copilot/agents/*.agent.md,com.github.copilot/hooks/*.json}"
 description: "Authoring rules and frontmatter schemas for Copilot Customization files. Use when creating, reviewing, or choosing between an Instruction, Prompt, Skill, Custom agent, or Hook."
 ---
 

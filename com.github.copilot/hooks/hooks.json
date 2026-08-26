@@ -1,0 +1,28 @@
+{
+    "hooks": {
+        "PreToolUse": [
+            {
+                "type": "command",
+                "timeout": 20,
+                "command": "pwsh -NoProfile -NonInteractive -Command \"$b = if ($env:PLUGIN_ROOT) { Join-Path $env:PLUGIN_ROOT 'com.github.copilot/hooks' } else { Join-Path $HOME '.copilot/hooks' }; & (Join-Path $b 'scripts/Block-RemoteMutation.ps1'); exit $LASTEXITCODE\"",
+                "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"$b = if ($env:PLUGIN_ROOT) { Join-Path $env:PLUGIN_ROOT 'com.github.copilot\\hooks' } else { Join-Path $env:USERPROFILE '.copilot\\hooks' }; & (Join-Path $b 'scripts\\Block-RemoteMutation.ps1'); exit $LASTEXITCODE\""
+            }
+        ],
+        "SessionStart": [
+            {
+                "type": "command",
+                "timeout": 20,
+                "command": "pwsh -NoProfile -NonInteractive -Command \"$b = if ($env:PLUGIN_ROOT) { Join-Path $env:PLUGIN_ROOT 'com.github.copilot/hooks' } else { Join-Path $HOME '.copilot/hooks' }; & (Join-Path $b 'scripts/Add-SessionContext.ps1'); exit $LASTEXITCODE\"",
+                "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"$b = if ($env:PLUGIN_ROOT) { Join-Path $env:PLUGIN_ROOT 'com.github.copilot\\hooks' } else { Join-Path $env:USERPROFILE '.copilot\\hooks' }; & (Join-Path $b 'scripts\\Add-SessionContext.ps1'); exit $LASTEXITCODE\""
+            }
+        ],
+        "PreCompact": [
+            {
+                "type": "command",
+                "timeout": 20,
+                "command": "pwsh -NoProfile -NonInteractive -Command \"$b = if ($env:PLUGIN_ROOT) { Join-Path $env:PLUGIN_ROOT 'com.github.copilot/hooks' } else { Join-Path $HOME '.copilot/hooks' }; & (Join-Path $b 'scripts/Write-CompactionCheckpoint.ps1'); exit $LASTEXITCODE\"",
+                "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"$b = if ($env:PLUGIN_ROOT) { Join-Path $env:PLUGIN_ROOT 'com.github.copilot\\hooks' } else { Join-Path $env:USERPROFILE '.copilot\\hooks' }; & (Join-Path $b 'scripts\\Write-CompactionCheckpoint.ps1'); exit $LASTEXITCODE\""
+            }
+        ]
+    }
+}

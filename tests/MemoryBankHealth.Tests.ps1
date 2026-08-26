@@ -1,10 +1,10 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
     $script:initializerPath = Join-Path $script:repoRoot (
-        'Skills/memory-bank/scripts/Initialize-MemoryBank.ps1'
+        'skills/memory-bank/scripts/Initialize-MemoryBank.ps1'
     )
     $script:healthCheckPath = Join-Path $script:repoRoot (
-        'Skills/memory-bank/scripts/Test-MemoryBankHealth.ps1'
+        'skills/memory-bank/scripts/Test-MemoryBankHealth.ps1'
     )
 }
 

@@ -1,6 +1,6 @@
 BeforeAll {
     $repoRoot = Split-Path -Parent $PSScriptRoot
-    $agentPath = Join-Path $repoRoot 'Agents/software-architect.agent.md'
+    $agentPath = Join-Path $repoRoot 'com.github.copilot/agents/software-architect.agent.md'
     $script:agentContent = Get-Content -LiteralPath $agentPath -Raw
 
     $agentLines = @(Get-Content -LiteralPath $agentPath)

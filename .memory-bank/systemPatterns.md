@@ -41,6 +41,7 @@ only.
 | 20 | [Refuse a lossy customization merge](decisions/0020-refuse-lossy-customization-merges.md) | Accepted | 2026-08-11 |
 | 21 | [Checkpoint the session before compaction](decisions/0021-checkpoint-before-compaction.md) | Accepted | 2026-08-25 |
 | 22 | [Own the pre-code phase with a Custom agent](decisions/0022-own-pre-code-phase-with-agent.md) | Accepted | 2026-08-26 |
+| 23 | [Adopt Agent Plugins 1.0 without moving Instructions and Prompts](decisions/0023-adopt-agent-plugins-1-0.md) | Accepted | 2026-08-26 |
 
 ## Live relationships
 
@@ -101,3 +102,9 @@ only.
     instruction and the Skill is advisory content. A discipline that contradicts
     the active persona has to become a persona of its own; restricting its tools
     then bounds what it can finish, not what it can attempt.
+- The plugin package and the deployed tree are different shapes and cannot be
+    reconciled. Agent Plugins 1.0 fixes skills at root `skills/` and puts
+    Copilot components one level down under `com.github.copilot/`, while
+    discovery needs five siblings under `~/.copilot`. The installer therefore
+    maps deployed name to source path, and a cross-type relative link resolves
+    in one tree or the other, never both.

@@ -1,5 +1,5 @@
 $script:repoRoot = Split-Path -Parent $PSScriptRoot
-$script:skillRoot = Join-Path $script:repoRoot 'Skills'
+$script:skillRoot = Join-Path $script:repoRoot 'skills'
 $script:readmePath = Join-Path $script:repoRoot 'README.md'
 
 <#

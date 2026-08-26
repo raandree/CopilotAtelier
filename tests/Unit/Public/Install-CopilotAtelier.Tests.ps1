@@ -34,7 +34,7 @@ BeforeAll {
             $Path
         )
 
-        foreach ($directoryName in @('Agents', 'Instructions', 'Skills', 'Prompts', 'Hooks'))
+        foreach ($directoryName in @('com.github.copilot/agents', 'instructions', 'skills', 'prompts', 'com.github.copilot/hooks'))
         {
             $directoryPath = Join-Path -Path $Path -ChildPath $directoryName
 
@@ -43,7 +43,7 @@ BeforeAll {
             Set-Content -LiteralPath (Join-Path -Path $directoryPath -ChildPath 'marker.md') -Value "# $directoryName"
         }
 
-        $keybindingPath = Join-Path -Path $Path -ChildPath 'Keybindings'
+        $keybindingPath = Join-Path -Path $Path -ChildPath 'keybindings'
 
         New-Item -ItemType Directory -Path $keybindingPath -Force | Out-Null
 
@@ -134,7 +134,7 @@ Describe 'Install-CopilotAtelier' -Tag 'Unit' {
             $script:result.TargetPath | Should -Be $script:targetPath
         }
 
-        It 'Should copy <_> to the canonical target' -ForEach @('Agents', 'Instructions', 'Skills', 'Prompts', 'Hooks') {
+        It 'Should copy <_> to the canonical target' -ForEach @('agents', 'instructions', 'skills', 'prompts', 'hooks') {
             $markerPath = Join-Path -Path (Join-Path -Path $script:targetPath -ChildPath $_) -ChildPath 'marker.md'
 
             Test-Path -LiteralPath $markerPath -PathType Leaf | Should -BeTrue

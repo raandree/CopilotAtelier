@@ -1,5 +1,5 @@
 $script:repoRoot = Split-Path -Parent $PSScriptRoot
-$script:skillRoot = Join-Path $script:repoRoot 'Skills'
+$script:skillRoot = Join-Path $script:repoRoot 'skills'
 
 # Skills whose body already exceeds the 500-line progressive-disclosure budget,
 # mapped to their current line count as a high-water mark. The list may shrink as
@@ -72,7 +72,7 @@ $script:moduleImportingSkillCase = @(
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
-    $script:skillRoot = Join-Path $script:repoRoot 'Skills'
+    $script:skillRoot = Join-Path $script:repoRoot 'skills'
 
     # Minimal frontmatter reader: the repository has no YAML module dependency,
     # and SKILL.md frontmatter is a flat map with optional block scalars.

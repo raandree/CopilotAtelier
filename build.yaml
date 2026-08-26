@@ -25,13 +25,15 @@ RequiredModulesDirectory: output/RequiredModules
 ####################################################
 
 # Copied verbatim into the built module by Copy_Customizations_To_Output.
+# Agents and hooks live under the Agent Plugins 1.0 client-extension namespace;
+# skills are the portable component and stay at the repository root.
 CustomizationDirectory:
-  - Agents
-  - Instructions
-  - Skills
-  - Prompts
-  - Hooks
-  - Keybindings
+  - com.github.copilot/agents
+  - instructions
+  - skills
+  - prompts
+  - com.github.copilot/hooks
+  - keybindings
 
 ####################################################
 #       Sampler Pipeline Configuration             #

@@ -1,7 +1,7 @@
 Describe 'run-trigger-evals Execute mode' -Tag 'Unit' {
     BeforeAll {
         $script:scriptPath = Join-Path $PSScriptRoot (
-            '../Skills/agent-evals/scripts/run-trigger-evals.ps1'
+            '../skills/agent-evals/scripts/run-trigger-evals.ps1'
         )
 
         $script:tempRoot = Join-Path ([IO.Path]::GetTempPath()) (

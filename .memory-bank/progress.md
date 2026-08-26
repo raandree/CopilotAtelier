@@ -15,6 +15,14 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-26**: Migrated the plugin package to Agent Plugins 1.0. `plugin.json`
+  declares the canonical `$schema` and drops the legacy `agents`/`skills` path
+  fields; `Skills/` became root `skills/`; agents and hooks moved to
+  `com.github.copilot/` with the mandated `hooks.json`; hook commands resolve
+  `PLUGIN_ROOT` or the user profile; the installer maps deployed name to source
+  path and sweeps legacy capitalised directories. 876 tests pass. Decision 0023.
+  Two bulk scripted rewrites corrupted 129 files each and were fully restored
+  from git — see the environment hazard in `activeContext.md`.
 - **2026-08-26**: Gave a `description` to the twelve Instructions that lacked
   one and held the same twelve against the authoring rules. Without a
   description an Instruction is reachable only through a path its `applyTo`

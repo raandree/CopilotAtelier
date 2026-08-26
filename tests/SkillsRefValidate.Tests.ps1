@@ -1,5 +1,5 @@
 $script:repoRoot = Split-Path -Parent $PSScriptRoot
-$script:skillRoot = Join-Path $script:repoRoot 'Skills'
+$script:skillRoot = Join-Path $script:repoRoot 'skills'
 
 # The upstream reference validator is a Python package. It is fetched on demand
 # by `uv` rather than vendored, so the gate reports a clearly-visible skip when
@@ -33,7 +33,7 @@ Describe 'Skills reference-validator conformance' -Tag 'Unit' {
 
     BeforeAll {
         $script:repoRoot = Split-Path -Parent $PSScriptRoot
-        $script:skillRoot = Join-Path $script:repoRoot 'Skills'
+        $script:skillRoot = Join-Path $script:repoRoot 'skills'
         $script:uvCommand = Get-Command -Name 'uv' -CommandType Application -ErrorAction SilentlyContinue
         $script:hasUv = $null -ne $script:uvCommand
 
