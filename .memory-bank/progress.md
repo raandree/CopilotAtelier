@@ -15,6 +15,29 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-26**: Gave a `description` to the twelve Instructions that lacked
+  one and held the same twelve against the authoring rules. Without a
+  description an Instruction is reachable only through a path its `applyTo`
+  glob happens to cover, so `versioning` could not answer a pre-release
+  question and `pester` could not reach the first test in a repository that has
+  none. The gate is a per-file case in `CustomizationFrontmatter.Tests.ps1`,
+  shown red on 12 of its 16 cases against the previous commit. The same pass
+  removed eight sections that only restated rules the file had already given,
+  four introductory explanations the Strict tier forbids, two link farms whose
+  normative links already appear inline, and 78 decorative marks: 355 lines.
+  Two defects surfaced while reading — a cross-reference naming `markdown`
+  where `changelog` was meant, and two `applyTo` lists carrying patterns fully
+  subsumed by a sibling pattern.
+
+- **2026-08-26**: Renamed the seven display-name Custom agent files to their
+  declared `name` slug, so every agent is addressed the same way on disk, in a
+  handoff, and in a test. The defect was two addresses for one agent rather
+  than casing: `%20`-encoded changelog links and a baseline map keyed on the
+  display name while asserting handoffs that named the slug. Guarded by a
+  filename-to-frontmatter equality assertion in
+  `CustomizationFrontmatter.Tests.ps1`, shown to reject a mismatched stem that
+  the existing lowercase check passes. No `name:` value changed.
+
 - **2026-08-26**: Added the `software-architect` Custom agent as the first phase
   of the release pipeline. The gap was structural rather than stylistic:
   `grill-me` is advisory content while a Custom agent body is mode instruction,
@@ -25,10 +48,9 @@ under `[Unreleased]` in `CHANGELOG.md`.
   exit; `edit/editFiles` and `execute/runInTerminal` stay because Post-flight
   demands a Memory Bank write, a changelog entry, and a commit on every
   Substantive turn. Interview depth scales to blast radius so the agent stays
-  selectable for small work. Decision 0022 records the reasoning,
+  selectable for small work. Decision 0022 records the reasoning, and
   `SoftwareArchitectAgent.Tests.ps1` asserts the withheld tools by name because
-  a fingerprint detects change but not correctness, and renumbering the
-  catalogue exposed a QC Inspector section that had no heading at all.
+  a fingerprint detects change but not correctness.
 
 - **2026-08-25**: Added the `copilot-usage-stats` Skill and the `/usage` Prompt
   on `Ctrl+K U`, then extended it to convert tokens into AI credits and dollars.
@@ -90,28 +112,13 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 - **2026-08-25**: Closed the release provenance gap. `plugin.json` had announced
   `2.0.0` through two releases because the changelog rollover for `v3.0.0` and
-  `v3.1.0` never reached `main` — `Create_ChangeLog_GitHub_PR` ran and opened
-  both pull requests (`origin/updateChangelogAfterv3.0.0`,
-  `origin/updateChangelogAfterv3.1.0`), nobody merged them, and the task cannot
-  fail a build because it swallows every error in a `catch` that only logs. The
-  missing sections are reconstructed from those two commits rather than from the
-  commit log, verified lossless line by line, and the new gate in
+  `v3.1.0` never reached `main` — `Create_ChangeLog_GitHub_PR` opened both pull
+  requests, nobody merged them, and the task cannot fail a build because it
+  swallows every error in a `catch` that only logs. The missing sections are
+  reconstructed from those two commits, and the new gate in
   `PluginManifest.Tests.ps1` fails whenever a published non-preview tag has no
   section — with a tag at `HEAD` exempt, or every tag push would deadlock on its
   own gate before `deploy` ever runs.
-
-- **2026-08-24**: Closed the README catalogue gap and built the gate that would
-  have caught it. `AGENTS.md` had required an *Available Skills* row per Skill
-  since 2026-08-12 with nothing checking it, and the drift was 36 rows against
-  45 shipped Skills — `skill-creator` and `agent-evals` among the nine missing,
-  which are the two a new contributor needs first. `SkillCatalogue.Tests.ps1`
-  checks both directions and guards its own parser with a count assertion,
-  because a moved heading would otherwise pass with zero cases. Shown to reject
-  before being accepted: one row removed gives 133 passed and 1 failed on
-  `agent-evals has a catalogue row`; restored, 136 of 136 pass. In the same
-  change the unsupported `german-tax-research` red flag was dropped rather than
-  retro-fitted with invented evidence — it named editing-tool hygiene, not a tax
-  rule, and no reference taught it.
 
 ## Stable capabilities
 

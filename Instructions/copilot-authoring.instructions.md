@@ -45,7 +45,7 @@ Each file type uses a distinct frontmatter shape. Values must be strings unless 
 ### Instructions (`Instructions/*.instructions.md`)
 
 - `applyTo` (required here): comma-separated glob string. Narrowest pattern that covers the intended files. Never an array. Never `**/*` when a specific path suffices. Without it the file never auto-applies and is reachable only by manual attachment.
-- `description` (recommended): one line. VS Code also activates an Instruction by semantic match of the description against the current task, so declare one whenever `applyTo` cannot express the real trigger.
+- `description` (required here): one line. VS Code also activates an Instruction by semantic match of the description against the current task, so a glob alone never covers the real trigger.
 - `name` (optional): display name in the Chat view. Defaults to the file name.
 - The Claude-format equivalent in `.claude/rules` uses `paths` (array of globs, default `**`) in place of `applyTo`.
 
@@ -123,7 +123,7 @@ Bold and italics carry signal only when used sparingly. Overuse destroys the sig
 Before committing changes to an AI-loaded file:
 
 - [ ] Frontmatter matches the schema for the file type (Instructions/Prompts/Agents/Skills/Hooks).
-- [ ] For instructions: `applyTo` is the narrowest glob that covers the intended files, and `description` is present when the real trigger is a task rather than a path.
+- [ ] For instructions: `applyTo` is the narrowest glob that covers the intended files, no pattern in the list is subsumed by another, and `description` is declared.
 - [ ] For prompts: the workflow is genuinely VS Code-only, otherwise it is authored as a Skill.
 - [ ] For agents: `model` is a priority array whose last entry is a GA model.
 - [ ] For skills: `compatibility` is present whenever the Skill needs a specific OS, runtime, module, or binary.

@@ -1,5 +1,6 @@
 ---
-applyTo: "**/*.ps1,**/*.psm1,**/*.psd1,**/*.Tests.ps1,**/build.yaml,**/build.ps1,**/RequiredModules.psd1,**/Resolve-Dependency.psd1,**/*.yml"
+applyTo: "**/*.ps1,**/*.psm1,**/*.psd1,**/build.yaml,**/*.yml"
+description: "How to run PowerShell from VS Code without freezing it: detach Pester and build runs, keep one-shot commands synchronous, never poll in the foreground, and handle logs and interactive prompts safely."
 ---
 
 # PowerShell execution safety in VS Code

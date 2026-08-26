@@ -1,5 +1,6 @@
 ---
 applyTo: "**/GitVersion.yml,**/*.psd1,**/CHANGELOG.md"
+description: "Semantic versioning and GitVersion standards: increment rules, pre-release labels, tag conventions, and keeping manifest, changelog, and tag versions in sync."
 ---
 
 # Versioning Best Practices and Standards
@@ -22,34 +23,34 @@ Follow [Semantic Versioning 2.0.0](https://semver.org/) for all module and proje
 ### Version Increment Rules
 
 **Increment MAJOR version when:**
-- ✅ Making incompatible API changes
-- ✅ Removing features or functionality
-- ✅ Changing behavior that breaks existing implementations
-- ✅ Renaming or removing parameters
-- ✅ Changing default values that affect behavior
-- ✅ Requiring higher minimum PowerShell version
-- ✅ Breaking changes in data structures or schemas
+- Making incompatible API changes
+- Removing features or functionality
+- Changing behavior that breaks existing implementations
+- Renaming or removing parameters
+- Changing default values that affect behavior
+- Requiring higher minimum PowerShell version
+- Breaking changes in data structures or schemas
 
 **Increment MINOR version when:**
-- ✅ Adding new features in a backwards-compatible manner
-- ✅ Adding new functions, cmdlets, or resources
-- ✅ Adding new parameters with default values
-- ✅ Deprecating features (but not removing them yet)
-- ✅ Substantial internal improvements that add value
+- Adding new features in a backwards-compatible manner
+- Adding new functions, cmdlets, or resources
+- Adding new parameters with default values
+- Deprecating features (but not removing them yet)
+- Substantial internal improvements that add value
 
 **Increment PATCH version when:**
-- ✅ Making backwards-compatible bug fixes
-- ✅ Fixing issues that don't change functionality
-- ✅ Correcting typos in error messages
-- ✅ Performance improvements without API changes
-- ✅ Updating dependencies to patch versions
+- Making backwards-compatible bug fixes
+- Fixing issues that don't change functionality
+- Correcting typos in error messages
+- Performance improvements without API changes
+- Updating dependencies to patch versions
 
 **Do NOT increment version for:**
-- ❌ Documentation-only changes
-- ❌ Comment updates
-- ❌ Code formatting/style changes
-- ❌ Test-only changes (unless fixing test bugs)
-- ❌ CI/CD pipeline changes
+- Documentation-only changes
+- Comment updates
+- Code formatting/style changes
+- Test-only changes (unless fixing test bugs)
+- CI/CD pipeline changes
 
 ### Pre-release Versions
 
@@ -199,15 +200,6 @@ YYYY.MINOR.PATCH  # Year-based major, semantic minor/patch
 > **Recommendation for PowerShell modules:** Use SemVer. CalVer is better suited for platforms, operating systems, and API versioning.
 
 ## GitVersion
-
-### What is GitVersion?
-
-GitVersion is an automated versioning tool that:
-- Calculates semantic versions based on Git history
-- Uses branch names and commit messages to determine version increments
-- Integrates with CI/CD pipelines
-- Ensures consistent versioning across artifacts
-- Eliminates manual version management
 
 ### GitVersion Workflows
 
@@ -957,57 +949,7 @@ Define how long each major version receives support:
 | 2.x | Maintenance | 2025-06-30 | Security and critical bug fixes only |
 | 1.x | End of Life | 2024-01-01 | No further updates |
 
-## Best Practices Summary
-
-### Version Management
-
-**DO:**
-- ✅ Use GitVersion for automated version calculation
-- ✅ Follow semantic versioning strictly
-- ✅ Synchronize versions across manifest, changelog, and tags
-- ✅ Use conventional commit messages
-- ✅ Validate versions in CI/CD pipelines
-- ✅ Tag releases with annotated Git tags
-- ✅ Document breaking changes clearly
-- ✅ Use pre-release versions for non-production releases
-- ✅ Start at `0.1.0` for initial development; move to `1.0.0` when the API is stable
-- ✅ Use the `v` prefix only on Git tags, never in manifest `ModuleVersion`
-- ✅ Use `[semver]` type (PS 7+) for version comparisons that involve pre-release labels
-- ✅ Define a deprecation period before any breaking change
-- ✅ Set minimum version constraints in `RequiredModules`
-- ✅ Prefer `label` over deprecated `tag` property in GitVersion v6
-
-**DON'T:**
-- ❌ Manually edit version numbers without updating all artifacts
-- ❌ Skip version increments for significant changes
-- ❌ Use inconsistent versioning across branches
-- ❌ Forget to update CHANGELOG.md with version details
-- ❌ Tag commits without proper validation
-- ❌ Release breaking changes as MINOR or PATCH versions
-- ❌ Use generic commit messages that skip version metadata
-- ❌ Use dots or plus signs in PSGallery `Prerelease` strings (SemVer v1 only)
-- ❌ Compare `[System.Version]` and `[semver]` objects directly — they are incompatible types
-- ❌ Stay on `0.y.z` indefinitely when the API is already stable and used in production
-- ❌ Place the `Prerelease` property at the manifest root — it belongs in `PrivateData.PSData`
-- ❌ Use `RequiredVersion` in dependencies unless you truly need an exact pin
-
-### Commit Message Best Practices
-
-**DO:**
-- ✅ Write clear, descriptive commit messages
-- ✅ Use conventional commit format
-- ✅ Include `+semver:` hints when needed
-- ✅ Reference issue numbers
-- ✅ Explain the "why" in commit body
-- ✅ Mark breaking changes explicitly
-
-**DON'T:**
-- ❌ Write vague messages like "fix stuff" or "update"
-- ❌ Commit without considering version impact
-- ❌ Mix multiple unrelated changes in one commit
-- ❌ Forget to add `+semver: none` for docs-only changes
-
-### Release Process
+## Release Process
 
 **Preparation:**
 1. Ensure all tests pass
@@ -1030,7 +972,7 @@ Define how long each major version receives support:
 3. Create GitHub release with notes
 4. Announce release in appropriate channels
 
-### Changelog Integration
+## Changelog Integration
 
 Versioning and changelog management are tightly coupled:
 
@@ -1039,7 +981,7 @@ Versioning and changelog management are tightly coupled:
 - **Release dates** in CHANGELOG.md must match Git tag dates
 - **Version headers** in CHANGELOG.md must match module manifest versions
 
-See `markdown.instructions.md` for detailed changelog management practices.
+See `changelog.instructions.md` for detailed changelog management practices.
 
 ## Common Versioning Scenarios
 
@@ -1154,66 +1096,3 @@ test: add integration tests for OAuth +semver: none
 ```
 
 **Result:** MINOR version increment (highest impact is new feature)
-
-## Summary Checklist
-
-Before releasing or reviewing version-related changes, verify:
-
-- [ ] Version follows SemVer `MAJOR.MINOR.PATCH` format
-- [ ] MAJOR incremented for any breaking / incompatible change
-- [ ] MINOR incremented for new backward-compatible features
-- [ ] PATCH incremented for backward-compatible bug fixes
-- [ ] Pre-release label is SemVer v1 compliant for PSGallery (no dots or plus)
-- [ ] `Prerelease` string is in `PrivateData.PSData`, not manifest root
-- [ ] Module manifest `ModuleVersion` matches calculated version
-- [ ] CHANGELOG.md has an entry for the new version with a date
-- [ ] Git tag exists with `v` prefix and matches the release version
-- [ ] Conventional commit messages used with appropriate `+semver:` hints
-- [ ] Breaking changes documented in CHANGELOG.md and commit footer
-- [ ] Deprecated APIs have migration guides and at least one MINOR release grace period
-- [ ] `RequiredModules` version constraints are set and tested
-- [ ] CI/CD pipeline validates version synchronization across all artifacts
-- [ ] GitVersion workflow and mode are appropriate for the branching strategy
-- [ ] `0.y.z` projects promoted to `1.0.0` when API is stable and in production
-- [ ] Build metadata (if used) does not affect version precedence
-- [ ] All tests pass with the new version
-- [ ] Documentation references correct version numbers
-- [ ] Tag prefix convention (`v`) is consistent across all releases
-
-## Resources and References
-
-### Official Documentation
-
-- **Semantic Versioning**: [https://semver.org/](https://semver.org/)
-- **Calendar Versioning**: [https://calver.org/](https://calver.org/)
-- **GitVersion**: [https://gitversion.net/](https://gitversion.net/)
-- **Conventional Commits**: [https://www.conventionalcommits.org/](https://www.conventionalcommits.org/)
-- **Keep a Changelog**: [https://keepachangelog.com/](https://keepachangelog.com/)
-
-### PowerShell Specific
-
-- **Prerelease Module Versions**: [Microsoft Docs](https://learn.microsoft.com/en-us/powershell/gallery/concepts/module-prerelease-support)
-- **Module Manifest (psd1)**: [about_Module_Manifests](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_module_manifests)
-- **Update-ModuleManifest**: [Command Reference](https://learn.microsoft.com/en-us/powershell/module/powershellget/update-modulemanifest)
-- **[semver] Type Accelerator**: Available in PowerShell 6.1+ for SemVer-aware comparisons
-
-### DSC Community Standards
-
-- **DSC Community Guidelines**: [https://dsccommunity.org/](https://dsccommunity.org/)
-- **Sample GitVersion Configurations**: [DSC Community Repos](https://github.com/dsccommunity)
-- **ComputerManagementDsc**: Reference implementation example
-- **SqlServerDsc**: Advanced versioning patterns
-
-### CI/CD Integration
-
-- **Azure Pipelines GitVersion Task**: [GitTools Extension](https://marketplace.visualstudio.com/items?itemName=gittools.gittools)
-- **GitHub Actions GitVersion**: [GitTools Actions](https://github.com/GitTools/actions)
-- **GitVersion Configuration Reference**: [Configuration](https://gitversion.net/docs/reference/configuration)
-- **GitVersion Versioning Modes**: [Modes](https://gitversion.net/docs/reference/modes)
-
-### Version Management Tools
-
-- **GitVersion CLI**: Command-line version calculation tool
-- **PSFramework**: PowerShell framework with versioning utilities
-- **Pester**: Testing framework for version validation
-- **PSScriptAnalyzer**: Static analysis for PowerShell code quality

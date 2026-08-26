@@ -1,5 +1,6 @@
 ---
 applyTo: "**/build.yaml,**/build.ps1,**/RequiredModules.psd1,**/Resolve-Dependency.psd1,**/GitVersion.yml,**/Datum.yml,**/azure-pipelines.yml,**/.github/workflows/*.yml"
+description: "Enforced rules for Sampler build projects: source layout, module manifest, build.yaml configuration, dependency resolution, versioning, and release tasks."
 ---
 
 # Sampler Build Framework — Enforced Rules

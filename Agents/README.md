@@ -59,7 +59,7 @@ These agents form the primary software development and release pipeline.
 
 **Role**: Development and Implementation  
 **Phase**: Code Development  
-**File**: `Software Engineer Agent.agent.md`
+**File**: `software-engineer.agent.md`
 
 **Responsibilities**:
 
@@ -92,7 +92,7 @@ These agents form the primary software development and release pipeline.
 
 **Role**: Security Validation and Production Readiness  
 **Phase**: Pre-Production Validation  
-**File**: `Security & Quality Assurance Agent.agent.md`
+**File**: `security-reviewer.agent.md`
 
 **Responsibilities**:
 
@@ -132,7 +132,7 @@ These agents form the primary software development and release pipeline.
 
 **Role**: Content Creation and Documentation  
 **Phase**: Documentation and Knowledge Transfer  
-**File**: `Technical Writer & Documentation Agent.agent.md`
+**File**: `technical-writer.agent.md`
 
 **Responsibilities**:
 
@@ -176,7 +176,7 @@ These agents form the primary software development and release pipeline.
 
 **Role**: Problem Diagnosis and Resolution  
 **Phase**: Incident Response and Investigation  
-**File**: `Technical Troubleshooter Agent.agent.md`
+**File**: `troubleshooter.agent.md`
 
 **Responsibilities**:
 
@@ -275,7 +275,7 @@ These agents are **not part of the core software development pipeline**. They se
 
 **Role**: Quality Control Inspection for Oil & Gas, Energy, and Industrial Sectors  
 **Scope**: Supplementary — not part of the SDLC pipeline  
-**File**: `QC Inspector Agent.agent.md`
+**File**: `qc-inspector.agent.md`
 
 **Responsibilities**:
 
@@ -517,7 +517,7 @@ In VS Code with GitHub Copilot:
 
 **Role**: Generic Training & Workshop Content Creation  
 **Scope**: Supplementary — not part of the SDLC pipeline  
-**File**: `Training Content Writer.agent.md`
+**File**: `training-writer.agent.md`
 
 **Responsibilities**:
 
@@ -598,7 +598,7 @@ In VS Code with GitHub Copilot:
 
 **Role**: Specialized DevOps/Ops Training Content Creation  
 **Scope**: Supplementary — not part of the SDLC pipeline  
-**File**: `DevOps Training Writer.agent.md`  
+**File**: `devops-training-writer.agent.md`  
 **Inherits From**: Training Content Writer Agent (all generic training rules)
 
 **Responsibilities**:

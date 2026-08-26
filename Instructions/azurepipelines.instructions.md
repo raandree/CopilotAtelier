@@ -1,5 +1,6 @@
 ---
-applyTo: "**/azure-pipelines.yml,**/azure-pipelines*.yml,**/.azuredevops/*.yml"
+applyTo: "**/azure-pipelines*.yml,**/.azuredevops/*.yml"
+description: "Azure Pipelines YAML standards: triggers, stages, jobs, steps, templates, variables, secrets, agent pools, and artifacts. Use when authoring or reviewing an Azure DevOps pipeline."
 ---
 
 # Azure Pipelines Best Practices and Standards
