@@ -16,15 +16,20 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 ## Recent milestones
 
 - **2026-08-27**: Added `software-engineer-contoso`, the first corporate overlay
-  agent. It ingests `software-engineer` and only tightens: 45 tools drop to 36
-  (the nine egress and supply-chain tools removed), `agents` narrows to
+  agent, and learned that a Markdown link between agents inherits nothing — VS
+  Code resolves referenced *instructions* files, not `.agent.md`, so the first
+  version ran as a bare fragment with no diagnostic. The base body is now inlined
+  between markers with a byte-exact drift test in
+  `tests/AgentInheritance.Tests.ps1`. The overlay only tightens: 45 tools drop to
+  36 (the nine egress and supply-chain tools removed), `agents` narrows to
   `security-reviewer`, and the body carries the Contoso control set — secrets by
   reference, internal-mirror-only dependencies, a "never ship" Blocker list,
   separation of duties ending at the local working tree, a raised and partly
   mandatory review bar, and a seven-item hard stop. The subagent rule is the
   sharp one: `security-reviewer` holds `web/fetch`, so the dispatch carries
-  paths and questions, never source. `SharedLifecycle.Tests.ps1` gained its
-  baseline entry; 112 tests pass.
+  paths and questions, never source. `systemPatterns.md` was curated from 130 to
+  under its 110-line budget in the same edit; it had been over since before this
+  work.
 
 - **2026-08-27**: Fixed every hook. The host substitutes `$` tokens in a hook
   command before the child parses it, so `$b = if ($env:PLUGIN_ROOT)` arrived as
@@ -108,17 +113,6 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   restricted-language parser. `Repair_ManifestEncoding` re-saves the manifest as
   UTF-8 with a BOM; pinned by a regression test in `module.tests.ps1`.
 
-- **2026-08-25**: Split `skill-creator` from 492 lines to 344 behind two
-  references, applying its own progressive-disclosure rules to itself. Material
-  upstream already teaches moved to `references/`; the repository-specific and
-  original material stayed. Description untouched, so no eval sweep is owed.
-
-- **2026-08-25**: Re-verified `copilot-authoring.instructions.md` against the
-  current VS Code and agentskills.io documentation. Corrected the Prompt,
-  Instruction, Agent, Skill, and Hook schemas, added the stdout half of the hook
-  contract, marked which keys are house rules rather than platform requirements,
-  and gave the file the `description` it lacked.
-
 - **2026-08-25**: Closed the compaction gap. The Memory Bank had a deterministic
   entry gate and no exit gate, so a turn compacted mid-run lost everything it
   learned while its summary still claimed Pre-flight ran. A `PreCompact` hook
@@ -186,8 +180,8 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   the agent host and its harness selection, `chat.assistedPermissions.enabled`,
   and organization-level instructions and agents.
 - Curate `techContext.md` and `systemPatterns.md` when either approaches its
-  line budget; `systemPatterns.md` has 12 lines of headroom, which the Decision
-  index consumes one line at a time.
+  line budget; `systemPatterns.md` sits at 109 of 110 lines, so the next Decision
+  record or relationship needs a trim in the same edit.
 
 ## Retention policy
 

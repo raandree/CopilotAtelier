@@ -701,7 +701,8 @@ training-writer (generic)
 
 **Key Features**:
 
-- **Inherits** every rule from the Software Engineer Agent; adds constraints only, never relaxes one
+- **Inherits** every rule from the Software Engineer Agent by carrying its contract **inline**, not by linking it — VS Code resolves referenced *instructions* files into the prompt, so a Markdown link to another `.agent.md` is inert and an overlay that only links its base inherits nothing. `tests/AgentInheritance.Tests.ps1` compares the inlined block byte-for-byte against the base and fails on drift
+- Adds constraints only, never relaxes one; where the overlay and the inherited contract disagree, the stricter rule wins
 - Least-privilege toolset: the nine egress and supply-chain tools (`web/fetch`, `web/githubRepo`, `web/githubTextSearch`, `openSimpleBrowser`, `github`, `useMcp`, `vscode/installExtension`, `vscode/extensions`, `codeInterpreter`) are removed, so private data and untrusted content cannot complete the lethal trifecta
 - Terminal egress and handoffs are explicitly closed as workarounds — no `curl`/`Invoke-WebRequest` substitution, no agent switch to regain network access
 - Subagent egress rule: `security-reviewer` carries its own outbound tools, so it is dispatched with repository paths and questions, never with pasted source or data
@@ -715,6 +716,8 @@ training-writer (generic)
 - Memory Bank extension (`contoso-controls.md`, `data-classification.md`) that explicitly avoids the `security-reviewer` files
 
 **Inheritance Architecture**:
+
+The overlay carries the base body inline between `<!-- BEGIN INHERITED -->` markers, so the two files are one prompt at runtime rather than a link the resolver never follows.
 
 ```
 software-engineer (base)

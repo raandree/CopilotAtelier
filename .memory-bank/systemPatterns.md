@@ -7,13 +7,10 @@ source: .memory-bank/decisions
 
 # System patterns
 
-Current architecture and Decision record index. Read linked records only when
-the task needs their rationale, consequences, or confirmation evidence.
-
-The repository layout is not restated here: `techContext.md` carries the module
-layout, the deployment boundary, and the discovery model, and the working tree
-carries the rest. This file indexes durable relationships and Decision records
-only.
+Durable relationships and the Decision record index. Read a linked record only
+when the task needs its rationale, consequences, or confirmation evidence. The
+repository layout is not restated here — `techContext.md` carries the module
+layout, the deployment boundary, and the discovery model.
 
 ## Decision index
 
@@ -45,86 +42,68 @@ only.
 
 ## Live relationships
 
-- A corporate overlay agent inherits a base agent by ingestion and subtraction:
-    it re-states nothing, removes entries from the base `tools` list, and adds
-    only stricter rules. Containment belongs in the frontmatter, because a rule
-    the model can reason around is not a control. The trap is `agents` — a
-    subagent brings its own toolset, so delegating to one that holds
-    `web/fetch` restores the egress the overlay just removed; the overlay has
-    to constrain the dispatch payload instead of assuming the boundary holds.
-    A handoff has the same shape and needs the same warning.
+- A corporate overlay agent inherits by inlining its base body between markers,
+    never by linking it: VS Code resolves referenced *instructions* files, so a
+    link to another `.agent.md` is inert and the overlay runs as a fragment. A
+    byte-exact drift test keeps the copy honest. Containment belongs in
+    frontmatter; `agents` and `handoffs` can restore the egress `tools` removed.
 - The module carries the Customizations as its payload; `Install-CopilotAtelier`
-    deploys them and creates Discovery links. The Setup script is a clone-only
-    shim over the same command.
-- The Deployment record in the Canonical target is the only place that reports
-    which version is actually deployed, independent of how it was installed.
+    deploys them and creates Discovery links, and the Setup script is a
+    clone-only shim over it. The Deployment record in the Canonical target is the
+    only place reporting which version is deployed, however it was installed.
 - Hooks enforce the rules that must hold regardless of model reasoning;
     Instructions carry the judgement calls.
 - The `v*` release tag is the version anchor, not a record of the release.
-    GitVersion derives the next pre-release number from the last tag and
-    `Publish_Release_To_GitHub` writes it, so a release task that skips itself
-    freezes the version the Gallery already holds. That task also sends the
-    changelog `[Unreleased]` section as the body, capped at 125000 characters.
+    GitVersion derives the next pre-release number from it and
+    `Publish_Release_To_GitHub` writes it, so a skipped release task freezes the
+    version the Gallery holds. It sends `[Unreleased]` as the body, cap 125000.
 - Authored guidance takes its form from the baseline failure it corrects:
-    prohibitions and rationalization tables for a skipped discipline, a positive
-    recipe for output of the wrong shape, a required structural slot for an
-    omitted element, a predicate-keyed conditional for context-dependent
-    behaviour. The prohibition form applied to a shaping failure makes it worse.
-- A hook command string is substituted before the child process parses it, so a
-    `$` token is consumed by the host and reaches the interpreter as nothing.
-    Every command is written without one: paths come from
-    `[Environment]::GetEnvironmentVariable(...)`, the exit code from
-    `Get-Variable -Name LASTEXITCODE -ValueOnly`, and each candidate path is
-    rooted with `[IO.Path]::Combine('/', ...)` so an unset root can never resolve
-    into the opened workspace. The earlier reading — spawned with no shell, so
-    each command expands its own `$env:` path — held until 2026-08-27, when every
-    hook died with `An expression was expected after '('` behind a single warning
-    balloon. The `$`-free form is correct under both readings.
+    prohibitions and rationalization tables for a skipped discipline, a recipe
+    for output of the wrong shape, a structural slot for an omitted element, a
+    predicate-keyed conditional for context-dependent work. A mismatch backfires.
+- A hook command string is substituted before the child parses it, so a `$` token
+    reaches the interpreter as nothing. Commands are `$`-free: paths from
+    `[Environment]::GetEnvironmentVariable(...)`, exit code from
+    `Get-Variable -Name LASTEXITCODE -ValueOnly`, each path rooted with
+    `[IO.Path]::Combine('/', ...)` so an unset root cannot reach a workspace.
 - A Customization ships to two roots that no single variable names: the module's
     `~/.copilot/<type>` and the plugin's
-    `~/.vscode*/agent-plugins/<host>/<owner>/CopilotAtelier`. `PLUGIN_ROOT` was
-    adopted on inference and is still unconfirmed, so resolution probes it first
-    and then both concrete locations.
+    `~/.vscode*/agent-plugins/<host>/<owner>/CopilotAtelier`. `PLUGIN_ROOT` is
+    unconfirmed, so resolution probes it first and then both concrete locations.
 - A capability measured on one configuration is scoped to what was measured and
     encoded as attempt, validate, escalate — never a verdict. The content gate
     decides at run time; the engine name only orders which path is tried first.
-- A turn fires on three triggers: a user message, a tool call returning, or a
-    harness notification. Only an async command's completion notification can be
-    armed by the agent, so unprompted periodic reporting is a chained async
-    timer; a fully detached process emits none. A `Stop` hook can force a turn.
 - `chat.hookFilesLocations` replaces the default hook location map instead of
     extending it, so pinning one location silently disables every other,
-    including the workspace `.github/hooks` folder, with no diagnostic.
+    including workspace `.github/hooks`, with no diagnostic.
 - A gate that can skip is not a gate. An external-tool check must fail where it
     is supposed to protect — CI — and must be proven to reject a bad input, or
     it reports a green build with nothing behind it.
 - Known debt is a shrink-only baseline keyed to the offending item, never a
-    disabled check. The gate then proves the fix rather than the intent: an item
-    that improves fails until its entry is removed, and a new item cannot join
-    the debt silently.
+    disabled check. The gate proves the fix rather than the intent: an item that
+    improves fails until its entry is removed, and a new item cannot join it
+    silently.
 - Frontmatter is the live control surface: Custom agent tools, model priority,
-    subagent eligibility, and handoffs; Instruction `applyTo` scope; Prompt
-    Custom agent binding.
+    subagent eligibility, and handoffs; Instruction `applyTo`; Prompt binding.
+- A turn fires on three triggers: a user message, a tool call returning, or a
+    harness notification. Only an async command's completion notification can be
+    armed by the agent, so unprompted periodic reporting is a chained async timer
+    and a fully detached process emits none. A `Stop` hook can force a turn.
+- A Skill cannot override a Custom agent body, because the body is mode
+    instruction and the Skill is advisory content. A discipline that contradicts
+    the active persona must become a persona of its own; restricting its tools
+    then bounds what it can finish, not what it can attempt.
 - Memory Bank routing has two eval layers. Human-labelled routes test the
     deterministic resolver and context reduction; label-free task prompts test
-    natural-language Memory Bank route selection with pass@k and pass^k. Both
-    layers grade safety as "no required context missing" and report
-    over-selection as a separate cost, so neither rewards reading everything.
-    Durable-write, Decision-record, and task-quality evals remain separate.
-- Compaction fires mid-turn, so it bypasses both lifecycle gates. Only an
-    Instruction survives, because Instructions are re-sent per request while the
-    conversation becomes a summary; a `PreCompact` hook carries no
-    `additionalContext`, so it writes the on-disk anchor and Pre-flight reads it.
+    natural-language selection with pass@k and pass^k. Both grade safety as "no
+    required context missing" and price over-selection separately. Compaction
+    bypasses both lifecycle gates: only an Instruction survives, so a `PreCompact`
+    hook — carrying no `additionalContext` — writes an anchor Pre-flight reads.
 - Copilot token usage exists only in the cloud session store. No hook payload,
     transcript record, or local `session-store.db` table carries it, so usage
     telemetry is a Skill over `copilot_sessionStoreSql`, never a hook.
-- A Skill cannot override a Custom agent body, because the body is mode
-    instruction and the Skill is advisory content. A discipline that contradicts
-    the active persona has to become a persona of its own; restricting its tools
-    then bounds what it can finish, not what it can attempt.
 - The plugin package and the deployed tree are different shapes and cannot be
-    reconciled. Agent Plugins 1.0 fixes skills at root `skills/` and puts
-    Copilot components one level down under `com.github.copilot/`, while
-    discovery needs five siblings under `~/.copilot`. The installer therefore
-    maps deployed name to source path, and a cross-type relative link resolves
-    in one tree or the other, never both.
+    reconciled. Agent Plugins 1.0 fixes skills at root `skills/` and Copilot
+    components under `com.github.copilot/`, while discovery needs five siblings
+    under `~/.copilot`. The installer maps deployed name to source path, so a
+    cross-type relative link resolves in one tree or the other, never both.

@@ -9,10 +9,21 @@ source: current task evidence
 
 ## Current focus
 
-`software-engineer-contoso` is the first corporate overlay agent: it ingests
-`software-engineer.agent.md`, adds constraints only, and never relaxes one.
-The containment lives in the frontmatter rather than the prose — the base
-agent's 45 tools drop to 36, removing `web/fetch`, `web/githubRepo`,
+`software-engineer-contoso` is the first corporate overlay agent. The first
+attempt inherited nothing: modelled on `devops-training-writer`, it opened with
+a Markdown link to `software-engineer.agent.md` and the words "read it as part
+of your operating instructions". VS Code resolves referenced *instructions*
+files into the prompt, which is what `chat.includeReferencedInstructions`
+governs; an `.agent.md` is not one, so the link is inert and the overlay ran as
+a bare fragment with the base contract missing and no diagnostic. The base body
+is now inlined between `<!-- BEGIN INHERITED -->` markers and
+`tests/AgentInheritance.Tests.ps1` compares it byte-for-byte against the base,
+normalising line endings because git rewrites them on checkout.
+
+Inlining is the right design here rather than a workaround: a rule the model
+can route around is not a control, which is the standard this agent applies to
+everything else. The containment lives in the frontmatter — the base agent's 45
+tools drop to 36, removing `web/fetch`, `web/githubRepo`,
 `web/githubTextSearch`, `openSimpleBrowser`, `github`, `useMcp`,
 `vscode/installExtension`, `vscode/extensions`, and `codeInterpreter`, so the
 lethal trifecta cannot close for want of an outbound channel. Prose then shuts
