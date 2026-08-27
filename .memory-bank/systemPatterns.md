@@ -45,6 +45,14 @@ only.
 
 ## Live relationships
 
+- A corporate overlay agent inherits a base agent by ingestion and subtraction:
+    it re-states nothing, removes entries from the base `tools` list, and adds
+    only stricter rules. Containment belongs in the frontmatter, because a rule
+    the model can reason around is not a control. The trap is `agents` — a
+    subagent brings its own toolset, so delegating to one that holds
+    `web/fetch` restores the egress the overlay just removed; the overlay has
+    to constrain the dispatch payload instead of assuming the boundary holds.
+    A handoff has the same shape and needs the same warning.
 - The module carries the Customizations as its payload; `Install-CopilotAtelier`
     deploys them and creates Discovery links. The Setup script is a clone-only
     shim over the same command.

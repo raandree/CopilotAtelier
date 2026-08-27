@@ -9,7 +9,28 @@ source: current task evidence
 
 ## Current focus
 
-Every hook was dead. The host substitutes `$` tokens in a hook command string
+`software-engineer-contoso` is the first corporate overlay agent: it ingests
+`software-engineer.agent.md`, adds constraints only, and never relaxes one.
+The containment lives in the frontmatter rather than the prose — the base
+agent's 45 tools drop to 36, removing `web/fetch`, `web/githubRepo`,
+`web/githubTextSearch`, `openSimpleBrowser`, `github`, `useMcp`,
+`vscode/installExtension`, `vscode/extensions`, and `codeInterpreter`, so the
+lethal trifecta cannot close for want of an outbound channel. Prose then shuts
+the three ways an agent rebuilds a removed capability: the terminal, the user,
+and a handoff.
+
+The non-obvious constraint is the subagent. `agents` narrows to
+`security-reviewer` — whose review the overlay simultaneously makes mandatory
+rather than risk-scaled — but that agent carries `web/fetch`, `github`, and
+`useMcp` of its own, so delegating to it re-opens the channel the toolset just
+closed. The rule that ships constrains the dispatch instead: repository paths,
+symbol names, and the question, never pasted source, configuration, or data.
+The file doubles as the copy-and-rename template for
+`software-engineer-<company>`.
+
+## Previously: every hook was dead
+
+The host substitutes `$` tokens in a hook command string
 before the child process parses it, so `$b = if ($env:PLUGIN_ROOT) { ... }`
 arrived as `= if () { ... }` and PowerShell refused it with `An expression was
 expected after '('`. The only symptom was a *Warning from Session Start hook*

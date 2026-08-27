@@ -216,7 +216,7 @@ Run `Setup-CopilotSettings.ps1 -IncludeClaudeCodeLinks` to additionally link `~/
 
 ### AI Model Preferences
 
-Every agent in [`com.github.copilot/agents/`](com.github.copilot/agents/) declares `model` as a priority array — `['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']` — so a model retirement degrades to the GA fallback instead of breaking all eleven agents at once.
+Every agent in [`com.github.copilot/agents/`](com.github.copilot/agents/) declares `model` as a priority array — `['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']` — so a model retirement degrades to the GA fallback instead of breaking every agent at once.
 
 | Setting | Value | What It Does |
 |---|---|---|

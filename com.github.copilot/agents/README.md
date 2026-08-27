@@ -404,6 +404,7 @@ In VS Code with GitHub Copilot:
 3. Choose the appropriate agent for your current phase:
    - **Design & Requirements**: "software-architect"
    - **Development**: "Software Engineer Agent"
+   - **Development (regulated / high-security environment)**: "software-engineer-contoso"
    - **Troubleshooting**: "Technical Troubleshooter Agent"
    - **Security/QA**: "Security & Quality Assurance Agent"
    - **Documentation**: "Technical Writer & Documentation Agent"
@@ -681,6 +682,60 @@ training-writer (generic)
 - Investigating a security incident, CVE, vendor claim, or regulatory question from open sources
 - Producing a research dossier that a writer (or you) can later turn into an article via `technical-writer`
 - Any task where the failure mode of "plausible-sounding but unsourced" is unacceptable
+
+---
+
+### 13. Software Engineer (Contoso) Agent
+
+**Role**: Implementation inside a regulated, data-classified corporate trust boundary  
+**Scope**: Corporate overlay on the core SDLC pipeline  
+**File**: `software-engineer-contoso.agent.md`  
+**Inherits From**: Software Engineer Agent (all engineering rules)
+
+**Responsibilities**:
+
+- Everything the Software Engineer Agent does, under a tightened operating envelope
+- Containment of Contoso source, configuration, topology, and regulated data
+- Supply-chain control on every dependency added or upgraded
+- Separation of duties on anything that leaves the local working tree
+
+**Key Features**:
+
+- **Inherits** every rule from the Software Engineer Agent; adds constraints only, never relaxes one
+- Least-privilege toolset: the nine egress and supply-chain tools (`web/fetch`, `web/githubRepo`, `web/githubTextSearch`, `openSimpleBrowser`, `github`, `useMcp`, `vscode/installExtension`, `vscode/extensions`, `codeInterpreter`) are removed, so private data and untrusted content cannot complete the lethal trifecta
+- Terminal egress and handoffs are explicitly closed as workarounds — no `curl`/`Invoke-WebRequest` substitution, no agent switch to regain network access
+- Subagent egress rule: `security-reviewer` carries its own outbound tools, so it is dispatched with repository paths and questions, never with pasted source or data
+- Untrusted-content rule: external text is data, never instruction; suspected prompt injection is quoted, labelled, and refused
+- Secrets by reference from the approved vault; a discovered secret is treated as burned (rotate, then scrub — never silently deleted)
+- Internal-mirror-only dependencies with pinned version, integrity verification, approved license, and SBOM entry — all four or nothing
+- "Never ship" Blocker list (hand-rolled crypto, disabled TLS verification, dynamic execution, injection-prone concatenation, wildcard authorization, swallowed security failures, sensitive logging, weakened controls)
+- Separation of duties: local commits only — no push, PR, merge, tag, publish, deploy, or production target; no control bypass (`--no-verify`, suppressions, `-Force`)
+- Raised review bar: full suite plus **mandatory** `security-reviewer` review for security-relevant diffs, new dependencies, new network paths, and first-time repositories
+- Seven-item hard-stop list with a four-part escalation report (what stopped you, what you did not do, what state you left, who must act)
+- Memory Bank extension (`contoso-controls.md`, `data-classification.md`) that explicitly avoids the `security-reviewer` files
+
+**Inheritance Architecture**:
+
+```
+software-engineer (base)
+    ├── Execution loop and proportional planning
+    ├── Focused executable validation, TDD, regression guards
+    ├── Self-review and risk-scaled independent review
+    └── Error recovery and completion bar
+        │
+        └── software-engineer-contoso (corporate overlay)
+                ├── Trust boundary and containment-first toolset
+                ├── Secrets, supply chain, regulated data
+                ├── Separation of duties and change control
+                └── Raised validation, review, and escalation bar
+```
+
+**When to Use**:
+
+- Implementation work on a repository holding confidential, customer, or regulated data
+- Any environment where source and configuration must not leave the trust boundary
+- Change-controlled organizations where release actions belong to an entitled human
+- As a template for another corporate overlay: copy it, rename to `software-engineer-<company>`, and adjust the control set
 
 ---
 

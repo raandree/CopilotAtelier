@@ -71,6 +71,14 @@ BeforeAll {
             MemoryHeading = '## Memory Bank role extension'
             MemoryHash = '4BC6A3CD90073617'
         }
+        'software-engineer-contoso.agent.md' = @{
+            Tools = 36
+            ToolHash = 'D2FD38A75B7ABA0F'
+            Handoffs = 2
+            HandoffHash = 'C6946126C55E0879'
+            MemoryHeading = '## Memory Bank role extension'
+            MemoryHash = '19321727F2B80876'
+        }
         'software-engineer.agent.md' = @{
             Tools = 45
             ToolHash = 'D94007200A192204'

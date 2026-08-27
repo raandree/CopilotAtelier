@@ -15,6 +15,17 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-27**: Added `software-engineer-contoso`, the first corporate overlay
+  agent. It ingests `software-engineer` and only tightens: 45 tools drop to 36
+  (the nine egress and supply-chain tools removed), `agents` narrows to
+  `security-reviewer`, and the body carries the Contoso control set — secrets by
+  reference, internal-mirror-only dependencies, a "never ship" Blocker list,
+  separation of duties ending at the local working tree, a raised and partly
+  mandatory review bar, and a seven-item hard stop. The subagent rule is the
+  sharp one: `security-reviewer` holds `web/fetch`, so the dispatch carries
+  paths and questions, never source. `SharedLifecycle.Tests.ps1` gained its
+  baseline entry; 112 tests pass.
+
 - **2026-08-27**: Fixed every hook. The host substitutes `$` tokens in a hook
   command before the child parses it, so `$b = if ($env:PLUGIN_ROOT)` arrived as
   `= if ()` and PowerShell rejected it — the never-push block, the Memory Bank
