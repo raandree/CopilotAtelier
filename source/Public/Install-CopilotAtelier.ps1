@@ -281,9 +281,17 @@ function Install-CopilotAtelier
     #>
     $legacyDirectoryName = @('Agents', 'Instructions', 'Skills', 'Prompts', 'Hooks', 'Keybindings')
 
+    <#
+        The target tree only exists after the loop above created it. Under
+        -WhatIf that creation is skipped, so guard the enumeration against a
+        missing path instead of letting Get-ChildItem throw a terminating error.
+    #>
     $staleDirectory = @(
-        Get-ChildItem -LiteralPath $path.TargetPath -Directory |
-            Where-Object -FilterScript { $_.Name -cin $legacyDirectoryName }
+        if (Test-Path -LiteralPath $path.TargetPath)
+        {
+            Get-ChildItem -LiteralPath $path.TargetPath -Directory |
+                Where-Object -FilterScript { $_.Name -cin $legacyDirectoryName }
+        }
     )
 
     foreach ($directory in $staleDirectory)

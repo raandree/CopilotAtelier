@@ -262,4 +262,31 @@ Describe 'Install-CopilotAtelier' -Tag 'Unit' {
                 Should -Throw -ExpectedMessage "*No customization directory found*"
         }
     }
+
+    Context 'When previewing with -WhatIf' {
+        It 'Should not throw and should not create the canonical target' {
+            $whatIfContentPath = Join-Path -Path $TestDrive -ChildPath 'whatif-content'
+            $whatIfHomePath = Join-Path -Path $TestDrive -ChildPath 'whatif-home'
+            $whatIfConfigPath = Join-Path -Path $TestDrive -ChildPath 'whatif-config'
+
+            Initialize-CustomizationContent -Path $whatIfContentPath
+
+            $original = Enter-Sandbox -HomePath $whatIfHomePath -ConfigPath $whatIfConfigPath
+
+            try
+            {
+                { Install-CopilotAtelier -ContentPath $whatIfContentPath -SkipCopilotCliEnvironment -WhatIf } |
+                    Should -Not -Throw
+            }
+            finally
+            {
+                Exit-Sandbox -Original $original
+            }
+
+            # A dry run must not touch the file system.
+            $targetPath = Join-Path -Path $whatIfHomePath -ChildPath 'CopilotAtelier'
+
+            Test-Path -LiteralPath $targetPath | Should -BeFalse
+        }
+    }
 }
