@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   [`README.md`](README.md) and [`AGENTS.md`](AGENTS.md) follow. The *Folder Structure* section now shows the deployed tree and the package layout side by side instead of conflating them, and the *Agent plugin* install path was rewritten: it previously told the reader that "the plugin format does not carry `.instructions.md` files or hooks, so this path gives you agents and skills only", which the migration makes false in the one direction that matters — hooks are exactly the guardrails a plugin-only user was silently missing. It now also names the two things worth knowing before choosing that path: bundled hooks execute locally and should be reviewed, and `rules`/`commands` registration is unconfirmed.
 
+### Fixed
+
+- **`Install-CopilotAtelier -WhatIf` no longer throws** (2026-08-27). A dry run aborted with a terminating `ItemNotFoundException` from `Get-ChildItem: Cannot find path '...\CopilotAtelier' because it does not exist`. The legacy-directory sweep enumerated the canonical target unconditionally, but under `-WhatIf` the target tree is never created (the `New-Item`/`Copy-Item` calls that build it honour `ShouldProcess` and are skipped), so the enumeration hit a path that did not exist. The sweep now runs only when the target is present, which matches how the rest of the function already guards optional paths with `Test-Path`. Covered by a regression test that asserts `-WhatIf` neither throws nor creates the canonical target.
+
 ## [4.0.0] - 2026-08-26
 
 ### Added
