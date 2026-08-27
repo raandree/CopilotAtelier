@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-26
+last-verified: 2026-08-27
 owner: software-engineer
 source: .memory-bank/decisions
 ---
@@ -62,9 +62,21 @@ only.
     recipe for output of the wrong shape, a required structural slot for an
     omitted element, a predicate-keyed conditional for context-dependent
     behaviour. The prohibition form applied to a shaping failure makes it worse.
-- VS Code spawns a hook command without a shell, so no `%VAR%` or `$VAR` token
-    is expanded. Each command resolves its own path inside the interpreter and
-    propagates the exit code explicitly.
+- A hook command string is substituted before the child process parses it, so a
+    `$` token is consumed by the host and reaches the interpreter as nothing.
+    Every command is written without one: paths come from
+    `[Environment]::GetEnvironmentVariable(...)`, the exit code from
+    `Get-Variable -Name LASTEXITCODE -ValueOnly`, and each candidate path is
+    rooted with `[IO.Path]::Combine('/', ...)` so an unset root can never resolve
+    into the opened workspace. The earlier reading — spawned with no shell, so
+    each command expands its own `$env:` path — held until 2026-08-27, when every
+    hook died with `An expression was expected after '('` behind a single warning
+    balloon. The `$`-free form is correct under both readings.
+- A Customization ships to two roots that no single variable names: the module's
+    `~/.copilot/<type>` and the plugin's
+    `~/.vscode*/agent-plugins/<host>/<owner>/CopilotAtelier`. `PLUGIN_ROOT` was
+    adopted on inference and is still unconfirmed, so resolution probes it first
+    and then both concrete locations.
 - A capability measured on one configuration is scoped to what was measured and
     encoded as attempt, validate, escalate — never a verdict. The content gate
     decides at run time; the engine name only orders which path is tried first.

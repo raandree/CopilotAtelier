@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-26
+last-verified: 2026-08-27
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,6 +14,16 @@ Copilot Atelier is published to the PowerShell Gallery and released at `v4.0.0`
 is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-08-27**: Fixed every hook. The host substitutes `$` tokens in a hook
+  command before the child parses it, so `$b = if ($env:PLUGIN_ROOT)` arrived as
+  `= if ()` and PowerShell rejected it — the never-push block, the Memory Bank
+  probe, and the compaction checkpoint were all absent behind one warning
+  balloon. Commands are now `$`-free (`[Environment]::GetEnvironmentVariable`,
+  `Get-Variable LASTEXITCODE -ValueOnly`, `[IO.Path]::Combine('/', ...)`) and
+  probe `PLUGIN_ROOT`, `~/.copilot/hooks`, then
+  `~/.vscode*/agent-plugins/*/*/CopilotAtelier`. `Hooks.Tests.ps1` models the
+  substitution pass and re-runs the substituted command; 68 tests pass.
 
 - **2026-08-27**: Reworded the role-file clause in Pre-flight step 3. "Create only
   the active Custom agent's required role files" read as the agent's whole

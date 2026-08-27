@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-26
+last-verified: 2026-08-27
 owner: software-engineer
 source: current task evidence
 ---
@@ -8,6 +8,19 @@ source: current task evidence
 # Active context
 
 ## Current focus
+
+Every hook was dead. The host substitutes `$` tokens in a hook command string
+before the child process parses it, so `$b = if ($env:PLUGIN_ROOT) { ... }`
+arrived as `= if () { ... }` and PowerShell refused it with `An expression was
+expected after '('`. The only symptom was a *Warning from Session Start hook*
+balloon, so the never-push block, the Memory Bank probe, and the compaction
+checkpoint were all absent while looking installed. Every command in
+`com.github.copilot/hooks/hooks.json` is now written without a single `$`, and
+resolution probes `PLUGIN_ROOT`, then `~/.copilot/hooks`, then the plugin's
+`~/.vscode*/agent-plugins/*/*/CopilotAtelier`. The corrected file was copied
+into the canonical target, and both deployed hooks were run end to end.
+
+## Still open from the 1.0 migration
 
 The plugin package moved to Agent Plugins 1.0, and the package is now the
 primary layout rather than a second view of the module payload. `plugin.json`

@@ -357,6 +357,94 @@ Describe 'Write-CompactionCheckpoint' -Tag 'Unit' {
 Describe 'Hook configuration' -Tag 'Unit' {
     BeforeAll {
         $script:hookConfig = Get-Content -LiteralPath $script:hookConfigPath -Raw | ConvertFrom-Json
+        $script:isWindowsPlatform = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+        $script:homeVariableName = if ($script:isWindowsPlatform) { 'USERPROFILE' } else { 'HOME' }
+
+        # Stages the deployed layout so a shipped command string can run verbatim
+        # without depending on a real ~/.copilot/hooks link.
+        function script:New-DeployedHookHome {
+            param(
+                [Parameter(Mandatory)]
+                [ValidateNotNullOrEmpty()]
+                [string]$Path
+            )
+
+            $deployedScripts = Join-Path $Path '.copilot/hooks/scripts'
+            New-Item -ItemType Directory -Path $deployedScripts -Force | Out-Null
+            Copy-Item -Path (Join-Path $script:hookScriptRoot '*.ps1') -Destination $deployedScripts
+        }
+
+        <#
+            The host substitutes $ tokens in the command string before the child
+            process parses it: $env:NAME becomes the environment value and every
+            other token becomes empty. Modelling that here keeps the assertion on
+            the shipped command rather than on a wrapper shell.
+        #>
+        function script:Expand-HostVariable {
+            param(
+                [Parameter(Mandatory)]
+                [ValidateNotNullOrEmpty()]
+                [string]$CommandLine
+            )
+
+            [regex]::Replace($CommandLine, '\$(env:)?(\w+)', {
+                    param($tokenMatch)
+
+                    if ($tokenMatch.Groups[1].Success)
+                    {
+                        [Environment]::GetEnvironmentVariable($tokenMatch.Groups[2].Value)
+                    }
+                    else
+                    {
+                        ''
+                    }
+                })
+        }
+
+        # No shell: VS Code launches the hook itself, so the command has to
+        # resolve its own path and propagate the blocking exit code.
+        function script:Invoke-HookCommandLine {
+            param(
+                [Parameter(Mandatory)]
+                [ValidateNotNullOrEmpty()]
+                [string]$CommandLine,
+
+                [Parameter(Mandatory)]
+                [ValidateNotNullOrEmpty()]
+                [string]$HomePath,
+
+                [Parameter(Mandatory)]
+                [AllowEmptyString()]
+                [string]$Payload
+            )
+
+            $executable, $commandArguments = $CommandLine -split ' ', 2
+
+            $processInfo = [Diagnostics.ProcessStartInfo]::new()
+            $processInfo.FileName = $executable
+            $processInfo.Arguments = $commandArguments
+            $processInfo.UseShellExecute = $false
+            $processInfo.RedirectStandardInput = $true
+            $processInfo.RedirectStandardOutput = $true
+            $processInfo.RedirectStandardError = $true
+            $processInfo.EnvironmentVariables[$script:homeVariableName] = $HomePath
+
+            # The shipped command prefers PLUGIN_ROOT when a plugin host sets it,
+            # so the deployed branch is only exercised with that variable cleared.
+            $processInfo.EnvironmentVariables.Remove('PLUGIN_ROOT')
+
+            $process = [Diagnostics.Process]::Start($processInfo)
+            $process.StandardInput.Write($Payload)
+            $process.StandardInput.Close()
+            $standardOutput = $process.StandardOutput.ReadToEnd()
+            $standardError = $process.StandardError.ReadToEnd()
+            $process.WaitForExit()
+
+            [pscustomobject]@{
+                ExitCode = $process.ExitCode
+                Output = "$standardOutput$standardError"
+            }
+        }
     }
 
     It 'declares the <Event> event' -ForEach @(
@@ -390,8 +478,8 @@ Describe 'Hook configuration' -Tag 'Unit' {
         foreach ($hookEvent in $script:hookConfig.hooks.PSObject.Properties) {
             foreach ($hook in $hookEvent.Value) {
                 $hook.type | Should -Be 'command'
-                $hook.command | Should -Match '\$HOME'
-                $hook.windows | Should -Match '\$env:USERPROFILE'
+                $hook.command | Should -Match "GetEnvironmentVariable\('HOME'\)"
+                $hook.windows | Should -Match "GetEnvironmentVariable\('USERPROFILE'\)"
                 $hook.timeout | Should -BeGreaterThan 0
             }
         }
@@ -408,43 +496,54 @@ Describe 'Hook configuration' -Tag 'Unit' {
         }
     }
 
+    It 'carries no token that an outer shell would interpolate' {
+        foreach ($hookEvent in $script:hookConfig.hooks.PSObject.Properties) {
+            foreach ($hook in $hookEvent.Value) {
+                <#
+                    VS Code now runs the command through PowerShell, which expands
+                    the double-quoted -Command argument before the child parses
+                    it. One $ token is enough to reach the child truncated.
+                #>
+                $hook.command | Should -Not -Match '\$'
+                $hook.windows | Should -Not -Match '\$'
+            }
+        }
+    }
+
     It 'blocks a push when the shipped PreToolUse command is spawned without a shell' {
-        $isWindowsPlatform = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
         $hook = $script:hookConfig.hooks.PreToolUse[0]
 
-        # Stage a fake home so the shipped command string runs verbatim, without
-        # depending on a deployed ~/.copilot/hooks link.
-        $fakeHome = Join-Path $TestDrive 'home'
-        $deployedScripts = Join-Path $fakeHome '.copilot/hooks/scripts'
-        New-Item -ItemType Directory -Path $deployedScripts -Force | Out-Null
-        Copy-Item -Path (Join-Path $script:hookScriptRoot '*.ps1') -Destination $deployedScripts
+        $fakeHome = Join-Path $TestDrive 'spawn-home'
+        script:New-DeployedHookHome -Path $fakeHome
 
-        $command = if ($isWindowsPlatform) { $hook.windows } else { $hook.command }
-        $executable, $commandArguments = $command -split ' ', 2
+        $command = if ($script:isWindowsPlatform) { $hook.windows } else { $hook.command }
+        $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
+        $result = script:Invoke-HookCommandLine -CommandLine $command -HomePath $fakeHome -Payload $payload
 
-        # No shell: this is how VS Code launches a hook, so the command itself
-        # must expand its own path and propagate the blocking exit code.
-        $processInfo = [Diagnostics.ProcessStartInfo]::new()
-        $processInfo.FileName = $executable
-        $processInfo.Arguments = $commandArguments
-        $processInfo.UseShellExecute = $false
-        $processInfo.RedirectStandardInput = $true
-        $processInfo.RedirectStandardOutput = $true
-        $processInfo.RedirectStandardError = $true
-        $processInfo.EnvironmentVariables[$(if ($isWindowsPlatform) { 'USERPROFILE' } else { 'HOME' })] = $fakeHome
+        $result.ExitCode |
+            Should -Be 2 -Because "the shipped command must resolve its own path and block: $($result.Output)"
+    }
 
-        # The shipped command prefers PLUGIN_ROOT when a plugin host sets it, so
-        # the user-profile branch is only exercised with that variable cleared.
-        $processInfo.EnvironmentVariables.Remove('PLUGIN_ROOT')
+    It 'blocks a push after the host substitutes variables into the command' {
+        <#
+            Observed regression: the host expanded the command before the child
+            parsed it, so $b, $env:PLUGIN_ROOT and $env:USERPROFILE collapsed to
+            nothing and the child died with 'An expression was expected after ('.
+            Every hook stopped guarding anything, with only a warning to show.
+        #>
+        $hook = $script:hookConfig.hooks.PreToolUse[0]
 
-        $process = [Diagnostics.Process]::Start($processInfo)
-        $process.StandardInput.Write((script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'))
-        $process.StandardInput.Close()
-        $standardOutput = $process.StandardOutput.ReadToEnd()
-        $standardError = $process.StandardError.ReadToEnd()
-        $process.WaitForExit()
+        $fakeHome = Join-Path $TestDrive 'substituted-home'
+        script:New-DeployedHookHome -Path $fakeHome
 
-        $process.ExitCode |
-            Should -Be 2 -Because "the shipped command must resolve its own path and block: $standardOutput$standardError"
+        $command = if ($script:isWindowsPlatform) { $hook.windows } else { $hook.command }
+        $substituted = script:Expand-HostVariable -CommandLine $command
+
+        $substituted | Should -Be $command -Because 'a command with no $ token survives substitution unchanged'
+
+        $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
+        $result = script:Invoke-HookCommandLine -CommandLine $substituted -HomePath $fakeHome -Payload $payload
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
     }
 }

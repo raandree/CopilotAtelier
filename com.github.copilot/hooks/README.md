@@ -95,12 +95,22 @@ which survives because Instructions are re-sent with every request.
   `".github/hooks": true` alongside the existing entry, or place the hook in
   `~/.copilot/hooks`. Verified by observing a `Stop` hook that executed only
   after the file moved to the deployed folder.
-- **Command not found.** VS Code spawns a hook command directly, with no shell,
-  so `%USERPROFILE%` and `$HOME` are never expanded by a shell. Each command
-  therefore resolves its own path inside PowerShell — `$env:USERPROFILE` on
-  Windows, `$HOME` elsewhere. If you deploy the scripts outside
-  `~/.copilot/hooks`, replace the `Join-Path` expression in
-  `hooks.json` with an absolute path.
+- **Command not found.** A hook command has to locate its own script, because
+  the two deployment methods put it in different places: the module installs it
+  under `~/.copilot/hooks`, and a plugin install lands in
+  `~/.vscode*/agent-plugins/<host>/<owner>/CopilotAtelier/com.github.copilot/hooks`.
+  Each command therefore probes `PLUGIN_ROOT`, then the module location, then
+  the plugin location, and runs the first script that exists. If you deploy the
+  scripts anywhere else, replace the probe in `hooks.json` with an absolute path.
+- **The hook dies with a PowerShell parser error.** VS Code hands the command to
+  a PowerShell shell, which expands the double-quoted `-Command` argument before
+  the child process parses it. A `$` token is therefore consumed by the outer
+  shell and reaches the child as an empty string — `$b = if ($env:PLUGIN_ROOT)`
+  arrives as `= if ()` and fails with `An expression was expected after '('`.
+  Every shipped command is written without a single `$`: paths come from
+  `[Environment]::GetEnvironmentVariable(...)` and the blocking exit code from
+  `Get-Variable -Name LASTEXITCODE -ValueOnly`. Keep it that way, or the hook
+  silently stops guarding anything.
 - **Timeout.** The default hook timeout is 30 seconds; these hooks declare 20.
   Increase `timeout` if a slow filesystem delays the Memory Bank probe.
 

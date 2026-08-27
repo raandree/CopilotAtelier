@@ -195,9 +195,10 @@ Describe 'Agent plugin manifest' -Tag 'Unit' {
             A plugin is installed outside the workspace, so a hook command
             cannot use a relative path. The same file also ships to
             ~/.copilot/hooks through the module, so each command has to resolve
-            both roots - PLUGIN_ROOT when the client sets it, the user profile
-            otherwise. Losing either branch breaks one distribution path
-            silently.
+            every root - PLUGIN_ROOT when the client sets it, the module's
+            ~/.copilot/hooks, and the plugin's own
+            ~/.vscode*/agent-plugins/<host>/<owner>/CopilotAtelier. Losing a
+            branch breaks one distribution path silently.
         #>
         $hookConfigPath = Join-Path -Path $script:repoRoot -ChildPath 'com.github.copilot/hooks/hooks.json'
         $hookConfig = Get-Content -LiteralPath $hookConfigPath -Raw | ConvertFrom-Json
@@ -218,7 +219,8 @@ Describe 'Agent plugin manifest' -Tag 'Unit' {
         foreach ($commandText in $command)
         {
             $commandText | Should -Match 'PLUGIN_ROOT'
-            $commandText | Should -Match '\.copilot'
+            $commandText | Should -Match '\.copilot/hooks'
+            $commandText | Should -Match 'agent-plugins/\*/\*/CopilotAtelier'
         }
     }
 }
