@@ -35,12 +35,10 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   glob happens to cover, so `versioning` could not answer a pre-release
   question and `pester` could not reach the first test in a repository that has
   none. The gate is a per-file case in `CustomizationFrontmatter.Tests.ps1`,
-  shown red on 12 of its 16 cases against the previous commit. The same pass
-  removed eight sections that only restated rules the file had already given,
-  four introductory explanations the Strict tier forbids, two link farms whose
-  normative links already appear inline, and 78 decorative marks: 355 lines.
-  Two defects surfaced while reading — a cross-reference naming `markdown`
-  where `changelog` was meant, and two `applyTo` lists carrying patterns fully
+  shown red on 12 of its 16 cases. The same pass removed 355 lines of restated
+  rules, forbidden introductions, redundant link farms, and decorative marks,
+  and surfaced two defects: a cross-reference naming `markdown` where
+  `changelog` was meant, and two `applyTo` lists carrying patterns fully
   subsumed by a sibling pattern.
 
 - **2026-08-26**: Renamed the seven display-name Custom agent files to their
@@ -68,71 +66,52 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - **2026-08-25**: Added the `copilot-usage-stats` Skill and the `/usage` Prompt
   on `Ctrl+K U`, then extended it to convert tokens into AI credits and dollars.
-  A hook cannot report consumption — no hook event carries usage, the transcript
-  records none, and the local `session-store.db` has no token column. Three
-  measured facts: `input_tokens` already contains `cache_read_tokens`;
-  `sessions.repository` holds three spellings of one repository; and `cost` is a
-  legacy request multiplier, not money. Copilot has billed per token since
-  2026-06-01, so cached input priced at the input rate inflates by ~10x.
+  A hook cannot report consumption: no hook event carries usage and the local
+  `session-store.db` has no token column. Three measured facts: `input_tokens`
+  already contains `cache_read_tokens`, so cached input priced at the input rate
+  inflates by ~10x; `sessions.repository` holds three spellings of one
+  repository; and `cost` is a legacy request multiplier, not money.
 
 - **2026-08-25**: Fixed the PR pipeline, where GitVersion had *succeeded* and
   the step that reads it threw anyway. `GitVersion.yml` left `feature` and
-  `hotfix` unanchored, so `ai/fix-manifest-bom-ps51` matched both — `ai/` and
-  `fix-` — and GitVersion warned about the extra match on the same stdout the
-  pipeline parses as JSON, where `ci.yml` required the output to start with
-  `{`. Both anchored, the step now locates the JSON block and echoes any
-  preamble instead of discarding it, and a `-ForEach` gate asserts each
-  representative branch name matches exactly one configuration.
+  `hotfix` unanchored, so `ai/fix-manifest-bom-ps51` matched both and GitVersion
+  warned on the same stdout `ci.yml` parses as JSON. Both anchored; the step now
+  locates the JSON block, and a `-ForEach` gate asserts each representative
+  branch name matches exactly one configuration.
 
 - **2026-08-25**: Fixed `Install-Module` failing on Windows PowerShell 5.1 with
   "not a properly-formed module" on every release since `2.0.0`.
-  `Create_Changelog_Release_Output` writes the changelog's release section into
-  the manifest's `ReleaseNotes` and saves it without a byte-order mark; this
-  repository's prose carries em dashes and, since `german-tax-research`, literal
-  `€`/`§`, and Windows PowerShell 5.1 decodes a BOM-less file with the ANSI code
-  page, corrupting those into mojibake that breaks the manifest's
-  restricted-language parser. Reproduced directly with `Test-ModuleManifest`
-  under `powershell.exe`; a new `Repair_ManifestEncoding` build task re-saves
-  the manifest as UTF-8 with a BOM whenever one is missing, and a regression
-  test in `module.tests.ps1` pins it.
+  `Create_Changelog_Release_Output` saved `ReleaseNotes` without a byte-order
+  mark, and 5.1 decodes a BOM-less file with the ANSI code page, corrupting the
+  prose's em dashes and literal `€`/`§` into mojibake that breaks the manifest's
+  restricted-language parser. `Repair_ManifestEncoding` re-saves the manifest as
+  UTF-8 with a BOM; pinned by a regression test in `module.tests.ps1`.
 
 - **2026-08-25**: Split `skill-creator` from 492 lines to 344 behind two
-  references. The Skill carrying the progressive-disclosure rules broke them
-  worst — 8 lines from the budget, no references, and an unapplied splitting
-  recipe of its own. What moved was decided by "only add context the model does
-  not already have": the material upstream already teaches went to
-  `references/`, and the repository-specific and original material stayed.
-  Description untouched, so no eval sweep is owed.
+  references, applying its own progressive-disclosure rules to itself. Material
+  upstream already teaches moved to `references/`; the repository-specific and
+  original material stayed. Description untouched, so no eval sweep is owed.
 
 - **2026-08-25**: Re-verified `copilot-authoring.instructions.md` against the
-  current VS Code and agentskills.io documentation. It had drifted into stating
-  a rule the repository's own files break — prompts documented as requiring
-  `agent: agent | ask` while eight name a Custom agent and one declares none.
-  Corrected the Prompt, Instruction, Agent, Skill, and Hook schemas, added the
-  stdout half of the hook contract, and marked which keys are house rules
-  rather than platform requirements. Then applied the new rule to the file
-  itself: it had no `description`, so the authoring question that arrives
-  before any file exists could not activate it.
+  current VS Code and agentskills.io documentation. Corrected the Prompt,
+  Instruction, Agent, Skill, and Hook schemas, added the stdout half of the hook
+  contract, marked which keys are house rules rather than platform requirements,
+  and gave the file the `description` it lacked.
 
 - **2026-08-25**: Closed the compaction gap. The Memory Bank had a deterministic
-  entry gate and no exit gate: Post-flight is the only durable write point and
-  it runs at end of turn, so a turn compacted mid-run loses everything it
-  learned while its summary still claims Pre-flight ran. A `PreCompact` hook now
-  writes `.memory-bank/session/compaction-<UTC>Z.md` with the trigger,
-  transcript path, and repository state, and Pre-flight gained a
-  *Compaction recovery* section. The split is forced by the platform, not
-  chosen: `PreCompact` carries no `additionalContext`, so a hook can never reach
-  the post-compaction context, while an Instruction is re-sent every request.
+  entry gate and no exit gate, so a turn compacted mid-run lost everything it
+  learned while its summary still claimed Pre-flight ran. A `PreCompact` hook
+  now writes `.memory-bank/session/compaction-<UTC>Z.md`, and Pre-flight gained
+  a *Compaction recovery* section. The split is forced by the platform:
+  `PreCompact` carries no `additionalContext`, so no hook can reach the
+  post-compaction context, while an Instruction is re-sent every request.
 
 - **2026-08-25**: Closed the release provenance gap. `plugin.json` had announced
-  `2.0.0` through two releases because the changelog rollover for `v3.0.0` and
-  `v3.1.0` never reached `main` — `Create_ChangeLog_GitHub_PR` opened both pull
-  requests, nobody merged them, and the task cannot fail a build because it
+  `2.0.0` through two releases because the `v3.0.0` and `v3.1.0` changelog
+  rollover pull requests were never merged and `Create_ChangeLog_GitHub_PR`
   swallows every error in a `catch` that only logs. The missing sections are
-  reconstructed from those two commits, and the new gate in
-  `PluginManifest.Tests.ps1` fails whenever a published non-preview tag has no
-  section — with a tag at `HEAD` exempt, or every tag push would deadlock on its
-  own gate before `deploy` ever runs.
+  reconstructed, and `PluginManifest.Tests.ps1` now fails whenever a published
+  non-preview tag has no section, exempting a tag at `HEAD`.
 
 ## Stable capabilities
 
