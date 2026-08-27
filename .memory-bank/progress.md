@@ -15,6 +15,12 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-27**: Reworded the role-file clause in Pre-flight step 3. "Create only
+  the active Custom agent's required role files" read as the agent's whole
+  declared list; it now creates a role file only when the agent declares it and
+  the current durable task needs it, and forbids scaffolding another agent's
+  schema or pre-creating an unused declared file. Matches `memory-bank` SKILL
+  step 6. Prevents empty template files that later turns route to and trust.
 - **2026-08-26**: Migrated the plugin package to Agent Plugins 1.0. `plugin.json`
   declares the canonical `$schema` and drops the legacy `agents`/`skills` path
   fields; `Skills/` became root `skills/`; agents and hooks moved to
