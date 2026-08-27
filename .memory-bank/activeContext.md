@@ -9,6 +9,14 @@ source: current task evidence
 
 ## Current focus
 
+`main` is red at `dc6206e`, which appended twenty lines to `systemPatterns.md`
+and took it to 122 against a 110-line budget. Only the Windows leg failed,
+because only that leg runs untagged tests, so `MemoryBankRouting` and
+`MemoryBankHealth` never execute on Linux or macOS. This branch already curates
+the file to 109, so merging it turns CI green. `progress.md` was curated from
+194 to 166 in the same pass: at 194 of 200 the append Post-flight owes on every
+Substantive turn would have re-broken the build on the next commit.
+
 `software-engineer-contoso` is the first corporate overlay agent. The first
 attempt inherited nothing: modelled on `devops-training-writer`, it opened with
 a Markdown link to `software-engineer.agent.md` and the words "read it as part

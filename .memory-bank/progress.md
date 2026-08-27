@@ -15,6 +15,16 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-27**: Diagnosed the red `main` build (CI run 33080179473). `dc6206e`
+  appended twenty lines to `systemPatterns.md`, taking it to 122 against a
+  110-line budget, so `MemoryBankRouting` and `MemoryBankHealth` both failed —
+  on the Windows leg alone, because it is the only leg that runs untagged tests.
+  The curation already on this branch clears both. `progress.md` was then curated
+  from 194 to 166 lines, because at 194 of 200 the Post-flight append that every
+  Substantive turn owes would have re-broken the build on the next commit. The
+  `LineBudgetNearLimit` warning names the file before it breaches, but it fails
+  nothing, so a breach is still discovered by a red build after the push.
+
 - **2026-08-27**: Added `software-engineer-contoso`, the first corporate overlay
   agent, and learned that a Markdown link between agents inherits nothing — VS
   Code resolves referenced *instructions* files, not `.agent.md`, so the first
@@ -89,44 +99,6 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   selectable for small work. Decision 0022 records the reasoning, and
   `SoftwareArchitectAgent.Tests.ps1` asserts the withheld tools by name because
   a fingerprint detects change but not correctness.
-
-- **2026-08-25**: Added the `copilot-usage-stats` Skill and the `/usage` Prompt
-  on `Ctrl+K U`, then extended it to convert tokens into AI credits and dollars.
-  A hook cannot report consumption: no hook event carries usage and the local
-  `session-store.db` has no token column. Three measured facts: `input_tokens`
-  already contains `cache_read_tokens`, so cached input priced at the input rate
-  inflates by ~10x; `sessions.repository` holds three spellings of one
-  repository; and `cost` is a legacy request multiplier, not money.
-
-- **2026-08-25**: Fixed the PR pipeline, where GitVersion had *succeeded* and
-  the step that reads it threw anyway. `GitVersion.yml` left `feature` and
-  `hotfix` unanchored, so `ai/fix-manifest-bom-ps51` matched both and GitVersion
-  warned on the same stdout `ci.yml` parses as JSON. Both anchored; the step now
-  locates the JSON block, and a `-ForEach` gate asserts each representative
-  branch name matches exactly one configuration.
-
-- **2026-08-25**: Fixed `Install-Module` failing on Windows PowerShell 5.1 with
-  "not a properly-formed module" on every release since `2.0.0`.
-  `Create_Changelog_Release_Output` saved `ReleaseNotes` without a byte-order
-  mark, and 5.1 decodes a BOM-less file with the ANSI code page, corrupting the
-  prose's em dashes and literal `€`/`§` into mojibake that breaks the manifest's
-  restricted-language parser. `Repair_ManifestEncoding` re-saves the manifest as
-  UTF-8 with a BOM; pinned by a regression test in `module.tests.ps1`.
-
-- **2026-08-25**: Closed the compaction gap. The Memory Bank had a deterministic
-  entry gate and no exit gate, so a turn compacted mid-run lost everything it
-  learned while its summary still claimed Pre-flight ran. A `PreCompact` hook
-  now writes `.memory-bank/session/compaction-<UTC>Z.md`, and Pre-flight gained
-  a *Compaction recovery* section. The split is forced by the platform:
-  `PreCompact` carries no `additionalContext`, so no hook can reach the
-  post-compaction context, while an Instruction is re-sent every request.
-
-- **2026-08-25**: Closed the release provenance gap. `plugin.json` had announced
-  `2.0.0` through two releases because the `v3.0.0` and `v3.1.0` changelog
-  rollover pull requests were never merged and `Create_ChangeLog_GitHub_PR`
-  swallows every error in a `catch` that only logs. The missing sections are
-  reconstructed, and `PluginManifest.Tests.ps1` now fails whenever a published
-  non-preview tag has no section, exempting a tag at `HEAD`.
 
 ## Stable capabilities
 
