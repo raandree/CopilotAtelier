@@ -63,9 +63,30 @@ Describe 'Software Engineer Custom agent' {
         $script:agentBody | Should -Match 'regression'
     }
 
-    It 'scales independent review to risk without skipping self-review' {
+    It 'keeps self-review mandatory and names the high-risk triggers' {
         $script:agentBody | Should -Match 'self-review'
         $script:agentBody | Should -Match '(?s)independent review.*high-risk work'
+    }
+
+    It 'defaults the independent review switch off and never auto-dispatches' {
+        <#
+            An unconditional subagent handover costs minutes per turn. The
+            default must be the agent finishing its own work and naming the
+            risk, not dispatching a reviewer nobody asked for.
+        #>
+        $script:agentBody | Should -Match '(?i)independent review switch'
+        $script:agentBody | Should -Match "(?i)``off`` by default"
+        $script:agentBody | Should -Match '(?i)do not dispatch'
+        $script:agentBody | Should -Match '(?i)recommend'
+    }
+
+    It 'parameterizes the independent review switch with off, on, and auto' {
+        foreach ($value in @('review: off', 'review: on', 'review: auto')) {
+            $script:agentBody | Should -Match ([regex]::Escape($value))
+        }
+
+        $script:agentContent |
+            Should -Match '(?im)^argument-hint:.*review: on'
     }
 
     It 'retains the agentic-security gate' {

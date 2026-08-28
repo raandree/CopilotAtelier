@@ -15,9 +15,60 @@ Each agent is designed to handle a specific phase of the software development an
 
 > **Project Focus**: The core focus of this project is **software development**. The agents below are organized into the primary SDLC pipeline agents and supplementary domain-specific agents that serve specialized side use cases.
 
+## Choosing how much process you want
+
+Two switches decide how many agents touch a change. Both default to the cheapest
+setting, so **doing nothing keeps the work with one agent**.
+
+| You want | Type this | What happens |
+|---|---|---|
+| One agent only *(default)* | nothing | The agent implements, validates, self-reviews, and closes out. No handoff, no second context. |
+| One agent, plus a security review | `review: on` | The agent finishes, then offers the review handoff once. |
+| The agent to judge whether a review is needed | `review: auto` | Restores risk-scaled dispatch: security boundaries, destructive operations, migrations, concurrency, public APIs, cross-module contracts, or a large unfamiliar diff. |
+| The full four-agent cycle | `cycle: full` | Architect → engineer → reviewer → writer, progressing on its own. |
+| To stop a cycle that is running | `cycle: off` | Ends it at the current stage. That stage becomes the closer and reports where the chain ended. |
+
+With everything off, a single agent still validates its own work, self-reviews
+the diff, and names any risk it sees — it just recommends the review instead of
+running one. Nothing is skipped; only the second opinion is.
+
 ## Core SDLC Pipeline Agents
 
 These agents form the primary software development and release pipeline.
+
+### The full development cycle
+
+The four agents below chain into one opt-in workflow. Ask for `cycle: full` — or
+"the full development cycle" — and the stages run in order:
+
+```text
+software-architect  →  software-engineer  →  security-reviewer  →  technical-writer
+   Design Concept        implement + test       pass / fail gate       document + close out
+                                 ↑                     │
+                                 └──── fail: max 2 fix rounds ────┘
+```
+
+The cycle is off by default; a single agent finishes its own work and stops. When
+it is requested, only the final stage writes the changelog entry and the commit —
+the earlier stages verify, refresh `activeContext.md`, and hand over. Every
+cycle-carrying handoff auto-submits, so a transition does not ask for a second
+confirmation.
+
+**Ask for it** with `cycle: full` or any of: "full development cycle", "full
+workflow", "development cycle", "full SDLC", "full pipeline", "the whole
+pipeline", "the full agent chain", "all four agents", "design to documentation",
+"concept to docs", "run the complete workflow".
+
+**It will not start** on "end-to-end" (that means end-to-end tests), "do it
+properly", "the whole thing", or "ship it" — four agents is too expensive to
+spend on a guess, so those get a question instead.
+
+**Worth knowing**: progression is surfaced as a handoff button, not an unattended
+agent switch. `send: true` means selecting it submits immediately rather than
+waiting for a second confirmation. VS Code hands *you* to another agent; an agent
+cannot hand itself. Ask for a cycle at the engineer rather than the architect and
+it hands back upstream, because there is no signed-off Design Concept to
+implement if you start in the middle.
 
 ### 1. Software Architect Agent
 
@@ -75,7 +126,7 @@ These agents form the primary software development and release pipeline.
 - Immediate focused validation after each substantive edit
 - Engineering excellence standards (SOLID, Clean Code, DRY, YAGNI, KISS)
 - Risk-scaled testing strategy (Unit → Integration → E2E)
-- Self-review for every change and independent review for high-risk work
+- Self-review on every change; independent review is opt-in (`review: on`) and never auto-dispatched
 - Agentic-security review for agents, LLM features, RAG, and MCP servers
 
 **When to Use**:
@@ -305,18 +356,23 @@ flowchart LR
     Arch[Software Architect<br/>Agent] -->|Design Signed Off| Dev[Software Engineer<br/>Agent]
     Dev -->|Requirement Gap| Arch
     Dev -->|Code Complete| QA[Security & QA<br/>Agent]
-    QA -->|PASS| Prod[Production<br/>Deployment]
-    QA -->|FAIL| Dev
+    QA -->|PASS| Doc[Technical Writer<br/>Agent]
+    QA -->|FAIL, max 2 rounds| Dev
     QA -->|CONDITIONAL| Risk[Risk<br/>Acceptance]
-    Risk -->|Approved| Prod
+    Risk -->|Approved| Doc
     Risk -->|Rejected| Dev
+    Doc -->|Documented + closed out| Prod[Production<br/>Deployment]
 
     style Arch fill:#9C27B0
     style Dev fill:#4CAF50
     style QA fill:#FF9800
+    style Doc fill:#00BCD4
     style Prod fill:#2196F3
     style Risk fill:#FFC107
 ```
+
+Run the whole thing with `cycle: full`, or work any single phase on its own —
+see [Choosing how much process you want](#choosing-how-much-process-you-want).
 
 ### Recommended Workflow
 

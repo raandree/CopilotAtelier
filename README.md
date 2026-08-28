@@ -23,6 +23,7 @@ well-known `~/.copilot/` folders that VS Code and the Copilot CLI both read.
 - [Purpose](#purpose)
 - [Folder Structure](#folder-structure)
 - [What Each Folder Contains](#what-each-folder-contains)
+- [How Much Process You Want](#how-much-process-you-want)
 - [Available Skills](#available-skills)
 - [VS Code Settings Applied](#vs-code-settings-applied)
   - [File Locations](#file-locations)
@@ -121,6 +122,24 @@ The folder name of the canonical target is `CopilotAtelier`, matching the module
 | **Prompts** | `*.prompt.md` | Reusable task templates invoked as `/slash` commands. Best for single, repeatable tasks like scaffolding or code review. |
 | **Hooks** | `*.json` + `scripts/` | Shell commands run at fixed points in the agent loop. Deterministic guardrails that do not depend on the model choosing to obey them. See [`com.github.copilot/hooks/README.md`](com.github.copilot/hooks/README.md). |
 | **Keybindings** | `keybindings.json` | Shared VS Code keybindings merged idempotently into `%APPDATA%\Code\User\keybindings.json`. See [Keybindings Applied](#keybindings-applied). |
+
+## How Much Process You Want
+
+The four core agents work alone by default and can also chain into one workflow.
+Nothing has to be configured — the setting is whatever you type.
+
+| You want | Type this |
+|---|---|
+| One agent only *(default)* | nothing |
+| One agent, plus a security review | `review: on` |
+| The agent to judge whether a review is needed | `review: auto` |
+| The full cycle: architect → engineer → reviewer → writer | `cycle: full` |
+| To stop a running cycle | `cycle: off` |
+
+A cycle progresses on its own once you ask for it, and only its last stage writes
+the changelog entry and the commit. Full detail, the trigger phrases it accepts,
+and the ones it deliberately ignores are in
+[`com.github.copilot/agents/README.md`](com.github.copilot/agents/README.md#choosing-how-much-process-you-want).
 
 ## Available Skills
 

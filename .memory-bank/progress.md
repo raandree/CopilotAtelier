@@ -15,6 +15,37 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-28**: Added the opt-in `cycle: full` development cycle — architect,
+  engineer, security reviewer, technical writer, with the reviewer as the gate
+  and a two-round cap on the fix loop. The correction that shaped it: removing
+  the auto-handover earlier the same day treated *automatic* as the problem,
+  but the problem was *unrequested*. Consent at the entry point covers the whole
+  chain, so a requested cycle may progress on its own. Close-out defers to the
+  final stage or four agents each write a changelog entry and a commit for one
+  change. Rules live in the agent bodies because a Skill is advisory and cannot
+  bind them; one new handoff edge, `security-reviewer` to `technical-writer`,
+  closed the graph. Cycle handoffs set `send: true` so a transition does not ask
+  twice, and the architect carries both a trigger phrase book and a refusal list
+  — "end-to-end" means end-to-end tests, so it does not start one. `cycle: off`
+  ends a running chain at the current stage, which then closes out instead of
+  stranding the commit, and both switches are documented in the root README and
+  the agents README with the single-agent default listed first.
+
+- **2026-08-28**: Made the Software Engineer agent's independent review opt-in.
+  The old rule dispatched `security-reviewer` for "high-risk work" over a
+  trigger list — security boundaries, public APIs, cross-module contracts, a
+  large unfamiliar diff — that almost every change in an agent-customization
+  repository matches, so a risk-scaled default behaved as an unconditional
+  handover costing minutes per turn. The trigger list is unchanged; it now gates
+  a recommendation instead of a dispatch. `review: on` / `auto` / `off` is
+  user-set, advertised in `argument-hint`, and plain language plus the existing
+  handoff button both count as `on`. The non-obvious half was
+  `postflight.instructions.md`: its Definition of Done demanded independent
+  review "was completed", which the model would have satisfied by dispatching
+  anyway, so the gate now names the deferral path without dropping the
+  requirement for other agents. `software-engineer-contoso` pins the switch to
+  `on` and refuses a `review: off` downgrade.
+
 - **2026-08-27**: Diagnosed the red `main` build (CI run 33080179473). `dc6206e`
   appended twenty lines to `systemPatterns.md`, taking it to 122 against a
   110-line budget, so `MemoryBankRouting` and `MemoryBankHealth` both failed —
@@ -65,27 +96,6 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   path and sweeps legacy capitalised directories. 876 tests pass. Decision 0023.
   Two bulk scripted rewrites corrupted 129 files each and were fully restored
   from git — see the environment hazard in `activeContext.md`.
-- **2026-08-26**: Gave a `description` to the twelve Instructions that lacked
-  one and held the same twelve against the authoring rules. Without a
-  description an Instruction is reachable only through a path its `applyTo`
-  glob happens to cover, so `versioning` could not answer a pre-release
-  question and `pester` could not reach the first test in a repository that has
-  none. The gate is a per-file case in `CustomizationFrontmatter.Tests.ps1`,
-  shown red on 12 of its 16 cases. The same pass removed 355 lines of restated
-  rules, forbidden introductions, redundant link farms, and decorative marks,
-  and surfaced two defects: a cross-reference naming `markdown` where
-  `changelog` was meant, and two `applyTo` lists carrying patterns fully
-  subsumed by a sibling pattern.
-
-- **2026-08-26**: Renamed the seven display-name Custom agent files to their
-  declared `name` slug, so every agent is addressed the same way on disk, in a
-  handoff, and in a test. The defect was two addresses for one agent rather
-  than casing: `%20`-encoded changelog links and a baseline map keyed on the
-  display name while asserting handoffs that named the slug. Guarded by a
-  filename-to-frontmatter equality assertion in
-  `CustomizationFrontmatter.Tests.ps1`, shown to reject a mismatched stem that
-  the existing lowercase check passes. No `name:` value changed.
-
 - **2026-08-26**: Added the `software-architect` Custom agent as the first phase
   of the release pipeline. The gap was structural rather than stylistic:
   `grill-me` is advisory content while a Custom agent body is mode instruction,
@@ -152,8 +162,8 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   the agent host and its harness selection, `chat.assistedPermissions.enabled`,
   and organization-level instructions and agents.
 - Curate `techContext.md` and `systemPatterns.md` when either approaches its
-  line budget; `systemPatterns.md` sits at 109 of 110 lines, so the next Decision
-  record or relationship needs a trim in the same edit.
+  line budget; `systemPatterns.md` runs close to its 110-line cap, so any new
+  Decision record or relationship needs a trim in the same edit.
 
 ## Retention policy
 

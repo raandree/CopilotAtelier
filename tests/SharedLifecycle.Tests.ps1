@@ -58,8 +58,8 @@ BeforeAll {
         'security-reviewer.agent.md' = @{
             Tools = 38
             ToolHash = '52CDF89BF13B35FE'
-            Handoffs = 1
-            HandoffHash = 'E8D34666ABE6B96D'
+            Handoffs = 2
+            HandoffHash = '38AF6E22FA343FDC'
             MemoryHeading = '## Memory Bank'
             MemoryHash = 'E5550363574EE4B8'
         }

@@ -8,9 +8,8 @@ source: .memory-bank/decisions
 # System patterns
 
 Durable relationships and the Decision record index. Read a linked record only
-when the task needs its rationale, consequences, or confirmation evidence. The
-repository layout is not restated here — `techContext.md` carries the module
-layout, the deployment boundary, and the discovery model.
+when the task needs its rationale or consequences. The repository layout lives
+in `techContext.md`, not here.
 
 ## Decision index
 
@@ -42,6 +41,13 @@ layout, the deployment boundary, and the discovery model.
 
 ## Live relationships
 
+- A multi-agent cycle is one consent, not four, and its two hard parts are
+    close-out ownership and a capped review-fail loop. Stage rules bind only in
+    an agent body; a Skill is advisory and cannot hold them.
+- A risk-scaled subagent rule becomes an unconditional handover when its trigger
+    list covers the repository's ordinary work. Costly delegation is a user-set
+    switch with a named default; the risk list then gates what the agent reports,
+    and the shared Definition of Done must name that deferral or re-create it.
 - A corporate overlay agent inherits by inlining its base body between markers,
     never by linking it: VS Code resolves referenced *instructions* files, so a
     link to another `.agent.md` is inert and the overlay runs as a fragment. A
@@ -58,21 +64,18 @@ layout, the deployment boundary, and the discovery model.
     `Publish_Release_To_GitHub` writes it, so a skipped release task freezes the
     version the Gallery holds. It sends `[Unreleased]` as the body, cap 125000.
 - Authored guidance takes its form from the baseline failure it corrects:
-    prohibitions and rationalization tables for a skipped discipline, a recipe
-    for output of the wrong shape, a structural slot for an omitted element, a
-    predicate-keyed conditional for context-dependent work. A mismatch backfires.
+    prohibitions for a skipped discipline, a recipe for output of the wrong shape,
+    a structural slot for an omission, a conditional for context-dependent work.
 - A hook command string is substituted before the child parses it, so a `$` token
     reaches the interpreter as nothing. Commands are `$`-free: paths from
     `[Environment]::GetEnvironmentVariable(...)`, exit code from
     `Get-Variable -Name LASTEXITCODE -ValueOnly`, each path rooted with
     `[IO.Path]::Combine('/', ...)` so an unset root cannot reach a workspace.
-- A Customization ships to two roots that no single variable names: the module's
-    `~/.copilot/<type>` and the plugin's
-    `~/.vscode*/agent-plugins/<host>/<owner>/CopilotAtelier`. `PLUGIN_ROOT` is
-    unconfirmed, so resolution probes it first and then both concrete locations.
+- A Customization ships to two roots no single variable names: `~/.copilot/<type>`
+    and `~/.vscode*/agent-plugins/<host>/<owner>/CopilotAtelier`. `PLUGIN_ROOT` is
+    unconfirmed, so resolution probes it first, then both concrete locations.
 - A capability measured on one configuration is scoped to what was measured and
-    encoded as attempt, validate, escalate — never a verdict. The content gate
-    decides at run time; the engine name only orders which path is tried first.
+    encoded as attempt, validate, escalate — never a verdict.
 - `chat.hookFilesLocations` replaces the default hook location map instead of
     extending it, so pinning one location silently disables every other,
     including workspace `.github/hooks`, with no diagnostic.
@@ -89,16 +92,13 @@ layout, the deployment boundary, and the discovery model.
     harness notification. Only an async command's completion notification can be
     armed by the agent, so unprompted periodic reporting is a chained async timer
     and a fully detached process emits none. A `Stop` hook can force a turn.
-- A Skill cannot override a Custom agent body, because the body is mode
-    instruction and the Skill is advisory content. A discipline that contradicts
-    the active persona must become a persona of its own; restricting its tools
-    then bounds what it can finish, not what it can attempt.
-- Memory Bank routing has two eval layers. Human-labelled routes test the
-    deterministic resolver and context reduction; label-free task prompts test
-    natural-language selection with pass@k and pass^k. Both grade safety as "no
-    required context missing" and price over-selection separately. Compaction
-    bypasses both lifecycle gates: only an Instruction survives, so a `PreCompact`
-    hook — carrying no `additionalContext` — writes an anchor Pre-flight reads.
+- A Skill cannot override a Custom agent body: the body is mode instruction and
+    the Skill is advisory. A discipline that contradicts the active persona must
+    become a persona of its own, where its tools bound what it can finish.
+- Memory Bank routing has two eval layers: human-labelled routes test the
+    deterministic resolver and context reduction; label-free prompts test
+    natural-language selection with pass@k and pass^k. Compaction bypasses both
+    lifecycle gates, so a `PreCompact` hook writes an anchor Pre-flight reads.
 - Copilot token usage exists only in the cloud session store. No hook payload,
     transcript record, or local `session-store.db` table carries it, so usage
     telemetry is a Skill over `copilot_sessionStoreSql`, never a hook.

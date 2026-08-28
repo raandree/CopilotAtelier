@@ -9,13 +9,51 @@ source: current task evidence
 
 ## Current focus
 
-`main` is red at `dc6206e`, which appended twenty lines to `systemPatterns.md`
-and took it to 122 against a 110-line budget. Only the Windows leg failed,
-because only that leg runs untagged tests, so `MemoryBankRouting` and
-`MemoryBankHealth` never execute on Linux or macOS. This branch already curates
-the file to 109, so merging it turns CI green. `progress.md` was curated from
-194 to 166 in the same pass: at 194 of 200 the append Post-flight owes on every
-Substantive turn would have re-broken the build on the next commit.
+Delegation became a user choice in two steps, and the second one corrected the
+first. Step one removed the Software Engineer agent's auto-handover to
+`security-reviewer`: its "high-risk work" trigger list matched almost every
+change here, so a risk-scaled rule behaved as an unconditional dispatch.
+`review: on` / `auto` / `off` is now user-set and defaults to `off`.
+
+Step two was the correction. The first reading treated *automatic* as the
+problem, which conflated it with *unrequested*. They are not the same: consent
+at the entry point covers the whole chain, so a cycle the user asked for may
+progress on its own. `cycle: full` therefore runs architect, engineer, security
+reviewer, technical writer in order, off by default.
+
+The chain needed two things before it could work at all. Close-out: Post-flight
+makes every substantive turn write the Memory Bank, the changelog, and a
+commit, so four stages would have produced four of each; the final stage now
+owns all of it and the earlier three verify, refresh `activeContext.md`, and
+hand over. The failure path: reviewer to engineer to reviewer is a loop, capped
+at two fix rounds before the reviewer stops and reports.
+
+The rules sit in the four agent bodies, not a Skill — the recorded lesson that
+an agent body is mode instruction while a Skill is advisory is exactly why
+`grill-me` had to become the `software-architect` agent. Only one frontmatter
+edge was new, `security-reviewer` to `technical-writer`. State passes through
+`.memory-bank/decisions/`, because a conversation does not survive a compaction
+and a subagent never sees one.
+
+Every cycle handoff sets `send: true`, so a transition submits on selection
+rather than waiting for a second confirmation. Progression is still a handoff,
+not an unattended switch — a platform boundary, since VS Code hands the *user*
+to another agent. The architect carries a trigger phrase book and a refusal
+list: "end-to-end" means end-to-end tests, so it does not start a cycle.
+
+`cycle: off` is the way out: it ends the chain at whichever stage holds the
+work, and that stage closes out rather than stranding the changelog entry and
+the commit. Both switches are now documented where a user looks — a table in
+the root `README.md` and the expanded version in the agents README — and the
+table leads with the default, because "how do I keep this with one agent" was
+the question the first pass left unanswered.
+
+Both changes are complete and green, but the *deployed* agents are copies under
+the Canonical target, not links to this worktree. Nothing takes effect in a
+chat session until `Install-CopilotAtelier` or `Setup-CopilotSettings.ps1`
+redeploys.
+
+## Previously: the first corporate overlay agent
 
 `software-engineer-contoso` is the first corporate overlay agent. The first
 attempt inherited nothing: modelled on `devops-training-writer`, it opened with
@@ -104,26 +142,6 @@ Their rationale lives in the `[4.0.0]` changelog section and decisions 0021
 and 0022; the durable relationships they established are in
 `systemPatterns.md`. Nothing from them is still open.
 
-## Focused evidence
-
-- `PreCompact` supports the common output format only. There is no
-  `additionalContext` field, so no hook can inject text into the
-  post-compaction context; the recovery half must be an Instruction, which is
-  re-sent with every request. This is the constraint that shaped the design, not
-  a simplification.
-- `tests/Hooks.Tests.ps1` went red first for the right reason — missing script,
-  missing event — then 48 of 48 pass. Coverage includes a payload that smuggles
-  a newline and a forged list item into a file an agent reads back.
-- The hook writes nothing when the workspace has no Memory Bank or the payload
-  names no workspace. Guessing from the spawn directory would drop a checkpoint
-  into an unrelated repository, which the unreadable-payload test would have
-  done against this repo.
-- Writing a literal level-two release header inside changelog prose breaks
-  `Get-ChangelogData`; it parsed the example as a real section.
-- `Instructions/copilot-authoring.instructions.md` carries unrelated in-progress
-  frontmatter-schema work. It is deliberately excluded from the checkpoint
-  commit and left in the working tree.
-
 ## Blocked, not deferred
 
 The ShellPilot module and `Invoke-ShpBatch` are absent on this machine, so
@@ -144,6 +162,8 @@ run needs an explicit go-ahead rather than an assumption.
   flip its coverage test from skipped to enforced while the sweep that gives it
   meaning cannot run, growing the "authored but never measured" debt the seven
   existing sets already represent. Author it with the sweep, not before.
+- The development cycle ships unmeasured for the same reason: the tests prove
+  its structure, not that four live stages actually hand over correctly.
 
 ## Carried forward from the route-selection eval
 
@@ -151,14 +171,13 @@ run needs an explicit go-ahead rather than an assumption.
   modes, and `MemoryBankRouteSelection.Tests.ps1` covers prompt isolation, label
   leakage, fallback, strict shape, reliability aggregation, and failure
   accounting.
-- The first stage infers routes and fallback only. The deterministic resolver
-  still receives human labels for `durableWrite`, role files, and relevant
-  Decision records.
-- Total context-window cost, latency, and answer quality under routed versus
-  full loading remain unmeasured.
-- Safety is gameable on its own: a reply naming every route never misses. No
-  precision floor is set, because no measured baseline exists to derive one
-  from, so `Passed = True` at low precision is not yet a failing build.
+- The first stage infers routes and fallback only; the deterministic resolver
+  still receives human labels for `durableWrite`, role files, and Decision
+  records.
+- Context-window cost, latency, and answer quality under routed versus full
+  loading remain unmeasured. Safety is gameable on its own \u2014 a reply naming
+  every route never misses \u2014 and no precision floor is set, so `Passed = True`
+  at low precision is not yet a failing build.
 
 ## Carried forward from earlier focuses
 
@@ -171,7 +190,9 @@ run needs an explicit go-ahead rather than an assumption.
 
 ## Next step
 
-Get a decision on running the paid sweeps. With a go-ahead: install ShellPilot,
+Redeploy so the two switches reach a chat session; the deployed agents are
+copies under the Canonical target, not links to this worktree. Then get a
+decision on running the paid sweeps. With a go-ahead: install ShellPilot,
 answer the 75 route-selection prompts against one pinned model in fresh
 contexts, grade them, then sweep the seven trigger-query sets and author
 `german-tax-research`'s set in the same pass. Without one, the remaining

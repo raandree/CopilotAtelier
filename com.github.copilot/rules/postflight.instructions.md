@@ -45,8 +45,11 @@ Do all of these before concluding. Do not skip any step silently.
    - [ ] Push: deferred (user must request explicitly)
    ```
 
-## Definition of Done gate
+## Development cycle close-out
 
+When a user-requested development cycle is active, only its final stage performs steps 3 and 4. Earlier stages verify their own work, refresh `activeContext.md`, and hand over; the final stage writes the changelog entry and the commit for the whole cycle and reports it end to end. Say which stage you are in the closing checklist.
+
+## Definition of Done gate
 Before reporting a Substantive turn complete, verify every applicable item:
 
 - The latest user request, explicit constraints, and task acceptance criteria
@@ -62,7 +65,9 @@ Before reporting a Substantive turn complete, verify every applicable item:
 - Independent review was completed for high-risk work: security/identity,
    destructive operations, persistence/migrations, concurrency, public APIs,
    cross-module contracts, or large unfamiliar changes. Resolve every Blocker
-   and Major finding before completion.
+   and Major finding before completion. When the active Custom agent defers
+   independent review to an explicit user request, recommending it and naming
+   the risk satisfies this item.
 - Memory Bank, changelog, commit, and push handling follow the steps above and
    the user's explicit version-control constraints.
 - Security boundaries and the Ubiquitous Language were checked when applicable.
