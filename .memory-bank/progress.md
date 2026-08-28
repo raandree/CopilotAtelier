@@ -29,7 +29,11 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   — "end-to-end" means end-to-end tests, so it does not start one. `cycle: off`
   ends a running chain at the current stage, which then closes out instead of
   stranding the commit, and both switches are documented in the root README and
-  the agents README with the single-agent default listed first.
+  the agents README with the single-agent default listed first. `cycle: off`
+  and the pinned Contoso review are both stated where they are read: the
+  overlay now names its two reversed inherited defaults in the preamble above
+  the inlined block, because a precedence clause 180 lines later resolves the
+  self-contradiction only for a reader who gets there.
 
 - **2026-08-28**: Made the Software Engineer agent's independent review opt-in.
   The old rule dispatched `security-reviewer` for "high-risk work" over a

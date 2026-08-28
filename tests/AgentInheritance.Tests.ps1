@@ -105,4 +105,21 @@ Describe 'Custom agent inheritance' -Tag 'Unit' {
         $content | Should -Match '(?i)only \*\*adds\*\* constraints'
         $content | Should -Match '(?i)stricter'
     }
+
+    It '<OverlayName> names the overridden inherited defaults before the inlined block' -ForEach $script:overlayCase {
+        <#
+            The inlined base states its own defaults verbatim, so the overlay
+            contradicts itself by construction. A precedence clause 180 lines
+            later resolves it only if the reader gets there; naming the reversed
+            defaults up front puts the correction ahead of the contradiction.
+        #>
+        $content = Get-Content -LiteralPath (Join-Path $script:agentsPath $OverlayName) -Raw -Encoding UTF8
+        $markerIndex = $content.IndexOf(('<!-- BEGIN INHERITED: {0} -->' -f $BaseName))
+
+        $markerIndex | Should -BeGreaterThan 0
+        $preamble = $content.Substring(0, $markerIndex)
+
+        $preamble | Should -Match '(?i)override'
+        $preamble | Should -Match 'review: on'
+    }
 }

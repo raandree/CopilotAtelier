@@ -48,11 +48,11 @@ in `techContext.md`, not here.
     list covers the repository's ordinary work. Costly delegation is a user-set
     switch with a named default; the risk list then gates what the agent reports,
     and the shared Definition of Done must name that deferral or re-create it.
-- A corporate overlay agent inherits by inlining its base body between markers,
-    never by linking it: VS Code resolves referenced *instructions* files, so a
-    link to another `.agent.md` is inert and the overlay runs as a fragment. A
-    byte-exact drift test keeps the copy honest. Containment belongs in
-    frontmatter; `agents` and `handoffs` can restore the egress `tools` removed.
+- A corporate overlay agent inherits by inlining its base body between markers;
+    a link to another `.agent.md` is inert, so a linking overlay runs as a bare
+    fragment. Inlining makes it contradict itself, so the reversed defaults are
+    named before the block, not only in a later precedence clause. Containment
+    belongs in frontmatter; `agents` and `handoffs` can restore removed egress.
 - The module carries the Customizations as its payload; `Install-CopilotAtelier`
     deploys them and creates Discovery links, and the Setup script is a
     clone-only shim over it. The Deployment record in the Canonical target is the
