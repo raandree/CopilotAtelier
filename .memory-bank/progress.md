@@ -15,6 +15,12 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-31**: Wrote `docs/summit-2027-session-proposals.md` for a call that
+  closed the same day — a 90-minute Customization anatomy session, a 45-minute
+  AI-assisted process field report, and a 25-minute alternate. Round one is
+  blind, so the abstracts name neither speaker nor project; the material is the
+  repository's own failure record, and its quoted counts are a dated snapshot.
+
 - **2026-08-28**: Added the opt-in `cycle: full` development cycle — architect,
   engineer, security reviewer, technical writer, with the reviewer as the gate
   and a two-round cap on the fix loop. The correction that shaped it: removing
