@@ -84,9 +84,9 @@ Alternates, if a plainer title is preferred:
 ### Abstract
 
 > A rule an AI coding agent can decide to ignore is not a control; it is a
-> preference. The distinction stays invisible until it matters — you want an
-> agent that never runs `git push`, and no amount of careful wording in an
-> instruction file will give you one.
+> preference. The distinction stays invisible until it matters: you want an
+> agent that never runs `git push`, and no wording in an instruction file will
+> give you one.
 >
 > There are five ways to steer that agent — a custom agent, an instruction file,
 > a skill, a prompt file, and a lifecycle hook — and exactly one of them is
@@ -96,21 +96,22 @@ Alternates, if a plainer title is preferred:
 >
 > This session dissects all five for people who ship PowerShell. What each
 > frontmatter actually controls. Which of them the model may decline and which
-> it never gets a vote on. How an `applyTo` glob scopes a rule to `**/*.ps1` but
-> leaves your `build.yaml` uncovered. Why a skill's description, not its body,
-> decides whether it ever loads. How a PowerShell hook script blocks a command
-> by exit code, outside the model's judgment entirely.
+> it never gets a vote on. How an `applyTo` glob covers `**/*.ps1` but leaves
+> your `build.yaml` uncovered. Why a skill's description, not its body, decides
+> whether it ever loads. How a hook script blocks a command by exit code,
+> outside the model's judgment entirely.
 >
 > The failure gallery is where the time goes, because every entry is silent.
-> Hook commands whose `$` tokens are eaten by the host shell before PowerShell
-> ever parses them. One settings key that replaces the hook location map instead
-> of extending it. A skill missing frontmatter that never registers.
+> Hook commands whose `$` tokens the host shell eats before PowerShell parses
+> them. One settings key that replaces the hook location map instead of
+> extending it. A skill missing frontmatter that never registers.
 >
 > Everything is demonstrated on a real open-source customization library — 13
 > agents, 16 instruction files, 46 skills, 3 hooks — distilled from two years of
 > moving from hand-written PowerShell and C# to having an agent write nearly all
-> of it. None of it has to be rebuilt from the slides: it installs from the
-> PowerShell Gallery in one command, and you keep what fits.
+> of it. None of it has to be rebuilt from the slides: it installs in one
+> command, as a PowerShell Gallery module or as an agent plugin from a Git URL.
+> Plugins are the packaging layer, not a sixth artifact type.
 
 ### Learning objectives
 
@@ -123,8 +124,9 @@ Alternates, if a plainer title is preferred:
 4. Prove that an agent, instruction, skill, prompt, or hook is genuinely loaded,
    using the chat customizations editor, the agent debug log, and the hooks
    output channel.
-5. Package a customization library as a PowerShell module so it installs on the
-   next machine in one command instead of being copied by hand.
+5. Package a customization library so it installs on the next machine in one
+   command — as a PowerShell module or as an agent plugin from a Git URL —
+   instead of being copied by hand.
 
 ### Outline — preparation aid, not submitted
 
