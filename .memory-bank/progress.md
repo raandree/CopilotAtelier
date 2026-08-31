@@ -15,6 +15,17 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-31**: Added the `elster-form-capture` Skill from three capture runs
+  across two assessment years in a live tax repository. Its load-bearing fact:
+  the official ERiC field numbers behind `name="fields[…]"` are stable across
+  years, the `Teilseite` and `Zeile` numbers are not — the `Anlage V` was
+  renumbered for 2023 and again for 2024 without one `data-eru-name` changing.
+  The legal boundary is a non-negotiable: transmission is the taxpayer's
+  declaration of knowledge under `§ 150 Abs. 2 S. 1 AO`, so the Skill fills
+  fields and never presses *Versenden*. The finding that justified writing it
+  down at all is that driving the form mechanically audits the capture guide
+  faster than following it does.
+
 - **2026-08-31**: Wrote `docs/summit-2027-session-proposals.md` for a call that
   closed the same day — a 90-minute Customization anatomy session, a 45-minute
   AI-assisted process field report, and a 25-minute alternate. Round one is

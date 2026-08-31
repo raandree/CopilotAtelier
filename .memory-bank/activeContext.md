@@ -9,6 +9,26 @@ source: current task evidence
 
 ## Current focus
 
+`elster-form-capture` is the newest Skill, and it arrived the way the good ones
+do: as a by-product. The task was capturing a German tax return in Mein ELSTER
+under a deadline, not writing a Skill. What made it worth packaging is that the
+attempt to drive the form mechanically kept auditing the capture guide that fed
+it — a wrong postcode, stale line references, and 1,330 € of deductions a status
+table already called captured.
+
+The Skill is deliberately narrow. Mechanics only: field numbers, sub-page
+navigation, repeat rows, mandatory-field traps, eData gaps, and the machine
+comparison against the summary page. Whether a cost is deductible stays with
+`german-tax-research`, and the ten near-miss negatives in the trigger set exist
+to keep that line where it is. Login is not in scope either — the taxpayer signs
+in and shares the page, so no credential ever reaches the model.
+
+One rule generalises past ELSTER and is worth keeping in view for any portal
+work: address by the stable identifier, verify by the visible heading, and treat
+a line number from last year's guide as a claim rather than a fact.
+
+## Previously: delegation as a user choice
+
 Delegation became a user choice in two steps, and the second one corrected the
 first. Step one removed the Software Engineer agent's auto-handover to
 `security-reviewer`: its "high-risk work" trigger list matched almost every
