@@ -1,9 +1,9 @@
 # PowerShell Summit 2027 session proposals
 
-Submission-ready copy for two sessions at the PowerShell Summit 2027, plus an
-optional third. Every field below maps directly onto a Sessionize field. Paste
-and submit; the commentary sections are marked as preparation aids and are not
-part of the submission.
+Submission-ready copy for two sessions at the PowerShell Summit 2027. Every
+field below maps directly onto a Sessionize field. Paste and submit; the
+commentary sections are marked as preparation aids and are not part of the
+submission.
 
 ## Deadline and submission facts
 
@@ -51,8 +51,8 @@ Three consequences shaped the copy below:
 - No product tour. The library is the evidence and the demonstration surface;
   the sessions are about the decisions, the mechanics, and the failures.
 
-The counts in the abstracts (13 agents, 16 instruction files, 46 skills, 13
-prompts, 3 hooks) are current as of 31 August 2026. Re-check them against the
+The counts in the Proposal 1 abstract (13 agents, 16 instruction files, 46
+skills, 3 hooks) are current as of 31 August 2026. Re-check them against the
 repository immediately before pasting.
 
 ---
@@ -83,47 +83,48 @@ Alternates, if a plainer title is preferred:
 
 ### Abstract
 
-> You can steer an AI coding agent five different ways: a custom agent, an
-> instruction file, a skill, a prompt file, or a lifecycle hook. They look
-> interchangeable. They are not. Each loads at a different moment, carries
-> different authority, and fails in its own silent way. Choose wrong and you
-> ship a file that looks installed and does nothing.
+> You told Copilot to use approved verbs, `[CmdletBinding()]`, and
+> `-ErrorAction Stop`. It complied for three files and then quietly stopped. You
+> wrote up your Pester mocking recipes so it would stop reinventing them, and it
+> has never loaded them once. You want it to never run `git push`, and a
+> politely worded rule is not a guarantee.
 >
-> This session dissects all five: what each frontmatter actually controls, when
-> the client loads it, whether the model can decline to follow it, and how to
-> prove it is live rather than merely present. You leave with one decision test
-> that covers most cases. If a rule must hold regardless of what the model
-> decides, it is a hook. If it is a judgment call, it is an instruction. If it
-> must bind an entire session, it is an agent.
+> There are five ways to steer an AI coding agent — a custom agent, an
+> instruction file, a skill, a prompt file, and a lifecycle hook — and only one
+> of them is enforceable. In the folder they look interchangeable. They are not.
+> Each loads at a different moment, carries different authority, and fails in
+> its own silent way.
 >
-> We spend real time in the failure gallery, because every entry is silent. Hook
-> commands whose `$` tokens are consumed by the host shell before PowerShell
+> This session dissects all five for people who ship PowerShell on Windows. What
+> each frontmatter actually controls. How an `applyTo` glob scopes a rule to
+> `**/*.ps1` but leaves your `build.yaml` uncovered. Why a skill's description,
+> not its body, decides whether it ever loads. How a PowerShell hook script
+> blocks a command by exit code, outside the model's judgment entirely.
+>
+> The failure gallery is where the time goes, because every entry is silent.
+> Hook commands whose `$` tokens are eaten by the host shell before PowerShell
 > ever parses them. One settings key that replaces the hook location map instead
-> of extending it, silently disabling every workspace hook. A Markdown link
-> between two agent files that inherits nothing. A skill missing frontmatter
-> that never registers.
+> of extending it. A skill missing frontmatter that never registers.
 >
-> Everything is demonstrated on a real open-source library — 13 agents, 16
-> instruction files, 46 skills, 13 prompts, and 3 hooks — shipped as a
-> PowerShell module and as a plugin installed from a Git URL, running in VS Code
-> and the Copilot CLI. The library and its failure list are the residue of two
-> years spent moving from writing every line of PowerShell and C# by hand to
-> having an agent write nearly all of it.
+> Demonstrated throughout on a real open-source library — 13 agents, 16
+> instruction files, 46 skills, 3 hooks — shipped as a PowerShell Gallery module
+> and installed in one command. It is the residue of two years spent moving from
+> writing every line of PowerShell and C# by hand to having an agent write
+> nearly all of it.
 
 ### Learning objectives
 
 1. Choose the correct customization type for a given rule using one test: must
    this hold regardless of what the model decides?
-2. Read and write the frontmatter that actually controls behavior — tool
-   allow-lists, model priority arrays, `applyTo` globs, subagent eligibility,
-   and handoffs.
-3. Prove that an agent, instruction, skill, prompt, or hook is genuinely loaded,
+2. Scope a coding standard with an `applyTo` glob so it reaches every `.ps1`,
+   `.psm1`, and `.psd1` that needs it and nothing that does not.
+3. Write the frontmatter that actually controls behavior — tool allow-lists,
+   model priority arrays, subagent eligibility, and handoffs.
+4. Prove that an agent, instruction, skill, prompt, or hook is genuinely loaded,
    using the chat customizations editor, the agent debug log, and the hooks
    output channel.
-4. Diagnose the silent failure modes that let a correct-looking customization do
-   nothing at all.
-5. Package a customization library so it installs on another machine, and in
-   another client, from a module or a Git URL instead of being copied by hand.
+5. Package a customization library as a PowerShell module so it installs on the
+   next machine in one command instead of being copied by hand.
 
 ### Outline — preparation aid, not submitted
 
@@ -166,31 +167,34 @@ Alternates:
 ### Abstract
 
 > Two years ago I wrote every line of PowerShell and C# myself. Today an agent
-> writes almost all of it, and the bottleneck is no longer typing — it is trust:
-> knowing what changed, why it changed, whether it is right, and what the agent
-> quietly forgot. This session is the distilled result of that transition: the
-> practices that survived contact with real work, the ones that were abandoned,
-> and the failures that only appear at volume.
+> writes almost all of it, and the bottleneck stopped being typing. It became
+> trust: knowing what actually changed, whether the build is really green, and
+> what the agent quietly forgot between one session and the next.
 >
-> Four things carried the weight. A per-turn contract — a mandatory discovery
-> step before the first tool call, and a close-out gate before the final answer
-> — with an explicit exemption so a plain question pays no ceremony tax.
-> Durable memory: a version-controlled project knowledge base with a routing
-> table, so an agent reads the three files a task needs instead of all of them,
-> with a build gate holding the average context reduction above 50 percent.
-> Deterministic guardrails: a rule that must always hold lives in a hook that
-> blocks by exit code, never in prose the model can route around. And evidence
-> over assertion — an agent will report success; only the diff, the tests, and
-> the build say so. Every one of those gates is a Pester test that fails CI.
+> This is a field report from a Sampler-built module developed that way, for
+> people who ship modules, DSC configurations, and pipelines on Windows.
 >
-> The counter-lessons matter as much. An automatic security review whose trigger
-> list matched nearly every change turned a risk-scaled rule into an
-> unconditional tax. Context compaction silently bypasses any end-of-turn gate.
-> Two scripted bulk edits corrupted 129 files each, passed their own
+> Four things carried the weight. A per-turn contract: a discovery step before
+> the agent's first tool call and a close-out gate before its last answer, with
+> an exemption so a plain question costs nothing. Durable memory:
+> version-controlled project knowledge with a routing table, so the agent reads
+> the three files a task needs instead of the whole repository, with a build
+> gate holding the average context reduction above 50 percent. Deterministic
+> guardrails: a rule that must always hold lives in a PowerShell hook script
+> that blocks by exit code, never in prose the model can reason its way around
+> — that is what stops `git push` and `--no-verify`. And evidence over
+> assertion: an agent reports success cheerfully, but only the diff, a detached
+> Pester run, and the build say so. Every one of those gates is itself a Pester
+> test that fails CI.
+>
+> The counter-lessons matter as much. An automatic review whose trigger list
+> matched nearly every change became an unconditional tax rather than a
+> risk-scaled one. Context compaction silently bypasses any end-of-turn gate.
+> Two scripted bulk edits corrupted 129 files each, passed their own byte-exact
 > verification, and were caught only by git.
 >
-> Expect specifics: what to enforce mechanically, what to measure, where
-> multi-agent workflows pay off, and where they are only cost.
+> Expect specifics: what to enforce mechanically, what to measure, and where a
+> multi-agent workflow pays for itself rather than just costing you minutes.
 
 ### Learning objectives
 
@@ -223,52 +227,6 @@ Alternates:
 
 ---
 
-## Optional third proposal — 25-minute Fast-Focus
-
-Submit this only if two accepted sessions are wanted; a 25-minute session
-qualifies for speaker benefits only alongside a second accepted session. It is
-a standalone idea rather than a compression of Proposal 1, which the call for
-papers explicitly warns against.
-
-### Title
-
-> Silent by Default: Proving Your AI Customizations Actually Load
-
-### Format and level
-
-- **Format**: 25-minute Fast-Focus.
-- **Target audience**: Intermediate.
-
-### Abstract
-
-> An agent customization that fails does not throw. It loads as nothing, and the
-> agent carries on sounding confident. Every one of our lifecycle hooks was dead
-> for a month behind a single warning balloon: the host shell consumed the `$`
-> tokens in each hook command before PowerShell ever parsed them, so the
-> never-push guardrail, the memory probe, and the compaction checkpoint were all
-> absent while looking installed.
->
-> That is one instance of a general problem. A skill without frontmatter never
-> registers. One settings key replaces the hook location map instead of
-> extending it, disabling every workspace hook with no diagnostic. A Markdown
-> link between two agent files inherits nothing.
->
-> This is a single-idea talk with a single takeaway: a five-minute verification
-> pass you run after every change to an agent, instruction, skill, prompt, or
-> hook, using the chat customizations editor, the agent debug log, and the hooks
-> output channel. You will leave able to answer, with evidence rather than
-> hope, which of your own customizations are actually running.
-
-### Learning objectives
-
-1. Recognize the four silent failure modes that make a customization load as
-   nothing.
-2. Run a repeatable verification pass that proves each customization type is
-   live.
-3. Write hook commands that survive host-shell substitution on Windows.
-
----
-
 ## Speaker biography — round two only
 
 Not used in blind review. Fill in the bracketed parts; keep it to roughly 75
@@ -285,8 +243,8 @@ words, written in the third person.
 
 ## Pre-submission checklist
 
-- [ ] Re-count agents, instructions, skills, prompts, and hooks; update the
-      numbers in the Proposal 1 abstract.
+- [ ] Re-count agents, instruction files, skills, and hooks; update the numbers
+      in the Proposal 1 abstract.
 - [ ] Confirm each abstract is within 150–300 words after any edits.
 - [ ] Remove every trace of identity from the abstracts and titles: no
       employer, no project name, no personal URL. First-person experience is
