@@ -75,43 +75,43 @@ Alternates, if a plainer title is preferred:
 - **Format**: 90-minute Deep Dive.
 - **Target audience**: Intermediate.
 - **Why 90 minutes**: five artifact types, each with its own frontmatter,
-  loading moment, authority, and failure mode, plus live diagnosis and
-  packaging. At 45 minutes two of the five get cut and the failure gallery —
-  the part attendees cannot get from documentation — goes first. A genuinely
-  scoped 45-minute variant is in the appendix, and it drops content rather than
-  compressing it.
+  loading moment, authority, and failure mode, plus live diagnosis and a full
+  distribution segment. At 45 minutes two of the five get cut, and either the
+  failure gallery or the team-distribution half goes with them — the two parts
+  attendees cannot get from documentation.
 
 ### Abstract
 
 > A rule an AI coding agent can decide to ignore is not a control; it is a
-> preference. The distinction stays invisible until it matters: you want an
-> agent that never runs `git push`, and no wording in an instruction file will
-> give you one.
+> preference. A rule that exists only on your laptop is not a standard. You want
+> an agent that never runs `git push`, and you want your whole team to have that
+> same agent.
 >
 > There are five ways to steer that agent — a custom agent, an instruction file,
-> a skill, a prompt file, and a lifecycle hook — and exactly one of them is
-> enforceable. They look interchangeable. They are not. Each loads at a
-> different moment, carries different authority, and fails in its own silent
-> way.
+> a skill, a prompt file, and a lifecycle hook — and exactly one is enforceable.
+> They look interchangeable. They are not. Each loads at a different moment,
+> carries different authority, and fails in its own silent way.
 >
 > This session dissects all five for people who ship PowerShell. What each
-> frontmatter actually controls. Which of them the model may decline and which
-> it never gets a vote on. How an `applyTo` glob covers `**/*.ps1` but leaves
-> your `build.yaml` uncovered. Why a skill's description, not its body, decides
-> whether it ever loads. How a hook script blocks a command by exit code,
-> outside the model's judgment entirely.
+> frontmatter actually controls. Which the model may decline and which it never
+> gets a vote on. Why a skill's description, not its body, decides whether it
+> ever loads. How a hook script blocks a command by exit code, outside the
+> model's judgment.
 >
-> The failure gallery is where the time goes, because every entry is silent.
-> Hook commands whose `$` tokens the host shell eats before PowerShell parses
-> them. One settings key that replaces the hook location map instead of
-> extending it. A skill missing frontmatter that never registers.
+> Then distribution, where a personal setup becomes a team standard. Where each
+> client looks for these files, how one versioned tree reaches every machine,
+> and why "which rules is your agent running?" needs a printable answer.
+>
+> The failure gallery gets real time, because every entry is silent. Hook
+> commands whose `$` tokens the host shell eats before PowerShell parses them.
+> One settings key that replaces the hook location map instead of extending it.
 >
 > Everything is demonstrated on a real open-source customization library — 13
 > agents, 16 instruction files, 46 skills, 3 hooks — distilled from two years of
-> moving from hand-written PowerShell and C# to having an agent write nearly all
-> of it. None of it has to be rebuilt from the slides: it installs in one
-> command, as a PowerShell Gallery module or as an agent plugin from a Git URL.
-> Plugins are the packaging layer, not a sixth artifact type.
+> moving from hand-written PowerShell and C# to an agent writing nearly all of
+> it. It installs in one command, as a PowerShell Gallery module or an agent
+> plugin from a Git URL, so a team runs one baseline instead of five divergent
+> laptops.
 
 ### Learning objectives
 
@@ -124,23 +124,26 @@ Alternates, if a plainer title is preferred:
 4. Prove that an agent, instruction, skill, prompt, or hook is genuinely loaded,
    using the chat customizations editor, the agent debug log, and the hooks
    output channel.
-5. Package a customization library so it installs on the next machine in one
-   command — as a PowerShell module or as an agent plugin from a Git URL —
-   instead of being copied by hand.
+5. Distribute one customization tree to a whole team so every engineer's agent
+   loads the same rules — as a versioned PowerShell module or an agent plugin
+   from a Git URL, with plugins understood as packaging rather than a sixth
+   artifact type.
+6. Answer "which version of our standards is this machine actually running?"
+   from a deployment record instead of from memory.
 
 ### Outline — preparation aid, not submitted
 
 | Minutes | Segment |
 |---|---|
-| 0–8 | The problem: five file types, one folder, no error messages |
-| 8–20 | Instructions — `applyTo`, re-sent every request, advisory authority |
-| 20–34 | Skills — on-demand loading, the description as the trigger surface |
-| 34–48 | Agents — mode instruction, tools, model priority arrays, handoffs |
-| 48–56 | Prompts — user-invoked templates and where they differ |
-| 56–70 | Hooks — the only enforceable layer; exit code 2; PowerShell scripts |
-| 70–80 | The failure gallery, live |
-| 80–88 | Packaging and distribution: module, plugin, both clients |
-| 88–90 | The decision test on one slide, and questions |
+| 0–8 | The problem: unenforceable rules, and rules only one laptop has |
+| 8–19 | Instructions — `applyTo`, re-sent every request, advisory authority |
+| 19–31 | Skills — on-demand loading, the description as the trigger surface |
+| 31–44 | Agents — mode instruction, tools, model priority arrays, handoffs |
+| 44–51 | Prompts — user-invoked templates and where they differ |
+| 51–64 | Hooks — the only enforceable layer; exit code 2; PowerShell scripts |
+| 64–72 | The failure gallery, live |
+| 72–86 | Distribution: discovery paths, one tree to every machine, module versus plugin, versioning and the deployment record |
+| 86–90 | Both tests on one slide — enforceable? distributed? — and questions |
 
 ---
 
@@ -173,8 +176,8 @@ Alternates:
 > knowing what actually changed, whether the build is really green, and what the
 > agent quietly forgot between one session and the next.
 >
-> A field report from a Sampler-built module developed that way, for people who
-> ship modules, DSC configurations, and pipelines.
+> A field report from a Sampler-built module developed that way, for people
+> shipping modules, DSC configurations, and pipelines.
 >
 > Four things carried the weight. A per-turn contract: a discovery step before
 > the agent's first tool call, a close-out gate before its last answer, and an
@@ -186,7 +189,7 @@ Alternates:
 > exit code, never in prose the model can reason its way around — that is what
 > stops `git push` and `--no-verify`. And evidence over assertion: an agent
 > reports success cheerfully; only the diff, Pester, and the build say so. Each
-> of those gates is a Pester test that fails CI.
+> gate is a Pester test that fails CI.
 >
 > The counter-lessons matter as much. An automatic review whose trigger list
 > matched nearly every change became an unconditional tax. Context compaction
@@ -195,8 +198,8 @@ Alternates:
 >
 > None of this stays on the slides. The contract, the memory layout, the
 > guardrail hooks, and the Pester gates ship as an open-source customization
-> library that installs in one command, so you leave with a working baseline
-> rather than a to-do list.
+> library that installs in one command on every machine on a team, so you leave
+> with a working baseline rather than a to-do list.
 
 ### Learning objectives
 
