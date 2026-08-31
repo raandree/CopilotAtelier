@@ -83,20 +83,20 @@ Alternates, if a plainer title is preferred:
 
 ### Abstract
 
-> You told Copilot to use approved verbs, `[CmdletBinding()]`, and
-> `-ErrorAction Stop`. It complied for three files and then quietly stopped. You
-> wrote up your Pester mocking recipes so it would stop reinventing them, and it
-> has never loaded them once. You want it to never run `git push`, and a
-> politely worded rule is not a guarantee.
+> A rule an AI coding agent can decide to ignore is not a control; it is a
+> preference. The distinction stays invisible until it matters — you want an
+> agent that never runs `git push`, and no amount of careful wording in an
+> instruction file will give you one.
 >
-> There are five ways to steer an AI coding agent — a custom agent, an
-> instruction file, a skill, a prompt file, and a lifecycle hook — and only one
-> of them is enforceable. In the folder they look interchangeable. They are not.
-> Each loads at a different moment, carries different authority, and fails in
-> its own silent way.
+> There are five ways to steer that agent — a custom agent, an instruction file,
+> a skill, a prompt file, and a lifecycle hook — and exactly one of them is
+> enforceable. In the folder they look interchangeable. They are not. Each loads
+> at a different moment, carries different authority, and fails in its own
+> silent way.
 >
 > This session dissects all five for people who ship PowerShell on Windows. What
-> each frontmatter actually controls. How an `applyTo` glob scopes a rule to
+> each frontmatter actually controls. Which of them the model may decline and
+> which it never gets a vote on. How an `applyTo` glob scopes a rule to
 > `**/*.ps1` but leaves your `build.yaml` uncovered. Why a skill's description,
 > not its body, decides whether it ever loads. How a PowerShell hook script
 > blocks a command by exit code, outside the model's judgment entirely.
