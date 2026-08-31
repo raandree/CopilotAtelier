@@ -15,16 +15,32 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-08-31**: Fixed a contradiction between an agent and its Skill that
+  reached a signed submission. `tax-researcher` demanded the RDG/StBerG
+  disclaimer "at the end of every substantive output"; `german-tax-research`
+  forbade it in anything addressed to the Finanzamt. The unqualified
+  instruction won, and the notice ended up below the signature block of two
+  `Einspruchsbegründungen` — caught only after the taxpayer had signed them.
+  The lesson generalises beyond this pair: **an unqualified instruction in an
+  agent body overrides a qualified rule buried in a Skill**, so the narrower
+  rule has to live where the broad one is stated. Both files now carry a marker
+  sweep, and the Skill requires it twice — against the Markdown and against the
+  rendered PDF's text layer, because a template can reintroduce what the source
+  no longer shows.
+- **2026-08-31**: Gave `german-tax-research` a *disclosure economy*. A letter to
+  a tax office had been naming its own missing receipts, explaining positions it
+  did not claim, and conceding reductions nobody had asked for. One test now
+  decides every sentence — does it support an amount that is actually declared?
+  `§ 150 Abs. 2 AO` demands complete and truthful bases of taxation, not a
+  self-assessment of evidentiary strength; `§§ 90, 97 AO` bite on request.
 - **2026-08-31**: Added the `elster-form-capture` Skill from three capture runs
   across two assessment years in a live tax repository. Its load-bearing fact:
   the official ERiC field numbers behind `name="fields[…]"` are stable across
   years, the `Teilseite` and `Zeile` numbers are not — the `Anlage V` was
   renumbered for 2023 and again for 2024 without one `data-eru-name` changing.
-  The legal boundary is a non-negotiable: transmission is the taxpayer's
-  declaration of knowledge under `§ 150 Abs. 2 S. 1 AO`, so the Skill fills
-  fields and never presses *Versenden*. The finding that justified writing it
-  down at all is that driving the form mechanically audits the capture guide
-  faster than following it does.
+  Transmission stays with the taxpayer (`§ 150 Abs. 2 S. 1 AO`), so the Skill
+  fills fields and never presses *Versenden*. Driving the form mechanically
+  audits the capture guide faster than following it does.
 
 - **2026-08-31**: Wrote `docs/summit-2027-session-proposals.md` for a call that
   closed the same day — a 90-minute Customization anatomy session, a 45-minute
@@ -103,20 +119,6 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   `~/.vscode*/agent-plugins/*/*/CopilotAtelier`. `Hooks.Tests.ps1` models the
   substitution pass and re-runs the substituted command; 68 tests pass.
 
-- **2026-08-27**: Reworded the role-file clause in Pre-flight step 3. "Create only
-  the active Custom agent's required role files" read as the agent's whole
-  declared list; it now creates a role file only when the agent declares it and
-  the current durable task needs it, and forbids scaffolding another agent's
-  schema or pre-creating an unused declared file. Matches `memory-bank` SKILL
-  step 6. Prevents empty template files that later turns route to and trust.
-- **2026-08-26**: Migrated the plugin package to Agent Plugins 1.0. `plugin.json`
-  declares the canonical `$schema` and drops the legacy `agents`/`skills` path
-  fields; `Skills/` became root `skills/`; agents and hooks moved to
-  `com.github.copilot/` with the mandated `hooks.json`; hook commands resolve
-  `PLUGIN_ROOT` or the user profile; the installer maps deployed name to source
-  path and sweeps legacy capitalised directories. 876 tests pass. Decision 0023.
-  Two bulk scripted rewrites corrupted 129 files each and were fully restored
-  from git — see the environment hazard in `activeContext.md`.
 - **2026-08-26**: Added the `software-architect` Custom agent as the first phase
   of the release pipeline. The gap was structural rather than stylistic:
   `grill-me` is advisory content while a Custom agent body is mode instruction,

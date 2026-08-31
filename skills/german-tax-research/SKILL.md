@@ -44,7 +44,7 @@ A submission-ready German document in which every asserted amount is derived in 
 1. **Never invent a norm, a BFH decision, a BMF letter, or a BStBl reference.** State uncertainty instead. A fabricated citation destroys the whole submission's credibility.
 2. **Cite to the smallest unit**: `§ 9 Abs. 1 S. 3 Nr. 5 S. 3 EStG`, not "§ 9 EStG".
 3. **Every figure traces to a document or to a disclosed assumption.** No figure enters a letter because a spreadsheet produced it.
-4. **Submission artifacts carry no internal caveats.** No RDG or StBerG disclaimer, no reviewer note, no status marker, no "intern offen" line in anything that goes to the Finanzamt. Keep those in the working analysis.
+4. **Submission artifacts carry no internal caveats.** No RDG or StBerG disclaimer, no reviewer note, no status marker, no "intern offen" line in anything that goes to the Finanzamt. Keep those in the working analysis. This one has actually failed in production: a disclaimer that an agent definition demanded "at the end of every substantive output" travelled into two objection statements and was only caught after the taxpayer had signed them. **Before rendering any submission, search the draft for `StBerG`, `RDG`, `Steuerberatung`, `intern`, `Entwurf`, `Prüfvermerk` and `TODO`; the search must come back empty.** After rendering, run the same search against the extracted PDF text — a template or a CSS rule can reintroduce what the Markdown no longer shows.
 5. **Steuerberatervorbehalt (§§ 2, 3 StBerG).** The taxpayer may act for themselves; this Skill never produces commercial advice for third parties. Working analyses end with the disclaimer, submissions do not.
 
 ## Workflow
@@ -158,6 +158,35 @@ When work on one year reveals that another year's return was wrong, `§ 153 Abs.
 
 Distinguish sharply: `§ 153 AO` is a correction of a known error; `§ 371 AO` (Selbstanzeige) is criminal-law territory and needs a `Fachanwalt für Steuerrecht` before a single line is written.
 
+## Disclosure economy: disclose what carries a figure, nothing else
+
+Two duties get confused. `§ 150 Abs. 2 AO` requires the declared bases of taxation to be complete and true. It does **not** require a self-assessment of how strong the evidence behind them is. `§ 90 AO` and `§ 97 AO` oblige cooperation and production of documents — **on request**, and under the Belegvorhaltepflicht that request usually comes later or not at all. A submission that volunteers its own evidentiary weak points hands the examiner a worklist he did not write.
+
+Apply one test to every sentence before it ships:
+
+> **Does this sentence support an amount that is actually declared?**
+
+**Must be disclosed** — silence here is the real risk:
+
+- Every estimated or extrapolated figure, with its basis and its direction.
+- Every deviation from the transmitted return or from the prior year's method.
+- A `§ 153 AO` error in another year.
+- A correction against the taxpayer's own interest.
+- A position maintained although a document contradicts it.
+
+**Must not be volunteered** — it costs and buys nothing:
+
+- Which receipts are missing for a position that is claimed and internally consistent. Say it when the Finanzamt asks, not before.
+- Any reasoning for a position that is **not** claimed. A non-claim needs no justification; explaining it only invites the question why it was considered.
+- That a figure rests on the taxpayer's own statement where no third-party document could exist anyway — kilometres driven, hours absent, days worked at home.
+- Speculation drawn from a bank or card entry that no document confirms.
+- Anticipatory concessions: "should these turn out not to be deductible, the deduction reduces accordingly".
+- Promises to supply a document nobody asked for.
+
+Three exceptions where a non-claimed item still belongs in the letter: when the Finanzamt would otherwise see an inconsistency against a prior year or a document it already holds; when naming it forestalls a double-deduction reproach; and when the non-claim is itself a correction against the taxpayer.
+
+The reflex to fix: the internal working note lists every weakness because that is its job. The letter is not the working note. Leave the weakness in the case file and keep the figure in the letter.
+
 ## Deep references
 
 | Topic | Read |
@@ -179,6 +208,9 @@ Building the `Anlagen` PDF — cover sheet, locator index, page ranges, which sh
 | "The Finanzamt accepted this in the prior year." | `Abschnittsbesteuerung`: each year stands alone. Quote the prior notice as an argument, never as a guarantee, and say which it is. |
 | "The spreadsheet computes it this way." | The spreadsheet is not the filing. Reconcile against the transmitted data set; where they differ, the workbook is the suspect. |
 | "The difference is small, no need to mention it." | An undisclosed deviation found by the examiner discredits the entire package. Disclose it and keep the contested positions credible. |
+| "Full disclosure is always the safer posture." | Only for figures. Naming which receipts are missing for a claimed, consistent position writes the examiner's request for him. Disclose amounts, estimates, and method changes; answer evidence questions when they are asked. |
+| "It costs nothing to explain why we did not claim it." | It costs the question why it was considered at all, and it maps out the neighbouring positions. A non-claim needs no justification. |
+| "The disclaimer is boilerplate, nobody reads it." | In a letter the taxpayer signs, an RDG or StBerG notice reads as if an unauthorised third party drafted it. Sweep for it before rendering and again in the rendered PDF. |
 | "That other year is closed anyway." | `§ 153 Abs. 1 AO` obliges notification regardless, and silence after discovery is what turns an error into an offence. |
 | "The area is right, it matches the contract total." | Agreement with a total is arithmetic reconciliation, not measurement. Label it as derived unless an Aufmaß or a dimensioned plan supports it. |
 | "The registered address settles where the taxpayer lives." | Registration is one indication among many and can be rebutted — but it is the authority's strongest one, so it must be addressed openly, not omitted. |
@@ -199,6 +231,10 @@ Stop and re-enter the process when any of these is true right now:
 - An internal caveat, status marker, or disclaimer is still in the submission draft.
 - Classifying a document from its subject line, filename, or a category column instead of the operative sentence.
 - Summing a transaction set with a sign filter, so credits and reversals cannot appear.
+- The draft explains a position that is not claimed at all.
+- The draft names a missing receipt for a position the Finanzamt has not questioned.
+- The draft concedes a reduction the Finanzamt has not proposed.
+- A submission is about to be rendered and the marker sweep has not been run on it.
 
 ## Verification
 
@@ -207,8 +243,9 @@ Before reporting a submission ready, produce each of these:
 - **Figure trace**: every amount in the letter appears in a control table row with its evidence reference. No orphan figures.
 - **Norm check**: every § citation resolved against the current statutory text, with the amendment date noted where the year matters.
 - **Deviation sweep**: control table shows no unexplained difference against the transmitted return.
+- **Disclosure sweep**: every sentence in the submission supports a declared amount, a disclosed estimate, a method change, or a `§ 153 AO` correction. Anything else is cut and kept in the working note.
 - **Attachment match**: `Anlagenverzeichnis` entries map one-to-one onto files that exist, with page counts.
-- **Marker sweep**: full-text search of the draft for `TODO`, `offen`, `intern`, `Prüfvermerk`, `Disclaimer`, `Entwurf` returns only intended prose.
+- **Marker sweep**: full-text search of the draft for `TODO`, `offen`, `intern`, `Prüfvermerk`, `Disclaimer`, `Entwurf`, `StBerG` and `RDG` returns only intended prose — **and the same search against the rendered PDF's text layer comes back empty**.
 - **Deadline**: `Get-SteuerFrist.ps1` output pasted into the working note, with the dispatch date before it.
 - **Dispatch proof**: ELSTER `Transferticket` or equivalent receipt archived with the case.
 
@@ -237,6 +274,8 @@ Flag to the user immediately, and do not proceed alone:
 - ❌ Treating the BMF `Arbeitshilfe zur Kaufpreisaufteilung` as binding (BFH IX R 26/19).
 - ❌ Claiming "the estimate is unlawful" without substantiating the actual bases of taxation.
 - ❌ Putting an RDG or StBerG disclaimer into a letter addressed to the Finanzamt.
+- ❌ Volunteering the evidentiary gaps of a position the Finanzamt has not questioned.
+- ❌ Rendering a submission without sweeping the result for internal markers — the Markdown being clean does not prove the PDF is.
 
 ---
 

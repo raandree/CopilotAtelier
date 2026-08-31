@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The mandatory disclaimer travelled into two signed submissions to a German tax office** (2026-08-31). [`com.github.copilot/agents/tax-researcher.agent.md`](com.github.copilot/agents/tax-researcher.agent.md) opened with "include this at the end of every substantive output", and the model did exactly that: an RDG and StBerG notice ended up below the signature block of two `Einspruchsbegründungen`, where [`skills/german-tax-research/SKILL.md`](skills/german-tax-research/SKILL.md) had forbidden it since the Skill was written. The defect surfaced only when the taxpayer had already printed and signed both letters.
+
+  The two rules were both present and contradicted each other. The agent's instruction was unqualified; the Skill's fourth non-negotiable said submissions carry no internal caveats. An unqualified instruction in the agent body beats a rule three sections into a Skill, so the agent is where the fix belongs: the disclaimer now applies to chat replies and internal working papers, and never to a `Schriftsatz`, `Einspruch`, `Anlage`, `Eigenbeleg`, or `Erklärung` that a taxpayer signs. The reason is spelled out rather than asserted — in a letter the taxpayer signs, a notice disclaiming tax advice reads as if an unauthorised third party had drafted it.
+
+  A rule nobody checks is a rule that fails silently, so both files now carry the check. The agent gains a marker sweep in phase 5 and an anti-pattern for shipping a `Schriftsatz` PDF without one. The Skill's non-negotiable 4 names the production failure, lists the search terms — `StBerG`, `RDG`, `Steuerberatung`, `intern`, `Entwurf`, `Prüfvermerk`, `TODO` — and requires the sweep **twice**: once against the Markdown and once against the rendered PDF's text layer, because a template or a CSS rule can reintroduce what the source no longer shows. The existing `Marker sweep` verification item is extended accordingly.
+
+### Changed
+
+- **`german-tax-research` gains a disclosure economy** (2026-08-31). A `Begründung` addressed to a tax office had been disclosing which receipts were missing for positions nobody had questioned, explaining at length why items were *not* claimed, and conceding reductions the office had not proposed. Each sentence was true; together they handed the examiner a worklist he had not written.
+
+  The new section separates two duties that get conflated. `§ 150 Abs. 2 AO` requires the declared bases of taxation to be complete and true; it does not require a self-assessment of how strong the evidence behind them is. `§§ 90, 97 AO` oblige cooperation and production — on request, and under the `Belegvorhaltepflicht` that request often never comes. One test decides every sentence: does it support an amount that is actually declared?
+
+  Estimates, deviations from the transmitted return, method changes, `§ 153 AO` corrections, and positions maintained against a contrary document must still be disclosed — silence there is the real risk. What must not be volunteered is the evidentiary weakness of a claimed and consistent position, any reasoning for a position that is not claimed at all, the fact that a figure rests on the taxpayer's own statement where no third-party document could exist, speculation drawn from a bank entry, anticipatory concessions, and promises of documents nobody asked for. Three exceptions keep a non-claimed item in the letter: a cross-year inconsistency the office would otherwise spot, a double-deduction reproach worth forestalling, and a correction against the taxpayer. Two anti-rationalizations, three red flags, a `Disclosure sweep` verification item, and an anti-pattern make it checkable; the `tax-researcher` agent gains the matching phase-5 probe and four German anti-patterns.
+
 ### Changed
 
 - **The Software Engineer agent no longer hands work to `security-reviewer` on its own judgement** (2026-08-28). [`com.github.copilot/agents/software-engineer.agent.md`](com.github.copilot/agents/software-engineer.agent.md) gains an explicit independent review switch that is `off` by default, so a routine change now ends with the agent's own validation and self-review instead of a subagent dispatch that costs minutes of latency per turn.
