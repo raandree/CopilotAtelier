@@ -90,9 +90,9 @@ Alternates, if a plainer title is preferred:
 >
 > There are five ways to steer that agent — a custom agent, an instruction file,
 > a skill, a prompt file, and a lifecycle hook — and exactly one of them is
-> enforceable. In the folder they look interchangeable. They are not. Each loads
-> at a different moment, carries different authority, and fails in its own
-> silent way.
+> enforceable. They look interchangeable. They are not. Each loads at a
+> different moment, carries different authority, and fails in its own silent
+> way.
 >
 > This session dissects all five for people who ship PowerShell. What each
 > frontmatter actually controls. Which of them the model may decline and which
@@ -106,11 +106,11 @@ Alternates, if a plainer title is preferred:
 > ever parses them. One settings key that replaces the hook location map instead
 > of extending it. A skill missing frontmatter that never registers.
 >
-> Demonstrated throughout on a real open-source library — 13 agents, 16
-> instruction files, 46 skills, 3 hooks — shipped as a PowerShell Gallery module
-> and installed in one command. It is the residue of two years spent moving from
-> writing every line of PowerShell and C# by hand to having an agent write
-> nearly all of it.
+> Everything is demonstrated on a real open-source customization library — 13
+> agents, 16 instruction files, 46 skills, 3 hooks — distilled from two years of
+> moving from hand-written PowerShell and C# to having an agent write nearly all
+> of it. None of it has to be rebuilt from the slides: it installs from the
+> PowerShell Gallery in one command, and you keep what fits.
 
 ### Learning objectives
 
@@ -167,34 +167,34 @@ Alternates:
 ### Abstract
 
 > Two years ago I wrote every line of PowerShell and C# myself. Today an agent
-> writes almost all of it, and the bottleneck stopped being typing. It became
-> trust: knowing what actually changed, whether the build is really green, and
-> what the agent quietly forgot between one session and the next.
+> writes almost all of it, and the bottleneck is no longer typing but trust:
+> knowing what actually changed, whether the build is really green, and what the
+> agent quietly forgot between one session and the next.
 >
-> This is a field report from a Sampler-built module developed that way, for
-> people who ship modules, DSC configurations, and pipelines.
+> A field report from a Sampler-built module developed that way, for people who
+> ship modules, DSC configurations, and pipelines.
 >
 > Four things carried the weight. A per-turn contract: a discovery step before
-> the agent's first tool call and a close-out gate before its last answer, with
-> an exemption so a plain question costs nothing. Durable memory:
+> the agent's first tool call, a close-out gate before its last answer, and an
+> exemption so a plain question costs nothing. Durable memory:
 > version-controlled project knowledge with a routing table, so the agent reads
-> the three files a task needs instead of the whole repository, with a build
-> gate holding the average context reduction above 50 percent. Deterministic
-> guardrails: a rule that must always hold lives in a PowerShell hook script
-> that blocks by exit code, never in prose the model can reason its way around
-> — that is what stops `git push` and `--no-verify`. And evidence over
-> assertion: an agent reports success cheerfully, but only the diff, a detached
-> Pester run, and the build say so. Every one of those gates is itself a Pester
-> test that fails CI.
+> the three files a task needs, not the whole repository, with a build gate
+> holding the average context reduction above 50 percent. Deterministic
+> guardrails: a rule that must always hold lives in a hook script that blocks by
+> exit code, never in prose the model can reason its way around — that is what
+> stops `git push` and `--no-verify`. And evidence over assertion: an agent
+> reports success cheerfully; only the diff, Pester, and the build say so. Each
+> of those gates is a Pester test that fails CI.
 >
 > The counter-lessons matter as much. An automatic review whose trigger list
-> matched nearly every change became an unconditional tax rather than a
-> risk-scaled one. Context compaction silently bypasses any end-of-turn gate.
-> Two scripted bulk edits corrupted 129 files each, passed their own byte-exact
-> verification, and were caught only by git.
+> matched nearly every change became an unconditional tax. Context compaction
+> silently bypasses any end-of-turn gate. Two scripted bulk edits corrupted 129
+> files each, passed their own verification, and were caught only by git.
 >
-> Expect specifics: what to enforce mechanically, what to measure, and where a
-> multi-agent workflow pays for itself rather than just costing you minutes.
+> None of this stays on the slides. The contract, the memory layout, the
+> guardrail hooks, and the Pester gates ship as an open-source customization
+> library that installs in one command, so you leave with a working baseline
+> rather than a to-do list.
 
 ### Learning objectives
 
