@@ -1,0 +1,140 @@
+[
+  {
+    "id": "pos-01",
+    "query": "trag mir die Steuererklärung 2024 in Mein ELSTER ein",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-02",
+    "query": "the Anlage V line numbers in my guide don't match the form this year",
+    "should_trigger": true,
+    "split": "train",
+    "note": "the central teaching: Kennzahlen stable, sub-page and line numbers not"
+  },
+  {
+    "id": "pos-03",
+    "query": "welche Kennzahl hat das Feld für Erhaltungsaufwand in der Anlage V",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "resolved by references/feldkarte-est.md"
+  },
+  {
+    "id": "pos-04",
+    "query": "my second entry keeps overwriting the first one when I add rows with Playwright",
+    "should_trigger": true,
+    "split": "train",
+    "note": "never says ELSTER; the moving AddMzbItem index and the id-prefix collision"
+  },
+  {
+    "id": "pos-05",
+    "query": "continue the existing draft and get it to say es sind keine Fehler vorhanden",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-06",
+    "query": "prüf bitte maschinell nach, ob wirklich alle Beträge im Formular gelandet sind",
+    "should_trigger": true,
+    "split": "train",
+    "note": "the target-value comparison against the summary page text"
+  },
+  {
+    "id": "pos-07",
+    "query": "ELSTER complains about missing Krankenversicherungsbeiträge although the employer transmitted a value",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "the transferred 0.00 that must be emptied rather than left at zero"
+  },
+  {
+    "id": "pos-08",
+    "query": "which Teilseiten of the Anlage Vorsorgeaufwand still show no data",
+    "should_trigger": true,
+    "split": "train",
+    "note": "the Daten vorhanden completeness test"
+  },
+  {
+    "id": "pos-09",
+    "query": "automate filling a German tax portal form with the browser tools",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "names neither ELSTER nor an Anlage"
+  },
+  {
+    "id": "pos-10",
+    "query": "der Betrag im Formular weicht um einen Euro von meiner Kalkulation ab",
+    "should_trigger": true,
+    "split": "train",
+    "note": "ELSTER rounds in the taxpayer's favour, not commercially"
+  },
+  {
+    "id": "neg-01",
+    "query": "kann ich das häusliche Arbeitszimmer 2024 überhaupt absetzen",
+    "should_trigger": false,
+    "split": "train",
+    "note": "substantive deductibility — german-tax-research"
+  },
+  {
+    "id": "neg-02",
+    "query": "schreib mir eine Einspruchsbegründung gegen den Schätzungsbescheid",
+    "should_trigger": false,
+    "split": "train",
+    "note": "drafting a submission — german-tax-research"
+  },
+  {
+    "id": "neg-03",
+    "query": "wann läuft die Einspruchsfrist für einen Bescheid vom 12. März ab",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "deadline computation under the notification fiction — german-tax-research"
+  },
+  {
+    "id": "neg-04",
+    "query": "set up a persistent Edge profile so the login survives a restart",
+    "should_trigger": false,
+    "split": "train",
+    "note": "authenticated-web-extraction; this Skill never handles credentials"
+  },
+  {
+    "id": "neg-05",
+    "query": "scrape my LinkedIn contacts into a table",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "authenticated-web-extraction"
+  },
+  {
+    "id": "neg-06",
+    "query": "extract the amounts from these scanned Handwerkerrechnungen",
+    "should_trigger": false,
+    "split": "train",
+    "note": "pdf-to-markdown"
+  },
+  {
+    "id": "neg-07",
+    "query": "read the Betriebskostenabrechnung spreadsheet and give me the totals",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "xlsx-to-markdown"
+  },
+  {
+    "id": "neg-08",
+    "query": "bau mir aus den Belegen ein durchnummeriertes Anlagenkonvolut mit Deckblatt",
+    "should_trigger": false,
+    "split": "train",
+    "note": "evidence-package-assembly"
+  },
+  {
+    "id": "neg-09",
+    "query": "der Vermieter rechnet die Gartenpflege falsch um, was sagt das Mietrecht",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "german-legal-research"
+  },
+  {
+    "id": "neg-10",
+    "query": "fill in this PDF form with the AcroForm field values",
+    "should_trigger": false,
+    "split": "train",
+    "note": "near miss on 'fill a form'; pdf-to-markdown covers AcroForm filling"
+  }
+]
