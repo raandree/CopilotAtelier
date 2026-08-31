@@ -94,12 +94,12 @@ Alternates, if a plainer title is preferred:
 > at a different moment, carries different authority, and fails in its own
 > silent way.
 >
-> This session dissects all five for people who ship PowerShell on Windows. What
-> each frontmatter actually controls. Which of them the model may decline and
-> which it never gets a vote on. How an `applyTo` glob scopes a rule to
-> `**/*.ps1` but leaves your `build.yaml` uncovered. Why a skill's description,
-> not its body, decides whether it ever loads. How a PowerShell hook script
-> blocks a command by exit code, outside the model's judgment entirely.
+> This session dissects all five for people who ship PowerShell. What each
+> frontmatter actually controls. Which of them the model may decline and which
+> it never gets a vote on. How an `applyTo` glob scopes a rule to `**/*.ps1` but
+> leaves your `build.yaml` uncovered. Why a skill's description, not its body,
+> decides whether it ever loads. How a PowerShell hook script blocks a command
+> by exit code, outside the model's judgment entirely.
 >
 > The failure gallery is where the time goes, because every entry is silent.
 > Hook commands whose `$` tokens are eaten by the host shell before PowerShell
@@ -172,7 +172,7 @@ Alternates:
 > what the agent quietly forgot between one session and the next.
 >
 > This is a field report from a Sampler-built module developed that way, for
-> people who ship modules, DSC configurations, and pipelines on Windows.
+> people who ship modules, DSC configurations, and pipelines.
 >
 > Four things carried the weight. A per-turn contract: a discovery step before
 > the agent's first tool call and a close-out gate before its last answer, with
