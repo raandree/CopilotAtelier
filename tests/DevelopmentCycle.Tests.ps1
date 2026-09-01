@@ -46,6 +46,98 @@ BeforeAll {
         )
     }
 
+    function script:Get-AgentHandoff
+    {
+        <#
+            Returns one object per handoff entry across every agent, so the
+            handoff graph can be walked as edges rather than grepped as text.
+        #>
+        [CmdletBinding()]
+        [OutputType([psobject[]])]
+        param ()
+
+        return @(
+            foreach ($file in Get-ChildItem -LiteralPath $script:agentsPath -Filter '*.agent.md' -File)
+            {
+                $line = @(Get-Content -LiteralPath $file.FullName -Encoding UTF8)
+                $delimiter = @(
+                    for ($index = 0; $index -lt $line.Count; $index++)
+                    {
+                        if ($line[$index] -eq '---') { $index }
+                    }
+                )
+
+                $source = [System.IO.Path]::GetFileNameWithoutExtension($file.BaseName)
+                $entry = $null
+
+                foreach ($current in $line[1..($delimiter[1] - 1)])
+                {
+                    if ($current -match '^\s{2}-\s+label:\s*(?<label>.+?)\s*$')
+                    {
+                        if ($entry) { $entry }
+
+                        $entry = [pscustomobject]@{
+                            Source = $source
+                            Label  = $Matches.label
+                            Target = $null
+                            Send   = $false
+                        }
+
+                        continue
+                    }
+
+                    if (-not $entry) { continue }
+
+                    if ($current -match '^\s{4}agent:\s*(?<agent>\S+)\s*$')
+                    {
+                        $entry.Target = $Matches.agent
+                    }
+                    elseif ($current -match '^\s{4}send:\s*(?<send>\S+)\s*$')
+                    {
+                        $entry.Send = $Matches.send -eq 'true'
+                    }
+                }
+
+                if ($entry) { $entry }
+            }
+        )
+    }
+
+    function script:Find-HandoffCycle
+    {
+        <#
+            Depth-first walk that reports every ring reachable in an edge map.
+            Any ring built only from send: true edges runs without a human.
+        #>
+        [CmdletBinding()]
+        [OutputType([string[]])]
+        param
+        (
+            [Parameter(Mandatory)]
+            [ValidateNotNullOrEmpty()]
+            [string]$Node,
+
+            [Parameter(Mandatory)]
+            [hashtable]$Edge,
+
+            [Parameter()]
+            [AllowEmptyCollection()]
+            [string[]]$Path = @()
+        )
+
+        if ($Path -contains $Node)
+        {
+            return @((@($Path[$Path.IndexOf($Node)..($Path.Count - 1)]) + $Node) -join ' -> ')
+        }
+
+        return @(
+            foreach ($next in @($Edge[$Node] | Where-Object { $_ }))
+            {
+                script:Find-HandoffCycle -Node $next -Edge $Edge -Path (@($Path) + $Node)
+            }
+        )
+    }
+
     $script:postflightContent = Get-Content -LiteralPath $script:postflightPath -Raw -Encoding UTF8
 }
 
@@ -82,13 +174,54 @@ Describe 'Development cycle' -Tag 'Unit' {
             Should -Contain 'technical-writer'
     }
 
-    It 'bounds the review-fail loop instead of letting it ping-pong' {
+    It 'breaks the review-fail loop at the frontmatter instead of promising a cap' {
+        <#
+            A prose cap ("stop after two rounds") is unenforceable: each handoff
+            starts the receiving agent with fresh context, so neither side can
+            count rounds. Two mutually auto-submitting handoffs plus that cap
+            produced a session that never terminated. The bound is the missing
+            send: true on the way back.
+        #>
         $body = script:Get-AgentBody -Name 'security-reviewer.agent.md'
+        $fixLeg = script:Get-AgentHandoff |
+            Where-Object { $_.Source -eq 'security-reviewer' -and $_.Label -eq 'Fix Issues Found' }
 
-        $body | Should -Match '(?i)two rounds'
-        $body | Should -Match '(?i)fix round'
-        script:Get-AgentHandoffTarget -Name 'security-reviewer.agent.md' |
-            Should -Contain 'software-engineer'
+        $fixLeg | Should -HaveCount 1
+        $fixLeg.Target | Should -Be 'software-engineer'
+        $fixLeg.Send | Should -BeFalse
+
+        $body | Should -Match '(?i)fix (loop|round)'
+        $body | Should -Match '(?i)does \*\*not\*\* auto-submit'
+        $body | Should -Not -Match '(?i)after two rounds'
+
+        script:Get-AgentBody -Name 'software-engineer.agent.md' |
+            Should -Not -Match '(?i)after two rounds'
+    }
+
+    It 'leaves no cycle in the handoff graph that can close unattended' {
+        <#
+            The failure this guards is structural, not local: any ring of
+            send: true edges runs without a human, and no agent body can see
+            the ring it is part of.
+        #>
+        $edge = @{}
+        foreach ($handoff in script:Get-AgentHandoff | Where-Object { $_.Send -and $_.Target })
+        {
+            $edge[$handoff.Source] = @($edge[$handoff.Source]) + $handoff.Target
+        }
+
+        # A detector that never detects would pass this test silently.
+        script:Find-HandoffCycle -Node 'a' -Edge @{ a = 'b'; b = 'a' } |
+            Should -Not -BeNullOrEmpty
+
+        $found = @(
+            foreach ($source in $edge.Keys)
+            {
+                script:Find-HandoffCycle -Node $source -Edge $edge
+            }
+        )
+
+        $found | Should -BeNullOrEmpty -Because "every edge in these rings auto-submits: $($found -join '; ')"
     }
 
     It 'names exactly one close-out owner across the four stages' {
@@ -139,17 +272,17 @@ Describe 'Development cycle' -Tag 'Unit' {
         $body | Should -Match 'end-to-end'
     }
 
-    It 'auto-submits every cycle-carrying handoff' {
+    It 'auto-submits every forward handoff in the cycle' {
         <#
             send: false populates the box and waits for a second confirmation.
-            Inside a cycle the user already consented at the entry point, so the
-            transition must not ask again.
+            Progressing through the cycle must not ask again — the user
+            consented at the entry point. Only the fail path back into
+            implementation is gated, because that edge closes a ring.
         #>
         $cycleHandoff = @(
             @{ Agent = 'software-architect.agent.md'; Label = 'Implement the Design Concept' }
             @{ Agent = 'software-engineer.agent.md'; Label = 'Run Security Review' }
             @{ Agent = 'security-reviewer.agent.md'; Label = 'Document the Change' }
-            @{ Agent = 'security-reviewer.agent.md'; Label = 'Fix Issues Found' }
         )
 
         foreach ($entry in $cycleHandoff)

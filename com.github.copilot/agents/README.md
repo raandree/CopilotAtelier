@@ -45,14 +45,18 @@ The four agents below chain into one opt-in workflow. Ask for `cycle: full` — 
 software-architect  →  software-engineer  →  security-reviewer  →  technical-writer
    Design Concept        implement + test       pass / fail gate       document + close out
                                  ↑                     │
-                                 └──── fail: max 2 fix rounds ────┘
+                                 └── fail: you click to send it back ──┘
 ```
 
 The cycle is off by default; a single agent finishes its own work and stops. When
 it is requested, only the final stage writes the changelog entry and the commit —
 the earlier stages verify, refresh `activeContext.md`, and hand over. Every
-cycle-carrying handoff auto-submits, so a transition does not ask for a second
-confirmation.
+*forward* handoff auto-submits, so progressing does not ask for a second
+confirmation. The one handoff that does not is the reviewer's fail path back to
+the engineer: two auto-submitting handoffs pointing at each other is an unbounded
+loop, and no prose cap can stop it, because each handoff starts the receiving
+agent with fresh context and neither side can count rounds. Re-entering
+implementation therefore costs one deliberate click — the human is the bound.
 
 **Ask for it** with `cycle: full` or any of: "full development cycle", "full
 workflow", "development cycle", "full SDLC", "full pipeline", "the whole
@@ -65,10 +69,10 @@ spend on a guess, so those get a question instead.
 
 **Worth knowing**: progression is surfaced as a handoff button, not an unattended
 agent switch. `send: true` means selecting it submits immediately rather than
-waiting for a second confirmation. VS Code hands *you* to another agent; an agent
-cannot hand itself. Ask for a cycle at the engineer rather than the architect and
-it hands back upstream, because there is no signed-off Design Concept to
-implement if you start in the middle.
+waiting for a second confirmation; `send: false` fills the box and waits for you.
+VS Code hands *you* to another agent; an agent cannot hand itself. Ask for a cycle
+at the engineer rather than the architect and it hands back upstream, because
+there is no signed-off Design Concept to implement if you start in the middle.
 
 ### 1. Software Architect Agent
 
@@ -357,7 +361,7 @@ flowchart LR
     Dev -->|Requirement Gap| Arch
     Dev -->|Code Complete| QA[Security & QA<br/>Agent]
     QA -->|PASS| Doc[Technical Writer<br/>Agent]
-    QA -->|FAIL, max 2 rounds| Dev
+    QA -->|FAIL, you resend| Dev
     QA -->|CONDITIONAL| Risk[Risk<br/>Acceptance]
     Risk -->|Approved| Doc
     Risk -->|Rejected| Dev

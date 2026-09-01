@@ -128,9 +128,12 @@ four, between the architect and the security reviewer.
 - The cycle sets `review: on`. When the work is green, offer the *Run Security
   Review* handoff immediately and without asking — it auto-submits, and the
   consent came at the entry point.
-- A review that comes back is a fix round: apply the findings, hand back, and
-  after two rounds stop and report the unresolved findings rather than opening
-  a third.
+- A review that comes back is a fix round: apply the findings, then hand back
+  through *Run Security Review*. The reviewer's return handoff does not
+  auto-submit, so the user gates every round — the loop cannot run unattended.
+  Do not promise a round limit of your own; a handoff starts you with fresh
+  context, so you cannot count rounds. Say when a finding has already survived
+  one.
 - Do not close out. Update `activeContext.md` and hand over; the final stage
   writes the changelog entry and the commit for the whole cycle.
 - `cycle: off` ends the cycle immediately and makes you the closer: finish the

@@ -15,16 +15,32 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-01**: Fixed an unbounded handoff loop in the `cycle: full` chain.
+  A raw transcript showed fifteen complete `software-engineer` ↔
+  `security-reviewer` round trips in one autopilot session (30 MB against a
+  ~600 KB norm), because both legs carried `send: true` and the only bound was
+  prose. The reviewer's *Fix Issues Found* leg is now `send: false`, so the
+  cycle still reaches the reviewer unattended but cannot re-enter
+  implementation without a click; the "after two rounds" wording is gone from
+  both agent bodies, the agents README, and the unreleased changelog entry.
+  `tests/DevelopmentCycle.Tests.ps1` now walks the whole handoff graph and
+  fails on any ring of `send: true` edges, and self-checks the detector against
+  a synthetic ring. The audit found no other closeable ring: `software-architect`
+  → `software-engineer` → `security-reviewer` is the only other `send: true`
+  path and the architect has no inbound edge.
+
 - **2026-08-28**: Added the opt-in `cycle: full` development cycle — architect,
   engineer, security reviewer, technical writer, with the reviewer as the gate
-  and a two-round cap on the fix loop. The correction that shaped it: removing
+  and a gated fail path back into implementation. The correction that shaped it:
+  removing
   the auto-handover earlier the same day treated *automatic* as the problem,
   but the problem was *unrequested*. Consent at the entry point covers the whole
   chain, so a requested cycle may progress on its own. Close-out defers to the
   final stage or four agents each write a changelog entry and a commit for one
   change. Rules live in the agent bodies because a Skill is advisory and cannot
   bind them; one new handoff edge, `security-reviewer` to `technical-writer`,
-  closed the graph. Cycle handoffs set `send: true` so a transition does not ask
+  closed the graph. Forward cycle handoffs set `send: true` so a transition does
+  not ask
   twice, and the architect carries both a trigger phrase book and a refusal list
   — "end-to-end" means end-to-end tests, so it does not start one. `cycle: off`
   ends a running chain at the current stage, which then closes out instead of
