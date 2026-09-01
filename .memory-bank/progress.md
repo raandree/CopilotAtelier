@@ -15,12 +15,27 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-09-01**: Diagnosed the red `main` build (CI run 33430725722). The
-  `elster-form-capture` commit took `activeContext.md` to 220 lines against a
-  200-line budget, so `MemoryBankHealth` failed on the Windows leg alone — the
-  same failure mode as 2026-08-27, five days later. Three of six budgeted files
-  were sitting at or one line below their caps, so `activeContext.md` and
-  `progress.md` were curated for real headroom rather than back to the edge.
+- **2026-09-01**: Fixed an unbounded handoff loop in the `cycle: full` chain.
+  A raw transcript showed fifteen complete `software-engineer` ↔
+  `security-reviewer` round trips in one autopilot session (30 MB against a
+  ~600 KB norm), because both legs carried `send: true` and the only bound was
+  prose. The reviewer's *Fix Issues Found* leg is now `send: false`, so the
+  cycle still reaches the reviewer unattended but cannot re-enter
+  implementation without a click; the "after two rounds" wording is gone from
+  both agent bodies, the agents README, and the unreleased changelog entry.
+  `tests/DevelopmentCycle.Tests.ps1` now walks the whole handoff graph and
+  fails on any ring of `send: true` edges, and self-checks the detector against
+  a synthetic ring. The audit found no other closeable ring: `software-architect`
+  → `software-engineer` → `security-reviewer` is the only other `send: true`
+  path and the architect has no inbound edge.
+
+- **2026-09-01**: Diagnosed the red `main` build (CI run 33430725722) — the
+  second recurrence of one failure mode. `elster-form-capture` took
+  `activeContext.md` to 220 lines against a 200-line budget; five days earlier
+  `dc6206e` had taken `systemPatterns.md` to 122 against 110 (CI run
+  33080179473). Both failed on the Windows leg alone. The lesson both times was
+  that curating back to the edge only defers the breach, because the Post-flight
+  append every Substantive turn owes re-breaks it on the next commit.
 
 - **2026-08-31**: Fixed a contradiction between an agent and its Skill that
   reached a signed submission. `tax-researcher` demanded the RDG/StBerG
@@ -57,14 +72,16 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - **2026-08-28**: Added the opt-in `cycle: full` development cycle — architect,
   engineer, security reviewer, technical writer, with the reviewer as the gate
-  and a two-round cap on the fix loop. The correction that shaped it: removing
+  and a gated fail path back into implementation. The correction that shaped it:
+  removing
   the auto-handover earlier the same day treated *automatic* as the problem,
   but the problem was *unrequested*. Consent at the entry point covers the whole
   chain, so a requested cycle may progress on its own. Close-out defers to the
   final stage or four agents each write a changelog entry and a commit for one
   change. Rules live in the agent bodies because a Skill is advisory and cannot
   bind them; one new handoff edge, `security-reviewer` to `technical-writer`,
-  closed the graph. Cycle handoffs set `send: true` so a transition does not ask
+  closed the graph. Forward cycle handoffs set `send: true` so a transition does
+  not ask
   twice, and the architect carries both a trigger phrase book and a refusal list
   — "end-to-end" means end-to-end tests, so it does not start one. `cycle: off`
   ends a running chain at the current stage, which then closes out instead of
@@ -77,24 +94,14 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - **2026-08-28**: Made the Software Engineer agent's independent review opt-in.
   The old rule dispatched `security-reviewer` for "high-risk work" over a
-  trigger list — security boundaries, public APIs, cross-module contracts, a
-  large unfamiliar diff — that almost every change in an agent-customization
-  repository matches, so a risk-scaled default behaved as an unconditional
-  handover costing minutes per turn. The trigger list is unchanged; it now gates
-  a recommendation instead of a dispatch. `review: on` / `auto` / `off` is
-  user-set, advertised in `argument-hint`, and plain language plus the existing
-  handoff button both count as `on`. The non-obvious half was
-  `postflight.instructions.md`: its Definition of Done demanded independent
+  trigger list that almost every change in an agent-customization repository
+  matches, so a risk-scaled default behaved as an unconditional handover. The
+  trigger list is unchanged; it now gates a recommendation instead of a
+  dispatch, and `review: on` / `auto` / `off` is user-set. The non-obvious half
+  was `postflight.instructions.md`: its Definition of Done demanded independent
   review "was completed", which the model would have satisfied by dispatching
-  anyway, so the gate now names the deferral path without dropping the
-  requirement for other agents. `software-engineer-contoso` pins the switch to
-  `on` and refuses a `review: off` downgrade.
-
-- **2026-08-27**: Diagnosed the same red build one recurrence earlier (CI run
-  33080179473), when `dc6206e` took `systemPatterns.md` to 122 against its
-  110-line budget. `progress.md` was curated from 194 to 166 lines in the same
-  pass, because at 194 of 200 the Post-flight append that every Substantive
-  turn owes would have re-broken the build on the next commit.
+  anyway, so the gate now names the deferral path. `software-engineer-contoso`
+  pins the switch to `on`.
 
 - **2026-08-27**: Added `software-engineer-contoso`, the first corporate overlay
   agent, and learned that a Markdown link between agents inherits nothing — VS
@@ -102,15 +109,9 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   version ran as a bare fragment with no diagnostic. The base body is now inlined
   between markers with a byte-exact drift test in
   `tests/AgentInheritance.Tests.ps1`. The overlay only tightens: 45 tools drop to
-  36 (the nine egress and supply-chain tools removed), `agents` narrows to
-  `security-reviewer`, and the body carries the Contoso control set — secrets by
-  reference, internal-mirror-only dependencies, a "never ship" Blocker list,
-  separation of duties ending at the local working tree, a raised and partly
-  mandatory review bar, and a seven-item hard stop. The subagent rule is the
-  sharp one: `security-reviewer` holds `web/fetch`, so the dispatch carries
-  paths and questions, never source. `systemPatterns.md` was curated from 130 to
-  under its 110-line budget in the same edit; it had been over since before this
-  work.
+  36, `agents` narrows to `security-reviewer`, and the dispatch to it carries
+  paths and questions, never source, because that agent holds `web/fetch`.
+  `CHANGELOG.md` carries the full Contoso control set.
 
 ## Stable capabilities
 

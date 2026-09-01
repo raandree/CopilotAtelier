@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-27
+last-verified: 2026-09-01
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,57 +9,46 @@ source: current task evidence
 
 ## Current focus
 
-`elster-form-capture` is the newest Skill, and it arrived the way the good ones
-do: as a by-product. The task was capturing a German tax return in Mein ELSTER
-under a deadline, not writing a Skill. What made it worth packaging is that the
-attempt to drive the form mechanically kept auditing the capture guide that fed
-it — a wrong postcode, stale line references, and 1,330 € of deductions a status
-table already called captured.
+The `cycle: full` chain ran forever. A raw transcript showed fifteen complete
+`software-engineer` ↔ `security-reviewer` round trips in one autopilot session,
+30 MB against a ~600 KB norm. Three things lined up: the engineer's *Run
+Security Review* handoff auto-submitted, the reviewer's *Fix Issues Found*
+handoff auto-submitted back, and the only thing standing between them was
+prose — "after two rounds, stop the cycle".
 
-The Skill is deliberately narrow. Mechanics only: field numbers, sub-page
-navigation, repeat rows, mandatory-field traps, eData gaps, and the machine
-comparison against the summary page. Whether a cost is deductible stays with
-`german-tax-research`, and the ten near-miss negatives in the trigger set exist
-to keep that line where it is. Login is not in scope either — the taxpayer signs
-in and shares the page, so no credential ever reaches the model.
+That cap could never fire. A handoff starts the receiving agent with fresh
+context, so neither side can count the rounds it has run; a cap nobody can
+count is a cap nobody enforces. The bound is now structural: *Fix Issues Found*
+sets `send: false`. Forward legs still auto-submit, so a requested cycle still
+reaches the reviewer unattended — only re-entering implementation costs a
+deliberate click, and the human is the bound. The lesson generalises, so it is
+in `systemPatterns.md` and in a test: any ring of `send: true` handoffs is
+unbounded by construction, and no agent body can see the ring it is part of, so
+`tests/DevelopmentCycle.Tests.ps1` walks the whole graph and fails on one. The
+audit found no second ring — `software-architect` → `software-engineer` →
+`security-reviewer` is the only other auto-submitting path, and the architect
+has no inbound edge.
 
-One rule generalises past ELSTER and is worth keeping in view for any portal
-work: address by the stable identifier, verify by the visible heading, and treat
-a line number from last year's guide as a claim rather than a fact.
-
-## Previously: delegation as a user choice
-
-Delegation became a user choice in two steps, and the second one corrected the
-first. Step one removed the Software Engineer agent's auto-handover to
-`security-reviewer`: its "high-risk work" trigger list matched almost every
-change here, so a risk-scaled rule behaved as an unconditional dispatch.
-`review: on` / `auto` / `off` is now user-set and defaults to `off`.
-
-Step two was the correction. The first reading treated *automatic* as the
-problem, which conflated it with *unrequested*. They are not the same: consent
-at the entry point covers the whole chain, so a cycle the user asked for may
-progress on its own. `cycle: full` therefore runs architect, engineer, security
-reviewer, technical writer in order, off by default.
-
-The chain needed two things before it could work at all. Close-out: Post-flight
-makes every substantive turn write the Memory Bank, the changelog, and a
-commit, so four stages would have produced four of each; the final stage now
-owns all of it and the earlier three verify, refresh `activeContext.md`, and
-hand over. The failure path: reviewer to engineer to reviewer is a loop, capped
-at two fix rounds before the reviewer stops and reports.
+That corrected the cycle introduced three days earlier, which itself corrected
+the switch introduced the same day. Step one removed the engineer's
+auto-handover to `security-reviewer`: its "high-risk work" trigger list matched
+almost every change here, so a risk-scaled rule behaved as an unconditional
+dispatch. `review: on` / `auto` / `off` is now user-set and defaults to `off`.
+Step two distinguished *automatic* from *unrequested* — consent at the entry
+point covers the whole chain, so a cycle the user asked for may progress on its
+own. `cycle: full` runs architect, engineer, security reviewer, technical
+writer in order, off by default, and only the final stage closes out; four
+stages would otherwise have written four changelog entries and four commits for
+one change.
 
 The rules sit in the four agent bodies, not a Skill — the recorded lesson that
 an agent body is mode instruction while a Skill is advisory is exactly why
-`grill-me` had to become the `software-architect` agent. Only one frontmatter
-edge was new, `security-reviewer` to `technical-writer`. State passes through
+`grill-me` had to become the `software-architect` agent. State passes through
 `.memory-bank/decisions/`, because a conversation does not survive a compaction
-and a subagent never sees one.
-
-Every cycle handoff sets `send: true`, so a transition submits on selection
-rather than waiting for a second confirmation. Progression is still a handoff,
-not an unattended switch — a platform boundary, since VS Code hands the *user*
-to another agent. The architect carries a trigger phrase book and a refusal
-list: "end-to-end" means end-to-end tests, so it does not start a cycle.
+and a subagent never sees one. Progression is still a handoff, not an unattended
+switch — a platform boundary, since VS Code hands the *user* to another agent.
+The architect carries a trigger phrase book and a refusal list: "end-to-end"
+means end-to-end tests, so it does not start a cycle.
 
 `cycle: off` is the way out: it ends the chain at whichever stage holds the
 work, and that stage closes out rather than stranding the changelog entry and
@@ -72,6 +61,25 @@ Both changes are complete and green, but the *deployed* agents are copies under
 the Canonical target, not links to this worktree. Nothing takes effect in a
 chat session until `Install-CopilotAtelier` or `Setup-CopilotSettings.ps1`
 redeploys.
+
+## Previously: the ELSTER capture Skill
+
+`elster-form-capture` arrived the way the good ones do: as a by-product. The
+task was capturing a German tax return in Mein ELSTER under a deadline, not
+writing a Skill. What made it worth packaging is that driving the form
+mechanically kept auditing the capture guide that fed it — a wrong postcode,
+stale line references, and 1,330 € of deductions a status table already called
+captured.
+
+It is deliberately narrow. Mechanics only: field numbers, sub-page navigation,
+repeat rows, mandatory-field traps, eData gaps, and the machine comparison
+against the summary page. Whether a cost is deductible stays with
+`german-tax-research`, and the ten near-miss negatives in the trigger set exist
+to keep that line where it is. Login is out of scope too — the taxpayer signs in
+and shares the page, so no credential reaches the model. One rule generalises to
+any portal work: address by the stable identifier, verify by the visible
+heading, and treat a line number from last year's guide as a claim rather than a
+fact.
 
 ## Still open from the 1.0 migration
 
@@ -156,11 +164,11 @@ run needs an explicit go-ahead rather than an assumption.
 
 ## Next step
 
-Redeploy so the two switches reach a chat session; the deployed agents are
-copies under the Canonical target, not links to this worktree. Then get a
-decision on running the paid sweeps. With a go-ahead: install ShellPilot,
-answer the 75 route-selection prompts against one pinned model in fresh
-contexts, grade them, then sweep the seven trigger-query sets and author
-`german-tax-research`'s set in the same pass. Without one, the remaining
-unblocked work is splitting the nine over-budget Skill bodies, starting with
-`german-legal-research` at 780 lines.
+Redeploy. The deployed `security-reviewer.agent.md` still carries `send: true`
+on the fail leg, so the loop is live in every chat session until
+`Install-CopilotAtelier` or `Setup-CopilotSettings.ps1` runs. Then get a
+decision on the paid sweeps. With a go-ahead: install ShellPilot, answer the 75
+route-selection prompts against one pinned model in fresh contexts, grade them,
+sweep the seven trigger-query sets, and author `german-tax-research`'s set in
+the same pass. Without one, the unblocked work is splitting the nine
+over-budget Skill bodies, starting with `german-legal-research` at 780 lines.

@@ -41,9 +41,10 @@ in `techContext.md`, not here.
 
 ## Live relationships
 
-- A multi-agent cycle is one consent, not four, and its two hard parts are
-    close-out ownership and a capped review-fail loop. Stage rules bind only in
-    an agent body; a Skill is advisory and cannot hold them.
+- A multi-agent cycle is one consent, not four; close-out belongs to one stage,
+    and stage rules bind only in an agent body. Its failure path is a ring of
+    `send: true` handoffs, unbounded because each handoff starts the receiver
+    with fresh context: break the ring in frontmatter, detect rings in a test.
 - A risk-scaled subagent rule becomes an unconditional handover when its trigger
     list covers the repository's ordinary work. Costly delegation is a user-set
     switch with a named default; the risk list then gates what the agent reports,
