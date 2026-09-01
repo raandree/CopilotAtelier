@@ -15,6 +15,13 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-01**: Diagnosed the red `main` build (CI run 33430725722). The
+  `elster-form-capture` commit took `activeContext.md` to 220 lines against a
+  200-line budget, so `MemoryBankHealth` failed on the Windows leg alone — the
+  same failure mode as 2026-08-27, five days later. Three of six budgeted files
+  were sitting at or one line below their caps, so `activeContext.md` and
+  `progress.md` were curated for real headroom rather than back to the edge.
+
 - **2026-08-31**: Fixed a contradiction between an agent and its Skill that
   reached a signed submission. `tax-researcher` demanded the RDG/StBerG
   disclaimer "at the end of every substantive output"; `german-tax-research`
@@ -83,15 +90,11 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   requirement for other agents. `software-engineer-contoso` pins the switch to
   `on` and refuses a `review: off` downgrade.
 
-- **2026-08-27**: Diagnosed the red `main` build (CI run 33080179473). `dc6206e`
-  appended twenty lines to `systemPatterns.md`, taking it to 122 against a
-  110-line budget, so `MemoryBankRouting` and `MemoryBankHealth` both failed —
-  on the Windows leg alone, because it is the only leg that runs untagged tests.
-  The curation already on this branch clears both. `progress.md` was then curated
-  from 194 to 166 lines, because at 194 of 200 the Post-flight append that every
-  Substantive turn owes would have re-broken the build on the next commit. The
-  `LineBudgetNearLimit` warning names the file before it breaches, but it fails
-  nothing, so a breach is still discovered by a red build after the push.
+- **2026-08-27**: Diagnosed the same red build one recurrence earlier (CI run
+  33080179473), when `dc6206e` took `systemPatterns.md` to 122 against its
+  110-line budget. `progress.md` was curated from 194 to 166 lines in the same
+  pass, because at 194 of 200 the Post-flight append that every Substantive
+  turn owes would have re-broken the build on the next commit.
 
 - **2026-08-27**: Added `software-engineer-contoso`, the first corporate overlay
   agent, and learned that a Markdown link between agents inherits nothing — VS
@@ -108,30 +111,6 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   paths and questions, never source. `systemPatterns.md` was curated from 130 to
   under its 110-line budget in the same edit; it had been over since before this
   work.
-
-- **2026-08-27**: Fixed every hook. The host substitutes `$` tokens in a hook
-  command before the child parses it, so `$b = if ($env:PLUGIN_ROOT)` arrived as
-  `= if ()` and PowerShell rejected it — the never-push block, the Memory Bank
-  probe, and the compaction checkpoint were all absent behind one warning
-  balloon. Commands are now `$`-free (`[Environment]::GetEnvironmentVariable`,
-  `Get-Variable LASTEXITCODE -ValueOnly`, `[IO.Path]::Combine('/', ...)`) and
-  probe `PLUGIN_ROOT`, `~/.copilot/hooks`, then
-  `~/.vscode*/agent-plugins/*/*/CopilotAtelier`. `Hooks.Tests.ps1` models the
-  substitution pass and re-runs the substituted command; 68 tests pass.
-
-- **2026-08-26**: Added the `software-architect` Custom agent as the first phase
-  of the release pipeline. The gap was structural rather than stylistic:
-  `grill-me` is advisory content while a Custom agent body is mode instruction,
-  so the interview lost inside the Software Engineer agent every time it was
-  tried, and nothing owned the requirement while it was still text. Its 31
-  tools withhold every sanctioned validation path, so it cannot close the
-  Definition of Done on a code change and the handoff is the only productive
-  exit; `edit/editFiles` and `execute/runInTerminal` stay because Post-flight
-  demands a Memory Bank write, a changelog entry, and a commit on every
-  Substantive turn. Interview depth scales to blast radius so the agent stays
-  selectable for small work. Decision 0022 records the reasoning, and
-  `SoftwareArchitectAgent.Tests.ps1` asserts the withheld tools by name because
-  a fingerprint detects change but not correctness.
 
 ## Stable capabilities
 

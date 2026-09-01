@@ -73,51 +73,6 @@ the Canonical target, not links to this worktree. Nothing takes effect in a
 chat session until `Install-CopilotAtelier` or `Setup-CopilotSettings.ps1`
 redeploys.
 
-## Previously: the first corporate overlay agent
-
-`software-engineer-contoso` is the first corporate overlay agent. The first
-attempt inherited nothing: modelled on `devops-training-writer`, it opened with
-a Markdown link to `software-engineer.agent.md` and the words "read it as part
-of your operating instructions". VS Code resolves referenced *instructions*
-files into the prompt, which is what `chat.includeReferencedInstructions`
-governs; an `.agent.md` is not one, so the link is inert and the overlay ran as
-a bare fragment with the base contract missing and no diagnostic. The base body
-is now inlined between `<!-- BEGIN INHERITED -->` markers and
-`tests/AgentInheritance.Tests.ps1` compares it byte-for-byte against the base,
-normalising line endings because git rewrites them on checkout.
-
-Inlining is the right design here rather than a workaround: a rule the model
-can route around is not a control, which is the standard this agent applies to
-everything else. The containment lives in the frontmatter — the base agent's 45
-tools drop to 36, removing `web/fetch`, `web/githubRepo`,
-`web/githubTextSearch`, `openSimpleBrowser`, `github`, `useMcp`,
-`vscode/installExtension`, `vscode/extensions`, and `codeInterpreter`, so the
-lethal trifecta cannot close for want of an outbound channel. Prose then shuts
-the three ways an agent rebuilds a removed capability: the terminal, the user,
-and a handoff.
-
-The non-obvious constraint is the subagent. `agents` narrows to
-`security-reviewer` — whose review the overlay simultaneously makes mandatory
-rather than risk-scaled — but that agent carries `web/fetch`, `github`, and
-`useMcp` of its own, so delegating to it re-opens the channel the toolset just
-closed. The rule that ships constrains the dispatch instead: repository paths,
-symbol names, and the question, never pasted source, configuration, or data.
-The file doubles as the copy-and-rename template for
-`software-engineer-<company>`.
-
-## Previously: every hook was dead
-
-The host substitutes `$` tokens in a hook command string
-before the child process parses it, so `$b = if ($env:PLUGIN_ROOT) { ... }`
-arrived as `= if () { ... }` and PowerShell refused it with `An expression was
-expected after '('`. The only symptom was a *Warning from Session Start hook*
-balloon, so the never-push block, the Memory Bank probe, and the compaction
-checkpoint were all absent while looking installed. Every command in
-`com.github.copilot/hooks/hooks.json` is now written without a single `$`, and
-resolution probes `PLUGIN_ROOT`, then `~/.copilot/hooks`, then the plugin's
-`~/.vscode*/agent-plugins/*/*/CopilotAtelier`. The corrected file was copied
-into the canonical target, and both deployed hooks were run end to end.
-
 ## Still open from the 1.0 migration
 
 The plugin package moved to Agent Plugins 1.0, and the package is now the
@@ -152,15 +107,6 @@ and fully restored from git; no corruption reached a commit.
 
 Until the cause is found, edit files through the editor tooling, and treat any
 scripted bulk rewrite of this tree as unsafe. `git grep -l -e nnkteuotnon -e\naeelyTo` detects it in one pass.
-
-## Released in v4.0.0
-
-The Custom agent slug rename, the `software-architect` agent, the usage-stats
-Skill and `/usage` Prompt, the `skill-creator` split, the Instruction
-`description` pass, and the compaction checkpoint all shipped in `v4.0.0`.
-Their rationale lives in the `[4.0.0]` changelog section and decisions 0021
-and 0022; the durable relationships they established are in
-`systemPatterns.md`. Nothing from them is still open.
 
 ## Blocked, not deferred
 
