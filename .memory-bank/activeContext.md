@@ -9,58 +9,50 @@ source: current task evidence
 
 ## Current focus
 
-The `cycle: full` chain ran forever. A raw transcript showed fifteen complete
-`software-engineer` ↔ `security-reviewer` round trips in one autopilot session,
-30 MB against a ~600 KB norm. Three things lined up: the engineer's *Run
-Security Review* handoff auto-submitted, the reviewer's *Fix Issues Found*
-handoff auto-submitted back, and the only thing standing between them was
-prose — "after two rounds, stop the cycle".
+A 45-minute live Hyper-V proof ran in another workspace with
+`long-running-job-monitor` never loaded. The agent hand-rolled `Start-Process`
+plus `WaitForExit` instead of the canonical detached launcher, armed no cadence
+tick, left the chat silent for thirty minutes, and answered two mid-job turns
+with no status line. Every rule it broke was already written down correctly. A
+Skill that is never selected cannot be followed, so the defect is discovery,
+not content.
 
-That cap could never fire. A handoff starts the receiving agent with fresh
-context, so neither side can count the rounds it has run; a cap nobody can
-count is a cap nobody enforces. The bound is now structural: *Fix Issues Found*
-sets `send: false`. Forward legs still auto-submit, so a requested cycle still
-reaches the reviewer unattended — only re-entering implementation costs a
-deliberate click, and the human is the bound. The lesson generalises, so it is
-in `systemPatterns.md` and in a test: any ring of `send: true` handoffs is
-unbounded by construction, and no agent body can see the ring it is part of, so
-`tests/DevelopmentCycle.Tests.ps1` walks the whole graph and fails on one. The
-audit found no second ring — `software-architect` → `software-engineer` →
-`security-reviewer` is the only other auto-submitting path, and the architect
-has no inbound edge.
+The description carried "live test" and "integration test"; that workspace's
+glossary makes *proof* the canonical term for a live integration run, so the
+words the user actually typed matched nothing. The `USE FOR:` list now names
+`live proof`, `proof harness`, `proof run`, and `hour-long run`, at 961
+characters against the 1000-character soft cap. A "log log tail" typo in the
+same list went with it.
 
-That corrected the cycle introduced three days earlier, which itself corrected
-the switch introduced the same day. Step one removed the engineer's
-auto-handover to `security-reviewer`: its "high-risk work" trigger list matched
-almost every change here, so a risk-scaled rule behaved as an unconditional
-dispatch. `review: on` / `auto` / `off` is now user-set and defaults to `off`.
-Step two distinguished *automatic* from *unrequested* — consent at the entry
-point covers the whole chain, so a cycle the user asked for may progress on its
-own. `cycle: full` runs architect, engineer, security reviewer, technical
-writer in order, off by default, and only the final stage closes out; four
-stages would otherwise have written four changelog entries and four commits for
-one change.
+The second defect generalises. Arming the cadence tick was described in the
+*Chat heartbeat* section and in a checklist item prefixed "For unattended
+cadence", so nothing on the launch path required it — an agent could follow
+step 2 exactly, detach correctly, and end the turn with no tick armed. Guidance
+that sits downstream of the step it constrains does not bind that step. Step 2
+now carries the imperative, and the checklist item is unconditional.
 
-The rules sit in the four agent bodies, not a Skill — the recorded lesson that
-an agent body is mode instruction while a Skill is advisory is exactly why
-`grill-me` had to become the `software-architect` agent. State passes through
-`.memory-bank/decisions/`, because a conversation does not survive a compaction
-and a subagent never sees one. Progression is still a handoff, not an unattended
-switch — a platform boundary, since VS Code hands the *user* to another agent.
-The architect carries a trigger phrase book and a refusal list: "end-to-end"
-means end-to-end tests, so it does not start a cycle.
+E10 in `notes-evals.md` measures what structure cannot: a live-proof launch in
+that workspace's vocabulary that never says "monitor", "heartbeat", or
+"background", so the Skill must be selected on the description alone. It is a
+notes-file eval, not a query set — `long-running-job-monitor` stays on the
+`SkillTriggerCoverage` uncovered baseline, which shrinks only with a paid sweep.
 
-`cycle: off` is the way out: it ends the chain at whichever stage holds the
-work, and that stage closes out rather than stranding the changelog entry and
-the commit. Both switches are now documented where a user looks — a table in
-the root `README.md` and the expanded version in the agents README — and the
-table leads with the default, because "how do I keep this with one agent" was
-the question the first pass left unanswered.
+## Previously: the runaway `cycle: full` chain
 
-Both changes are complete and green, but the *deployed* agents are copies under
-the Canonical target, not links to this worktree. Nothing takes effect in a
-chat session until `Install-CopilotAtelier` or `Setup-CopilotSettings.ps1`
-redeploys.
+Fifteen complete `software-engineer` ↔ `security-reviewer` round trips in one
+autopilot session, 30 MB against a ~600 KB norm. Both handoff legs
+auto-submitted and the only bound was prose — "after two rounds, stop the
+cycle" — a cap neither side could count, because a handoff starts the receiving
+agent with fresh context. The bound is now structural: *Fix Issues Found* sets
+`send: false`, so a requested cycle still reaches the reviewer unattended while
+re-entering implementation costs a deliberate click. Any ring of `send: true`
+handoffs is unbounded by construction, so `tests/DevelopmentCycle.Tests.ps1`
+walks the whole graph and fails on one. `cycle: full` and `review: on` / `auto`
+/ `off` are both user-set and both default to off; only the final stage of a
+cycle closes out, and `cycle: off` ends the chain at whichever stage holds the
+work. The rules sit in the four agent bodies, not a Skill, and state passes
+through `.memory-bank/decisions/` because a conversation does not survive a
+compaction and a subagent never sees one.
 
 ## Previously: the ELSTER capture Skill
 
@@ -164,11 +156,13 @@ run needs an explicit go-ahead rather than an assumption.
 
 ## Next step
 
-Redeploy. The deployed `security-reviewer.agent.md` still carries `send: true`
-on the fail leg, so the loop is live in every chat session until
-`Install-CopilotAtelier` or `Setup-CopilotSettings.ps1` runs. Then get a
-decision on the paid sweeps. With a go-ahead: install ShellPilot, answer the 75
-route-selection prompts against one pinned model in fresh contexts, grade them,
-sweep the seven trigger-query sets, and author `german-tax-research`'s set in
-the same pass. Without one, the unblocked work is splitting the nine
-over-budget Skill bodies, starting with `german-legal-research` at 780 lines.
+Redeploy. Deployed Customizations are copies under the Canonical target, not
+links to this worktree, so the fixed `long-running-job-monitor` description and
+the `security-reviewer.agent.md` fail leg — still `send: true` there — take
+effect only after `Install-CopilotAtelier` or `Setup-CopilotSettings.ps1` runs.
+Then get a decision on the paid sweeps. With a go-ahead: install ShellPilot,
+answer the 75 route-selection prompts against one pinned model in fresh
+contexts, grade them, sweep the seven trigger-query sets, and author
+`german-tax-research`'s set in the same pass. Without one, the unblocked work is
+splitting the nine over-budget Skill bodies, starting with
+`german-legal-research` at 780 lines.

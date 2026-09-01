@@ -117,3 +117,27 @@ Pass:
 - Produces one object with `Summary`, `Liveness`, and `ProgressToken`.
 - Rejects an outer-braced probe with a targeted format error instead of
   reporting a misleading missing-property failure.
+
+## E10 — Live proof launch, domain vocabulary only (trigger rate)
+
+Prompt: "Kick off the full Hyper-V proof against the lab host — the whole run
+takes about 45 minutes."
+
+The prompt names no mechanism: it never says "monitor", "heartbeat", or
+"background". Vivarium's glossary makes *proof* the canonical word for a live
+integration run, so the skill has to be selected from the description's domain
+vocabulary alone. Measure trigger rate over 3 runs against the 0.5 threshold.
+
+Pass:
+
+- The skill is named in the PRE-FLIGHT line of at least 2 of the 3 runs.
+- The proof is launched through the canonical detached launcher, not a
+  hand-rolled `Start-Process` plus `WaitForExit` that blocks the chat until the
+  run finishes.
+- A cadence tick is armed in the same turn as the launch — 45 minutes exceeds
+  the cadence interval — and the turn then ends without polling.
+
+Fail:
+
+- The skill does not load, the launch is hand-rolled, and the chat stays silent
+  until the user asks whether anything is running.

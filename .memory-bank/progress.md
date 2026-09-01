@@ -15,6 +15,16 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-01**: Fixed three defects in `long-running-job-monitor` after a
+  45-minute live Hyper-V proof ran with the Skill never loaded: no cadence
+  tick, thirty silent minutes, two mid-job turns with no status line. The
+  `USE FOR:` list carried "live test" but not *proof*, that workspace's
+  canonical word for a live integration run, so the selector never matched — it
+  now names `live proof`, `proof harness`, `proof run`, `hour-long run`. The
+  structural half: arming the tick lived only in a later section, so step 2 now
+  requires it in the same turn as the launch, and the checklist item is
+  unconditional. E10 measures the trigger on vocabulary alone.
+
 - **2026-09-01**: Fixed an unbounded handoff loop in the `cycle: full` chain.
   A raw transcript showed fifteen complete `software-engineer` ↔
   `security-reviewer` round trips in one autopilot session (30 MB against a
@@ -67,30 +77,25 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 - **2026-08-31**: Wrote `docs/summit-2027-session-proposals.md` for a call that
   closed the same day — a 90-minute Customization anatomy session, a 45-minute
   AI-assisted process field report, and a 25-minute alternate. Round one is
-  blind, so the abstracts name neither speaker nor project; the material is the
-  repository's own failure record, and its quoted counts are a dated snapshot.
+  blind, so the abstracts name neither speaker nor project.
 
 - **2026-08-28**: Added the opt-in `cycle: full` development cycle — architect,
   engineer, security reviewer, technical writer, with the reviewer as the gate
   and a gated fail path back into implementation. The correction that shaped it:
-  removing
-  the auto-handover earlier the same day treated *automatic* as the problem,
-  but the problem was *unrequested*. Consent at the entry point covers the whole
-  chain, so a requested cycle may progress on its own. Close-out defers to the
-  final stage or four agents each write a changelog entry and a commit for one
-  change. Rules live in the agent bodies because a Skill is advisory and cannot
-  bind them; one new handoff edge, `security-reviewer` to `technical-writer`,
-  closed the graph. Forward cycle handoffs set `send: true` so a transition does
-  not ask
-  twice, and the architect carries both a trigger phrase book and a refusal list
-  — "end-to-end" means end-to-end tests, so it does not start one. `cycle: off`
-  ends a running chain at the current stage, which then closes out instead of
-  stranding the commit, and both switches are documented in the root README and
-  the agents README with the single-agent default listed first. `cycle: off`
-  and the pinned Contoso review are both stated where they are read: the
-  overlay now names its two reversed inherited defaults in the preamble above
-  the inlined block, because a precedence clause 180 lines later resolves the
-  self-contradiction only for a reader who gets there.
+  removing the auto-handover earlier the same day treated *automatic* as the
+  problem, but the problem was *unrequested* — consent at the entry point covers
+  the whole chain, so a requested cycle may progress on its own. Close-out
+  defers to the final stage or four agents each write a changelog entry and a
+  commit for one change. Rules live in the agent bodies because a Skill is
+  advisory and cannot bind them; one new handoff edge, `security-reviewer` to
+  `technical-writer`, closed the graph. The architect carries a trigger phrase
+  book and a refusal list — "end-to-end" means end-to-end tests, so it does not
+  start one. `cycle: off` ends a running chain at the current stage, which then
+  closes out instead of stranding the commit; both switches are documented in
+  the root README and the agents README with the single-agent default first.
+  The Contoso overlay names its two reversed inherited defaults in the preamble,
+  because a precedence clause 180 lines later resolves the self-contradiction
+  only for a reader who gets there.
 
 - **2026-08-28**: Made the Software Engineer agent's independent review opt-in.
   The old rule dispatched `security-reviewer` for "high-risk work" over a
@@ -99,19 +104,14 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   trigger list is unchanged; it now gates a recommendation instead of a
   dispatch, and `review: on` / `auto` / `off` is user-set. The non-obvious half
   was `postflight.instructions.md`: its Definition of Done demanded independent
-  review "was completed", which the model would have satisfied by dispatching
-  anyway, so the gate now names the deferral path. `software-engineer-contoso`
-  pins the switch to `on`.
+  review "was completed", so the gate now names the deferral path.
 
 - **2026-08-27**: Added `software-engineer-contoso`, the first corporate overlay
   agent, and learned that a Markdown link between agents inherits nothing — VS
   Code resolves referenced *instructions* files, not `.agent.md`, so the first
-  version ran as a bare fragment with no diagnostic. The base body is now inlined
-  between markers with a byte-exact drift test in
-  `tests/AgentInheritance.Tests.ps1`. The overlay only tightens: 45 tools drop to
-  36, `agents` narrows to `security-reviewer`, and the dispatch to it carries
-  paths and questions, never source, because that agent holds `web/fetch`.
-  `CHANGELOG.md` carries the full Contoso control set.
+  version ran as a bare fragment with no diagnostic. The base body is now
+  inlined between markers with a byte-exact drift test in
+  `tests/AgentInheritance.Tests.ps1`, and the overlay only tightens.
 
 ## Stable capabilities
 

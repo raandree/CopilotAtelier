@@ -5,11 +5,12 @@ description: >-
   deployments with timestamped logs, heartbeats, terminal markers,
   out-of-band target probes, and WORKING/STALLED/DONE/FAILED classification.
   Preserves remote jobs across control-channel drops and treats restarts as new
-  readiness epochs. USE FOR: live test, integration test, deployment,
-  installation, long-running job, monitor progress, heartbeat, is it stuck,
-  still running, background job, watch deployment, timestamped status, log
-  log tail, out-of-band verification, remote job, SSH, WinRM, elapsed time,
-  chat heartbeat, report every N minutes, keep me posted, periodic status.
+  readiness epochs. USE FOR: live test, live proof, proof harness, proof run,
+  integration test, deployment, installation, long-running job, hour-long run,
+  monitor progress, heartbeat, is it stuck, still running, background job,
+  watch deployment, timestamped status, log tail, out-of-band verification,
+  remote job, SSH, WinRM, elapsed time, chat heartbeat, report every N minutes,
+  keep me posted, periodic status.
   DO NOT USE FOR: root-cause diagnosis of AutomatedLab Proxmox provisioning
   (use automatedlab-proxmox), generic WinRM connectivity/configuration diagnosis
   (use winrm-troubleshooting), short commands, skill authoring (use
@@ -113,6 +114,12 @@ phase-specific `ProgressToken` advancement proves work progress.
 - **Use async only for truly indefinite processes** (servers, watchers, the monitor sidecar in step 4).
 - **Never `Start-Sleep` in the agent's own foreground command to "wait 5 minutes"**, and never hand-roll a poll loop. A blocking foreground command makes the chat unresponsive for the whole wait.
 - **To wake on a cadence, arm an async timer instead.** An async command does not block the chat, and its completion notification spawns a turn with no user input. See [Chat heartbeat](#chat-heartbeat).
+- **Arm that tick in the same turn as the launch, before the turn ends**,
+  whenever the job is expected to run longer than the cadence interval. Launch,
+  arm, then end the turn — arming is part of starting the job, not a later
+  decision. A detached launch with no armed tick is the exact failure this skill
+  exists to prevent: the job runs fine, the chat goes silent for half an hour,
+  and the user has to ask whether anything is running at all.
 - Read background output only when the tool says a command moved to background, timed out, or needs input — not as a polling loop.
 
 ### 3. Verify progress OUT OF BAND against the target (read-only)
@@ -339,7 +346,7 @@ If the process exited without a DONE marker, treat it as FAILED: read the log ta
 
 Regression prompts live in [`notes-evals.md`](notes-evals.md), including
 buffered output, mid-run death, remote channel loss, restart-scoped readiness,
-and synthetic-heartbeat stall detection.
+synthetic-heartbeat stall detection, and a vocabulary-only trigger-rate check.
 
 ## Checklist
 
@@ -354,6 +361,7 @@ and synthetic-heartbeat stall detection.
   actual protocol is re-probed.
 - [ ] Remote jobs: detached on the remote, log + liveness on the remote, and a channel drop is treated as reconnect-and-recheck (not FAILED).
 - [ ] Every in-flight reply opens with the mandatory status line — timestamp + elapsed + phase + status + next + out-of-band evidence ([The one rule](#the-one-rule-non-negotiable)); a bare `[… UTC]` opener is not sufficient.
-- [ ] For unattended cadence: a heartbeat tick is armed in async mode, the turn
-  is ended without polling, and every status line publishes the next due time.
+- [ ] A heartbeat tick is armed in async mode in the same turn the job is
+  launched, the turn is ended without polling, and every status line publishes
+  the next due time.
 - [ ] On completion: full log read, end-state verified on target, throwaway resources cleaned up.
