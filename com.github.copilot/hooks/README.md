@@ -164,13 +164,13 @@ which survives because Instructions are re-sent with every request.
   `".github/hooks": true` alongside the existing entry, or place the hook in
   `~/.copilot/hooks`. Verified by observing a `Stop` hook that executed only
   after the file moved to the deployed folder.
-- **Command not found.** A hook command has to locate its own script, because
-  the two deployment methods put it in different places: the module installs it
-  under `~/.copilot/hooks`, and a plugin install lands in
-  `~/.vscode*/agent-plugins/<host>/<owner>/CopilotAtelier/com.github.copilot/hooks`.
-  Each command therefore probes `PLUGIN_ROOT`, then the module location, then
-  the plugin location, and runs the first script that exists. If you deploy the
-  scripts anywhere else, replace the probe in `hooks.json` with an absolute path.
+- **Command not found.** A hook command resolves one of two literal paths: the
+  `PLUGIN_ROOT` path supplied by a plugin host or the exact
+  `~/.copilot/hooks/scripts` module path. It never scans an agent-plugin
+  wildcard. If neither script exists, resolution writes a diagnostic. A missing
+  `PreToolUse` guard exits `2` and blocks; missing lifecycle scripts exit `1` so
+  they warn without trapping the agent loop. If you deploy the scripts
+  elsewhere, replace the resolver in `hooks.json` with one absolute path.
 - **The hook dies with a PowerShell parser error.** VS Code hands the command to
   a PowerShell shell, which expands the double-quoted `-Command` argument before
   the child process parses it. A `$` token is therefore consumed by the outer

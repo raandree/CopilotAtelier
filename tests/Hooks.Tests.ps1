@@ -95,18 +95,26 @@ BeforeAll {
 Describe 'Block-RemoteMutation' -Tag 'Unit' {
     It 'blocks a terminal command that <Reason>' -ForEach @(
         @{ Reason = 'pushes to a remote'; Command = 'git push origin main' }
+        @{ Reason = 'pushes through git.exe'; Command = 'git.exe push origin main' }
+        @{ Reason = 'pushes from an explicit worktree'; Command = 'git -C C:\demo push origin main' }
         @{ Reason = 'force-pushes'; Command = 'git push --force-with-lease' }
         @{ Reason = 'bypasses hooks'; Command = 'git commit -m "wip" --no-verify' }
         @{ Reason = 'hard-resets'; Command = 'git reset --hard HEAD~3' }
         @{ Reason = 'force-cleans'; Command = 'git clean -fdx' }
         @{ Reason = 'creates a pull request'; Command = 'gh pr create --fill' }
+        @{ Reason = 'creates a pull request for an explicit repository'; Command = 'gh -R o/r pr create --fill' }
         @{ Reason = 'comments on an issue'; Command = 'gh issue comment 42 --body hi' }
+        @{ Reason = 'comments through a long repository option'; Command = 'gh --repo o/r issue comment 42 --body hi' }
+        @{ Reason = 'comments through an equals repository option'; Command = 'gh --repo=o/r issue comment 42 --body hi' }
+        @{ Reason = 'creates a pull request on an explicit host'; Command = 'gh --hostname github.example.com pr create --fill' }
+        @{ Reason = 'creates a pull request on an equals host'; Command = 'gh --hostname=github.example.com pr create --fill' }
         @{ Reason = 'hides a push behind a chained command'; Command = 'git status; git push' }
         @{
             Reason = 'splits the subcommand across a line continuation'
             Command = ('git ' + [char]0x60 + [Environment]::NewLine + '    push origin main')
         }
         @{ Reason = 'deletes through the GitHub API'; Command = 'gh api --method DELETE repos/o/r' }
+        @{ Reason = 'posts through the GitHub API for an explicit repository'; Command = 'gh -R o/r api -X POST repos/o/r/issues' }
         @{ Reason = 'runs a GraphQL mutation'; Command = 'gh api graphql -f query=''mutation { x }''' }
         @{ Reason = 'creates a repository'; Command = 'gh repo create demo --public' }
         @{ Reason = 'sets a secret'; Command = 'gh secret set TOKEN --body abc' }
@@ -131,6 +139,9 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
         @{ Reason = 'documents the reset rule'; Command = 'git commit -m "document why reset --hard is banned"' }
         @{ Reason = 'reads through the GitHub API'; Command = 'gh api repos/o/r/pulls' }
         @{ Reason = 'views a pull request'; Command = 'gh pr view 42' }
+        @{ Reason = 'views a pull request for an explicit repository'; Command = 'gh -R o/r pr view 42' }
+        @{ Reason = 'views a pull request through an equals repository option'; Command = 'gh --repo=o/r pr view 42' }
+        @{ Reason = 'views a pull request on an explicit host'; Command = 'gh --hostname github.example.com pr view 42' }
     ) {
         $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command $Command
         $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
@@ -151,6 +162,12 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
         $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
 
         $result.ExitCode | Should -Be 0 -Because $result.Output
+    }
+
+    It 'keeps GitHub CLI equals options on one regex path' {
+        $content = Get-Content -LiteralPath $script:blockScript -Raw -Encoding UTF8
+
+        $content | Should -Not -Match '--\(\?:repo\|hostname\)='
     }
 
     It 'blocks a command carried by a nested task definition' {
@@ -767,6 +784,18 @@ Describe 'Hook configuration' -Tag 'Unit' {
             Copy-Item -Path (Join-Path $script:hookScriptRoot '*.ps1') -Destination $deployedScripts
         }
 
+        function script:New-DeployedPluginRoot {
+            param(
+                [Parameter(Mandatory)]
+                [ValidateNotNullOrEmpty()]
+                [string]$Path
+            )
+
+            $deployedScripts = Join-Path $Path 'com.github.copilot/hooks/scripts'
+            New-Item -ItemType Directory -Path $deployedScripts -Force | Out-Null
+            Copy-Item -Path (Join-Path $script:hookScriptRoot '*.ps1') -Destination $deployedScripts
+        }
+
         <#
             The host substitutes $ tokens in the command string before the child
             process parses it: $env:NAME becomes the environment value and every
@@ -808,7 +837,10 @@ Describe 'Hook configuration' -Tag 'Unit' {
 
                 [Parameter(Mandatory)]
                 [AllowEmptyString()]
-                [string]$Payload
+                [string]$Payload,
+
+                [Parameter()]
+                [string]$PluginRoot
             )
 
             $executable, $commandArguments = $CommandLine -split ' ', 2
@@ -822,9 +854,11 @@ Describe 'Hook configuration' -Tag 'Unit' {
             $processInfo.RedirectStandardError = $true
             $processInfo.EnvironmentVariables[$script:homeVariableName] = $HomePath
 
-            # The shipped command prefers PLUGIN_ROOT when a plugin host sets it,
-            # so the deployed branch is only exercised with that variable cleared.
-            $processInfo.EnvironmentVariables.Remove('PLUGIN_ROOT')
+            if ([string]::IsNullOrWhiteSpace($PluginRoot)) {
+                $processInfo.EnvironmentVariables.Remove('PLUGIN_ROOT')
+            } else {
+                $processInfo.EnvironmentVariables['PLUGIN_ROOT'] = $PluginRoot
+            }
 
             $process = [Diagnostics.Process]::Start($processInfo)
             $process.StandardInput.Write($Payload)
@@ -919,6 +953,35 @@ Describe 'Hook configuration' -Tag 'Unit' {
         }
     }
 
+    It 'uses only deterministic deployment roots and fails closed on resolution errors' {
+        foreach ($hookEvent in $script:hookConfig.hooks.PSObject.Properties) {
+            foreach ($hook in $hookEvent.Value) {
+                foreach ($command in @($hook.command, $hook.windows)) {
+                    $command | Should -Not -Match '\.vscode\*|agent-plugins/\*'
+                    $command | Should -Match '\btry\b'
+                    $command | Should -Match '\bcatch\b'
+                }
+            }
+        }
+
+        foreach ($command in @(
+                $script:hookConfig.hooks.PreToolUse[0].command
+                $script:hookConfig.hooks.PreToolUse[0].windows
+            )) {
+            $command | Should -Match 'exit 2'
+        }
+
+        foreach ($eventName in @('SessionStart', 'Stop', 'PreCompact')) {
+            foreach ($command in @(
+                    $script:hookConfig.hooks.$eventName[0].command
+                    $script:hookConfig.hooks.$eventName[0].windows
+                )) {
+                $command | Should -Match 'exit 1'
+                $command | Should -Not -Match 'exit 2'
+            }
+        }
+    }
+
     It 'blocks a push when the shipped PreToolUse command is spawned without a shell' {
         $hook = $script:hookConfig.hooks.PreToolUse[0]
 
@@ -954,5 +1017,52 @@ Describe 'Hook configuration' -Tag 'Unit' {
         $result = script:Invoke-HookCommandLine -CommandLine $substituted -HomePath $fakeHome -Payload $payload
 
         $result.ExitCode | Should -Be 2 -Because $result.Output
+    }
+
+    It 'blocks a push from the exact plugin root' {
+        $hook = $script:hookConfig.hooks.PreToolUse[0]
+        $fakeHome = Join-Path $TestDrive 'empty-home'
+        $pluginRoot = Join-Path $TestDrive 'plugin-root'
+        New-Item -ItemType Directory -Path $fakeHome -Force | Out-Null
+        script:New-DeployedPluginRoot -Path $pluginRoot
+
+        $command = if ($script:isWindowsPlatform) { $hook.windows } else { $hook.command }
+        $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
+        $result = script:Invoke-HookCommandLine `
+            -CommandLine $command `
+            -HomePath $fakeHome `
+            -Payload $payload `
+            -PluginRoot $pluginRoot
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+    }
+
+    It 'blocks when no configured hook script exists' {
+        $hook = $script:hookConfig.hooks.PreToolUse[0]
+        $fakeHome = Join-Path $TestDrive 'missing-hook-home'
+        New-Item -ItemType Directory -Path $fakeHome -Force | Out-Null
+
+        $command = if ($script:isWindowsPlatform) { $hook.windows } else { $hook.command }
+        $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git status --short'
+        $result = script:Invoke-HookCommandLine -CommandLine $command -HomePath $fakeHome -Payload $payload
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'could not resolve'
+    }
+
+    It 'warns when the <EventName> script does not resolve' -ForEach @(
+        @{ EventName = 'SessionStart' }
+        @{ EventName = 'Stop' }
+        @{ EventName = 'PreCompact' }
+    ) {
+        $hook = $script:hookConfig.hooks.$EventName[0]
+        $fakeHome = Join-Path $TestDrive "missing-$EventName-home"
+        New-Item -ItemType Directory -Path $fakeHome -Force | Out-Null
+
+        $command = if ($script:isWindowsPlatform) { $hook.windows } else { $hook.command }
+        $result = script:Invoke-HookCommandLine -CommandLine $command -HomePath $fakeHome -Payload '{}'
+
+        $result.ExitCode | Should -Be 1 -Because $result.Output
+        $result.Output | Should -Match 'could not resolve'
     }
 }

@@ -63,6 +63,24 @@ BeforeAll {
             MemoryHeading = '## Memory Bank'
             MemoryHash = 'E5550363574EE4B8'
         }
+        'spec-completion-controller.agent.md' = @{
+            Tools = 20
+            ToolHash = 'EF09F030D6CEF983'
+            Handoffs = 0
+            HandoffHash = 'E3B0C44298FC1C14'
+        }
+        'spec-completion-reviewer.agent.md' = @{
+            Tools = 12
+            ToolHash = '4CBF236DE6878235'
+            Handoffs = 0
+            HandoffHash = 'E3B0C44298FC1C14'
+        }
+        'spec-work-implementer.agent.md' = @{
+            Tools = 18
+            ToolHash = 'AFE53DC71B9C96E5'
+            Handoffs = 0
+            HandoffHash = 'E3B0C44298FC1C14'
+        }
         'software-architect.agent.md' = @{
             Tools = 31
             ToolHash = '87CD5E8367CD6F06'

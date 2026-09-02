@@ -141,6 +141,20 @@ the changelog entry and the commit. Full detail, the trigger phrases it accepts,
 and the ones it deliberately ignores are in
 [`com.github.copilot/agents/README.md`](com.github.copilot/agents/README.md#choosing-how-much-process-you-want).
 
+### Completing a specification-driven repository
+
+Run `/complete-specifications` to inventory atomic requirements, exit criteria,
+open Decisions, local gaps, and an optional local issue snapshot. The Prompt
+starts a restricted controller, which assigns one isolated implementer per work
+item and one independent reviewer per result.
+
+The workflow reports implementation, local-test, live-verification, and total
+specification closure separately. Live validation is off by default. Enabling
+it requires a directly supplied containment-profile SHA-256 and a pinned live
+profile; a separate data-isolated runner owns any endpoint access. Shared and
+production mutations become supervised procedures and remain visibly
+incomplete. Nothing is pushed.
+
 ## Available Skills
 
 | Skill | Description |

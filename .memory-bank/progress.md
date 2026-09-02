@@ -15,6 +15,15 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-02**: Added the generic `/complete-specifications` Prompt-led
+  workflow with capability-isolated controller, implementer, and reviewer
+  agents. Live mode defaults off; controller/worker egress is empty; an external
+  profile/verifier/appender owns containment and tamper-evident evidence. The
+  shared hook now resolves exact deployment paths and covers common Git/GitHub
+  CLI option forms. Validation: 237 focused tests; native build 957 passed,
+  0 failed, 108 environment-declared skips, 78.86% coverage; independent
+  security gate 0 Critical/High. Decision 0025 records the architecture.
+
 - **2026-09-02**: Deleted the `.github/hooks` smoke-test probe, which had been
   failing on every turn since 2026-08-10. Its `windows` override hardcoded
   `D:\Git\CopilotAtelier\...`, the drive the repo sat on when it was written,
@@ -68,38 +77,6 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   33080179473). Both failed on the Windows leg alone. The lesson both times was
   that curating back to the edge only defers the breach, because the Post-flight
   append every Substantive turn owes re-breaks it on the next commit.
-
-- **2026-08-31**: Fixed a contradiction between an agent and its Skill that
-  reached a signed submission. `tax-researcher` demanded the RDG/StBerG
-  disclaimer "at the end of every substantive output"; `german-tax-research`
-  forbade it in anything addressed to the Finanzamt. The unqualified
-  instruction won, and the notice ended up below the signature block of two
-  `Einspruchsbegründungen` — caught only after the taxpayer had signed them.
-  The lesson generalises beyond this pair: **an unqualified instruction in an
-  agent body overrides a qualified rule buried in a Skill**, so the narrower
-  rule has to live where the broad one is stated. Both files now carry a marker
-  sweep, and the Skill requires it twice — against the Markdown and against the
-  rendered PDF's text layer, because a template can reintroduce what the source
-  no longer shows.
-- **2026-08-31**: Gave `german-tax-research` a *disclosure economy*. A letter to
-  a tax office had been naming its own missing receipts, explaining positions it
-  did not claim, and conceding reductions nobody had asked for. One test now
-  decides every sentence — does it support an amount that is actually declared?
-  `§ 150 Abs. 2 AO` demands complete and truthful bases of taxation, not a
-  self-assessment of evidentiary strength; `§§ 90, 97 AO` bite on request.
-- **2026-08-31**: Added the `elster-form-capture` Skill from three capture runs
-  across two assessment years in a live tax repository. Its load-bearing fact:
-  the official ERiC field numbers behind `name="fields[…]"` are stable across
-  years, the `Teilseite` and `Zeile` numbers are not — the `Anlage V` was
-  renumbered for 2023 and again for 2024 without one `data-eru-name` changing.
-  Transmission stays with the taxpayer (`§ 150 Abs. 2 S. 1 AO`), so the Skill
-  fills fields and never presses *Versenden*. Driving the form mechanically
-  audits the capture guide faster than following it does.
-
-- **2026-08-31**: Wrote `docs/summit-2027-session-proposals.md` for a call that
-  closed the same day — a 90-minute Customization anatomy session, a 45-minute
-  AI-assisted process field report, and a 25-minute alternate. Round one is
-  blind, so the abstracts name neither speaker nor project.
 
 - **2026-08-28**: Added the opt-in `cycle: full` development cycle — architect,
   engineer, security reviewer, technical writer, with the reviewer as the gate

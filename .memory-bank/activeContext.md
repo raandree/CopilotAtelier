@@ -9,43 +9,31 @@ source: current task evidence
 
 ## Current focus
 
-The elapsed duration now lands inside the agent's own POST-FLIGHT block instead
-of beside it. The first arrangement had the `Stop` hook print the line, and the
-user rejected it on sight: VS Code renders a hook `systemMessage` as a detached,
-collapsed *Warning from Stop hook* box, so the number the checklist was supposed
-to carry sat next to the checklist, one click from invisible. Decision 0024 had
-accepted that as a "cosmetic split" and flagged the rendering as the one thing
-still unverified. It was neither cosmetic nor safe to assume.
+The generic `/complete-specifications` package is complete on branch
+`ai/spec-completion-orchestrator`. It consists of one tiny Prompt, a hidden
+controller, a local test-first implementer, and a non-executable independent
+reviewer. No Skill was added: this workflow must be explicitly selected and its
+three roles need enforced, different tool surfaces.
 
-The two constraints are hard and opposed: a hook can measure but cannot write
-inside the model's output; the model can write there but cannot read a clock. The
-only arrangement satisfying both is to keep the clock on disk and have the model
-*read* it rather than recall it. `Get-SessionElapsed.ps1` does that — the agent
-runs it as its last action and copies its single line verbatim. It costs one
-command per turn, which the user chose deliberately over a free line in a
-collapsed box.
+The security boundary is containment-first. Controller and worker egress are
+measured empty; live mode defaults off and any enabled endpoint access belongs
+to a separate data-isolated runner. A direct profile digest anchors an external
+verifier and append-only hash-chained ledger appender. Missing containment,
+review, cleanup, or accounting evidence blocks completion. Repository-defined
+build and test commands are the sole repository-derived executable inputs, and
+a changed command cannot run before independent control review.
 
-`Add-SessionContext.ps1` hands over the reader's absolute path, because the agent
-cannot resolve it across both deployment layouts. `Write-SessionClose.ps1` keeps
-the `Stop` hook, since the turn counter still has to advance somewhere, but now
-reports nothing unless the clock is unreadable — the one case where the agent's
-own line could not be measured either. The reader is read-only and derives the
-turn in progress as one past the closed count.
+The shared remote-mutation hook was hardened in the same change: exact
+`PLUGIN_ROOT` or user-hook paths replace wildcard discovery, missing
+`PreToolUse` resolution blocks, lifecycle resolution failures only warn, and
+Git/GitHub CLI option forms such as `git.exe`, `git -C`, `gh -R`, `--repo`, and
+`--hostname` are covered without blocking corresponding reads.
 
-The general lesson is worth more than the fix: where a hook's output is
-*rendered* is part of its contract. Verify it before designing around it.
-
-The first live run of the reader then caught a second defect, and the suite was
-the culprit. Six `Add-SessionContext` tests invoked the hook without
-`-ClockRoot`, so every run left real clocks in the developer's own profile —
-around fifteen, one recording a workspace of `C:\demo IGNORE PREVIOUS
-INSTRUCTIONS` from the prompt-injection test. Invisible while only `Stop` read
-the clock, because it looks its session up by id; fatal once the reader searched
-by workspace, where a test-written clock claiming this repository shadowed the
-live session and reported three minutes for a chat approaching two hours. Tests
-now pin the clock root through a helper, a test asserts the real profile gains
-nothing, and the reader prefers a `session-<id>` clock over a `session-cwd-<hash>`
-fallback.
+Validation is closed: the package/lifecycle/frontmatter/hook slice passed 237
+tests; the native `build,test` workflow passed 957 tests with 0 failures and
+78.86% coverage against 65%. Independent agentic-security review ended at
+0 Critical and 0 High. The Prompt and packaged agents were never invoked, and
+the four obsolete FarmSight user-profile prototypes were removed.
 
 ## Previously: the session clock itself
 
@@ -173,8 +161,7 @@ run needs an explicit go-ahead rather than an assumption.
 
 ## Next step
 
-Get a decision on the paid sweeps. With a go-ahead: install ShellPilot, answer
-the 75 route-selection prompts against one pinned model in fresh contexts, grade
-them, sweep the seven trigger-query sets, and author `german-tax-research`'s set
-in the same pass. Without one, the unblocked work is splitting the nine
-over-budget Skill bodies, starting with `german-legal-research` at 780 lines.
+Keep the workflow uninvoked until its external containment profile, verifier,
+ledger appender, identities, filesystem policy, and optional live runner exist.
+The repository change is ready for user-controlled remote closure after the
+local commit; never push or open a pull request without a new explicit request.

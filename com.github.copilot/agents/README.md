@@ -32,6 +32,31 @@ With everything off, a single agent still validates its own work, self-reviews
 the diff, and names any risk it sees — it just recommends the review instead of
 running one. Nothing is skipped; only the second opinion is.
 
+### Specification completion workflow
+
+`/complete-specifications` is an explicit high-agency workflow for a repository
+whose requirements and implementation have drifted apart. It is a Prompt-led
+Custom agent package rather than a Skill: the controller, implementer, and
+reviewer need different enforced tool and delegation surfaces, and running the
+workflow must always be a deliberate choice.
+
+| Custom agent | Responsibility | Boundary |
+| --- | --- | --- |
+| `spec-completion-controller` | Build the closure matrix, dependency graph, ledger, integration branch, validation evidence, and final percentages | May delegate only to the two workers below; no web or issue-tracker tools |
+| `spec-work-implementer` | Implement one immutable work item test-first in one isolated worktree | Cannot delegate or perform shared live actions |
+| `spec-completion-reviewer` | Review one work item, its security boundary, or the completion accounting | Read-only; cannot delegate or edit |
+
+The controller gives every atomic work item its own implementer and every result
+an independent review. It distinguishes implemented, locally tested, and live-
+verified behavior; every non-duplicate engineering row stays in the primary
+denominator. Live validation defaults to off and requires a direct containment-
+profile digest when enabled. A separate runner with a hash-pinned profile owns
+read-only or disposable endpoint access; the controller and workers keep empty
+egress. Review and accounting records go through a pinned append-only appender
+with a verified hash chain, outside every repository process's writable roots.
+Shared or production changes are written as supervised procedures and never
+counted as live proof.
+
 ## Core SDLC Pipeline Agents
 
 These agents form the primary software development and release pipeline.

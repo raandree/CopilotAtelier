@@ -39,6 +39,7 @@ in `techContext.md`, not here.
 | 22 | [Own the pre-code phase with a Custom agent](decisions/0022-own-pre-code-phase-with-agent.md) | Accepted | 2026-08-26 |
 | 23 | [Adopt Agent Plugins 1.0 without moving Instructions and Prompts](decisions/0023-adopt-agent-plugins-1-0.md) | Accepted | 2026-08-26 |
 | 24 | [Measure the session clock in a hook, not in the model](decisions/0024-measure-the-session-clock-in-a-hook.md) | Accepted | 2026-09-02 |
+| 25 | [Package specification completion as capability-isolated agents](decisions/0025-package-specification-completion-as-capability-isolated-agents.md) | Accepted | 2026-09-02 |
 
 ## Live relationships
 
@@ -61,25 +62,20 @@ in `techContext.md`, not here.
     only place reporting which version is deployed, however it was installed.
 - Hooks enforce the rules that must hold regardless of model reasoning;
     Instructions carry the judgement calls.
+- A high-agency repository workflow uses an explicit Prompt and capability-
+    isolated agents, never an auto-triggered Skill; model-facing processes have
+    no egress, and live/evidence services cannot read repository content.
 - The `v*` release tag is the version anchor, not a record of the release.
     GitVersion derives the next pre-release number from it and
     `Publish_Release_To_GitHub` writes it, so a skipped release task freezes the
     version the Gallery holds. It sends `[Unreleased]` as the body, cap 125000.
-- Authored guidance takes its form from the baseline failure it corrects:
-    prohibitions for a skipped discipline, a recipe for output of the wrong shape,
-    a structural slot for an omission, a conditional for context-dependent work.
 - A hook command string is substituted before the child parses it, so a `$` token
     reaches the interpreter as nothing. Commands are `$`-free: paths from
     `[Environment]::GetEnvironmentVariable(...)`, exit code from
     `Get-Variable -Name LASTEXITCODE -ValueOnly`, each path rooted with
     `[IO.Path]::Combine('/', ...)` so an unset root cannot reach a workspace.
-- A Customization ships to two roots no single variable names: `~/.copilot/<type>`
-    and `~/.vscode*/agent-plugins/<host>/<owner>/CopilotAtelier`. `PLUGIN_ROOT` is
-    unconfirmed, so resolution probes it first, then both concrete locations.
-- A capability measured on one configuration is scoped to what was measured and
-    encoded as attempt, validate, escalate — never a verdict.
-- A fact the model cannot observe is measured by a hook, never composed by it.
-    It has no clock, so timestamps come from `SessionStart` and `Stop`.
+- Hook commands resolve only exact `PLUGIN_ROOT` or user paths, never wildcards;
+    missing security hooks block, while missing lifecycle hooks only warn.
 - A gate that can skip is not a gate. An external-tool check must fail where it
     is supposed to protect — CI — and must be proven to reject a bad input, or
     it reports a green build with nothing behind it.
@@ -87,12 +83,6 @@ in `techContext.md`, not here.
     disabled check. The gate proves the fix rather than the intent: an item that
     improves fails until its entry is removed, and a new item cannot join it
     silently.
-- Frontmatter is the live control surface: Custom agent tools, model priority,
-    subagent eligibility, and handoffs; Instruction `applyTo`; Prompt binding.
-- A turn fires on three triggers: a user message, a tool call returning, or a
-    harness notification. Only an async command's completion notification can be
-    armed by the agent, so unprompted periodic reporting is a chained async timer
-    and a fully detached process emits none. A `Stop` hook can force a turn.
 - A Skill cannot override a Custom agent body: the body is mode instruction and
     the Skill is advisory. A discipline that contradicts the active persona must
     become a persona of its own, where its tools bound what it can finish.
@@ -100,9 +90,6 @@ in `techContext.md`, not here.
     deterministic resolver and context reduction; label-free prompts test
     natural-language selection with pass@k and pass^k. Compaction bypasses both
     lifecycle gates, so a `PreCompact` hook writes an anchor Pre-flight reads.
-- Copilot token usage exists only in the cloud session store. No hook payload,
-    transcript record, or local `session-store.db` table carries it, so usage
-    telemetry is a Skill over `copilot_sessionStoreSql`, never a hook.
 - The plugin package and the deployed tree are different shapes and cannot be
     reconciled. Agent Plugins 1.0 fixes skills at root `skills/` and Copilot
     components under `com.github.copilot/`, while discovery needs five siblings

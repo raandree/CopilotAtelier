@@ -40,14 +40,17 @@ param(
 # First match wins; the most consequential rule is listed first. Each git rule
 # anchors on the subcommand position so a branch name, commit message, or
 # --grep value that merely contains the word does not trip it.
+$gitCommand = '(?i)\bgit(?:\.exe)?[''"]?(?=\s)'
 $gitOption = '(?:\s+(?:-c\s+\S+|--?[\w-]+(?:=\S+)?))*'
+$ghCommand = '(?i)\bgh(?:\.exe)?[''"]?(?=\s)'
+$ghOption = '(?:\s+(?:-R\s+\S+|--(?:repo|hostname)\s+\S+|--?[\w-]+(?:=\S+)?))*'
 $blockedOperation = [ordered]@{
-    'pushes to a git remote' = "(?i)\bgit\b$gitOption\s+push\b"
-    'bypasses repository hooks' = '(?i)\bgit\b[^\r\n]*\s--no-verify\b'
-    'discards work with a hard reset' = "(?i)\bgit\b$gitOption\s+reset\b[^\r\n]*?\s--hard\b"
-    'force-deletes untracked files' = "(?i)\bgit\b$gitOption\s+clean\b(?![^\r\n]*\s-[a-z]*n)[^\r\n]*\s-[a-z]*f"
-    'mutates a GitHub remote resource' = '(?i)\bgh\s+(?:pr\s+(?:create|merge|close|comment|review|edit|ready|reopen)|issue\s+(?:create|close|comment|edit|reopen)|release\s+(?:create|delete|edit|upload)|repo\s+(?:create|delete|archive|rename|edit)|workflow\s+(?:run|enable|disable)|secret\s+(?:set|delete)|cache\s+delete)\b'
-    'calls a mutating GitHub API endpoint' = '(?i)\bgh\s+api\b[^\r\n]*(?:--method\s+(?:post|put|patch|delete)\b|\s-X\s+(?:post|put|patch|delete)\b|\bmutation\b)'
+    'pushes to a git remote' = "$gitCommand$gitOption\s+push\b"
+    'bypasses repository hooks' = "$gitCommand[^\r\n]*\s--no-verify\b"
+    'discards work with a hard reset' = "$gitCommand$gitOption\s+reset\b[^\r\n]*?\s--hard\b"
+    'force-deletes untracked files' = "$gitCommand$gitOption\s+clean\b(?![^\r\n]*\s-[a-z]*n)[^\r\n]*\s-[a-z]*f"
+    'mutates a GitHub remote resource' = "$ghCommand$ghOption\s+(?:pr\s+(?:create|merge|close|comment|review|edit|ready|reopen)|issue\s+(?:create|close|comment|edit|reopen)|release\s+(?:create|delete|edit|upload)|repo\s+(?:create|delete|archive|rename|edit)|workflow\s+(?:run|enable|disable)|secret\s+(?:set|delete)|cache\s+delete)\b"
+    'calls a mutating GitHub API endpoint' = "$ghCommand$ghOption\s+api\b[^\r\n]*(?:--method\s+(?:post|put|patch|delete)\b|\s-X\s+(?:post|put|patch|delete)\b|\bmutation\b)"
 }
 
 # Field names that carry executable command text. Gating on the presence of one

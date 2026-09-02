@@ -19,6 +19,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A Prompt-led specification completion workflow for any spec-driven
+  repository** (2026-09-02). `/complete-specifications` inventories acceptance
+  criteria, milestone exits, Decision gates, local gaps, test evidence, and an
+  optional local issue snapshot into a frozen closure matrix. A restricted
+  controller creates one isolated work item per missing behavior, dispatches one
+  test-first implementer for each, and sends every result to a fresh read-only
+  reviewer before integration.
+
+  Four percentages prevent "implemented" from silently meaning "proven":
+  implementation, passing unit and integration tests, live verification, and
+  total specification closure each keep their own numerator and denominator.
+  Every non-duplicate engineering row stays in the primary denominator. Live
+  validation defaults to off; enabling it requires a direct containment-profile
+  digest and a hash-pinned, data-isolated live runner. A pinned append-only
+  appender hash-chains review and accounting records outside repository
+  processes' writable roots, and changed build commands cannot run until their
+  control review passes. Shared and production mutation is prepared as a
+  supervised procedure and never counted as live evidence. The package has no
+  web, issue-mutation, or push path, caps work items, Custom agent calls,
+  concurrency, fix rounds, and run time, and leaves every branch local.
+
 - **A session clock, so Post-flight closes with the chat's measured elapsed duration** (2026-09-02). The user asked for two more facts at the end of the checklist: when the turn closed, and how long the whole chat had run. The first half already existed — [`com.github.copilot/hooks/scripts/Add-SessionContext.ps1`](com.github.copilot/hooks/scripts/Add-SessionContext.ps1) injects `Session started at <UTC>` and Pre-flight opens every reply with it — which made this look like a formatting change.
 
   It is not, because a model has no clock. The opening timestamp is right only because a hook measured it; a closing one composed by the model would drift by the length of the turn, which is the very quantity being reported, and after a compaction the model no longer knows when the session began. The obvious fix is unavailable: VS Code's `UserPromptSubmit` supports the common output format only, with no `additionalContext` field — the same limitation already documented for `PreCompact`. The events that *can* inject context are `SessionStart`, which fires once, and `PreToolUse`/`PostToolUse`, which would spend tokens on every tool call of every turn and fold a timing concern into the security guardrail.
@@ -34,6 +55,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The duration formatter shipped with a bug the tests caught: `[int]1.5` *rounds* in PowerShell, so a 90-minute chat reported `2h 30m`. It floors explicitly now, and [`tests/Hooks.Tests.ps1`](tests/Hooks.Tests.ps1) pins five durations that sit where rounding and truncation disagree, alongside the injected reader path, the single-line output contract, the turn-in-progress arithmetic, the workspace preference, the shadowing regression, the clock-root containment, the read-only guarantee, the turn counter, the `stop_hook_active` continuation case, a corrupt clock, an unreadable payload, the absent `decision` field, and a `session_id` of `../../pwned`.
 
 ### Fixed
+
+- **Make remote-mutation hooks resolve deterministically and fail closed**
+  (2026-09-02). Hook commands now use only the exact `PLUGIN_ROOT` or
+  `~/.copilot/hooks/scripts` path, never a version wildcard, and exit `2` with
+  a diagnostic when the security script does not resolve. Missing lifecycle
+  scripts warn without blocking the agent loop. The command matcher recognizes
+  `git.exe`, fully qualified Git executable paths, and GitHub CLI global
+  repository or hostname options before mutating commands, closing ordinary
+  bypasses while preserving read-only and local commands.
 
 - **A 45-minute live proof ran with `long-running-job-monitor` unloaded, and the chat stayed silent for thirty minutes** (2026-09-01). An agent launched a live Hyper-V proof in the Vivarium workspace, hand-rolled `Start-Process` plus `WaitForExit` instead of the canonical detached launcher, armed no cadence tick, and answered two mid-job turns with no status line. The user had to ask "are you running a task in the background?" and then "didn't we update the skill so the user gets a status update every n minutes?" — a Skill that was never read cannot be followed, so this is three defects in [`skills/long-running-job-monitor/SKILL.md`](skills/long-running-job-monitor/SKILL.md), not one.
 
