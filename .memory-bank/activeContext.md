@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-01
+last-verified: 2026-09-02
 owner: software-engineer
 source: current task evidence
 ---
@@ -8,6 +8,34 @@ source: current task evidence
 # Active context
 
 ## Current focus
+
+Post-flight now closes with a measured clock line: the turn's end timestamp and
+the elapsed duration of the whole chat. The request read as a formatting change
+and was not. A model has no clock — the opening `[UTC]` stamp is correct only
+because the `SessionStart` hook measured it, a closing one composed by the model
+would drift by the length of the turn, and after a compaction the model no
+longer knows when the session began.
+
+The direct fix was unavailable. VS Code's `UserPromptSubmit` supports the common
+output format only, with no `additionalContext` field — the same limitation
+already recorded for `PreCompact` in decision 0021. `PreToolUse` can inject, but
+once per tool call, which spends tokens on every call and folds timing into the
+security guardrail.
+
+So `Add-SessionContext.ps1` also writes the start to
+`<LocalApplicationData>/CopilotAtelier/sessions/session-<key>.json`, and a new
+`Stop` hook reads it at the end of every turn. `Stop` fires once per turn, costs
+no tokens, and fires at the moment being reported; it emits no `decision` field,
+because blocking a `Stop` restarts the agent and bills another turn. Decision
+record 0024 carries the reasoning, including why the clock avoids both `/tmp`
+(world-writable on Linux) and `.memory-bank/` (machinery, not knowledge, and it
+must work without a Memory Bank).
+
+The formatter shipped with a bug the tests caught: `[int]1.5` rounds in
+PowerShell, so 90 minutes reported `2h 30m`. It floors explicitly now, and four
+durations sitting where rounding and truncation disagree are pinned.
+
+## Previously: the `long-running-job-monitor` discovery failure
 
 A 45-minute live Hyper-V proof ran in another workspace with
 `long-running-job-monitor` never loaded. The agent hand-rolled `Start-Process`
@@ -37,7 +65,7 @@ that workspace's vocabulary that never says "monitor", "heartbeat", or
 notes-file eval, not a query set — `long-running-job-monitor` stays on the
 `SkillTriggerCoverage` uncovered baseline, which shrinks only with a paid sweep.
 
-## Previously: the runaway `cycle: full` chain
+## Earlier: the runaway `cycle: full` chain
 
 Fifteen complete `software-engineer` ↔ `security-reviewer` round trips in one
 autopilot session, 30 MB against a ~600 KB norm. Both handoff legs
@@ -53,25 +81,6 @@ cycle closes out, and `cycle: off` ends the chain at whichever stage holds the
 work. The rules sit in the four agent bodies, not a Skill, and state passes
 through `.memory-bank/decisions/` because a conversation does not survive a
 compaction and a subagent never sees one.
-
-## Previously: the ELSTER capture Skill
-
-`elster-form-capture` arrived the way the good ones do: as a by-product. The
-task was capturing a German tax return in Mein ELSTER under a deadline, not
-writing a Skill. What made it worth packaging is that driving the form
-mechanically kept auditing the capture guide that fed it — a wrong postcode,
-stale line references, and 1,330 € of deductions a status table already called
-captured.
-
-It is deliberately narrow. Mechanics only: field numbers, sub-page navigation,
-repeat rows, mandatory-field traps, eData gaps, and the machine comparison
-against the summary page. Whether a cost is deductible stays with
-`german-tax-research`, and the ten near-miss negatives in the trigger set exist
-to keep that line where it is. Login is out of scope too — the taxpayer signs in
-and shares the page, so no credential reaches the model. One rule generalises to
-any portal work: address by the stable identifier, verify by the visible
-heading, and treat a line number from last year's guide as a claim rather than a
-fact.
 
 ## Still open from the 1.0 migration
 

@@ -14,7 +14,8 @@ read as the user-level hook location.
 |---|---|---|
 | [`hooks.json`](hooks.json) | — | Hook configuration loaded by VS Code |
 | [`scripts/Block-RemoteMutation.ps1`](scripts/Block-RemoteMutation.ps1) | `PreToolUse` | Blocks remote-mutating and irreversible commands |
-| [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank and injects the UTC timestamp |
+| [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank, injects the UTC timestamp, starts the session clock |
+| [`scripts/Write-SessionClose.ps1`](scripts/Write-SessionClose.ps1) | `Stop` | Closes Post-flight with the turn's end timestamp and the elapsed chat duration |
 | [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated |
 
 ## Block-RemoteMutation
@@ -54,6 +55,46 @@ Resolves the session working directory from the hook payload, probes for
 Memory Bank exists, plus the current UTC timestamp. This removes the recurring
 failure where an agent concludes "no Memory Bank" from the workspace summary,
 which omits dotfile folders.
+
+It also starts the session clock described below.
+
+## Write-SessionClose
+
+Post-flight asks the agent to report what it did, and the user asked for the
+closing timestamp and the duration of the chat alongside it. A model has no
+clock: any timestamp it composes is a guess, and after a compaction it no longer
+knows when the session began. So this `Stop` hook measures both and appends one
+line under the checklist:
+
+```text
+POST-FLIGHT clock - turn 4 ended 2026-09-02 08:31 UTC; chat elapsed 22m (started 08:09 UTC).
+```
+
+The two halves share a clock file that `Add-SessionContext` creates at session
+start and this hook updates at the end of every turn:
+
+| Field | Written by | Meaning |
+|---|---|---|
+| `startedUtc` | `SessionStart` | Round-trip timestamp the duration is measured from |
+| `workspace` | `SessionStart` | Working directory the session was opened in |
+| `turns` | `Stop` | Turns closed so far in this session |
+| `lastTurnEndedUtc` | `Stop` | End of the most recent turn |
+
+It lives at `<LocalApplicationData>/CopilotAtelier/sessions/session-<key>.json` —
+`%LOCALAPPDATA%` on Windows, `~/.local/share` on Linux, `~/Library/Application
+Support` on macOS. Not the temp directory: `/tmp` is world-writable, and a
+predictable name there invites another local account to pre-create the path. The
+`<key>` is the payload's `session_id` with every character that could traverse a
+directory stripped, falling back to a hash of the working directory so two
+concurrent windows do not share one clock.
+
+The hook emits no `decision` field. Blocking a `Stop` restarts the agent and
+bills another turn, which is far too much to pay for a timestamp. A missing or
+unreadable clock costs the duration and nothing else; the end timestamp is still
+reported and the script still exits `0`.
+
+A `Stop` that fires while `stop_hook_active` is `true` closes a turn some other
+blocking hook already resumed, so it does not advance the turn counter.
 
 ## Write-CompactionCheckpoint
 

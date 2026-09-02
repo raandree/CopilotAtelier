@@ -15,6 +15,15 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-02**: Added a session clock so Post-flight closes with a measured
+  timestamp and the chat's elapsed duration. A model has no clock, so both
+  numbers come from hooks: `Add-SessionContext.ps1` writes the session start to
+  `<LocalApplicationData>/CopilotAtelier/sessions/session-<key>.json`, and a new
+  `Stop` hook, `Write-SessionClose.ps1`, reads it at the end of every turn and
+  appends one `systemMessage` under the checklist. `UserPromptSubmit` was ruled
+  out — common output format only, no `additionalContext` — and `PreToolUse` was
+  rejected as a token cost on every call. Decision record 0024.
+
 - **2026-09-01**: Fixed three defects in `long-running-job-monitor` after a
   45-minute live Hyper-V proof ran with the Skill never loaded: no cadence
   tick, thirty silent minutes, two mid-job turns with no status line. The
@@ -96,22 +105,6 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   The Contoso overlay names its two reversed inherited defaults in the preamble,
   because a precedence clause 180 lines later resolves the self-contradiction
   only for a reader who gets there.
-
-- **2026-08-28**: Made the Software Engineer agent's independent review opt-in.
-  The old rule dispatched `security-reviewer` for "high-risk work" over a
-  trigger list that almost every change in an agent-customization repository
-  matches, so a risk-scaled default behaved as an unconditional handover. The
-  trigger list is unchanged; it now gates a recommendation instead of a
-  dispatch, and `review: on` / `auto` / `off` is user-set. The non-obvious half
-  was `postflight.instructions.md`: its Definition of Done demanded independent
-  review "was completed", so the gate now names the deferral path.
-
-- **2026-08-27**: Added `software-engineer-contoso`, the first corporate overlay
-  agent, and learned that a Markdown link between agents inherits nothing — VS
-  Code resolves referenced *instructions* files, not `.agent.md`, so the first
-  version ran as a bare fragment with no diagnostic. The base body is now
-  inlined between markers with a byte-exact drift test in
-  `tests/AgentInheritance.Tests.ps1`, and the overlay only tightens.
 
 ## Stable capabilities
 

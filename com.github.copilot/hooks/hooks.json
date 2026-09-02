@@ -16,6 +16,14 @@
                 "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Get-Item -ErrorAction SilentlyContinue -Path ([IO.Path]::Combine('/', [string][Environment]::GetEnvironmentVariable('PLUGIN_ROOT'), 'com.github.copilot/hooks/scripts/Add-SessionContext.ps1')), ([IO.Path]::Combine('/', [string][Environment]::GetEnvironmentVariable('USERPROFILE'), '.copilot/hooks/scripts/Add-SessionContext.ps1')), ([IO.Path]::Combine('/', [string][Environment]::GetEnvironmentVariable('USERPROFILE'), '.vscode*/agent-plugins/*/*/CopilotAtelier/com.github.copilot/hooks/scripts/Add-SessionContext.ps1')) | Select-Object -First 1 -ExpandProperty FullName); exit (Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction SilentlyContinue)\""
             }
         ],
+        "Stop": [
+            {
+                "type": "command",
+                "timeout": 20,
+                "command": "pwsh -NoProfile -NonInteractive -Command \"& (Get-Item -ErrorAction SilentlyContinue -Path ([IO.Path]::Combine('/', [string][Environment]::GetEnvironmentVariable('PLUGIN_ROOT'), 'com.github.copilot/hooks/scripts/Write-SessionClose.ps1')), ([IO.Path]::Combine('/', [string][Environment]::GetEnvironmentVariable('HOME'), '.copilot/hooks/scripts/Write-SessionClose.ps1')), ([IO.Path]::Combine('/', [string][Environment]::GetEnvironmentVariable('HOME'), '.vscode*/agent-plugins/*/*/CopilotAtelier/com.github.copilot/hooks/scripts/Write-SessionClose.ps1')) | Select-Object -First 1 -ExpandProperty FullName); exit (Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction SilentlyContinue)\"",
+                "windows": "powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"& (Get-Item -ErrorAction SilentlyContinue -Path ([IO.Path]::Combine('/', [string][Environment]::GetEnvironmentVariable('PLUGIN_ROOT'), 'com.github.copilot/hooks/scripts/Write-SessionClose.ps1')), ([IO.Path]::Combine('/', [string][Environment]::GetEnvironmentVariable('USERPROFILE'), '.copilot/hooks/scripts/Write-SessionClose.ps1')), ([IO.Path]::Combine('/', [string][Environment]::GetEnvironmentVariable('USERPROFILE'), '.vscode*/agent-plugins/*/*/CopilotAtelier/com.github.copilot/hooks/scripts/Write-SessionClose.ps1')) | Select-Object -First 1 -ExpandProperty FullName); exit (Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction SilentlyContinue)\""
+            }
+        ],
         "PreCompact": [
             {
                 "type": "command",

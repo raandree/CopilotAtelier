@@ -45,6 +45,18 @@ Do all of these before concluding. Do not skip any step silently.
    - [ ] Push: deferred (user must request explicitly)
    ```
 
+## Session clock
+
+The closing timestamp and the elapsed duration of the chat are appended below the checklist by the `Stop` hook, which measures them against a clock the `SessionStart` hook wrote to disk:
+
+```
+POST-FLIGHT clock - turn 4 ended 2026-09-02 08:31 UTC; chat elapsed 22m (started 08:09 UTC).
+```
+
+Never write either number yourself. You cannot read a clock, and after a compaction you no longer know when the session began, so a timestamp you compose is a guess. The line appears on every turn, including a non-impacting one. When it is absent the hooks are not installed — say the duration is unavailable rather than estimating one.
+
+The opening `[YYYY-MM-DD HH:mm UTC]` that Pre-flight asks for is a different value: it is the session start supplied by the `SessionStart` hook, not the current time.
+
 ## Development cycle close-out
 
 When a user-requested development cycle is active, only its final stage performs steps 3 and 4. Earlier stages verify their own work, refresh `activeContext.md`, and hand over; the final stage writes the changelog entry and the commit for the whole cycle and reports it end to end. Say which stage you are in the closing checklist.

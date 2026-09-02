@@ -5,6 +5,7 @@ BeforeAll {
     $script:hookConfigPath = Join-Path $script:hooksRoot 'hooks.json'
     $script:blockScript = Join-Path $script:hookScriptRoot 'Block-RemoteMutation.ps1'
     $script:sessionScript = Join-Path $script:hookScriptRoot 'Add-SessionContext.ps1'
+    $script:closeScript = Join-Path $script:hookScriptRoot 'Write-SessionClose.ps1'
     $script:compactScript = Join-Path $script:hookScriptRoot 'Write-CompactionCheckpoint.ps1'
     $script:powerShellPath = (Get-Process -Id $PID).Path
 
@@ -18,10 +19,13 @@ BeforeAll {
 
             [Parameter(Mandatory)]
             [AllowEmptyString()]
-            [string]$Payload
+            [string]$Payload,
+
+            [Parameter()]
+            [string[]]$ExtraArgument = @()
         )
 
-        $hookArguments = @('-NoProfile', '-NonInteractive', '-File', $ScriptPath)
+        $hookArguments = @('-NoProfile', '-NonInteractive', '-File', $ScriptPath) + $ExtraArgument
 
         <#
             A blocking hook writes to standard error and exits non-zero, both by
@@ -257,6 +261,183 @@ Describe 'Add-SessionContext' -Tag 'Unit' {
         $parsed.hookSpecificOutput.additionalContext |
             Should -Not -Match "`n" -Because 'an injected newline must not survive into the instruction channel'
     }
+
+    It 'starts a session clock the Stop hook can measure against' {
+        $clockRoot = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+            session_id = 'session-abc'
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $result = script:Invoke-Hook `
+            -ScriptPath $script:sessionScript `
+            -Payload $payload `
+            -ExtraArgument @('-ClockRoot', $clockRoot)
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $clockPath = Join-Path $clockRoot 'session-session-abc.json'
+        Test-Path -LiteralPath $clockPath | Should -BeTrue -Because $result.Output
+
+        $clock = Get-Content -LiteralPath $clockPath -Raw | ConvertFrom-Json
+        $clock.turns | Should -Be 0
+        ([datetimeoffset]$clock.startedUtc).UtcDateTime |
+            Should -BeGreaterThan ([datetime]::UtcNow.AddMinutes(-5))
+    }
+
+    It 'never lets a payload session id escape the clock directory' {
+        $clockRoot = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+            session_id = '../../pwned'
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $result = script:Invoke-Hook `
+            -ScriptPath $script:sessionScript `
+            -Payload $payload `
+            -ExtraArgument @('-ClockRoot', $clockRoot)
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $written = Get-ChildItem -Path $clockRoot -Filter '*.json'
+        $written | Should -HaveCount 1
+        $written.Name | Should -Be 'session-....pwned.json'
+    }
+}
+
+Describe 'Write-SessionClose' -Tag 'Unit' {
+    BeforeEach {
+        $script:clockRoot = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $script:clockRoot -Force | Out-Null
+        $script:clockPath = Join-Path $script:clockRoot 'session-session-abc.json'
+
+        function script:New-StopPayload {
+            param(
+                [Parameter()]
+                [bool]$StopHookActive = $false,
+
+                [Parameter()]
+                [string]$SessionId = 'session-abc'
+            )
+
+            [ordered]@{
+                hook_event_name = 'Stop'
+                cwd = $script:repoRoot
+                session_id = $SessionId
+                stop_hook_active = $StopHookActive
+            } | ConvertTo-Json -Depth 5 -Compress
+        }
+
+        function script:Set-SessionClock {
+            param(
+                [Parameter()]
+                [int]$MinutesAgo = 90,
+
+                [Parameter()]
+                [int]$Turns = 0
+            )
+
+            [ordered]@{
+                startedUtc = [datetime]::UtcNow.AddMinutes(-$MinutesAgo).ToString('o')
+                workspace = $script:repoRoot
+                turns = $Turns
+            } | ConvertTo-Json -Depth 3 |
+                Set-Content -LiteralPath $script:clockPath -Encoding UTF8
+        }
+
+        function script:Invoke-Close {
+            param(
+                [Parameter()]
+                [AllowEmptyString()]
+                [string]$Payload = (script:New-StopPayload)
+            )
+
+            script:Invoke-Hook `
+                -ScriptPath $script:closeScript `
+                -Payload $Payload `
+                -ExtraArgument @('-ClockRoot', $script:clockRoot)
+        }
+    }
+
+    It 'reports the closing timestamp and the elapsed chat duration' {
+        script:Set-SessionClock -MinutesAgo 90
+
+        $result = script:Invoke-Close
+        $parsed = $result.Output | ConvertFrom-Json
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $parsed.systemMessage | Should -Match 'POST-FLIGHT clock'
+        $parsed.systemMessage | Should -Match '\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC'
+        $parsed.systemMessage | Should -Match 'chat elapsed 1h 30m'
+    }
+
+    # A cast to int rounds in PowerShell, so every case here sits where rounding
+    # and truncation disagree.
+    It 'reports <Expected> for a chat of <MinutesAgo> minutes' -ForEach @(
+        @{ MinutesAgo = 22; Expected = '22m' }
+        @{ MinutesAgo = 46; Expected = '46m' }
+        @{ MinutesAgo = 90; Expected = '1h 30m' }
+        @{ MinutesAgo = 155; Expected = '2h 35m' }
+    ) {
+        script:Set-SessionClock -MinutesAgo $MinutesAgo
+
+        $parsed = (script:Invoke-Close).Output | ConvertFrom-Json
+
+        $parsed.systemMessage | Should -Match "chat elapsed $([regex]::Escape($Expected))"
+    }
+
+    It 'advances the turn counter once per closed turn' {
+        script:Set-SessionClock -Turns 3
+
+        $parsed = (script:Invoke-Close).Output | ConvertFrom-Json
+
+        $parsed.systemMessage | Should -Match 'turn 4 ended'
+        (Get-Content -LiteralPath $script:clockPath -Raw | ConvertFrom-Json).turns | Should -Be 4
+    }
+
+    It 'does not advance the counter when the agent was resumed by a blocking hook' {
+        script:Set-SessionClock -Turns 4
+
+        $parsed = (script:Invoke-Close -Payload (script:New-StopPayload -StopHookActive $true)).Output |
+            ConvertFrom-Json
+
+        $parsed.systemMessage | Should -Match 'turn 4 ended'
+        (Get-Content -LiteralPath $script:clockPath -Raw | ConvertFrom-Json).turns | Should -Be 4
+    }
+
+    It 'still reports the end timestamp when no clock was written' {
+        $result = script:Invoke-Close
+        $parsed = $result.Output | ConvertFrom-Json
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $parsed.systemMessage | Should -Match 'duration is unavailable'
+    }
+
+    It 'never blocks the agent from stopping' {
+        script:Set-SessionClock
+
+        $parsed = (script:Invoke-Close).Output | ConvertFrom-Json
+
+        $parsed.continue | Should -BeTrue
+        $parsed.PSObject.Properties.Name |
+            Should -Not -Contain 'decision' -Because 'blocking a Stop restarts the agent and bills another turn'
+    }
+
+    It 'never fails on an unreadable payload' {
+        $result = script:Invoke-Close -Payload 'not json at all'
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+    }
+
+    It 'never fails on a corrupt clock file' {
+        Set-Content -LiteralPath $script:clockPath -Value 'not json at all' -Encoding UTF8
+
+        $result = script:Invoke-Close
+        $parsed = $result.Output | ConvertFrom-Json
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $parsed.systemMessage | Should -Match 'duration is unavailable'
+    }
 }
 
 Describe 'Write-CompactionCheckpoint' -Tag 'Unit' {
@@ -450,6 +631,7 @@ Describe 'Hook configuration' -Tag 'Unit' {
     It 'declares the <Event> event' -ForEach @(
         @{ Event = 'PreToolUse' }
         @{ Event = 'SessionStart' }
+        @{ Event = 'Stop' }
         @{ Event = 'PreCompact' }
     ) {
         $script:hookConfig.hooks.PSObject.Properties.Name | Should -Contain $Event

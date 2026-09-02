@@ -38,6 +38,7 @@ in `techContext.md`, not here.
 | 21 | [Checkpoint the session before compaction](decisions/0021-checkpoint-before-compaction.md) | Accepted | 2026-08-25 |
 | 22 | [Own the pre-code phase with a Custom agent](decisions/0022-own-pre-code-phase-with-agent.md) | Accepted | 2026-08-26 |
 | 23 | [Adopt Agent Plugins 1.0 without moving Instructions and Prompts](decisions/0023-adopt-agent-plugins-1-0.md) | Accepted | 2026-08-26 |
+| 24 | [Measure the session clock in a hook, not in the model](decisions/0024-measure-the-session-clock-in-a-hook.md) | Accepted | 2026-09-02 |
 
 ## Live relationships
 
@@ -77,9 +78,8 @@ in `techContext.md`, not here.
     unconfirmed, so resolution probes it first, then both concrete locations.
 - A capability measured on one configuration is scoped to what was measured and
     encoded as attempt, validate, escalate — never a verdict.
-- `chat.hookFilesLocations` replaces the default hook location map instead of
-    extending it, so pinning one location silently disables every other,
-    including workspace `.github/hooks`, with no diagnostic.
+- A fact the model cannot observe is measured by a hook, never composed by it.
+    It has no clock, so timestamps come from `SessionStart` and `Stop`.
 - A gate that can skip is not a gate. An external-tool check must fail where it
     is supposed to protect — CI — and must be proven to reject a bad input, or
     it reports a green build with nothing behind it.
