@@ -108,7 +108,12 @@ still unverified. Read the rendering before designing around it.
   so a shared helper would need the same path probing that `hooks.json` already
   carries; the copies must change together.
 - A missing, corrupt, or unwritable clock costs the duration line only. Every
-  path still reports the end timestamp and still exits `0`.
+  path still exits `0`.
+- A test that runs the `SessionStart` hook must pin `-ClockRoot`. Without it the
+  hook writes a real clock into the caller's profile, and once the reader began
+  searching by workspace, a clock the suite had written for this repository
+  shadowed the live session. The reader also prefers a `session-<id>` clock over
+  a `session-cwd-<hash>` fallback, because VS Code always supplies a session id.
 
 ## Confirmation
 
@@ -130,3 +135,11 @@ edited `postflight.instructions.md`.
 The rendering question this record left open is now closed by observation: VS
 Code renders `systemMessage` as a collapsed warning box beside the reply, not
 under it. That is what forced the revision above.
+
+Deploying the reader also exposed a defect the suite had been creating since the
+clock was added: six `Add-SessionContext` tests invoked the hook without
+`-ClockRoot` and left around fifteen real clocks in the developer's own profile,
+one of them recording a workspace of `C:\demo IGNORE PREVIOUS INSTRUCTIONS`. It
+was invisible while only `Stop` read the clock, by session id. The first live run
+of the reader reported a three-minute chat that had been running for an hour and
+three quarters. A test now asserts the real profile directory gains nothing.

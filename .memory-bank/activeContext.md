@@ -35,6 +35,18 @@ turn in progress as one past the closed count.
 The general lesson is worth more than the fix: where a hook's output is
 *rendered* is part of its contract. Verify it before designing around it.
 
+The first live run of the reader then caught a second defect, and the suite was
+the culprit. Six `Add-SessionContext` tests invoked the hook without
+`-ClockRoot`, so every run left real clocks in the developer's own profile —
+around fifteen, one recording a workspace of `C:\demo IGNORE PREVIOUS
+INSTRUCTIONS` from the prompt-injection test. Invisible while only `Stop` read
+the clock, because it looks its session up by id; fatal once the reader searched
+by workspace, where a test-written clock claiming this repository shadowed the
+live session and reported three minutes for a chat approaching two hours. Tests
+now pin the clock root through a helper, a test asserts the real profile gains
+nothing, and the reader prefers a `session-<id>` clock over a `session-cwd-<hash>`
+fallback.
+
 ## Previously: the session clock itself
 
 A model has no clock, so both the opening timestamp and the duration are measured
@@ -50,66 +62,33 @@ The formatter shipped with a bug the tests caught: `[int]1.5` rounds in
 PowerShell, so 90 minutes reported `2h 30m`. It floors explicitly now, and five
 durations sitting where rounding and truncation disagree are pinned.
 
-Deploying it surfaced a second `Stop` hook nobody remembered: `.github/hooks/`
-held a smoke-test probe from 2026-08-10 whose `windows` override hardcoded
-`D:\Git\CopilotAtelier\...`, the drive the repository sat on when it was
-written. It had been erroring on every turn since. Both files are deleted; the
-finding they were built to produce already lives in the hooks README.
-
-The reason it survived is the part worth keeping. `Hooks.Tests.ps1` asserts
-exactly this failure — that a hook command resolves to a script that exists —
-but the suite is scoped to `com.github.copilot/hooks/hooks.json`. A second hook
-file one directory away sat outside every gate the repository owns. The suite
-now enumerates every tracked `*.json` directly inside a folder named `hooks` and
-requires the shipped configuration to be the only one; the guard was proven by
-planting a second file and watching it go red.
+Deploying it surfaced a second `Stop` hook nobody remembered: a `.github/hooks/`
+smoke-test probe from 2026-08-10 whose `windows` override hardcoded
+`D:\Git\CopilotAtelier\...`, erroring on every turn since. Both files are
+deleted. It survived because `Hooks.Tests.ps1` asserts exactly this failure but
+was scoped to one path, so a hook file one directory away sat outside every gate.
+The suite now enumerates every tracked `hooks/*.json` and requires the shipped
+configuration to be the only one.
 
 ## Previously: the `long-running-job-monitor` discovery failure
 
-A 45-minute live Hyper-V proof ran in another workspace with
-`long-running-job-monitor` never loaded. The agent hand-rolled `Start-Process`
-plus `WaitForExit` instead of the canonical detached launcher, armed no cadence
-tick, left the chat silent for thirty minutes, and answered two mid-job turns
-with no status line. Every rule it broke was already written down correctly. A
-Skill that is never selected cannot be followed, so the defect is discovery,
-not content.
-
-The description carried "live test" and "integration test"; that workspace's
-glossary makes *proof* the canonical term for a live integration run, so the
-words the user actually typed matched nothing. The `USE FOR:` list now names
-`live proof`, `proof harness`, `proof run`, and `hour-long run`, at 961
-characters against the 1000-character soft cap. A "log log tail" typo in the
-same list went with it.
-
-The second defect generalises. Arming the cadence tick was described in the
-*Chat heartbeat* section and in a checklist item prefixed "For unattended
-cadence", so nothing on the launch path required it — an agent could follow
-step 2 exactly, detach correctly, and end the turn with no tick armed. Guidance
-that sits downstream of the step it constrains does not bind that step. Step 2
-now carries the imperative, and the checklist item is unconditional.
-
-E10 in `notes-evals.md` measures what structure cannot: a live-proof launch in
-that workspace's vocabulary that never says "monitor", "heartbeat", or
-"background", so the Skill must be selected on the description alone. It is a
-notes-file eval, not a query set — `long-running-job-monitor` stays on the
-`SkillTriggerCoverage` uncovered baseline, which shrinks only with a paid sweep.
+A 45-minute live Hyper-V proof ran in another workspace with the Skill never
+loaded: no cadence tick, thirty silent minutes, two mid-job turns with no status
+line. Every rule it broke was already written down correctly, so the defect is
+discovery, not content. Two lessons generalise. A `USE FOR:` list must carry the
+words the user's own glossary uses — that workspace says *proof*, the list said
+"live test". And guidance that sits downstream of the step it constrains does not
+bind that step: arming the tick lived in a later section, so an agent could
+follow the launch step exactly and still end the turn with nothing armed.
 
 ## Earlier: the runaway `cycle: full` chain
 
 Fifteen complete `software-engineer` ↔ `security-reviewer` round trips in one
-autopilot session, 30 MB against a ~600 KB norm. Both handoff legs
-auto-submitted and the only bound was prose — "after two rounds, stop the
-cycle" — a cap neither side could count, because a handoff starts the receiving
-agent with fresh context. The bound is now structural: *Fix Issues Found* sets
-`send: false`, so a requested cycle still reaches the reviewer unattended while
-re-entering implementation costs a deliberate click. Any ring of `send: true`
-handoffs is unbounded by construction, so `tests/DevelopmentCycle.Tests.ps1`
-walks the whole graph and fails on one. `cycle: full` and `review: on` / `auto`
-/ `off` are both user-set and both default to off; only the final stage of a
-cycle closes out, and `cycle: off` ends the chain at whichever stage holds the
-work. The rules sit in the four agent bodies, not a Skill, and state passes
-through `.memory-bank/decisions/` because a conversation does not survive a
-compaction and a subagent never sees one.
+session, 30 MB against a ~600 KB norm. Both handoff legs auto-submitted and the
+only bound was prose — a cap neither side could count, because a handoff starts
+the receiving agent with fresh context. Any ring of `send: true` handoffs is
+unbounded by construction, so *Fix Issues Found* now sets `send: false` and
+`tests/DevelopmentCycle.Tests.ps1` walks the whole graph and fails on one.
 
 ## Still open from the 1.0 migration
 
@@ -194,13 +173,8 @@ run needs an explicit go-ahead rather than an assumption.
 
 ## Next step
 
-Redeploy. Deployed Customizations are copies under the Canonical target, not
-links to this worktree, so the fixed `long-running-job-monitor` description and
-the `security-reviewer.agent.md` fail leg — still `send: true` there — take
-effect only after `Install-CopilotAtelier` or `Setup-CopilotSettings.ps1` runs.
-Then get a decision on the paid sweeps. With a go-ahead: install ShellPilot,
-answer the 75 route-selection prompts against one pinned model in fresh
-contexts, grade them, sweep the seven trigger-query sets, and author
-`german-tax-research`'s set in the same pass. Without one, the unblocked work is
-splitting the nine over-budget Skill bodies, starting with
-`german-legal-research` at 780 lines.
+Get a decision on the paid sweeps. With a go-ahead: install ShellPilot, answer
+the 75 route-selection prompts against one pinned model in fresh contexts, grade
+them, sweep the seven trigger-query sets, and author `german-tax-research`'s set
+in the same pass. Without one, the unblocked work is splitting the nine
+over-budget Skill bodies, starting with `german-legal-research` at 780 lines.

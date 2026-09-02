@@ -109,7 +109,7 @@ try {
 
         # Two windows on different workspaces keep separate clocks, so prefer the
         # one this workspace started before falling back to the newest overall.
-        $Path = @(
+        $matching = @(
             $candidates | Where-Object {
                 try {
                     $recorded = [IO.File]::ReadAllText($_.FullName) | ConvertFrom-Json -ErrorAction Stop
@@ -118,6 +118,17 @@ try {
                     $false
                 }
             }
+        )
+
+        <#
+            VS Code always supplies session_id, so a live session is always keyed
+            by it. The cwd hash is the fallback for a payload that omits one,
+            which in practice means a test or a non-VS-Code caller - and such a
+            file is newer often enough to shadow the real session.
+        #>
+        $Path = @(
+            $matching | Where-Object { $_.Name -notlike 'session-cwd-*' }
+            $matching
             $candidates
         ) | Select-Object -First 1 -ExpandProperty FullName
     }
