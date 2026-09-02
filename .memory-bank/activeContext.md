@@ -35,6 +35,20 @@ The formatter shipped with a bug the tests caught: `[int]1.5` rounds in
 PowerShell, so 90 minutes reported `2h 30m`. It floors explicitly now, and four
 durations sitting where rounding and truncation disagree are pinned.
 
+Deploying it surfaced a second `Stop` hook nobody remembered: `.github/hooks/`
+held a smoke-test probe from 2026-08-10 whose `windows` override hardcoded
+`D:\Git\CopilotAtelier\...`, the drive the repository sat on when it was
+written. It had been erroring on every turn since. Both files are deleted; the
+finding they were built to produce already lives in the hooks README.
+
+The reason it survived is the part worth keeping. `Hooks.Tests.ps1` asserts
+exactly this failure — that a hook command resolves to a script that exists —
+but the suite is scoped to `com.github.copilot/hooks/hooks.json`. A second hook
+file one directory away sat outside every gate the repository owns. The suite
+now enumerates every tracked `*.json` directly inside a folder named `hooks` and
+requires the shipped configuration to be the only one; the guard was proven by
+planting a second file and watching it go red.
+
 ## Previously: the `long-running-job-monitor` discovery failure
 
 A 45-minute live Hyper-V proof ran in another workspace with

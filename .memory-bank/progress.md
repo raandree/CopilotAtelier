@@ -15,6 +15,14 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-02**: Deleted the `.github/hooks` smoke-test probe, which had been
+  failing on every turn since 2026-08-10. Its `windows` override hardcoded
+  `D:\Git\CopilotAtelier\...`, the drive the repo sat on when it was written,
+  and that override wins on Windows. It survived because `Hooks.Tests.ps1`
+  asserts exactly this failure but is scoped to
+  `com.github.copilot/hooks/hooks.json`; a second hook file one directory away
+  was outside every gate.
+
 - **2026-09-02**: Added a session clock so Post-flight closes with a measured
   timestamp and the chat's elapsed duration. A model has no clock, so both
   numbers come from hooks: `Add-SessionContext.ps1` writes the session start to

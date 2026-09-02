@@ -637,6 +637,21 @@ Describe 'Hook configuration' -Tag 'Unit' {
         $script:hookConfig.hooks.PSObject.Properties.Name | Should -Contain $Event
     }
 
+    It 'keeps every hook configuration in the repository under these assertions' {
+        <#
+            VS Code loads each configured hook location, so a hook file anywhere
+            in the worktree is live. Every other test here reads one path: a
+            probe in .github/hooks failed on every turn for three weeks because
+            it sat outside them.
+        #>
+        $configFiles = @(
+            & git -C $script:repoRoot ls-files |
+                Where-Object { $_ -match '(^|/)hooks/[^/]+\.json$' }
+        )
+
+        $configFiles | Should -Be 'com.github.copilot/hooks/hooks.json'
+    }
+
     It 'points every hook command at a script that exists' {
         $commands = foreach ($hookEvent in $script:hookConfig.hooks.PSObject.Properties) {
             foreach ($hook in $hookEvent.Value) {

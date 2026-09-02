@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **The `.github/hooks` smoke-test probe, which had been failing on every turn since it was committed** (2026-09-02). `stop-probe.json` and `Test-HookLoaded.ps1` were scratch: a `Stop` hook that appended one line to `%TEMP%\workspace-hook-probe.log` to prove the workspace hook location loads at all. They answered that question on 2026-08-10 and the answer is written into [`com.github.copilot/hooks/README.md`](com.github.copilot/hooks/README.md) and the changelog entry below — the files themselves had no further job.
+
+  They were not merely idle. The `windows` override hardcoded `D:\Git\CopilotAtelier\.github\hooks\Test-HookLoaded.ps1`, the drive the repository sat on when the probe was written, and on Windows that override wins. Every turn on any other machine ended with *"The argument … to the -File parameter does not exist"*. The POSIX `command` was no better in principle: `./.github/hooks/Test-HookLoaded.ps1` is relative, and the same README says VS Code does not guarantee the working directory, which is why every shipped hook resolves its own path.
+
+  Nothing caught it because nothing looked. The `Hook configuration` suite in [`tests/Hooks.Tests.ps1`](tests/Hooks.Tests.ps1) — which asserts exactly this, that a hook command resolves to a script that exists and carries no shell-interpolated token — is scoped to `com.github.copilot/hooks/hooks.json`. A second hook file one directory away was outside every gate the repository owns. That suite now enumerates every tracked `*.json` sitting directly inside a folder named `hooks` and requires the shipped configuration to be the only one, so the next stray hook file fails the build instead of the chat. The guard was proven by planting one and watching it go red.
+
 ### Added
 
 - **A session clock, so Post-flight closes with a measured timestamp and the chat's elapsed duration** (2026-09-02). The user asked for two more facts at the end of the checklist: when the turn closed, and how long the whole chat had run. The first half already existed — [`com.github.copilot/hooks/scripts/Add-SessionContext.ps1`](com.github.copilot/hooks/scripts/Add-SessionContext.ps1) injects `Session started at <UTC>` and Pre-flight opens every reply with it — which made this look like a formatting change.
