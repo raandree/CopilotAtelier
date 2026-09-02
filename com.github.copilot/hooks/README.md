@@ -15,7 +15,8 @@ read as the user-level hook location.
 | [`hooks.json`](hooks.json) | — | Hook configuration loaded by VS Code |
 | [`scripts/Block-RemoteMutation.ps1`](scripts/Block-RemoteMutation.ps1) | `PreToolUse` | Blocks remote-mutating and irreversible commands |
 | [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank, injects the UTC timestamp, starts the session clock |
-| [`scripts/Write-SessionClose.ps1`](scripts/Write-SessionClose.ps1) | `Stop` | Closes Post-flight with the turn's end timestamp and the elapsed chat duration |
+| [`scripts/Write-SessionClose.ps1`](scripts/Write-SessionClose.ps1) | `Stop` | Advances the session clock's turn counter |
+| [`scripts/Get-SessionElapsed.ps1`](scripts/Get-SessionElapsed.ps1) | — | Agent-run reader that prints the Post-flight elapsed line |
 | [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated |
 
 ## Block-RemoteMutation
@@ -56,22 +57,18 @@ Memory Bank exists, plus the current UTC timestamp. This removes the recurring
 failure where an agent concludes "no Memory Bank" from the workspace summary,
 which omits dotfile folders.
 
-It also starts the session clock described below.
+It also starts the session clock described below, and hands the agent the
+absolute path of `Get-SessionElapsed.ps1`. The agent cannot resolve that path
+itself — the script sits under `~/.copilot` when deployed and under the plugin
+root when installed as a plugin, which is the probe `hooks.json` already carries.
 
-## Write-SessionClose
+## The session clock
 
-Post-flight asks the agent to report what it did, and the user asked for the
-closing timestamp and the duration of the chat alongside it. A model has no
-clock: any timestamp it composes is a guess, and after a compaction it no longer
-knows when the session began. So this `Stop` hook measures both and appends one
-line under the checklist:
+Post-flight closes every reply with the elapsed duration of the chat. A model has
+no clock: a duration it composes is a guess, and after a compaction it no longer
+knows when the session began. So the number is measured on disk and read back.
 
-```text
-POST-FLIGHT clock - turn 4 ended 2026-09-02 08:31 UTC; chat elapsed 22m (started 08:09 UTC).
-```
-
-The two halves share a clock file that `Add-SessionContext` creates at session
-start and this hook updates at the end of every turn:
+Three pieces share one clock file:
 
 | Field | Written by | Meaning |
 |---|---|---|
@@ -88,13 +85,44 @@ predictable name there invites another local account to pre-create the path. The
 directory stripped, falling back to a hash of the working directory so two
 concurrent windows do not share one clock.
 
+### Write-SessionClose
+
+The `Stop` hook advances `turns` and records `lastTurnEndedUtc`. It reports
+nothing on the happy path. It used to append the duration itself, but VS Code
+renders a hook `systemMessage` as a detached, collapsed warning box rather than
+part of the reply, so the line the user actually wanted in the checklist was
+never in it. Moving the measurement to the agent put it there; leaving the hook
+line in as well would only have added a second copy on every turn.
+
+It still speaks up when the clock cannot be read, because that is the one case
+where the agent's own line could not be measured either:
+
+```text
+POST-FLIGHT clock - no readable session clock, so the elapsed line reads unavailable.
+```
+
 The hook emits no `decision` field. Blocking a `Stop` restarts the agent and
-bills another turn, which is far too much to pay for a timestamp. A missing or
-unreadable clock costs the duration and nothing else; the end timestamp is still
-reported and the script still exits `0`.
+bills another turn, which is far too much to pay for a timestamp. Every failure
+path still exits `0`.
 
 A `Stop` that fires while `stop_hook_active` is `true` closes a turn some other
 blocking hook already resumed, so it does not advance the turn counter.
+
+### Get-SessionElapsed
+
+Not a hook — the agent runs it as the last action of a turn, which is why it
+reports plain text rather than the hook JSON contract. It prints one line, meant
+to be copied verbatim as the last line of the reply:
+
+```text
+POST-FLIGHT elapsed: 16m (started 09:15 UTC, measured 09:31 UTC, turn 3)
+```
+
+Read-only: `Stop` owns `turns`, so the reader reports the turn in progress as one
+past the closed count and writes nothing back. Given no `-Path` it picks the
+newest clock recorded for the current workspace, which is what survives a
+compaction that dropped the injected path. An unreadable clock yields
+`POST-FLIGHT elapsed: unavailable (no session clock on disk).` and exit `0`.
 
 ## Write-CompactionCheckpoint
 

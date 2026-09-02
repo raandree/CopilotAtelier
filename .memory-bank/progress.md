@@ -23,14 +23,19 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   `com.github.copilot/hooks/hooks.json`; a second hook file one directory away
   was outside every gate.
 
-- **2026-09-02**: Added a session clock so Post-flight closes with a measured
-  timestamp and the chat's elapsed duration. A model has no clock, so both
-  numbers come from hooks: `Add-SessionContext.ps1` writes the session start to
-  `<LocalApplicationData>/CopilotAtelier/sessions/session-<key>.json`, and a new
-  `Stop` hook, `Write-SessionClose.ps1`, reads it at the end of every turn and
-  appends one `systemMessage` under the checklist. `UserPromptSubmit` was ruled
-  out — common output format only, no `additionalContext` — and `PreToolUse` was
-  rejected as a token cost on every call. Decision record 0024.
+- **2026-09-02**: Added a session clock so Post-flight closes with the chat's
+  measured elapsed duration. A model has no clock, so the number is written to
+  disk by `Add-SessionContext.ps1` at
+  `<LocalApplicationData>/CopilotAtelier/sessions/session-<key>.json` and read
+  back by `Get-SessionElapsed.ps1`, which the agent runs last and copies
+  verbatim. The first attempt printed it from the `Stop` hook and was rejected
+  on sight: VS Code renders a hook `systemMessage` as a detached, collapsed
+  warning box, so the line was beside the checklist, not in it. A hook cannot
+  write inside the reply and a model cannot read a clock, so the split is
+  forced. `Write-SessionClose.ps1` keeps the turn counter and now speaks only
+  when the clock is unreadable. `UserPromptSubmit` was ruled out — common output
+  format only, no `additionalContext` — and `PreToolUse` was rejected as a token
+  cost on every call. Decision record 0024, revised the same day.
 
 - **2026-09-01**: Fixed three defects in `long-running-job-monitor` after a
   45-minute live Hyper-V proof ran with the Skill never loaded: no cadence

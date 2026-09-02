@@ -21,9 +21,12 @@ Otherwise the turn is **non-impacting**. Plain commits and merges are self-docum
 
 ## Non-impacting turn
 
-Skip verification, `CHANGELOG.md`, `progress.md`, the local commit, and the `promptHistory.md` append. Refresh `activeContext.md` only if the current focus actually changed. Emit exactly one closing line and nothing else:
+Skip verification, `CHANGELOG.md`, `progress.md`, the local commit, and the `promptHistory.md` append. Refresh `activeContext.md` only if the current focus actually changed. Emit exactly these two closing lines and nothing else:
 
-`POST-FLIGHT: n/a — non-impacting turn (<reason>)`
+```text
+POST-FLIGHT: n/a — non-impacting turn (<reason>)
+POST-FLIGHT elapsed: <the measured line — see Session clock>
+```
 
 ## Substantive turn — execute before ending the reply
 
@@ -35,7 +38,7 @@ Do all of these before concluding. Do not skip any step silently.
 4. **Commit locally unless the user asked to keep changes uncommitted.** Use a topic branch (prefer `ai/<slug>`), a conventional-commit message, and a `Co-authored-by: AI Assistant <ai@example.com>` trailer. Never push unless the user explicitly asked in the current turn.
 5. **Emit a POST-FLIGHT checklist** at the end of the reply naming what was done (or "n/a" with reason for each unchecked item). Suggested form:
 
-   ```
+   ```text
    POST-FLIGHT
    - [x] Verified: <command + outcome, or "n/a — doc edit">
    - [x] Definition of Done: acceptance criteria / role gates / review / risks
@@ -43,17 +46,26 @@ Do all of these before concluding. Do not skip any step silently.
    - [x] CHANGELOG: <entry summary, or "n/a">
    - [x] Commit: <branch> @ <short SHA> — "<message>"
    - [ ] Push: deferred (user must request explicitly)
+   POST-FLIGHT elapsed: <the measured line — see Session clock>
    ```
 
 ## Session clock
 
-The closing timestamp and the elapsed duration of the chat are appended below the checklist by the `Stop` hook, which measures them against a clock the `SessionStart` hook wrote to disk:
+Close every reply with the measured elapsed duration of the chat. The `SessionStart` hook puts the absolute path of the reader in the session context; run it as the last action of the turn, so the measurement lands as close to the end as it can:
 
-```
-POST-FLIGHT clock - turn 4 ended 2026-09-02 08:31 UTC; chat elapsed 22m (started 08:09 UTC).
+```powershell
+& '<path from the session context>'
 ```
 
-Never write either number yourself. You cannot read a clock, and after a compaction you no longer know when the session began, so a timestamp you compose is a guess. The line appears on every turn, including a non-impacting one. When it is absent the hooks are not installed — say the duration is unavailable rather than estimating one.
+It prints exactly one line. Copy that line verbatim as the last line of the reply:
+
+```text
+POST-FLIGHT elapsed: 16m (started 09:15 UTC, measured 09:31 UTC, turn 3)
+```
+
+Never compose, reformat, or recompute either number. You cannot read a clock, and after a compaction you no longer know when the session began, so a duration you compose is a guess. The line appears on every turn, including a non-impacting one.
+
+When the session context no longer carries the path — a compaction dropped it — try `~/.copilot/hooks/scripts/Get-SessionElapsed.ps1`. When that is missing too the hooks are not installed: write `POST-FLIGHT elapsed: unavailable (hooks not installed)` rather than estimating one.
 
 The opening `[YYYY-MM-DD HH:mm UTC]` that Pre-flight asks for is a different value: it is the session start supplied by the `SessionStart` hook, not the current time.
 

@@ -6,6 +6,7 @@ BeforeAll {
     $script:blockScript = Join-Path $script:hookScriptRoot 'Block-RemoteMutation.ps1'
     $script:sessionScript = Join-Path $script:hookScriptRoot 'Add-SessionContext.ps1'
     $script:closeScript = Join-Path $script:hookScriptRoot 'Write-SessionClose.ps1'
+    $script:elapsedScript = Join-Path $script:hookScriptRoot 'Get-SessionElapsed.ps1'
     $script:compactScript = Join-Path $script:hookScriptRoot 'Write-CompactionCheckpoint.ps1'
     $script:powerShellPath = (Get-Process -Id $PID).Path
 
@@ -285,6 +286,25 @@ Describe 'Add-SessionContext' -Tag 'Unit' {
             Should -BeGreaterThan ([datetime]::UtcNow.AddMinutes(-5))
     }
 
+    It 'hands the agent the absolute path of the elapsed reader' {
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $parsed = (script:Invoke-Hook -ScriptPath $script:sessionScript -Payload $payload).Output |
+            ConvertFrom-Json
+
+        <#
+            The agent cannot resolve the reader itself: it sits under ~/.copilot
+            when deployed and under the plugin root when installed as a plugin.
+            An unusable path costs Post-flight its measured duration.
+        #>
+        $parsed.hookSpecificOutput.additionalContext |
+            Should -Match ([regex]::Escape($script:elapsedScript))
+        Test-Path -LiteralPath $script:elapsedScript -PathType Leaf | Should -BeTrue
+    }
+
     It 'never lets a payload session id escape the clock directory' {
         $clockRoot = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
         $payload = [ordered]@{
@@ -359,58 +379,47 @@ Describe 'Write-SessionClose' -Tag 'Unit' {
         }
     }
 
-    It 'reports the closing timestamp and the elapsed chat duration' {
+    It 'stays silent once the clock advanced' {
         script:Set-SessionClock -MinutesAgo 90
 
         $result = script:Invoke-Close
         $parsed = $result.Output | ConvertFrom-Json
 
         $result.ExitCode | Should -Be 0 -Because $result.Output
-        $parsed.systemMessage | Should -Match 'POST-FLIGHT clock'
-        $parsed.systemMessage | Should -Match '\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC'
-        $parsed.systemMessage | Should -Match 'chat elapsed 1h 30m'
-    }
-
-    # A cast to int rounds in PowerShell, so every case here sits where rounding
-    # and truncation disagree.
-    It 'reports <Expected> for a chat of <MinutesAgo> minutes' -ForEach @(
-        @{ MinutesAgo = 22; Expected = '22m' }
-        @{ MinutesAgo = 46; Expected = '46m' }
-        @{ MinutesAgo = 90; Expected = '1h 30m' }
-        @{ MinutesAgo = 155; Expected = '2h 35m' }
-    ) {
-        script:Set-SessionClock -MinutesAgo $MinutesAgo
-
-        $parsed = (script:Invoke-Close).Output | ConvertFrom-Json
-
-        $parsed.systemMessage | Should -Match "chat elapsed $([regex]::Escape($Expected))"
+        <#
+            The agent closes its own reply with a measured line from
+            Get-SessionElapsed.ps1. Reporting the duration here as well would put
+            a second copy in a detached warning box on every single turn.
+        #>
+        $parsed.PSObject.Properties.Name | Should -Not -Contain 'systemMessage'
     }
 
     It 'advances the turn counter once per closed turn' {
         script:Set-SessionClock -Turns 3
 
-        $parsed = (script:Invoke-Close).Output | ConvertFrom-Json
+        $result = script:Invoke-Close
 
-        $parsed.systemMessage | Should -Match 'turn 4 ended'
+        $result.ExitCode | Should -Be 0 -Because $result.Output
         (Get-Content -LiteralPath $script:clockPath -Raw | ConvertFrom-Json).turns | Should -Be 4
     }
 
     It 'does not advance the counter when the agent was resumed by a blocking hook' {
         script:Set-SessionClock -Turns 4
 
-        $parsed = (script:Invoke-Close -Payload (script:New-StopPayload -StopHookActive $true)).Output |
-            ConvertFrom-Json
+        $result = script:Invoke-Close -Payload (script:New-StopPayload -StopHookActive $true)
 
-        $parsed.systemMessage | Should -Match 'turn 4 ended'
+        $result.ExitCode | Should -Be 0 -Because $result.Output
         (Get-Content -LiteralPath $script:clockPath -Raw | ConvertFrom-Json).turns | Should -Be 4
     }
 
-    It 'still reports the end timestamp when no clock was written' {
+    It 'warns when no clock was written' {
         $result = script:Invoke-Close
         $parsed = $result.Output | ConvertFrom-Json
 
         $result.ExitCode | Should -Be 0 -Because $result.Output
-        $parsed.systemMessage | Should -Match 'duration is unavailable'
+        # The one case worth surfacing: the agent's own line could not be
+        # measured either, so the hooks are broken rather than merely quiet.
+        $parsed.systemMessage | Should -Match 'no readable session clock'
     }
 
     It 'never blocks the agent from stopping' {
@@ -436,7 +445,146 @@ Describe 'Write-SessionClose' -Tag 'Unit' {
         $parsed = $result.Output | ConvertFrom-Json
 
         $result.ExitCode | Should -Be 0 -Because $result.Output
-        $parsed.systemMessage | Should -Match 'duration is unavailable'
+        $parsed.systemMessage | Should -Match 'no readable session clock'
+    }
+}
+
+Describe 'Get-SessionElapsed' -Tag 'Unit' {
+    BeforeEach {
+        $script:clockRoot = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $script:clockRoot -Force | Out-Null
+        $script:clockPath = Join-Path $script:clockRoot 'session-session-abc.json'
+
+        function script:Set-SessionClock {
+            param(
+                [Parameter()]
+                [int]$MinutesAgo = 90,
+
+                [Parameter()]
+                [int]$Turns = 0,
+
+                [Parameter()]
+                [string]$Workspace = $script:repoRoot,
+
+                [Parameter()]
+                [string]$Path = $script:clockPath
+            )
+
+            [ordered]@{
+                startedUtc = [datetime]::UtcNow.AddMinutes(-$MinutesAgo).ToString('o')
+                workspace = $Workspace
+                turns = $Turns
+            } | ConvertTo-Json -Depth 3 |
+                Set-Content -LiteralPath $Path -Encoding UTF8
+        }
+
+        # The agent runs this one itself, so it takes no payload on standard
+        # input and reports on standard output as plain text.
+        function script:Invoke-Elapsed {
+            param(
+                [Parameter()]
+                [string[]]$Argument = @()
+            )
+
+            $invocationArguments = @(
+                '-NoProfile'
+                '-NonInteractive'
+                '-File'
+                $script:elapsedScript
+                '-ClockRoot'
+                $script:clockRoot
+                '-WorkingDirectory'
+                $script:repoRoot
+            ) + $Argument
+
+            $output = & $script:powerShellPath @invocationArguments
+
+            [pscustomobject]@{
+                ExitCode = $LASTEXITCODE
+                Output = ($output | Out-String).Trim()
+            }
+        }
+    }
+
+    It 'reports the elapsed duration, both timestamps, and the turn in progress' {
+        script:Set-SessionClock -MinutesAgo 90 -Turns 2
+
+        $result = script:Invoke-Elapsed
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $result.Output | Should -Match '^POST-FLIGHT elapsed: 1h 30m '
+        $result.Output | Should -Match 'started \d{2}:\d{2} UTC'
+        $result.Output | Should -Match 'measured \d{2}:\d{2} UTC'
+    }
+
+    It 'reports the turn in progress, one past the turns the Stop hook closed' {
+        script:Set-SessionClock -Turns 2
+
+        (script:Invoke-Elapsed).Output | Should -Match 'turn 3\)$'
+    }
+
+    It 'emits a single line so the agent can copy it verbatim' {
+        script:Set-SessionClock
+
+        ((script:Invoke-Elapsed).Output -split '\r?\n') | Should -HaveCount 1
+    }
+
+    # A cast to int rounds in PowerShell, so every case here sits where rounding
+    # and truncation disagree.
+    It 'reports <Expected> for a chat of <MinutesAgo> minutes' -ForEach @(
+        @{ MinutesAgo = 0; Expected = 'under a minute' }
+        @{ MinutesAgo = 22; Expected = '22m' }
+        @{ MinutesAgo = 46; Expected = '46m' }
+        @{ MinutesAgo = 90; Expected = '1h 30m' }
+        @{ MinutesAgo = 155; Expected = '2h 35m' }
+    ) {
+        script:Set-SessionClock -MinutesAgo $MinutesAgo
+
+        (script:Invoke-Elapsed).Output |
+            Should -Match "POST-FLIGHT elapsed: $([regex]::Escape($Expected)) "
+    }
+
+    It 'never advances the turn counter the Stop hook owns' {
+        script:Set-SessionClock -Turns 2
+
+        script:Invoke-Elapsed | Out-Null
+
+        (Get-Content -LiteralPath $script:clockPath -Raw | ConvertFrom-Json).turns | Should -Be 2
+    }
+
+    It 'prefers this workspace over a newer clock from another window' {
+        $otherPath = Join-Path $script:clockRoot 'session-other.json'
+        script:Set-SessionClock -MinutesAgo 90 -Workspace $script:repoRoot
+        script:Set-SessionClock -MinutesAgo 5 -Workspace (Join-Path $TestDrive 'elsewhere') -Path $otherPath
+        (Get-Item -LiteralPath $otherPath).LastWriteTimeUtc = [datetime]::UtcNow.AddHours(1)
+
+        # Newest wins only within this workspace; a second VS Code window on a
+        # different folder keeps its own clock and must not be measured here.
+        (script:Invoke-Elapsed).Output | Should -Match '1h 30m'
+    }
+
+    It 'reads the exact clock it is handed' {
+        $exactPath = Join-Path $script:clockRoot 'session-exact.json'
+        script:Set-SessionClock -MinutesAgo 5 -Workspace $script:repoRoot
+        script:Set-SessionClock -MinutesAgo 200 -Workspace 'somewhere else' -Path $exactPath
+
+        (script:Invoke-Elapsed -Argument @('-Path', $exactPath)).Output | Should -Match '3h 20m'
+    }
+
+    It 'reports the duration as unavailable when no clock exists' {
+        $result = script:Invoke-Elapsed
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $result.Output | Should -Be 'POST-FLIGHT elapsed: unavailable (no session clock on disk).'
+    }
+
+    It 'reports the duration as unavailable when the clock is corrupt' {
+        Set-Content -LiteralPath $script:clockPath -Value 'not json at all' -Encoding UTF8
+
+        $result = script:Invoke-Elapsed
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $result.Output | Should -Match 'unavailable'
     }
 }
 

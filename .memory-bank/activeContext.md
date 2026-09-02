@@ -9,30 +9,45 @@ source: current task evidence
 
 ## Current focus
 
-Post-flight now closes with a measured clock line: the turn's end timestamp and
-the elapsed duration of the whole chat. The request read as a formatting change
-and was not. A model has no clock — the opening `[UTC]` stamp is correct only
-because the `SessionStart` hook measured it, a closing one composed by the model
-would drift by the length of the turn, and after a compaction the model no
-longer knows when the session began.
+The elapsed duration now lands inside the agent's own POST-FLIGHT block instead
+of beside it. The first arrangement had the `Stop` hook print the line, and the
+user rejected it on sight: VS Code renders a hook `systemMessage` as a detached,
+collapsed *Warning from Stop hook* box, so the number the checklist was supposed
+to carry sat next to the checklist, one click from invisible. Decision 0024 had
+accepted that as a "cosmetic split" and flagged the rendering as the one thing
+still unverified. It was neither cosmetic nor safe to assume.
 
-The direct fix was unavailable. VS Code's `UserPromptSubmit` supports the common
-output format only, with no `additionalContext` field — the same limitation
-already recorded for `PreCompact` in decision 0021. `PreToolUse` can inject, but
-once per tool call, which spends tokens on every call and folds timing into the
-security guardrail.
+The two constraints are hard and opposed: a hook can measure but cannot write
+inside the model's output; the model can write there but cannot read a clock. The
+only arrangement satisfying both is to keep the clock on disk and have the model
+*read* it rather than recall it. `Get-SessionElapsed.ps1` does that — the agent
+runs it as its last action and copies its single line verbatim. It costs one
+command per turn, which the user chose deliberately over a free line in a
+collapsed box.
 
-So `Add-SessionContext.ps1` also writes the start to
-`<LocalApplicationData>/CopilotAtelier/sessions/session-<key>.json`, and a new
-`Stop` hook reads it at the end of every turn. `Stop` fires once per turn, costs
-no tokens, and fires at the moment being reported; it emits no `decision` field,
-because blocking a `Stop` restarts the agent and bills another turn. Decision
-record 0024 carries the reasoning, including why the clock avoids both `/tmp`
-(world-writable on Linux) and `.memory-bank/` (machinery, not knowledge, and it
-must work without a Memory Bank).
+`Add-SessionContext.ps1` hands over the reader's absolute path, because the agent
+cannot resolve it across both deployment layouts. `Write-SessionClose.ps1` keeps
+the `Stop` hook, since the turn counter still has to advance somewhere, but now
+reports nothing unless the clock is unreadable — the one case where the agent's
+own line could not be measured either. The reader is read-only and derives the
+turn in progress as one past the closed count.
+
+The general lesson is worth more than the fix: where a hook's output is
+*rendered* is part of its contract. Verify it before designing around it.
+
+## Previously: the session clock itself
+
+A model has no clock, so both the opening timestamp and the duration are measured
+by hooks and written to
+`<LocalApplicationData>/CopilotAtelier/sessions/session-<key>.json` — on disk, so
+they survive compaction. `UserPromptSubmit` cannot inject context (common output
+format only, no `additionalContext`, the same limitation recorded for `PreCompact`
+in decision 0021), and `PreToolUse` would spend tokens on every call. The clock
+avoids `/tmp` (world-writable on Linux) and `.memory-bank/` (machinery, not
+knowledge, and it must work without a Memory Bank).
 
 The formatter shipped with a bug the tests caught: `[int]1.5` rounds in
-PowerShell, so 90 minutes reported `2h 30m`. It floors explicitly now, and four
+PowerShell, so 90 minutes reported `2h 30m`. It floors explicitly now, and five
 durations sitting where rounding and truncation disagree are pinned.
 
 Deploying it surfaced a second `Stop` hook nobody remembered: `.github/hooks/`

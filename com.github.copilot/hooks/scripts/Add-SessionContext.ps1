@@ -195,10 +195,19 @@ try {
     Write-Debug -Message "Session clock not started: $($_.Exception.Message)"
 }
 
+<#
+    Hand the agent the absolute path of the clock reader. Post-flight closes with
+    a measured duration, and the agent cannot resolve the reader itself: it sits
+    under ~/.copilot when deployed and under the plugin root when installed as a
+    plugin, which is the probe hooks.json already carries.
+#>
+$elapsedReader = [IO.Path]::Combine($PSScriptRoot, 'Get-SessionElapsed.ps1')
+
 $line = @(
     "Session started at $($startedUtc.ToString('yyyy-MM-dd HH:mm')) UTC."
     $memoryBankState
     'Open the reply with that UTC timestamp and a one-line PRE-FLIGHT acknowledgment.'
+    "Close every reply by running & '$elapsedReader' and copying its single line verbatim as the last line of the POST-FLIGHT block."
     'Never push or otherwise mutate a git remote unless the user asks in the current turn.'
 )
 

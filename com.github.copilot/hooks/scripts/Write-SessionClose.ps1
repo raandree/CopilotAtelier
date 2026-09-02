@@ -1,15 +1,15 @@
 <#
 .SYNOPSIS
-    Stop hook that closes the Post-flight checklist with a measured clock line.
+    Stop hook that keeps the session clock the Post-flight elapsed line reads.
 .DESCRIPTION
-    Reads the VS Code Stop hook payload from standard input, reads the session
-    clock the SessionStart hook wrote, and reports the turn's closing UTC
-    timestamp together with the elapsed duration of the whole chat.
+    Reads the VS Code Stop hook payload from standard input and advances the
+    turn counter on the clock the SessionStart hook wrote.
 
-    Post-flight asks the agent to report what it did, but a model has no clock:
-    any timestamp it composes is a guess, and after compaction it no longer knows
-    when the session began. Both numbers therefore come from here, where they are
-    measured rather than recalled.
+    Post-flight asks the agent to close with the elapsed chat duration, but a
+    model has no clock: any timestamp it composes is a guess, and after a
+    compaction it no longer knows when the session began. The agent therefore
+    measures the line with Get-SessionElapsed.ps1, and this hook keeps the clock
+    that reader depends on rather than reporting the duration a second time.
 
     The turn counter advances only when the payload does not say the agent is
     already continuing from a blocking Stop hook, so a resumed run stays one turn.
@@ -21,7 +21,7 @@
     application data location. Tests override it to stay off the real profile.
 .NOTES
     Never blocks: no decision field is emitted and every failure path exits 0, so
-    a missing or unreadable clock costs the duration line and nothing else.
+    a missing or unreadable clock costs a warning and nothing else.
 #>
 
 [CmdletBinding()]
@@ -103,30 +103,6 @@ function Get-SessionClockPath {
     return [IO.Path]::Combine($Root, "session-$key.json")
 }
 
-function Format-Elapsed {
-    [CmdletBinding()]
-    [OutputType([string])]
-    param(
-        [Parameter(Mandatory)]
-        [timespan]$Duration
-    )
-
-    if ($Duration.TotalSeconds -lt 0) {
-        return 'unavailable'
-    }
-
-    if ($Duration.TotalMinutes -lt 1) {
-        return 'under a minute'
-    }
-
-    # Floor explicitly: a cast to int rounds, so 90 minutes would report 2h 30m.
-    if ($Duration.TotalHours -lt 1) {
-        return '{0}m' -f [int][Math]::Floor($Duration.TotalMinutes)
-    }
-
-    return '{0}h {1:00}m' -f [int][Math]::Floor($Duration.TotalHours), $Duration.Minutes
-}
-
 if ([string]::IsNullOrEmpty($InputJson)) {
     # Decode explicitly: Windows PowerShell would otherwise use the console input
     # encoding, which mangles non-ASCII payloads that pwsh reads as UTF-8.
@@ -148,7 +124,7 @@ if (-not [string]::IsNullOrWhiteSpace($InputJson)) {
 }
 
 $endedUtc = (Get-Date).ToUniversalTime()
-$startedUtc = $null
+$clockAdvanced = $false
 $turn = 0
 
 # A Stop that fires while the agent is already continuing from a blocking hook
@@ -166,7 +142,6 @@ try {
 
     if ([IO.File]::Exists($clockPath)) {
         $clock = [IO.File]::ReadAllText($clockPath) | ConvertFrom-Json -ErrorAction Stop
-        $startedUtc = ([datetimeoffset]$clock.startedUtc).UtcDateTime
         $turn = [int]$clock.turns
 
         if (-not $isContinuation) {
@@ -181,27 +156,28 @@ try {
         } | ConvertTo-Json -Depth 3
 
         [IO.File]::WriteAllText($clockPath, $updated, [Text.UTF8Encoding]::new($false))
+        $clockAdvanced = $true
     }
 } catch {
-    $startedUtc = $null
-}
-
-if ($startedUtc) {
-    $turnLabel = if ($turn -gt 0) { "turn $turn" } else { 'turn' }
-    $message = 'POST-FLIGHT clock - {0} ended {1} UTC; chat elapsed {2} (started {3} UTC).' -f
-        $turnLabel,
-        $endedUtc.ToString('yyyy-MM-dd HH:mm'),
-        (Format-Elapsed -Duration ($endedUtc - $startedUtc)),
-        $startedUtc.ToString('HH:mm')
-} else {
-    $message = 'POST-FLIGHT clock - turn ended {0} UTC; no session clock on disk, so the chat duration is unavailable.' -f
-        $endedUtc.ToString('yyyy-MM-dd HH:mm')
+    $clockAdvanced = $false
 }
 
 # No decision field: blocking here would restart the agent and bill another turn.
-[ordered]@{
+$output = [ordered]@{
     continue = $true
-    systemMessage = $message
-} | ConvertTo-Json -Depth 5 -Compress
+}
+
+<#
+    Silent on the happy path. The agent already closed its reply with a measured
+    elapsed line from Get-SessionElapsed.ps1, so repeating the duration here
+    would only add a second copy in a detached warning box. A broken clock is
+    worth surfacing, because that is the one case where the agent's own line
+    could not be measured either.
+#>
+if (-not $clockAdvanced) {
+    $output.systemMessage = 'POST-FLIGHT clock - no readable session clock, so the elapsed line reads unavailable.'
+}
+
+$output | ConvertTo-Json -Depth 5 -Compress
 
 exit 0
