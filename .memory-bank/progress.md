@@ -15,6 +15,14 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-04**: Replaced `openSimpleBrowser` with VS Code's built-in
+  `browser` tool set in the Software Engineer Custom agent and added a closed
+  reproduce-inspect-fix-repeat loop for web applications. Browser use defaults
+  to ephemeral loopback sessions, authenticated tabs require explicit sharing,
+  and the Contoso overlay remains no-egress. Validation: 138 focused contracts,
+  native build 1,005 passed, 0 failed, 61 skipped, 78.51% coverage; deployed
+  user-level file matches the source SHA-256 exactly.
+
 - **2026-09-02**: Added the generic `/complete-specifications` Prompt-led
   workflow with capability-isolated controller, implementer, and reviewer
   agents. Live mode defaults off; controller/worker egress is empty; an external
@@ -122,6 +130,10 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
+- **2026-09-04 finding**: The Tax Researcher Custom agent cannot execute
+  `elster-form-capture` because it exposes `openSimpleBrowser`, while the Skill
+  requires Playwright browser tools against a user-shared page. Replace it with
+  `browser` and retain taxpayer-controlled authentication and transmission.
 - Restore a Windows PowerShell 5.1 CI leg now that `Repair_ManifestEncoding`
   fixes the manifest instead of working around it. The leg was dropped
   2026-07-29 for the defect this fix closes; re-adding it guards the fix and

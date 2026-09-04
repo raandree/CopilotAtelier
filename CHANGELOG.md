@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Interactive web-application troubleshooting in the Software Engineer agent** (2026-09-04). Replace the preview-only `openSimpleBrowser` entry with VS Code's built-in `browser` tool set so the agent can navigate and exercise its product, inspect page content, console errors, and screenshots, verify affected desktop and mobile viewports, fix defects, and repeat the original flow. Browser checks default to agent-opened ephemeral sessions on loopback origins; authenticated state is available only when the user explicitly shares a tab. Session evidence complements rather than replaces repository regression tests, and the Contoso overlay continues to omit browser access.
+
 - **A Prompt-led specification completion workflow for any spec-driven
   repository** (2026-09-02). `/complete-specifications` inventories acceptance
   criteria, milestone exits, Decision gates, local gaps, test evidence, and an

@@ -99,7 +99,7 @@ BeforeAll {
         }
         'software-engineer.agent.md' = @{
             Tools = 45
-            ToolHash = 'D94007200A192204'
+            ToolHash = '4209631DF6007CB5'
             Handoffs = 3
             HandoffHash = 'AE1CD385148A6BF2'
             MemoryHeading = '## Memory Bank role extension'

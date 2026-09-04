@@ -43,6 +43,8 @@ Describe 'Software Engineer Custom agent' {
         $script:agentTools | Should -Contain 'agent'
         $script:agentTools | Should -Contain 'edit/createFile'
         $script:agentTools | Should -Contain 'execute/runInTerminal'
+        $script:agentTools | Should -Contain 'browser'
+        $script:agentTools | Should -Not -Contain 'openSimpleBrowser'
         $script:agentTools | Should -Contain 'runTests'
         $script:agentTools | Should -Contain 'thinking'
         $script:agentHandoffs | Should -HaveCount 3
@@ -61,6 +63,15 @@ Describe 'Software Engineer Custom agent' {
         $script:agentBody | Should -Match 'test-first'
         $script:agentBody | Should -Match 'bug fix'
         $script:agentBody | Should -Match 'regression'
+    }
+
+    It 'uses the browser feedback loop for user-facing web changes' {
+        $script:agentBody | Should -Match '#tool:browser'
+        $script:agentBody | Should -Match '(?is)reproduce.*console.*screenshot.*repeat'
+        $script:agentBody | Should -Match '(?is)desktop.*mobile'
+        $script:agentBody | Should -Match '(?i)repository tests'
+        $script:agentBody | Should -Match '(?is)ephemeral.*loopback'
+        $script:agentBody | Should -Match '(?is)authenticated.*explicit'
     }
 
     It 'keeps self-review mandatory and names the high-risk triggers' {

@@ -43,6 +43,9 @@ in `techContext.md`, not here.
 
 ## Live relationships
 
+- The Software Engineer Custom agent uses `browser` for ephemeral loopback
+    validation; authenticated state requires explicit sharing, while no-egress
+    overlays inherit conditional prose but omit the tool.
 - A multi-agent cycle is one consent, not four; close-out belongs to one stage,
     and stage rules bind only in an agent body. Its failure path is a ring of
     `send: true` handoffs, unbounded because each handoff starts the receiver
@@ -62,9 +65,6 @@ in `techContext.md`, not here.
     only place reporting which version is deployed, however it was installed.
 - Hooks enforce the rules that must hold regardless of model reasoning;
     Instructions carry the judgement calls.
-- A high-agency repository workflow uses an explicit Prompt and capability-
-    isolated agents, never an auto-triggered Skill; model-facing processes have
-    no egress, and live/evidence services cannot read repository content.
 - The `v*` release tag is the version anchor, not a record of the release.
     GitVersion derives the next pre-release number from it and
     `Publish_Release_To_GitHub` writes it, so a skipped release task freezes the
@@ -83,9 +83,10 @@ in `techContext.md`, not here.
     disabled check. The gate proves the fix rather than the intent: an item that
     improves fails until its entry is removed, and a new item cannot join it
     silently.
-- A Skill cannot override a Custom agent body: the body is mode instruction and
-    the Skill is advisory. A discipline that contradicts the active persona must
-    become a persona of its own, where its tools bound what it can finish.
+- A Skill cannot override a Custom agent body or grant a tool absent from its
+    frontmatter: the body is mode instruction and the Skill is advisory. A
+    discipline that contradicts the active persona must become a persona of its
+    own, where its tools bound what it can finish.
 - Memory Bank routing has two eval layers: human-labelled routes test the
     deterministic resolver and context reduction; label-free prompts test
     natural-language selection with pass@k and pass^k. Compaction bypasses both

@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-02
+last-verified: 2026-09-04
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,31 +9,30 @@ source: current task evidence
 
 ## Current focus
 
-The generic `/complete-specifications` package is complete on branch
-`ai/spec-completion-orchestrator`. It consists of one tiny Prompt, a hidden
-controller, a local test-first implementer, and a non-executable independent
-reviewer. No Skill was added: this workflow must be explicitly selected and its
-three roles need enforced, different tool surfaces.
+The Software Engineer Custom agent now owns its web-application feedback loop
+on branch `ai/software-engineer-browser-tools`. Its frontmatter replaces the
+preview-only `openSimpleBrowser` entry with VS Code's built-in `browser` tool
+set, and its body requires reproduce, inspect, fix, and repeat validation using
+page content, console errors, screenshots, and affected desktop and mobile
+viewports. Browser-session evidence complements repository regression tests.
 
-The security boundary is containment-first. Controller and worker egress are
-measured empty; live mode defaults off and any enabled endpoint access belongs
-to a separate data-isolated runner. A direct profile digest anchors an external
-verifier and append-only hash-chained ledger appender. Missing containment,
-review, cleanup, or accounting evidence blocks completion. Repository-defined
-build and test commands are the sole repository-derived executable inputs, and
-a changed command cannot run before independent control review.
+The browser boundary defaults to agent-opened ephemeral sessions on loopback
+application origins. Authenticated state is available only when the user
+explicitly shares a browser tab, and credentials never travel through chat.
+The Contoso overlay inherits the conditional workflow text but deliberately
+omits `browser`, preserving its no-egress tool surface.
 
-The shared remote-mutation hook was hardened in the same change: exact
-`PLUGIN_ROOT` or user-hook paths replace wildcard discovery, missing
-`PreToolUse` resolution blocks, lifecycle resolution failures only warn, and
-Git/GitHub CLI option forms such as `git.exe`, `git -C`, `gh -R`, `--repo`, and
-`--hostname` are covered without blocking corresponding reads.
+The change was test-first. The new Software Engineer contract failed on the
+missing tool and workflow, then passed 11/11. Inheritance passed 4/4, shared
+lifecycle passed 10/10, and frontmatter passed 113/113. The native
+`build,test` workflow passed 1,005 tests with 0 failures, 61 skips, and 78.51%
+coverage against 65%. AST parsing, PSScriptAnalyzer, editor diagnostics, and
+diff checks are clean. The Chat Customizations Evaluations extension is not
+installed, so `/analyze-prompt` was unavailable; no live browser task was run.
 
-Validation is closed: the package/lifecycle/frontmatter/hook slice passed 237
-tests; the native `build,test` workflow passed 957 tests with 0 failures and
-78.86% coverage against 65%. Independent agentic-security review ended at
-0 Critical and 0 High. The Prompt and packaged agents were never invoked, and
-the four obsolete FarmSight user-profile prototypes were removed.
+The validated tree was deployed with `Setup-CopilotSettings.ps1`; the installed
+Software Engineer file is a byte-exact SHA-256 match. Reload VS Code or reselect
+the Custom agent before expecting the new tool set in an existing session.
 
 ## Previously: the session clock itself
 
@@ -129,6 +128,10 @@ run needs an explicit go-ahead rather than an assumption.
 
 ## Open findings
 
+- `elster-form-capture` requires Playwright browser automation against a page
+  the taxpayer explicitly shares, but the Tax Researcher Custom agent exposes
+  only `openSimpleBrowser`. Before the agent can drive Mein ELSTER, replace that
+  entry with `browser` and pin the login, credential, and transmission bounds.
 - No trigger-query set was authored for `german-tax-research`. Adding one would
   flip its coverage test from skipped to enforced while the sweep that gives it
   meaning cannot run, growing the "authored but never measured" debt the seven
@@ -161,7 +164,7 @@ run needs an explicit go-ahead rather than an assumption.
 
 ## Next step
 
-Keep the workflow uninvoked until its external containment profile, verifier,
-ledger appender, identities, filesystem policy, and optional live runner exist.
-The repository change is ready for user-controlled remote closure after the
-local commit; never push or open a pull request without a new explicit request.
+Align the Tax Researcher Custom agent with `elster-form-capture`, then reload or
+reselect both changed agents and verify one local web journey plus one shared
+ELSTER draft journey without transmitting. Never push or open a pull request
+without a new explicit request.
