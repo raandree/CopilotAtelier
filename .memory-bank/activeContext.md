@@ -9,53 +9,27 @@ source: current task evidence
 
 ## Current focus
 
-The Software Engineer Custom agent now owns its web-application feedback loop
-on branch `ai/software-engineer-browser-tools`. Its frontmatter replaces the
-preview-only `openSimpleBrowser` entry with VS Code's built-in `browser` tool
-set, and its body requires reproduce, inspect, fix, and repeat validation using
-page content, console errors, screenshots, and affected desktop and mobile
-viewports. Browser-session evidence complements repository regression tests.
+The Custom agent standards audit is now partly remediated. Security Reviewer
+and Technical Writer can delegate explicitly to `research-analyst`; DevOps
+Training Writer uses real coordinator/subagent composition instead of claiming
+implicit inheritance; Research Analyst no longer exposes a targetless
+pseudo-handoff to a Prompt. Career, legal, and tax records live under separate
+`.memory-bank/<role>/` namespaces, with ambiguous legacy files preserved until
+the user assigns them. Every formerly web-preview-only agent now exposes the
+current `browser` tool; Contoso remains browser-free.
 
-The browser boundary defaults to agent-opened ephemeral sessions on loopback
-application origins. Authenticated state is available only when the user
-explicitly shares a browser tab, and credentials never travel through chat.
-The Contoso overlay inherits the conditional workflow text but deliberately
-omits `browser`, preserving its no-egress tool surface.
+`tests/AgentBestPractices.Tests.ps1` adds semantic checks for those contracts,
+every handoff target, the cross-client README caveat, and the 30,000-character
+prompt limit. The four existing oversized bodies are a shrink-only baseline,
+not an exemption. The test went red on all six defect classes before the fixes
+and now passes 24/24. The full detached `build,test` gate passes 1,029 tests
+with 0 failures, 61 skips, 0
+inconclusive, and 78.51% coverage against 65%; AST parsing, PSScriptAnalyzer,
+Markdown diagnostics, corruption markers, and whitespace checks are clean.
 
-The change was test-first. The new Software Engineer contract failed on the
-missing tool and workflow, then passed 11/11. Inheritance passed 4/4, shared
-lifecycle passed 10/10, and frontmatter passed 113/113. The native
-`build,test` workflow passed 1,005 tests with 0 failures, 61 skips, and 78.51%
-coverage against 65%. AST parsing, PSScriptAnalyzer, editor diagnostics, and
-diff checks are clean. The Chat Customizations Evaluations extension is not
-installed, so `/analyze-prompt` was unavailable; no live browser task was run.
-
-The validated tree was deployed with `Setup-CopilotSettings.ps1`; the installed
-Software Engineer file is a byte-exact SHA-256 match. Reload VS Code or reselect
-the Custom agent before expecting the new tool set in an existing session.
-
-## Previously: the session clock itself
-
-A model has no clock, so both the opening timestamp and the duration are measured
-by hooks and written to
-`<LocalApplicationData>/CopilotAtelier/sessions/session-<key>.json` — on disk, so
-they survive compaction. `UserPromptSubmit` cannot inject context (common output
-format only, no `additionalContext`, the same limitation recorded for `PreCompact`
-in decision 0021), and `PreToolUse` would spend tokens on every call. The clock
-avoids `/tmp` (world-writable on Linux) and `.memory-bank/` (machinery, not
-knowledge, and it must work without a Memory Bank).
-
-The formatter shipped with a bug the tests caught: `[int]1.5` rounds in
-PowerShell, so 90 minutes reported `2h 30m`. It floors explicitly now, and five
-durations sitting where rounding and truncation disagree are pinned.
-
-Deploying it surfaced a second `Stop` hook nobody remembered: a `.github/hooks/`
-smoke-test probe from 2026-08-10 whose `windows` override hardcoded
-`D:\Git\CopilotAtelier\...`, erroring on every turn since. Both files are
-deleted. It survived because `Hooks.Tests.ps1` asserts exactly this failure but
-was scoped to one path, so a hook file one directory away sat outside every gate.
-The suite now enumerates every tracked `hooks/*.json` and requires the shipped
-configuration to be the only one.
+The prompt-budget refactor is deliberately separate. Its forward Session
+handoff is `.memory-bank/session/handoff-2026-09-04T1000Z.md`. The user asked
+that this work remain uncommitted.
 
 ## Previously: the `long-running-job-monitor` discovery failure
 
@@ -77,23 +51,13 @@ the receiving agent with fresh context. Any ring of `send: true` handoffs is
 unbounded by construction, so *Fix Issues Found* now sets `send: false` and
 `tests/DevelopmentCycle.Tests.ps1` walks the whole graph and fails on one.
 
-## Still open from the 1.0 migration
+## Agent Plugins 1.0 status
 
-The plugin package moved to Agent Plugins 1.0, and the package is now the
-primary layout rather than a second view of the module payload. `plugin.json`
-declares the canonical `$schema`, the legacy `agents` and `skills` path fields
-are gone, `Skills/` is root `skills/`, and all four Copilot-specific component
-types live under `com.github.copilot/{agents,rules,commands,hooks}`. The module
-deployment is preserved by translation: the installer maps deployed name to
-source path, so `~/.copilot/{agents,instructions,skills,prompts,hooks}` is
-unchanged. Decision 0023 records the trade-off it accepts — cross-type relative
-links are now correct in the package view and wrong in the deployed view.
-
-Unverified and deliberately so: no documentation states whether
-`.instructions.md` and `.prompt.md` register from `com.github.copilot/rules`
-and `com.github.copilot/commands`. The bet is one-sided, since the module path
-delivers both regardless. Confirming it needs one empirical test — install from
-source and check whether the instructions and prompts appear.
+The latest VS Code Agent Plugins documentation confirms all four Copilot-only
+component paths under `com.github.copilot/`, including `rules/` and `commands/`.
+The source layout chosen in Decision 0023 is therefore documented upstream;
+only the accepted cross-type-link mismatch in the translated module deployment
+remains.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -128,16 +92,29 @@ run needs an explicit go-ahead rather than an assumption.
 
 ## Open findings
 
-- `elster-form-capture` requires Playwright browser automation against a page
-  the taxpayer explicitly shares, but the Tax Researcher Custom agent exposes
-  only `openSimpleBrowser`. Before the agent can drive Mein ELSTER, replace that
-  entry with `browser` and pin the login, credential, and transmission bounds.
-- No trigger-query set was authored for `german-tax-research`. Adding one would
-  flip its coverage test from skipped to enforced while the sweep that gives it
-  meaning cannot run, growing the "authored but never measured" debt the seven
-  existing sets already represent. Author it with the sweep, not before.
-- The development cycle ships unmeasured for the same reason: the tests prove
-  its structure, not that four live stages actually hand over correctly.
+- **High:** `software-engineer-contoso` claims no egress while retaining an
+  unrestricted terminal and mandating a generic `security-reviewer` delegate
+  that can read the repository and use web, GitHub, MCP, and terminal tools.
+  Prose does not enforce the boundary, especially on native Windows where VS
+  Code terminal sandboxing is unavailable.
+- **High:** eleven older agents combine workspace/private-data access,
+  untrusted web content, arbitrary execution, and broad MCP access. Replace
+  copied omnibus tool lists with role-specific least-privilege surfaces. The
+  README now documents staged private intake, local transformation, minimized
+  public research, and user-confirmed browser actions, but guidance is not
+  enforced containment.
+- **Major:** `career-coach` (35,672 chars), `research-analyst` (43,376),
+  `security-reviewer` (43,772), and `technical-writer` (35,018) exceed GitHub's
+  30,000-character Custom agent prompt limit. The new test prevents growth; the
+  separate Session handoff owns the refactor below the limit.
+- **Major:** every profile omits `target` but declares a VS Code model-priority
+  array and mostly VS Code-qualified tool IDs. Copilot CLI documents one model
+  string plus CLI tool names such as `view`, `edit`, `powershell`, `grep`, and
+  `task`; the README now warns that discovery is not capability parity, but
+  product-specific profiles or a shared compatible subset remain open.
+- **Medium:** no executed agent behavioral eval set exists. The semantic tests
+  catch structural regressions, but the Chat Customizations Evaluations
+  extension is not installed and no live capability comparison was run.
 
 ## Carried forward from the route-selection eval
 
@@ -164,7 +141,10 @@ run needs an explicit go-ahead rather than an assumption.
 
 ## Next step
 
-Align the Tax Researcher Custom agent with `elster-form-capture`, then reload or
-reselect both changed agents and verify one local web journey plus one shared
-ELSTER draft journey without transmitting. Never push or open a pull request
-without a new explicit request.
+Open the forward Session handoff in a fresh chat and refactor the four oversized
+Custom agent bodies one at a time. Treat the Contoso no-egress contradiction
+and capability-isolated sensitive-research workflow as a separate architecture
+change: necessary web, local-file, OCR, and browser access must survive, while
+private intake and attacker-controlled content must not share an unrestricted
+outbound execution context. Do not commit the current tree unless the user
+explicitly reverses the request.

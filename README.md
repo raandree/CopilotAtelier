@@ -359,9 +359,56 @@ Plugin-provided skills appear as `/copilot-atelier:<skill>` and update automatic
 [`plugin.json`](plugin.json) declares the canonical `$schema`, which is what selects the format. Skills are the portable component and are read by any conformant client from `skills/`. Custom agents, instructions (`rules`), prompt files (`commands`), and hooks are Copilot-specific and ship from the [`com.github.copilot/`](com.github.copilot/) namespace, which other clients ignore without rejecting the package.
 
 > [!NOTE]
-> Two caveats worth knowing before you choose this path. Hooks bundled in a plugin execute on your machine, so review them first — see [`com.github.copilot/hooks/README.md`](com.github.copilot/hooks/README.md). And whether `.instructions.md` and `.prompt.md` register from `rules/` and `commands/` is not documented by either client, so treat those two as unconfirmed on the plugin path; the module path delivers them either way.
+> Two caveats matter before you choose this path. Hooks bundled in a plugin
+> execute on your machine, so review them first; see
+> [`com.github.copilot/hooks/README.md`](com.github.copilot/hooks/README.md).
+> Custom agent discovery is cross-client, but capabilities vary by client.
+> These profiles are authored and tested primarily in VS Code. Another Copilot
+> client can ignore unavailable product-specific tool identifiers, VS Code
+> handoffs, or a model priority array it does not support. Treat installation as
+> discovery compatibility, not proof of identical runtime behavior. Agent
+> Skills are the portable behavior layer defined by Agent Plugins 1.0.
 
 Keybindings are not a plugin component type at all. Install the module from the Gallery if you want those too — the paths are complementary, and the [Deployment record](#verifying-it-works) reports whichever version is actually deployed.
+
+### Sensitive local-data research
+
+Some domain Custom agents intentionally need both private local material and
+external capabilities. Tax work may read receipts from OneDrive, career work
+may assess community contributions, and both may run local PDF, spreadsheet,
+or OCR tools before using public websites. Removing every web or execution tool
+would make those agents unable to do their job. Treat access as a staged
+workflow instead:
+
+1. **Narrow local intake.** Grant read-only access only to the specific
+  OneDrive or evidence folder needed for the task, for example through
+  `chat.additionalReadAccessFolders`. Do not sweep the whole user profile when
+  one folder is sufficient.
+2. **Transform locally.** Run PDF extraction, spreadsheet parsing, and OCR on
+  the local machine. Write derived files to a task-specific local staging
+  folder and keep raw documents out of web queries and tool arguments.
+3. **Minimize public research.** Search with the smallest non-identifying facts
+  that answer the question. Do not send names, tax identifiers, addresses,
+  document text, or private source files to public search, arbitrary MCP
+  servers, or external analysis services.
+4. **Separate authenticated actions.** Use an agent-opened ephemeral browser
+  for public research. Use an authenticated tab only when the user explicitly
+  shares it; the user signs in and confirms submissions, messages, uploads,
+  payments, and other irreversible actions.
+5. **Enforce high-risk boundaries outside the prompt.** Keep approvals
+  session-scoped and use domain and command allow-lists. For stronger isolation,
+  run terminal and untrusted-content work in WSL2, a dev container, or a VM
+  with filesystem and network policy. Native Windows VS Code sessions do not
+  currently provide the same OS-level terminal sandbox as macOS, Linux, and
+  WSL2.
+
+Tool availability is therefore not blanket authorization. The risk appears
+when one model invocation can simultaneously read private data, consume
+attacker-controlled content, and use an outbound channel. Staging the workflow
+and enforcing boundaries between those phases preserves the useful
+capabilities while reducing what a prompt-injected step can reach. See
+[AI security in VS Code](https://code.visualstudio.com/docs/agents/run/security)
+for the current approval, sensitive-file, workspace-trust, and sandbox controls.
 
 ## Building from Source
 

@@ -4,7 +4,7 @@ description: 'Expert-level design agent for the phase before code exists. Interr
 model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
 disable-model-invocation: true
 argument-hint: 'Describe the system, feature, or change you want designed'
-tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'read/getNotebookSummary', 'web/fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'github', 'thinking', 'useMcp']
+tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'read/getNotebookSummary', 'web/fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/askQuestions', 'todo', 'search', 'browser', 'github', 'thinking', 'useMcp']
 agents: ['research-analyst', 'security-reviewer']
 handoffs:
   - label: Implement the Design Concept

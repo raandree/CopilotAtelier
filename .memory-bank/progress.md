@@ -15,6 +15,19 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-04**: Audited all 16 Custom agents against current first-party and
+  OWASP guidance, then repaired the structural findings: executable delegation
+  for Security Reviewer and Technical Writer, real DevOps subagent composition,
+  removal of a targetless Research Analyst handoff, role-namespaced career,
+  legal, and tax records, and `browser` in every web-capable profile. Added 24
+  semantic contracts, including a 30,000-character limit with a shrink-only
+  baseline, plus cross-client and sensitive-data guidance. The semantic suite
+  passes 24/24; the full detached build passes 1,029 tests, 0 failures, 61
+  skips, and
+  78.51% coverage. Prompt-size work has its own forward Session handoff; the
+  security containment redesign remains open. Changes are uncommitted by user
+  request.
+
 - **2026-09-04**: Replaced `openSimpleBrowser` with VS Code's built-in
   `browser` tool set in the Software Engineer Custom agent and added a closed
   reproduce-inspect-fix-repeat loop for web applications. Browser use defaults
@@ -85,24 +98,6 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   33080179473). Both failed on the Windows leg alone. The lesson both times was
   that curating back to the edge only defers the breach, because the Post-flight
   append every Substantive turn owes re-breaks it on the next commit.
-
-- **2026-08-28**: Added the opt-in `cycle: full` development cycle — architect,
-  engineer, security reviewer, technical writer, with the reviewer as the gate
-  and a gated fail path back into implementation. The correction that shaped it:
-  removing the auto-handover earlier the same day treated *automatic* as the
-  problem, but the problem was *unrequested* — consent at the entry point covers
-  the whole chain, so a requested cycle may progress on its own. Close-out
-  defers to the final stage or four agents each write a changelog entry and a
-  commit for one change. Rules live in the agent bodies because a Skill is
-  advisory and cannot bind them; one new handoff edge, `security-reviewer` to
-  `technical-writer`, closed the graph. The architect carries a trigger phrase
-  book and a refusal list — "end-to-end" means end-to-end tests, so it does not
-  start one. `cycle: off` ends a running chain at the current stage, which then
-  closes out instead of stranding the commit; both switches are documented in
-  the root README and the agents README with the single-agent default first.
-  The Contoso overlay names its two reversed inherited defaults in the preamble,
-  because a precedence clause 180 lines later resolves the self-contradiction
-  only for a reader who gets there.
 
 ## Stable capabilities
 

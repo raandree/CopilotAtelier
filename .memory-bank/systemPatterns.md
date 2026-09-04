@@ -43,56 +43,45 @@ in `techContext.md`, not here.
 
 ## Live relationships
 
-- The Software Engineer Custom agent uses `browser` for ephemeral loopback
-    validation; authenticated state requires explicit sharing, while no-egress
-    overlays inherit conditional prose but omit the tool.
-- A multi-agent cycle is one consent, not four; close-out belongs to one stage,
-    and stage rules bind only in an agent body. Its failure path is a ring of
-    `send: true` handoffs, unbounded because each handoff starts the receiver
-    with fresh context: break the ring in frontmatter, detect rings in a test.
-- A risk-scaled subagent rule becomes an unconditional handover when its trigger
-    list covers the repository's ordinary work. Costly delegation is a user-set
-    switch with a named default; the risk list then gates what the agent reports,
-    and the shared Definition of Done must name that deferral or re-create it.
-- A corporate overlay agent inherits by inlining its base body between markers;
-    a link to another `.agent.md` is inert, so a linking overlay runs as a bare
-    fragment. Inlining makes it contradict itself, so the reversed defaults are
-    named before the block, not only in a later precedence clause. Containment
-    belongs in frontmatter; `agents` and `handoffs` can restore removed egress.
-- The module carries the Customizations as its payload; `Install-CopilotAtelier`
-    deploys them and creates Discovery links, and the Setup script is a
-    clone-only shim over it. The Deployment record in the Canonical target is the
-    only place reporting which version is deployed, however it was installed.
-- Hooks enforce the rules that must hold regardless of model reasoning;
-    Instructions carry the judgement calls.
-- The `v*` release tag is the version anchor, not a record of the release.
-    GitVersion derives the next pre-release number from it and
-    `Publish_Release_To_GitHub` writes it, so a skipped release task freezes the
-    version the Gallery holds. It sends `[Unreleased]` as the body, cap 125000.
-- A hook command string is substituted before the child parses it, so a `$` token
-    reaches the interpreter as nothing. Commands are `$`-free: paths from
-    `[Environment]::GetEnvironmentVariable(...)`, exit code from
-    `Get-Variable -Name LASTEXITCODE -ValueOnly`, each path rooted with
-    `[IO.Path]::Combine('/', ...)` so an unset root cannot reach a workspace.
-- Hook commands resolve only exact `PLUGIN_ROOT` or user paths, never wildcards;
-    missing security hooks block, while missing lifecycle hooks only warn.
-- A gate that can skip is not a gate. An external-tool check must fail where it
-    is supposed to protect — CI — and must be proven to reject a bad input, or
-    it reports a green build with nothing behind it.
-- Known debt is a shrink-only baseline keyed to the offending item, never a
-    disabled check. The gate proves the fix rather than the intent: an item that
-    improves fails until its entry is removed, and a new item cannot join it
-    silently.
-- A Skill cannot override a Custom agent body or grant a tool absent from its
-    frontmatter: the body is mode instruction and the Skill is advisory. A
-    discipline that contradicts the active persona must become a persona of its
-    own, where its tools bound what it can finish.
-- Memory Bank routing has two eval layers: human-labelled routes test the
-    deterministic resolver and context reduction; label-free prompts test
-    natural-language selection with pass@k and pass^k. Compaction bypasses both
-    lifecycle gates, so a `PreCompact` hook writes an anchor Pre-flight reads.
-- The plugin package and the deployed tree are different shapes and cannot be
-    reconciled. Agent Plugins 1.0 fixes skills at root `skills/` and Copilot
-    components under `com.github.copilot/`, while discovery needs five siblings
-    under `~/.copilot`. The installer maps deployed name to source path, so a
-    cross-type relative link resolves in one tree or the other, never both.
+- Agent conformance has three independent gates: schema validity, executable
+    behavior, and effective containment. A passing frontmatter parser or exact
+    tool-list fingerprint proves only the first.
+- A no-egress claim is transitive across terminal commands, subagents, handoffs,
+    MCP tools, and hooks. Every reachable execution context needs an enforced
+    empty allow-list; prose and omitted web tools are not containment.
+- Sensitive-data research is staged: narrow read-only intake, local
+    transformation, minimized public research, then explicitly shared
+    authenticated actions. Tool availability is capability, not authorization;
+    prompt guidance does not replace an OS-enforced boundary.
+- The `agents` property authorizes which Custom agents may run as subagents; it
+    does not inherit their bodies. Share instructions through an actual referenced
+    Instruction or inline with a drift test when composition is unavailable.
+- Copilot-specific plugin agents are read by VS Code, Copilot CLI, and the
+    Copilot app. Cross-client bodies, model fields, and tool names satisfy the
+    strictest shared contract; otherwise declare an intentional `target` and
+    ship a compatible counterpart.
+- The Software Engineer uses `browser` for ephemeral loopback validation;
+    authenticated state requires explicit sharing.
+- A handoff cycle is bounded in frontmatter, not prose: any ring made entirely
+    of `send: true` edges can run unattended and must fail a graph test.
+- Costly independent review is a user-set switch with a named default. The
+    shared Definition of Done records deferred high-risk review explicitly.
+- The module carries the Customizations as payload; the installer translates
+    Agent Plugins paths into the five `~/.copilot` Discovery siblings.
+- Hooks enforce unconditional rules; Instructions carry judgement calls. Hook
+    commands resolve exact trusted roots, avoid pre-parse `$` substitution, and
+    fail closed only for security controls.
+- A gate that can skip is not a gate. External checks must fail in CI and prove
+    they reject a bad fixture.
+- Known debt is a shrink-only baseline keyed to each offender, never a disabled
+    check or a silently growing allowance.
+- A Skill cannot override a Custom agent body or grant a missing tool. A
+    conflicting discipline needs its own capability-bounded persona.
+- Role-specific records use `.memory-bank/<role>/`; an unnamespaced legacy file
+    is ambiguous and remains untouched until a user assigns and verifies it.
+- Memory Bank routing has deterministic and label-free eval layers. Compaction
+    bypasses both lifecycle gates, so `PreCompact` writes the anchor Pre-flight
+    reloads.
+- Agent Plugins and module deployment have irreconcilable layouts. Cross-type
+    relative links resolve in only one view; functional loading cannot depend on
+    them.

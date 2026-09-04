@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Interactive browser access for every web-capable Custom agent**
+  (2026-09-04). Replace the remaining preview-only `openSimpleBrowser` entries
+  with VS Code's built-in `browser` tool while keeping the Contoso profile
+  browser-free.
+
+- **Semantic Custom agent contract tests** (2026-09-04). Validate every
+  handoff target, required delegation surface, DevOps composition contract,
+  role-specific Memory Bank namespace, browser tool, cross-client README
+  caveat, and the 30,000-character prompt limit with a shrink-only baseline for
+  the four existing oversized agents.
+
 - **Interactive web-application troubleshooting in the Software Engineer agent** (2026-09-04). Replace the preview-only `openSimpleBrowser` entry with VS Code's built-in `browser` tool set so the agent can navigate and exercise its product, inspect page content, console errors, and screenshots, verify affected desktop and mobile viewports, fix defects, and repeat the original flow. Browser checks default to agent-opened ephemeral sessions on loopback origins; authenticated state is available only when the user explicitly shares a tab. Session evidence complements rather than replaces repository regression tests, and the Contoso overlay continues to omit browser access.
 
 - **A Prompt-led specification completion workflow for any spec-driven
@@ -58,6 +69,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Repair invalid Custom agent orchestration contracts** (2026-09-04). Give
+  Security Reviewer and Technical Writer an executable `research-analyst`
+  delegation path, replace the DevOps writer's fictitious inheritance with
+  explicit composition, and remove the Research Analyst pseudo-handoff that
+  had no target Custom agent.
+
 - **Make remote-mutation hooks resolve deterministically and fail closed**
   (2026-09-02). Hook commands now use only the exact `PLUGIN_ROOT` or
   `~/.copilot/hooks/scripts` path, never a version wildcard, and exit `2` with
@@ -80,6 +97,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A rule nobody checks is a rule that fails silently, so both files now carry the check. The agent gains a marker sweep in phase 5 and an anti-pattern for shipping a `Schriftsatz` PDF without one. The Skill's non-negotiable 4 names the production failure, lists the search terms — `StBerG`, `RDG`, `Steuerberatung`, `intern`, `Entwurf`, `Prüfvermerk`, `TODO` — and requires the sweep **twice**: once against the Markdown and once against the rendered PDF's text layer, because a template or a CSS rule can reintroduce what the source no longer shows. The existing `Marker sweep` verification item is extended accordingly.
 
 ### Changed
+
+- **Separate career, legal, and tax records into role-specific Memory Bank
+  namespaces** (2026-09-04). Use `.memory-bank/career/`,
+  `.memory-bank/legal/`, and `.memory-bank/tax/`; preserve ambiguous legacy
+  files until the user explicitly assigns and verifies them.
+
+- **Document cross-client Custom agent differences and staged sensitive-data
+  research** (2026-09-04). Clarify that plugin discovery does not guarantee
+  identical model or tool behavior, and preserve local file, OCR, web, and
+  authenticated-browser workflows by separating private intake, local
+  transformation, minimized public research, and user-confirmed actions.
 
 - **`german-tax-research` gains a disclosure economy** (2026-08-31). A `Begründung` addressed to a tax office had been disclosing which receipts were missing for positions nobody had questioned, explaining at length why items were *not* claimed, and conceding reductions the office had not proposed. Each sentence was true; together they handed the examiner a worklist he had not written.
 

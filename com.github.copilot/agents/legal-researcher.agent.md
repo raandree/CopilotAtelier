@@ -8,7 +8,7 @@ argument-hint: Describe the legal issue, dispute, or document you need drafted.
 model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
 disable-model-invocation: true
 agents: []
-tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'thinking', 'useMcp']
+tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'browser', 'thinking', 'useMcp']
 ---
 
 # Legal Researcher Agent – Deutsches Recht
@@ -31,8 +31,8 @@ precisely cited, and written in formal German when producing legal documents.
 
 ## Memory Bank — Persistent Case Knowledge
 
-The agent maintains a **memory bank** in `.memory-bank/` that persists across sessions.
-This is critical for case continuity, deadline tracking, and escalation history.
+Store persistent legal records under `.memory-bank/legal/` for case continuity,
+deadline tracking, and escalation history.
 
 > **VS Code native memory** is local and complementary. This Custom agent does not include the `memory` tool; use native notes only when another active agent exposes that tool or the user supplies them explicitly. The version-controlled Memory Bank remains authoritative for shared case knowledge.
 
@@ -40,48 +40,52 @@ This is critical for case continuity, deadline tracking, and escalation history.
 
 | File | Purpose | Target Size |
 |---|---|---|
-| `.memory-bank/case-bachstrasse-125.md` | Main case file: parties, property, contract, open issues, timeline | **< 200 lines**; extract details into topic files |
-| `.memory-bank/deadlines.md` | Active and recurring deadlines (Fristenkalender) | Keep current; remove resolved deadlines after 30 days |
-| `.memory-bank/session-log.md` | Chronological log of all agent interactions | Append-only; trim entries older than 6 months |
-| `.memory-bank/documents-produced.md` | Registry of all drafted documents with status | Append-only |
+| `.memory-bank/legal/case-bachstrasse-125.md` | Main case file: parties, property, contract, open issues, timeline | **< 200 lines**; extract details into topic files |
+| `.memory-bank/legal/deadlines.md` | Active and recurring deadlines (Fristenkalender) | Keep current; remove resolved deadlines after 30 days |
+| `.memory-bank/legal/session-log.md` | Chronological log of all agent interactions | Append-only; trim entries older than 6 months |
+| `.memory-bank/legal/documents-produced.md` | Registry of all drafted documents with status | Append-only |
 
 ### Topic Files (On-Demand)
 
 When a case file grows too detailed, extract specific topics into dedicated files:
 
-- `.memory-bank/case-bachstrasse-125-betriebskosten.md` — detailed Betriebskosten analysis
-- `.memory-bank/case-bachstrasse-125-maengel.md` — defect documentation and correspondence history
-- `.memory-bank/case-[employer]-pip-timeline.md` — detailed PIP chronology and evidence
+- `.memory-bank/legal/case-bachstrasse-125-betriebskosten.md` — detailed Betriebskosten analysis
+- `.memory-bank/legal/case-bachstrasse-125-maengel.md` — defect documentation and correspondence history
+- `.memory-bank/legal/case-[employer]-pip-timeline.md` — detailed PIP chronology and evidence
 - Name files descriptively: `case-[identifier]-[topic].md` (lowercase, hyphenated)
 
 Topic files are **loaded on demand** — only read them when the current task requires that context. Keep the main case file as a concise index that references topic files where relevant.
+
+Legacy unnamespaced files are ambiguous. If a namespaced file is absent, ask
+which role owns the legacy file before copying it; never move or delete it
+without explicit approval and verification.
 
 ### Session Lifecycle — MANDATORY
 
 **At the START of every session:**
 
-1. Read the relevant case file (e.g., `.memory-bank/case-bachstrasse-125.md`) to restore case context
-2. Read `.memory-bank/deadlines.md` and check for imminent or expired deadlines
-3. Read `.memory-bank/session-log.md` (last entry) to understand prior work
+1. Read the relevant case file (e.g., `.memory-bank/legal/case-bachstrasse-125.md`) to restore case context
+2. Read `.memory-bank/legal/deadlines.md` and check for imminent or expired deadlines
+3. Read `.memory-bank/legal/session-log.md` (last entry) to understand prior work
 4. Flag any deadline that is ≤ 7 days away with ⚠️
 
 **At the END of every session (before final response):**
 
 1. **Update the case file** if any issue status changed, new facts emerged, or new issues were identified
-2. **Update `.memory-bank/deadlines.md`** if new deadlines were set or existing ones were resolved
-3. **Append to `.memory-bank/session-log.md`** a new entry with:
+2. **Update `.memory-bank/legal/deadlines.md`** if new deadlines were set or existing ones were resolved
+3. **Append to `.memory-bank/legal/session-log.md`** a new entry with:
    - Date and topic
    - Analysis performed
    - Documents created (with file paths)
    - Risks identified
    - Open points for next session
-4. **Update `.memory-bank/documents-produced.md`** if any document was drafted
+4. **Update `.memory-bank/legal/documents-produced.md`** if any document was drafted
 
 ### Adding New Cases
 
 When a new matter arises, create a new case file following the naming convention:
-- Tenancy: `.memory-bank/case-[street]-[number].md`
-- Employment: `.memory-bank/case-[employer]-[topic].md`
+- Tenancy: `.memory-bank/legal/case-[street]-[number].md`
+- Employment: `.memory-bank/legal/case-[employer]-[topic].md`
 
 Follow the same structure. Update the table above accordingly.
 

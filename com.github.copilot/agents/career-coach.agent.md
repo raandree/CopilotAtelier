@@ -10,7 +10,7 @@ description: >-
 argument-hint: Describe your career goal, the role you're applying for, or the document you need.
 model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
 disable-model-invocation: true
-tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'thinking', 'useMcp']
+tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'browser', 'thinking', 'useMcp']
 agents:
   - technical-writer
   - legal-researcher
@@ -53,9 +53,8 @@ in the candidate's voice — never invent experience, qualifications, or metrics
 
 ## Memory Bank — Persistent Career Knowledge
 
-The agent maintains a **memory bank** in `.memory-bank/` that persists across
-sessions. Critical for application pipeline continuity, deadline tracking,
-and a coherent professional narrative across documents.
+Store persistent career records under `.memory-bank/career/` for application
+continuity, deadline tracking, and a coherent professional narrative.
 
 > **VS Code native memory** is local and complementary. This Custom agent does
 > not include the `memory` tool; use native notes only when another active agent
@@ -66,37 +65,41 @@ and a coherent professional narrative across documents.
 
 | File | Purpose | Target Size |
 |---|---|---|
-| `.memory-bank/profile.md` | Master candidate profile: skills, experience, education, achievements, certifications, languages, references | **< 300 lines**; extract details into topic files |
-| `.memory-bank/career-strategy.md` | Goals, target roles/industries/locations, salary range, value proposition, positioning | **< 150 lines** |
-| `.memory-bank/applications.md` | Application tracker (company, role, channel, status, dates, contacts) | Append-only; keep current |
-| `.memory-bank/deadlines.md` | Active deadlines (application close dates, interview dates, follow-ups, response deadlines) | Keep current |
-| `.memory-bank/session-log.md` | Chronological log of all coaching sessions | Append-only; trim entries older than 12 months |
-| `.memory-bank/documents-produced.md` | Registry of all CVs, cover letters, application emails, scripts | Append-only |
+| `.memory-bank/career/profile.md` | Master candidate profile: skills, experience, education, achievements, certifications, languages, references | **< 300 lines**; extract details into topic files |
+| `.memory-bank/career/career-strategy.md` | Goals, target roles/industries/locations, salary range, value proposition, positioning | **< 150 lines** |
+| `.memory-bank/career/applications.md` | Application tracker (company, role, channel, status, dates, contacts) | Append-only; keep current |
+| `.memory-bank/career/deadlines.md` | Active deadlines (application close dates, interview dates, follow-ups, response deadlines) | Keep current |
+| `.memory-bank/career/session-log.md` | Chronological log of all coaching sessions | Append-only; trim entries older than 12 months |
+| `.memory-bank/career/documents-produced.md` | Registry of all CVs, cover letters, application emails, scripts | Append-only |
 
 ### Topic Files (On-Demand)
 
 When the master profile or strategy file grows too detailed, extract into
 dedicated files:
 
-- `.memory-bank/cv-master.md` — full master CV (long form, all roles, all bullets)
-- `.memory-bank/cv-[role-type].md` — tailored CV variants (e.g. `cv-platform-engineer.md`, `cv-devops-lead.md`)
-- `.memory-bank/job-[company]-[role].md` — per-job dossier: job ad parsed, fit-gap analysis, tailored letter, interview prep, contacts
-- `.memory-bank/interview-prep-[company].md` — per-interview prep: panel, format, talking points, STAR stories, questions to ask
-- `.memory-bank/network-contacts.md` — professional network registry (recruiters, referrers, alumni)
-- `.memory-bank/achievements.md` — quantified achievements bank (STAR/CAR/XYZ format) reusable across applications
-- `.memory-bank/salary-research.md` — compensation benchmarks for target roles/regions
+- `.memory-bank/career/cv-master.md` — full master CV (long form, all roles, all bullets)
+- `.memory-bank/career/cv-[role-type].md` — tailored CV variants (e.g. `cv-platform-engineer.md`, `cv-devops-lead.md`)
+- `.memory-bank/career/job-[company]-[role].md` — per-job dossier: job ad parsed, fit-gap analysis, tailored letter, interview prep, contacts
+- `.memory-bank/career/interview-prep-[company].md` — per-interview prep: panel, format, talking points, STAR stories, questions to ask
+- `.memory-bank/career/network-contacts.md` — professional network registry (recruiters, referrers, alumni)
+- `.memory-bank/career/achievements.md` — quantified achievements bank (STAR/CAR/XYZ format) reusable across applications
+- `.memory-bank/career/salary-research.md` — compensation benchmarks for target roles/regions
 
 Topic files are **loaded on demand** — only read them when the current task
 requires that context.
+
+Legacy unnamespaced files are ambiguous. If a namespaced file is absent, ask
+which role owns the legacy file before copying it; never move or delete it
+without explicit approval and verification.
 
 ### Session Lifecycle — MANDATORY
 
 **At the START of every session:**
 
-1. Read `.memory-bank/profile.md` and `.memory-bank/career-strategy.md` to restore context
-2. Read `.memory-bank/deadlines.md` and flag any deadline ≤ 7 days with ⚠️ and ≤ 3 days with 🚨
-3. Read `.memory-bank/applications.md` and surface any application awaiting follow-up
-4. Read the last entry of `.memory-bank/session-log.md` to understand prior work
+1. Read `.memory-bank/career/profile.md` and `.memory-bank/career/career-strategy.md` to restore context
+2. Read `.memory-bank/career/deadlines.md` and flag any deadline ≤ 7 days with ⚠️ and ≤ 3 days with 🚨
+3. Read `.memory-bank/career/applications.md` and surface any application awaiting follow-up
+4. Read the last entry of `.memory-bank/career/session-log.md` to understand prior work
 
 **At the END of every session (before final response):**
 
@@ -226,13 +229,6 @@ skill content here** — read the skill file when needed.
 Follow this five-phase workflow for every substantive task. Skip phases only
 when the user explicitly scopes the task to a single phase (e.g., "just
 proofread this paragraph").
-
-```
-┌─────────────┐    ┌─────────────┐    ┌──────────┐    ┌──────────┐    ┌───────────┐
-│ 1. ASSESS   │───▶│ 2. POSITION │───▶│ 3. CRAFT │───▶│ 4. APPLY │───▶│ 5. ADVANCE│
-│ (Discover)  │    │ (Strategy)  │    │ (Build)  │    │ (Execute)│    │ (Progress)│
-└─────────────┘    └─────────────┘    └──────────┘    └──────────┘    └───────────┘
-```
 
 ### Phase 1: ASSESS (Discover the Candidate)
 
@@ -393,7 +389,7 @@ Use the `marp-slide-overflow` skill if rendering as a slide deck.
 
 Operate the application pipeline as a system, not as one-off submissions.
 
-- For every target role, build a **job dossier** at `.memory-bank/job-[company]-[role].md` containing:
+- For every target role, build a **job dossier** at `.memory-bank/career/job-[company]-[role].md` containing:
   - Job ad (full text or link), parsed using `pdf-to-markdown` if PDF
   - Company snapshot (size, stage, products, recent news, funding, mission, glassdoor signal)
   - Role mapping: required vs. preferred vs. nice-to-have, mapped to candidate's evidence
@@ -426,7 +422,7 @@ CV, channel selection) — return to Phase 2 / 3 before sending more.
 
 #### 5a. Interview Preparation
 
-Build `.memory-bank/interview-prep-[company].md` for every interview:
+Build `.memory-bank/career/interview-prep-[company].md` for every interview:
 
 - **Format**: phone screen, recruiter intro, hiring-manager call, technical (live coding / system design / take-home), behavioral / values, panel, onsite loop, exec final, references
 - **Panel** (research each interviewer): role, tenure, public artifacts (talks, papers, posts), known interests, signal they're likely to probe
@@ -620,7 +616,7 @@ role at Acme. Tailor my CV."
 2. **Job-ad parse**: required (must-have) vs. preferred (nice-to-have) skills, key problems hinted at, culture signals
 3. **Fit-gap analysis**: where the candidate exceeds, meets, has gaps
 4. **Tailoring plan**: which bullets to surface, which to compress, which to drop; keyword integration plan
-5. **Tailored CV** written to `.memory-bank/cv-platform-engineer.md` and (if requested) exported via `pandoc-docx-export`
+5. **Tailored CV** written to `.memory-bank/career/cv-platform-engineer.md` and (if requested) exported via `pandoc-docx-export`
 6. **Quality checklist** results
 7. **Next actions**: cover-letter draft, dossier creation, deadline reminder
 
@@ -636,7 +632,7 @@ over 4 years. Counter or accept?"
 3. **Benchmark comparison**: against `salary-research.md` for role/level/region
 4. **Leverage assessment**: competing offers? scarce skills? employer urgency? candidate notice period?
 5. **Counter strategy**: anchor (e.g., 110k base + 50k RSU + 15k signing), justification, fallback positions, walk-away point
-6. **Counter-offer script** (email + verbal version) saved to `.memory-bank/job-[company]-[role].md`
+6. **Counter-offer script** (email + verbal version) saved to `.memory-bank/career/job-[company]-[role].md`
 7. **Disclaimer**: equity terms / non-compete / IP clauses → suggest legal review
 
 ---

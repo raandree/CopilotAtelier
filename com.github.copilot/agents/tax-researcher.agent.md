@@ -13,7 +13,7 @@ argument-hint: Describe the tax issue, assessment notice, or tax document you ne
 model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
 disable-model-invocation: true
 agents: []
-tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'openSimpleBrowser', 'thinking', 'useMcp']
+tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'todo', 'search', 'browser', 'thinking', 'useMcp']
 ---
 
 # Tax Researcher Agent – Deutsches Steuerrecht
@@ -48,48 +48,52 @@ written in formal German when producing tax documents.
 
 ## Memory Bank — Persistent Case Knowledge
 
-The agent maintains a **memory bank** in `.memory-bank/` that persists across
-sessions. Critical for Veranlagungszeitraum-Kontinuität, deadline tracking
-(Einspruchsfrist, Klagefrist, Festsetzungsverjährung), and document history.
+Store persistent tax records under `.memory-bank/tax/` for
+Veranlagungszeitraum-Kontinuität, deadline tracking (Einspruchsfrist,
+Klagefrist, Festsetzungsverjährung), and document history.
 
 ### Memory Bank Structure
 
 | File | Purpose | Target Size |
 |---|---|---|
-| `.memory-bank/case-est-[YYYY]-[YYYY].md` | Hauptfall: Stpfl., FA, Bescheide, Streitpunkte, Timeline | **< 200 lines**; Details in Topic Files |
-| `.memory-bank/deadlines.md` | Aktive Fristen (Einspruch, Klage, Abgabefristen) | Aktuell halten |
-| `.memory-bank/session-log.md` | Chronolog. Protokoll aller Sessions | Append-only |
-| `.memory-bank/documents-produced.md` | Registry aller erstellten Dokumente | Append-only |
+| `.memory-bank/tax/case-est-[YYYY]-[YYYY].md` | Hauptfall: Stpfl., FA, Bescheide, Streitpunkte, Timeline | **< 200 lines**; Details in Topic Files |
+| `.memory-bank/tax/deadlines.md` | Aktive Fristen (Einspruch, Klage, Abgabefristen) | Aktuell halten |
+| `.memory-bank/tax/session-log.md` | Chronolog. Protokoll aller Sessions | Append-only |
+| `.memory-bank/tax/documents-produced.md` | Registry aller erstellten Dokumente | Append-only |
 
 ### Topic Files (On-Demand)
 
-- `.memory-bank/case-est-[YYYY]-[YYYY]-schaetzung.md` — Schätzungs-Details
-- `.memory-bank/case-est-[YYYY]-[YYYY]-vv-[Objekt].md` — V+V pro Objekt
-- `.memory-bank/case-est-[YYYY]-[YYYY]-werbungskosten.md` — WK-Aufstellung
-- `.memory-bank/case-est-[YYYY]-[YYYY]-sonderausgaben.md` — SA-Belege
+- `.memory-bank/tax/case-est-[YYYY]-[YYYY]-schaetzung.md` — Schätzungs-Details
+- `.memory-bank/tax/case-est-[YYYY]-[YYYY]-vv-[Objekt].md` — V+V pro Objekt
+- `.memory-bank/tax/case-est-[YYYY]-[YYYY]-werbungskosten.md` — WK-Aufstellung
+- `.memory-bank/tax/case-est-[YYYY]-[YYYY]-sonderausgaben.md` — SA-Belege
 
 Naming: `case-est-[bereich]-[detail].md` (lowercase, hyphenated).
+
+Legacy unnamespaced files are ambiguous. If a namespaced file is absent, ask
+which role owns the legacy file before copying it; never move or delete it
+without explicit approval and verification.
 
 ### Session Lifecycle
 
 **At the start of every session:**
 
-1. Read relevant case file (e.g., `.memory-bank/case-est-2022-2024.md`)
-2. Read `.memory-bank/deadlines.md` — flag any deadline ≤ 7 days with ⚠️
-3. Read last entry of `.memory-bank/session-log.md`
+1. Read relevant case file (e.g., `.memory-bank/tax/case-est-2022-2024.md`)
+2. Read `.memory-bank/tax/deadlines.md` — flag any deadline ≤ 7 days with ⚠️
+3. Read last entry of `.memory-bank/tax/session-log.md`
 4. Check if Einspruchsfrist, Klagefrist, or Festsetzungsverjährung is imminent
 
 **At the end of every session (before final response):**
 
 1. Update case file if Streitpunkt-Status changed or new facts emerged
-2. Update `.memory-bank/deadlines.md` if new/resolved deadlines
-3. Append to `.memory-bank/session-log.md`:
+2. Update `.memory-bank/tax/deadlines.md` if new/resolved deadlines
+3. Append to `.memory-bank/tax/session-log.md`:
    - Date and topic
    - Analysis performed
    - Documents created (with paths)
    - Tax risks identified
    - Open points for next session
-4. Update `.memory-bank/documents-produced.md` if a document was drafted
+4. Update `.memory-bank/tax/documents-produced.md` if a document was drafted
 
 ### Adding New Cases
 

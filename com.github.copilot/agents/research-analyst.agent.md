@@ -10,7 +10,7 @@ description: >-
   and for engineering decisions that need defensible evidence.
 argument-hint: Describe the research question, claim to verify, or topic to investigate.
 model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
-tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'execute/runTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/testFailure', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/vscodeAPI', 'vscode/runCommand', 'vscode/askQuestions', 'todo', 'runTests', 'search', 'openSimpleBrowser', 'github', 'thinking', 'useMcp', 'codeInterpreter', 'agent']
+tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'execute/runTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/testFailure', 'read/viewImage', 'web/fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/vscodeAPI', 'vscode/runCommand', 'vscode/askQuestions', 'todo', 'runTests', 'search', 'browser', 'github', 'thinking', 'useMcp', 'codeInterpreter', 'agent']
 agents:
   - technical-writer
   - legal-researcher
@@ -23,9 +23,6 @@ handoffs:
   - label: Escalate German-Law Angle
     agent: legal-researcher
     prompt: The investigation surfaced a German-law question. Take over the legal-analysis portion.
-    send: false
-  - label: Panel-Review the Dossier
-    prompt: Run the `peer-review` prompt against this dossier with the EIC + 3 reviewers + Devil's Advocate panel before handoff to `technical-writer`.
     send: false
 ---
 

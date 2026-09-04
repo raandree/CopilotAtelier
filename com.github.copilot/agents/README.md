@@ -658,7 +658,7 @@ In VS Code with GitHub Copilot:
 **Key Features**:
 
 - Five-phase career workflow (ASSESS → POSITION → CRAFT → APPLY → ADVANCE)
-- Persistent memory bank (`profile.md`, `career-strategy.md`, `applications.md`, `deadlines.md`, plus per-job dossiers and per-interview prep files)
+- Persistent Memory Bank under `.memory-bank/career/` (`profile.md`, `career-strategy.md`, `applications.md`, `deadlines.md`, plus per-job dossiers and per-interview prep files)
 - Application status vocabulary with consistent icons (🎯 RESEARCHING, 📤 APPLIED, 🎤 INTERVIEWING, 💰 OFFER, ✅ ACCEPTED, ❌ REJECTED, 👻 GHOSTED)
 - ATS-aware formatting rules (single column, standard headings, parseable dates, no white-text keyword stuffing)
 - STAR / CAR / XYZ achievement framing with quantified outcomes
@@ -687,7 +687,7 @@ In VS Code with GitHub Copilot:
 **Role**: Specialized DevOps/Ops Training Content Creation  
 **Scope**: Supplementary — not part of the SDLC pipeline  
 **File**: `devops-training-writer.agent.md`  
-**Inherits From**: Training Content Writer Agent (all generic training rules)
+**Composes With**: Training Content Writer Agent for bounded curriculum planning
 
 **Responsibilities**:
 
@@ -698,7 +698,7 @@ In VS Code with GitHub Copilot:
 
 **Key Features**:
 
-- **Inherits** all features from Training Content Writer Agent
+- Delegates substantial curriculum architecture to `training-writer`, then applies the returned plan through its DevOps-specific rules
 - Five DevOps audience profiles (DevOps Engineer, SRE, Platform Engineer, Ops/Sysadmin, Developer)
 - DevOps content domain map (Foundation → Build & Deploy → Infrastructure → Operate → Platform)
 - Domain-specific module patterns for CI/CD, IaC, Containers, Monitoring, DevSecOps
@@ -709,21 +709,23 @@ In VS Code with GitHub Copilot:
 - DevOps terminology glossary (CI, CD, IaC, GitOps, SRE, Shift Left, etc.)
 - DevOps-specific anti-patterns (tool worship, happy-path-only, ignoring security)
 
-**Inheritance Architecture**:
+**Composition Architecture**:
 
 ```
-training-writer (generic)
-    ├── Didactical framework (Bloom's, constructive alignment)
-    ├── GitHub Markdown format and repo structure
-    ├── Lab integration patterns
-    ├── Modular design rules
-    └── Flexible agenda system
-        │
-        └── devops-training-writer (specialized)
-                ├── DevOps audience profiles
-                ├── DevOps content domains
-                ├── DevOps lab strategies
-                └── DevOps workshop formats
+devops-training-writer (coordinator)
+   │
+   ├── delegates curriculum planning to training-writer
+   │       ├── Didactical framework (Bloom's, constructive alignment)
+   │       ├── GitHub Markdown format and repository structure
+   │       ├── Lab integration patterns
+   │       ├── Modular design rules
+   │       └── Flexible agenda system
+   │
+   └── applies the returned plan with specialist guidance
+         ├── DevOps audience profiles
+         ├── DevOps content domains
+         ├── DevOps lab strategies
+         └── DevOps workshop formats
 ```
 
 **When to Use**:
