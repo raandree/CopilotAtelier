@@ -1,11 +1,23 @@
 ---
 applyTo: "**/*.ps1,**/*.psm1,**/*.psd1,**/build.yaml,**/*.yml"
-description: "How to run PowerShell from VS Code without freezing it: detach Pester and build runs, keep one-shot commands synchronous, never poll in the foreground, and handle logs and interactive prompts safely."
+description: "How to run PowerShell from VS Code without freezing it: detach and monitor Pester and build runs, keep one-shot commands synchronous, never poll in the foreground, and handle logs and interactive prompts safely."
 ---
 
 # PowerShell execution safety in VS Code
 
-## Running Tests & Builds — NEVER Use Direct Execution
+## Long-Running Commands — Detach AND Monitor, Never Direct Execution
+
+Trigger, checkable without judgement: any command expected to exceed roughly
+two minutes, and unconditionally `Invoke-Pester`, `Invoke-Build`, `build.ps1`,
+`test.ps1`, any other test or build entry point, any installer, and any
+deployment entry point. It fires on an agent-initiated run — no user request,
+no user phrasing to match — so decide from the command, not the conversation.
+
+Detaching and monitoring are one obligation. Load `long-running-job-monitor`
+before launching; it specifies the instrumented log, the status line owed on
+every in-flight reply, and the stuck-versus-working classification. A detached
+run that is not instrumented and monitored is non-compliant, not
+half-compliant.
 
 - Always run `Invoke-Pester`, `Invoke-Build`, and build entry points such as
     `build.ps1` in a new, fully detached process. The canonical helper uses
@@ -17,9 +29,9 @@ description: "How to run PowerShell from VS Code without freezing it: detach Pes
 - Launch with `Start-DetachedPowerShell.ps1`, write merged PowerShell streams
     to a persistent log under `$env:TEMP`, and return `ProcessId`, `LogPath`,
     and `ResultPath` metadata.
-- Do not use a `Start-Sleep` polling loop. Inspect process state and logs only
-    on a later status check, or apply `long-running-job-monitor` when ongoing
-    progress reporting is required.
+- Do not use a `Start-Sleep` polling loop and do not re-read terminal output on
+    a cadence. End the turn and let the completion notification wake the next
+    one; inspect process state and logs on a status check.
 
 ```powershell
 $runId = [guid]::NewGuid().ToString('N')
@@ -69,6 +81,22 @@ On a later status check, `ResultPath` absent means no completion result is
 available yet; content `0` means success and `1` means failure. Read the log for
 details. Never poll either path in a foreground sleep loop.
 
+### While a long job is in flight
+
+- Never pipe it through `Select-Object -Last` or another buffering filter.
+    Nothing reaches the terminal until the process exits, so every progress
+    check returns the same frozen snapshot and a working job is
+    indistinguishable from a hung one.
+- Never edit source files during a verification run. Build output and Pester
+    discovery are fixed at launch, so the run scores a stale artifact and has to
+    be repeated in full.
+- Never infer elapsed time from log file metadata. `Tee-Object` overwrites
+    content while NTFS keeps `CreationTime` from an earlier run; read the job's
+    own `START` line.
+- Never guess liveness from a process command line. A script running inside the
+    terminal's own `pwsh` never appears in one; use the job's terminal marker
+    and `ResultPath`.
+
 ## Other One-Shot Commands
 
 - Run other installs, module imports, scripts, and DSC compilation through the
@@ -84,9 +112,8 @@ details. Never poll either path in a foreground sleep loop.
 - Use asynchronous mode only for servers, watchers, daemons, and other
     processes that must remain running while work continues.
 - Wait for terminal completion notifications. Do not poll background commands.
-- For detached builds, tests, or multi-minute deployment monitoring, apply
-    `long-running-job-monitor` and verify progress through an independent target
-    plane.
+- Multi-minute monitoring falls under the launch rule above; verify progress
+    through an independent target plane rather than the job's own output.
 
 ## Persistent logs
 

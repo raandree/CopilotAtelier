@@ -21,8 +21,10 @@ description: "PowerShell coding standards: approved verbs, advanced functions, p
 - Run ordinary one-shot PowerShell commands synchronously unless another
     command-specific rule requires isolation.
 - Put persistent logs under `$env:TEMP`, never `output/`.
-- Follow `powershell-execution-safety.instructions.md` for background processes,
-    stream redirection, and interactive prompts.
+- A detached run must also be instrumented and monitored; load
+    `long-running-job-monitor` at launch.
+- Follow `powershell-execution-safety.instructions.md` for the launch trigger,
+    background processes, stream redirection, and interactive prompts.
 
 ## Approved Verbs
 

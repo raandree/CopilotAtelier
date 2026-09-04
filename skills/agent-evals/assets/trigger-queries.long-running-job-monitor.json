@@ -1,0 +1,82 @@
+[
+  {
+    "id": "pos-01",
+    "query": "fix the null reference in Get-RdsFarm.ps1 and make sure nothing else regressed",
+    "should_trigger": true,
+    "split": "train",
+    "note": "agent-initiated: the user never asks for a run, but verifying the fix means a ~20-minute suite. Description matching alone is not expected to carry this; the auto-loaded execution-safety instruction is the carrier."
+  },
+  {
+    "id": "pos-02",
+    "query": "run the full test suite before we tag the release",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-03",
+    "query": "kick off ./test.ps1 - it takes about twenty minutes on this repo",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-04",
+    "query": "start a verification run of build.ps1 -Tasks test and let me know how it goes",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-05",
+    "query": "while that Pester run is going, remind me how to rename a git branch",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "unrelated question mid-flight: the reply must still lead with the status line"
+  },
+  {
+    "id": "pos-06",
+    "query": "is the regression run still moving or has it hung",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "neg-01",
+    "query": "./build.ps1 -Tasks test goes red and I cannot tell which task blew up",
+    "should_trigger": false,
+    "split": "train",
+    "note": "sampler-build-debug"
+  },
+  {
+    "id": "neg-02",
+    "query": "give me a template for mocking Get-Content in a Pester test",
+    "should_trigger": false,
+    "split": "train",
+    "note": "pester-patterns"
+  },
+  {
+    "id": "neg-03",
+    "query": "should I write the failing test first before I touch Get-RdsFarm",
+    "should_trigger": false,
+    "split": "train",
+    "note": "test-driven-development"
+  },
+  {
+    "id": "neg-04",
+    "query": "run git status and tell me what is still uncommitted",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "short command - returns in seconds, monitoring overhead is not warranted"
+  },
+  {
+    "id": "neg-05",
+    "query": "Enter-PSSession to the lab VM fails with WSManFault after the reboot",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "winrm-troubleshooting"
+  },
+  {
+    "id": "neg-06",
+    "query": "Install-Lab hangs at 'Windows could not start the installation process' on Proxmox",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "automatedlab-proxmox"
+  }
+]

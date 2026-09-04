@@ -9,6 +9,19 @@ source: current task evidence
 
 ## Current focus
 
+Pulled `main` through `e23eb7e` and reconciled the staged job-monitor work
+with the upstream migration and agent updates.
+
+The execution-safety Instruction now loads `long-running-job-monitor` at
+command launch for agent-initiated runs, with detachment and monitoring
+as one obligation. Conditional and misplaced pointers caused the loading gap;
+the four observed anti-patterns are named beside launch guidance. The Skill
+description is 989 characters. Earlier validation passed 960 tests; the
+description-only eval moved train from 5/7 to 6/7, validation stayed 4/5,
+and the agent-initiated case stayed 0/3. The Instruction carries that trigger.
+
+## Previous focus: role-record migration
+
 Legacy career, legal, and tax Memory Bank records now have a deterministic
 migration path. `New-MemoryBankRoleMigrationPlan.ps1` inventories only direct
 children of one explicitly selected repository, classifies known names, and
@@ -32,8 +45,7 @@ checks are clean.
 
 Behavioral migration cases are authored in `skills/memory-bank/notes-evals.md`
 but remain unexecuted because Waza, ShellPilot, and a model backend are absent.
-The work remains uncommitted on `ai/memory-bank-role-migration` at the user's
-request.
+The migration is now on `main` and `origin/main` in commit `e23eb7e`.
 
 ## Previously: the `long-running-job-monitor` discovery failure
 
@@ -159,8 +171,7 @@ run needs an explicit go-ahead rather than an assumption.
 
 ## Next step
 
-Review the uncommitted migration diff and, when a behavioral runner is
-available, execute the authored migration cases before claiming pass@k or
-pass^k. The oversized Custom agent refactor remains in its separate Session
-handoff. Do not commit this branch unless the user explicitly reverses the
-request.
+The job-monitor changes remain staged on the updated `main`. When a behavioral
+runner is available, execute the authored migration cases before claiming
+pass@k or pass^k. The oversized Custom agent refactor remains in its separate
+Session handoff.

@@ -33,7 +33,6 @@ $script:uncoveredSkillBaseline = @(
     'gilb-requirements-engineering'
     'grammar-check'
     'grill-me'
-    'long-running-job-monitor'
     'marp-slide-overflow'
     'mcp-builder'
     'mecm-dsc-deployment'

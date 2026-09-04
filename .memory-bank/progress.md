@@ -15,6 +15,13 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-04**: Reconciled the job-monitor change with `main` at `e23eb7e`.
+  Execution-safety now loads the Skill at command launch, including
+  agent-initiated runs, binds detachment to monitoring, and names all four
+  observed anti-patterns. Description: 989 chars. Earlier validation:
+  960 tests passed. Recorded description eval: train 5/7 to 6/7, validation
+  4/5 in both arms; agent-initiated selection remained 0/3.
+
 - **2026-09-04**: Added a repository-scoped, plan-then-apply migration for
   legacy career, legal, and tax Memory Bank records. Planning is read-only by
   default; ambiguous files require explicit assignment; apply validates the
@@ -23,8 +30,8 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   agents now invoke this workflow before creating namespaced replacements.
   Validation: migration 27/27 and full build 1,057 passed, 0 failed, 61
   skipped, 78.51% coverage. Behavioral cases are authored but unrun because no
-  Waza, ShellPilot, or model backend is installed. Changes remain uncommitted
-  on `ai/memory-bank-role-migration` by request.
+  Waza, ShellPilot, or model backend is installed. The source turn left the
+  changes uncommitted by request; they are now commit `e23eb7e` on `main`.
 
 - **2026-09-04**: Audited all 16 Custom agents against current first-party and
   OWASP guidance, then repaired the structural findings: executable delegation

@@ -1,18 +1,19 @@
 ---
 name: long-running-job-monitor
 description: >-
-  Monitors long-running live tests, integrations, installations, and
-  deployments with timestamped logs, heartbeats, terminal markers,
-  out-of-band target probes, and WORKING/STALLED/DONE/FAILED classification.
-  Preserves remote jobs across control-channel drops and treats restarts as new
-  readiness epochs. USE FOR: live test, live proof, proof harness, proof run,
-  integration test, deployment, installation, long-running job, hour-long run,
-  monitor progress, heartbeat, is it stuck, still running, background job,
-  watch deployment, timestamped status, log tail, out-of-band verification,
-  remote job, SSH, WinRM, elapsed time, chat heartbeat, report every N minutes,
-  keep me posted, periodic status.
-  DO NOT USE FOR: root-cause diagnosis of AutomatedLab Proxmox provisioning
-  (use automatedlab-proxmox), generic WinRM connectivity/configuration diagnosis
+  Monitors long-running test suites, builds, installations, and deployments,
+  including a run the agent starts itself with no user request, using
+  timestamped logs, heartbeats, terminal markers, out-of-band probes, and
+  WORKING/STALLED/DONE/FAILED classification. Survives control-channel drops;
+  a restart starts a new readiness epoch. USE FOR: run the test suite, full
+  suite, Pester run, Invoke-Pester, build.ps1, test.ps1, verification run,
+  regression run, live test, live proof, proof run, integration test,
+  deployment, installation, long-running job, is it stuck, still running, watch
+  deployment, remote job, SSH, WinRM, keep me posted, answering while a job
+  runs.
+  DO NOT USE FOR: diagnosing why a build or test failed (use
+  sampler-build-debug), writing test code (use pester-patterns), AutomatedLab
+  Proxmox provisioning (use automatedlab-proxmox), WinRM connectivity diagnosis
   (use winrm-troubleshooting), short commands, skill authoring (use
   skill-creator), agent evals (use agent-evals).
 ---
@@ -23,7 +24,7 @@ Runs, monitors, and reports on jobs that take many minutes to tens of minutes �
 
 ## When to use
 
-- The agent kicks off a live/integration test run, an installer, or a deployment that will not return promptly.
+- The agent kicks off a test suite, a build, a live/integration test run, an installer, or a deployment that will not return promptly.
 - The user asks "is it done?", "is it stuck?", "still running?", "watch the deployment", or "tell me when it finishes".
 - A job's own output is silent or buffered and the agent needs an independent read on progress.
 - Skip for short commands that return in seconds — the overhead is not worth it.
@@ -34,6 +35,13 @@ This skill is the monitoring layer on top of the terminal execution contract.
 For sync versus async execution, passive completion notifications, stream
 redirection, and interactive prompts, read
 [`rules/powershell-execution-safety.instructions.md`](../../com.github.copilot/rules/powershell-execution-safety.instructions.md).
+
+That file also carries the load trigger: anything expected to run past roughly
+two minutes, and unconditionally `Invoke-Pester`, `Invoke-Build`, `build.ps1`,
+`test.ps1`, installers, and deployment entry points. It has to live there
+because it auto-applies by `applyTo`, while this description can only be
+matched against something the user said — and the job that most needs
+monitoring is usually one the agent started on its own.
 
 What this skill adds: self-timestamping instrumented logs, heartbeats, out-of-band target verification, a ~5-minute status cadence, a stuck-vs-working heuristic, and completion/cleanup.
 

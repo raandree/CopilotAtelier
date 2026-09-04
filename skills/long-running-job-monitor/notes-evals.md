@@ -141,3 +141,69 @@ Fail:
 
 - The skill does not load, the launch is hand-rolled, and the chat stays silent
   until the user asks whether anything is running.
+
+## E11 — Trigger set from the RdsFarmManager session (with/without delta)
+
+Labelled query set:
+[`trigger-queries.long-running-job-monitor.json`](../agent-evals/assets/trigger-queries.long-running-job-monitor.json).
+Every case is a real phrasing from the 2026-09-04 `C:\git\RdsFarmManager`
+session in which `./test.ps1` — a twenty-minute Pester suite — was run five
+times and this skill was never loaded. The two cases that matter most are
+`pos-01`, where the agent starts the verification run on its own and the user
+never asks for one, and `pos-05`, where the user asks an unrelated question
+while the run is in flight and the reply still owes the status line.
+
+Run it with the `agent-evals` harness:
+
+```powershell
+$workDir = Join-Path $env:TEMP 'trigger-evals/long-running-job-monitor'
+./skills/agent-evals/scripts/run-trigger-evals.ps1 -Mode Prepare `
+  -QueryFile ./skills/agent-evals/assets/trigger-queries.long-running-job-monitor.json `
+  -TargetSkill long-running-job-monitor -SkillRoot ./skills -WorkDir $workDir -Repetitions 3
+```
+
+### Recorded result — 2026-09-04
+
+Paired arms against the same 47-skill catalogue, `claude-haiku-4.5` as the
+judge in a fresh context per call, threshold 0.5. `before` is the description
+at `HEAD` prior to this change; `after` is the widened one. Positives ran 3
+repetitions; negatives ran 1, because every negative was unanimous and the
+question they answer — did the added build/test vocabulary start
+over-triggering — is answered by any hit at all.
+
+| Arm | train | validation | false positives | false negatives |
+|---|---|---|---|---|
+| before | 5/7 (71 %) | 4/5 (80 %) | 0 | `pos-01` 0/3, `pos-02` 1/3, `pos-05` 0/3 |
+| after | 6/7 (86 %) | 4/5 (80 %) | 0 | `pos-01` 0/3, `pos-05` 1/3 |
+
+Delta: train +15 pp, driven entirely by `pos-02` ("run the full test suite")
+going 0.33 → 1.00. Validation is flat at the split level, but `pos-05` moved
+0.00 → 0.33 — still under threshold. No negative flipped, so widening into
+test-and-build vocabulary did not buy positives by over-triggering; the
+`DO NOT USE FOR` lines naming `sampler-build-debug` and `pester-patterns` hold
+`neg-01` and `neg-02` at zero.
+
+The `after` arm was measured at 977 characters, before `live proof` was
+restored. Fitting the 1000-character soft cap cost `proof harness`,
+`hour-long run`, `chat heartbeat`, `report every N minutes`, `log tail`,
+`timestamped status`, and `periodic status`; `live proof`, `proof run`,
+`long-running job`, and `keep me posted` carry those concepts, and E10 remains
+the guard on the proof vocabulary. A one-repetition confirmation sweep on the
+exact shipped 989-character text returned the same selection for all twelve
+queries — train 6/7, validation 4/5, 0 false positives — so the numbers above
+describe what ships.
+
+`pos-01` stays at 0/3 in both arms, and that is the finding rather than a
+defect to iterate away. Nothing in "fix the null reference in Get-RdsFarm.ps1
+and make sure nothing else regressed" is about monitoring; the twenty-minute
+run only exists because the agent decided to verify. No description can be
+matched against a decision the agent has not made yet, which is why the load
+trigger belongs in
+[`powershell-execution-safety.instructions.md`](../../com.github.copilot/rules/powershell-execution-safety.instructions.md),
+which auto-applies by `applyTo` and is in context before the launch. Treat a
+future `pos-01` hit as a bonus, not as the fix.
+
+Caveats on the number: the judge was dispatched one subagent per call rather
+than through ShellPilot, so temperature was not pinned and negatives carry a
+single sample. Re-run through `-Mode Execute -Temperature 0` when a backend is
+available before quoting these figures as a baseline to beat.
