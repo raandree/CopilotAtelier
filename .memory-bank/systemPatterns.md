@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-27
+last-verified: 2026-09-04
 owner: software-engineer
 source: .memory-bank/decisions
 ---
@@ -77,8 +77,9 @@ in `techContext.md`, not here.
     check or a silently growing allowance.
 - A Skill cannot override a Custom agent body or grant a missing tool. A
     conflicting discipline needs its own capability-bounded persona.
-- Role-specific records use `.memory-bank/<role>/`; an unnamespaced legacy file
-    is ambiguous and remains untouched until a user assigns and verifies it.
+- Role-record migration is repository-selected and split into metadata-only
+    planning plus whole-plan-validated apply. Ambiguous records need a user
+    decision; apply copies and verifies bytes but never moves or deletes sources.
 - Memory Bank routing has deterministic and label-free eval layers. Compaction
     bypasses both lifecycle gates, so `PreCompact` writes the anchor Pre-flight
     reloads.

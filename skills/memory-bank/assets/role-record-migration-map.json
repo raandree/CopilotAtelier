@@ -1,0 +1,65 @@
+{
+    "schemaVersion": 1,
+    "automaticRules": [
+        {
+            "pattern": "profile.md",
+            "role": "career"
+        },
+        {
+            "pattern": "career-strategy.md",
+            "role": "career"
+        },
+        {
+            "pattern": "applications.md",
+            "role": "career"
+        },
+        {
+            "pattern": "cv-*.md",
+            "role": "career"
+        },
+        {
+            "pattern": "job-*.md",
+            "role": "career"
+        },
+        {
+            "pattern": "interview-prep-*.md",
+            "role": "career"
+        },
+        {
+            "pattern": "network-contacts.md",
+            "role": "career"
+        },
+        {
+            "pattern": "achievements.md",
+            "role": "career"
+        },
+        {
+            "pattern": "salary-research.md",
+            "role": "career"
+        },
+        {
+            "pattern": "case-est-*.md",
+            "role": "tax"
+        },
+        {
+            "pattern": "case-*.md",
+            "role": "legal"
+        }
+    ],
+    "ambiguousNames": [
+        "deadlines.md",
+        "session-log.md",
+        "documents-produced.md"
+    ],
+    "excludedNames": [
+        "index.md",
+        "projectbrief.md",
+        "productContext.md",
+        "activeContext.md",
+        "techContext.md",
+        "progress.md",
+        "systemPatterns.md",
+        "promptHistory.md",
+        "glossary.md"
+    ]
+}

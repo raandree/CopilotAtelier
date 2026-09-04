@@ -1,15 +1,17 @@
 ---
 name: memory-bank
 description: >-
-  Initializes, repairs, and checks a repository Memory Bank with a minimal
-  canonical file set, routed loading, evidence-based templates, retention
-  rules, and additive role-specific extensions. Preserves every existing file
-  and creates only missing files for durable repository work.
+  Initializes, repairs, checks, and safely migrates a repository Memory Bank
+  with a minimal canonical file set, routed loading, evidence-based templates,
+  retention rules, and additive role-specific extensions. Preserves existing
+  files and migrates legacy role records by verified copy, never silent moves.
   USE FOR: initialize memory bank, create .memory-bank, missing memory bank,
   bootstrap project memory, create index.md, create projectbrief.md, create
   productContext.md, create activeContext.md, create techContext.md, create
   progress.md, create systemPatterns.md, create promptHistory.md, repair
-  incomplete memory bank, check memory bank health, stale project memory.
+  incomplete memory bank, check memory bank health, stale project memory,
+  migrate legacy memory bank, namespace career/legal/tax records, old deadlines
+  or session-log files, role-record migration.
   DO NOT USE FOR: read-only questions, clarifications, transient session notes,
   replacing an existing complete Memory Bank, VS Code native memory.
 ---
@@ -27,15 +29,18 @@ role-specific schema defined by the active Custom agent remains additive.
 
 ## Trigger boundary
 
-Use this Skill only when both conditions hold:
+Use this Skill for either workflow:
 
-1. The task will create or edit durable project/configuration artifacts, or the
-   user explicitly asks to record durable project knowledge.
-2. `.memory-bank/` or one of its canonical base files is missing.
+1. **Initialization or repair:** durable repository work needs a missing
+  `.memory-bank/` or canonical base file.
+2. **Role-record migration:** the user asks to namespace legacy role records,
+  or Career, Legal, or Tax finds a legacy direct-child file before creating a
+  missing namespaced record.
 
 Do not initialize a Memory Bank for Q&A, clarification, read-only investigation,
 or transient work outside the repository. Do not create one merely because the
-workspace was opened.
+workspace was opened. Never run role migration from Customization installation
+or update, and never scan OneDrive, the user profile, or another repository.
 
 ## Canonical base
 
@@ -80,6 +85,52 @@ health requires the seven version-controlled files; an absent local
 7. Read `index.md` and apply its routes before editing project artifacts. Read
   the complete base only when the index selects `loading-mode: full` or its
   fail-open conditions apply.
+
+## Role-record migration
+
+Migration is explicit, repository-scoped, and copy-only. The bundled map
+classifies unambiguous files; `deadlines.md`, `session-log.md`, and
+`documents-produced.md` return `NeedsAssignment` until the user chooses
+`career`, `legal`, `tax`, `ManualSplit`, or `Skip`.
+
+1. Generate an in-memory plan before creating an empty namespaced replacement:
+
+  ```powershell
+  $skillRoot = "$HOME/.copilot/skills/memory-bank"
+  $planner = "$skillRoot/scripts/New-MemoryBankRoleMigrationPlan.ps1"
+  $plan = & $planner -Path $PWD.Path
+  ```
+
+2. Ask the user to resolve every `NeedsAssignment` entry. Pass the resulting
+  decisions as a hashtable and save the metadata-only plan:
+
+  ```powershell
+  $plan = & $planner -Path $PWD.Path -Assignment @{
+     'deadlines.md' = 'tax'
+     'session-log.md' = 'ManualSplit'
+  } -SavePlan
+  ```
+
+3. Preview the complete plan. A conflict, changed source, path escape, reparse
+  point, or unresolved assignment blocks every copy:
+
+  ```powershell
+  $applicator = "$skillRoot/scripts/Invoke-MemoryBankRoleMigration.ps1"
+  & $applicator -Path $PWD.Path -PlanPath $plan.PlanPath -WhatIf
+  ```
+
+4. Apply only after explicit confirmation. The applicator uses exclusive,
+  byte-exact copies, verifies SHA-256, preserves every source, and is
+  idempotent. It has no deletion mode.
+
+  ```powershell
+  & $applicator -Path $PWD.Path -PlanPath $plan.PlanPath -Confirm:$false
+  ```
+
+Saved plans live under `.memory-bank/session/role-record-migration-<UTC>.json`
+and contain paths, hashes, sizes, classifications, and decisions, never record
+contents. Review `Unknown`, `ManualSplit`, and `Skipped` entries separately;
+the migration leaves them untouched.
 
 ## Minimal templates
 
@@ -238,6 +289,8 @@ never load the directory wholesale or duplicate repository source.
 ## Safeguards
 
 - Never overwrite or silently normalize an existing file.
+- Never move, merge, split, or delete a legacy role record during migration.
+- Never put role-record contents in a migration plan or tool argument.
 - Never store passwords, tokens, private keys, or unredacted secrets.
 - Keep sensitive legal, tax, career, security, and personal data scoped to the
   repository and follow the active agent's retention rules.

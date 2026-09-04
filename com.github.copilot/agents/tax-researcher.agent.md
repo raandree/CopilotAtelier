@@ -70,9 +70,10 @@ Klagefrist, Festsetzungsverjährung), and document history.
 
 Naming: `case-est-[bereich]-[detail].md` (lowercase, hyphenated).
 
-Legacy unnamespaced files are ambiguous. If a namespaced file is absent, ask
-which role owns the legacy file before copying it; never move or delete it
-without explicit approval and verification.
+Before creating namespaced records, check for legacy files. If found, load
+`memory-bank`; resolve ambiguity via `#tool:vscode/askQuestions`; preview with
+`-WhatIf`; require explicit confirmation. Never move, delete, or split sources
+silently.
 
 ### Session Lifecycle
 

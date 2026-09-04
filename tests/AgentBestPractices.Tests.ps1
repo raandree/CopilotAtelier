@@ -196,6 +196,26 @@ Describe 'Custom agent semantic contracts' -Tag 'Unit' {
         }
     }
 
+    It 'detects and resolves legacy role records before creating replacements' {
+        foreach ($name in @(
+            'career-coach'
+            'legal-researcher'
+            'tax-researcher'
+        ))
+        {
+            $path = Join-Path $script:agentsPath "$name.agent.md"
+            $content = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+
+            $content | Should -Match '(?i)before creating.*legacy' -Because $name
+            $content | Should -Match '`memory-bank`' -Because $name
+            $content | Should -Match '#tool:vscode/askQuestions' -Because $name
+            $content | Should -Match '`-WhatIf`' -Because $name
+            $content | Should -Match '(?i)explicit confirmation' -Because $name
+            $content |
+                Should -Match '(?is)never move,\s+delete,\s+or split.*silently' -Because $name
+        }
+    }
+
     It 'does not expose the retired preview-only browser tool' {
         foreach ($file in $script:agentFiles)
         {

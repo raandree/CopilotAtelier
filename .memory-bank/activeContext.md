@@ -9,28 +9,31 @@ source: current task evidence
 
 ## Current focus
 
-The Custom agent standards audit is now partly remediated. Security Reviewer
-and Technical Writer can delegate explicitly to `research-analyst`; DevOps
-Training Writer uses real coordinator/subagent composition instead of claiming
-implicit inheritance; Research Analyst no longer exposes a targetless
-pseudo-handoff to a Prompt. Career, legal, and tax records live under separate
-`.memory-bank/<role>/` namespaces, with ambiguous legacy files preserved until
-the user assigns them. Every formerly web-preview-only agent now exposes the
-current `browser` tool; Contoso remains browser-free.
+Legacy career, legal, and tax Memory Bank records now have a deterministic
+migration path. `New-MemoryBankRoleMigrationPlan.ps1` inventories only direct
+children of one explicitly selected repository, classifies known names, and
+requires user decisions for ambiguous files. Saved plans contain metadata,
+hashes, and decisions but no record contents.
 
-`tests/AgentBestPractices.Tests.ps1` adds semantic checks for those contracts,
-every handoff target, the cross-client README caveat, and the 30,000-character
-prompt limit. The four existing oversized bodies are a shrink-only baseline,
-not an exemption. The test went red on all six defect classes before the fixes
-and now passes 24/24. The full detached `build,test` gate passes 1,029 tests
-with 0 failures, 61 skips, 0 inconclusive, and 78.51% coverage against 65%;
-AST parsing, PSScriptAnalyzer,
-Markdown diagnostics, corruption markers, and whitespace checks are clean.
+`Invoke-MemoryBankRoleMigration.ps1` validates the complete plan before any
+write, rejects changed sources, conflicts, cross-repository plans, path escapes,
+and reparse points, then performs exclusive byte-for-byte copies and verifies
+SHA-256. It never overwrites, moves, splits, or deletes a legacy source and is
+idempotent for identical destinations. Installation and update remain outside
+the migration path because they do not own repository-local private records.
 
-The prompt-budget refactor is deliberately separate. Its forward Session
-handoff is `.memory-bank/session/handoff-2026-09-04T1000Z.md`. The source turn
-left the remediation uncommitted as requested; it is now commit `5e603b7` on
-`main` and `origin/main`.
+Career Coach, Legal Researcher, and Tax Researcher now load `memory-bank` before
+creating an empty namespaced replacement, resolve ambiguity through
+`vscode_askQuestions`, preview with `-WhatIf`, and require explicit
+confirmation. The focused migration suite passes 27/27. The final detached
+`build,test` gate passes 1,057 with 0 failures, 61 skips, and 78.51% coverage
+against 65%. AST parsing, PSScriptAnalyzer, editor diagnostics, and whitespace
+checks are clean.
+
+Behavioral migration cases are authored in `skills/memory-bank/notes-evals.md`
+but remain unexecuted because Waza, ShellPilot, and a model backend are absent.
+The work remains uncommitted on `ai/memory-bank-role-migration` at the user's
+request.
 
 ## Previously: the `long-running-job-monitor` discovery failure
 
@@ -124,9 +127,6 @@ run needs an explicit go-ahead rather than an assumption.
 - **Medium:** no executed agent behavioral eval set exists. The semantic tests
   catch structural regressions, but the Chat Customizations Evaluations
   extension is not installed and no live capability comparison was run.
-- **Low:** namespaced career, legal, and tax paths preserve ambiguous legacy
-  files but provide no deterministic inventory or migration helper. A missed
-  prompt could make existing records appear absent until the user notices.
 - **Low:** three test files parse agent frontmatter with independent regular
   expressions. `powershell-yaml` is already available to the test suite; one
   shared parser plus malformed nested fixtures would reduce false greens.
@@ -159,10 +159,8 @@ run needs an explicit go-ahead rather than an assumption.
 
 ## Next step
 
-Open the forward Session handoff in a fresh chat and refactor the four oversized
-Custom agent bodies one at a time. Treat the Contoso no-egress contradiction
-and capability-isolated sensitive-research workflow as a separate architecture
-change: necessary web, local-file, OCR, and browser access must survive, while
-private intake and attacker-controlled content must not share an unrestricted
-outbound execution context. Do not commit the current tree unless the user
-explicitly reverses the request.
+Review the uncommitted migration diff and, when a behavioral runner is
+available, execute the authored migration cases before claiming pass@k or
+pass^k. The oversized Custom agent refactor remains in its separate Session
+handoff. Do not commit this branch unless the user explicitly reverses the
+request.

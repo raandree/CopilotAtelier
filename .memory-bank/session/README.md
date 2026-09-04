@@ -9,10 +9,15 @@ Session-scoped working artifacts produced by per-session prompts. Not curated pr
 | `handoff-YYYY-MM-DDTHHmmZ.md` | [`commands/session-handoff.prompt.md`](../../com.github.copilot/commands/session-handoff.prompt.md) | Cross-session continuation document so a fresh agent in a new session can resume without re-investigating context | One per session; prune when no longer useful |
 | `deadline-handoff-<yyyy-MM-dd-HH-mm>.md` | [`commands/sync-project-emails.prompt.md`](../../com.github.copilot/commands/sync-project-emails.prompt.md) | Phase 7a deadline payload handed to `deadline-action-handoff` in a fresh chat | One per sync run |
 | `compaction-YYYY-MM-DDTHHmmssZ.md` | [`hooks/scripts/Write-CompactionCheckpoint.ps1`](../../com.github.copilot/hooks/scripts/Write-CompactionCheckpoint.ps1) | Recovery anchor written by the `PreCompact` hook: trigger, transcript path, and repository state at the moment context was truncated | One per compaction; delete once the work it anchors is closed out |
+| `role-record-migration-<UTC>.json` | [`New-MemoryBankRoleMigrationPlan.ps1`](../../skills/memory-bank/scripts/New-MemoryBankRoleMigrationPlan.ps1) | Metadata-only plan for copying legacy career, legal, and tax records into role namespaces | One per reviewed plan; remove locally when no longer needed |
 
 ## Version control
 
-Repo-root [`.gitignore`](../../.gitignore) excludes `handoff-*.md`, `deadline-handoff-*.md`, and `compaction-*.md` in this folder. The `README.md` is tracked. Per-session artifacts stay out of project history; `progress.md` and `CHANGELOG.md` remain the canonical record.
+Repo-root [`.gitignore`](../../.gitignore) excludes `handoff-*.md`,
+`deadline-handoff-*.md`, `compaction-*.md`, and
+`role-record-migration-*.json` in this folder. The `README.md` is tracked.
+Per-session artifacts stay out of project history; `progress.md` and
+`CHANGELOG.md` remain the canonical record.
 
 ## Why not the rest of `.memory-bank/`?
 

@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A repository-scoped migration for legacy career, legal, and tax Memory
+  Bank records** (2026-09-04). The `memory-bank` Skill now separates planning
+  from applying: it inventories only direct children of one selected
+  `.memory-bank/`, classifies known legacy names, requires explicit decisions
+  for ambiguous files, saves a metadata-only plan, and previews with `-WhatIf`.
+  Apply validates the complete plan before writing, rejects changed sources,
+  conflicts, path escapes, cross-repository plans, and reparse points, then
+  performs byte-exact, SHA-256-verified copies without overwriting or deleting
+  any source. Career Coach, Legal Researcher, and Tax Researcher invoke this
+  workflow before creating empty namespaced replacements.
+
 - **Interactive browser access for every web-capable Custom agent**
   (2026-09-04). Replace the remaining preview-only `openSimpleBrowser` entries
   with VS Code's built-in `browser` tool while keeping the Contoso profile

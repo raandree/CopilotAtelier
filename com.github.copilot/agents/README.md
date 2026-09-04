@@ -322,7 +322,7 @@ These agents are **not part of the core software development pipeline**. They se
 
 - Specialized in German tenancy law (Mietrecht), operating costs (Betriebskosten), and real estate law (Immobilienrecht)
 - Five-phase legal reasoning workflow (ERFASSEN → PRÜFEN → SUBSUMIEREN → FASSEN → LIEFERN)
-- Persistent case memory bank, multiple document templates, norm-first reasoning
+- Persistent case memory bank under `.memory-bank/legal/`, multiple document templates, norm-first reasoning
 - Mandatory RDG disclaimer on all outputs
 - Bilingual operation (analysis in English or German; legal documents always in formal German)
 
@@ -346,7 +346,7 @@ These agents are **not part of the core software development pipeline**. They se
 **Key Features**:
 
 - Mandatory StBerG/RDG disclaimer on every substantive output
-- Persistent case memory bank (`.memory-bank/case-est-[YYYY]-[YYYY].md`) with topic files for estimation details, per-object V+V, Werbungskosten, Sonderausgaben
+- Persistent case memory bank under `.memory-bank/tax/` with topic files for estimation details, per-object V+V, Werbungskosten, Sonderausgaben
 - Session-lifecycle protocol that flags imminent Einspruchsfrist, Klagefrist, and Festsetzungsverjährung
 - Norm-first reasoning and procedurally precise drafting
 - Bilingual operation (analysis in English or German; tax documents always in formal German)
@@ -474,6 +474,13 @@ incident logs, investigation dossiers, threat models, article registries, or
 training registries. Only the active durable workflow initializes those files.
 Every agent uses the shared Definition of Done gate in Post-flight; its own
 quality checklist remains additive.
+
+Career, Legal, and Tax keep their records under `.memory-bank/career/`,
+`.memory-bank/legal/`, and `.memory-bank/tax/`. Before creating a missing
+namespaced record, those agents check for legacy direct-child files and load
+the `memory-bank` Skill. Its role-record migration plans first, asks the user to
+assign ambiguous records, previews with `-WhatIf`, and copies only after
+explicit confirmation. It never moves or deletes a source record.
 
 Durable knowledge without an existing owner may use an explicitly routed
 Memory Bank topic under `.memory-bank/topics/`. Decision records remain under

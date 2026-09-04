@@ -21,7 +21,7 @@ BeforeAll {
             Handoffs = 2
             HandoffHash = 'DA7D3D7F53FF5A51'
             MemoryHeading = "## Memory Bank $emDash Persistent Career Knowledge"
-            MemoryHash = 'F1EBCAF123212432'
+            MemoryHash = '37DFF29E24CA16EE'
         }
         'devops-training-writer.agent.md' = @{
             Tools = 29
@@ -37,7 +37,7 @@ BeforeAll {
             Handoffs = 0
             HandoffHash = 'E3B0C44298FC1C14'
             MemoryHeading = "## Memory Bank $emDash Persistent Case Knowledge"
-            MemoryHash = 'ABAB8B46B2F89377'
+            MemoryHash = '565FAC20310D327A'
         }
         'qc-inspector.agent.md' = @{
             Tools = 28
@@ -111,7 +111,7 @@ BeforeAll {
             Handoffs = 0
             HandoffHash = 'E3B0C44298FC1C14'
             MemoryHeading = "## Memory Bank $emDash Persistent Case Knowledge"
-            MemoryHash = 'E467132819689FA6'
+            MemoryHash = '089F1CE8E75D70F7'
         }
         'technical-writer.agent.md' = @{
             Tools = 37
@@ -237,7 +237,8 @@ Describe 'Shared lifecycle Customizations' {
         Split-Path -Leaf (Split-Path -Parent $script:memoryBankSkillPath) |
             Should -Be 'memory-bank'
         $description.Length | Should -BeLessOrEqual 1024
-        $description | Should -Match '^Initializes, repairs, and checks'
+        $description |
+            Should -Match '^Initializes, repairs, checks, and safely migrates'
         $description | Should -Match 'USE FOR:'
         $description | Should -Match 'DO NOT USE FOR:'
     }

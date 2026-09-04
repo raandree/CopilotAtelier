@@ -6,6 +6,7 @@ output/
 .memory-bank/session/handoff-*.md
 .memory-bank/session/deadline-handoff-*.md
 .memory-bank/session/compaction-*.md
+.memory-bank/session/role-record-migration-*.json
 
 # Prompt log — local session ephemera, intentionally untracked.
 .memory-bank/promptHistory.md

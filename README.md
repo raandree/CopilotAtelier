@@ -25,6 +25,7 @@ well-known `~/.copilot/` folders that VS Code and the Copilot CLI both read.
 - [What Each Folder Contains](#what-each-folder-contains)
 - [How Much Process You Want](#how-much-process-you-want)
 - [Available Skills](#available-skills)
+- [Migrating Legacy Memory Bank Records](#migrating-legacy-memory-bank-records)
 - [VS Code Settings Applied](#vs-code-settings-applied)
   - [File Locations](#file-locations)
   - [Feature Flags](#feature-flags)
@@ -167,7 +168,7 @@ incomplete. Nothing is pushed.
 | **german-legal-research** | Legal research and statement drafting for German law (Deutsches Recht). Specializes in tenancy/rental law (Mietrecht), property management, and operating cost disputes. |
 | **german-tax-research** | German income tax (Einkommensteuer) case work: assessment-notice review, deadline computation under the four-day notification fiction, point-by-point answers to a `Belegaufforderung`, reconciliation of every claimed figure against the return actually transmitted, and formal German drafts for `Einspruch`, `Begründung`, `AdV`, `Ruhen`, and `§ 153 AO` corrections. References cover AO procedure, V+V and AfA including `§ 7i`, Werbungskosten and Sonderausgaben, year-keyed amounts and filing deadlines, and letter templates; ships `Get-SteuerFrist.ps1` for the notification and objection dates including state holidays. |
 | **grammar-check** | Identify grammar, logical, and flow errors in text and suggest targeted fixes. Analyzes spelling, punctuation, subject-verb agreement, tense consistency, and transitions. |
-| **memory-bank** | Initialize, route, and check a repository Memory Bank for durable work. Manages seven required version-controlled files plus local prompt history, preserves existing content byte-for-byte, supports explicitly routed Decision records and optional Memory Bank topics, checks provenance and compactness budgets, retains a Full-read fallback, and provides offline pass@k/pass^k evaluation of natural-language route selection. |
+| **memory-bank** | Initialize, route, check, and safely migrate a repository Memory Bank for durable work. Manages seven required version-controlled files plus local prompt history, preserves existing content byte-for-byte, supports namespaced career, legal, and tax records, checks provenance and compactness budgets, retains a Full-read fallback, and provides offline pass@k/pass^k evaluation of natural-language route selection. |
 | **citation-integrity** | Verify every external claim, quote, statistic, and reference in generated text against a fetched source. Defines a six-class failure taxonomy (F1 fabricated reference → F6 anchorless claim), a three-layer anchor (locator + ≤25-word quote + stable identifier), a `VERIFIED` / `MISMATCH` / `NOT_FOUND` verdict scheme with no gray zone, and a cross-index triangulation rule for contamination signals. |
 | **devils-advocate-review** | Argue against a proposal, design, claim, or draft from a hostile-but-fair position with explicit safeguards against sycophancy. 1–5 rebuttal scoring rubric (concession only at ≥ 4, no consecutive concessions, attack-intensity preservation), named deflection classes (reframe, authority, volume, sentiment, goalpost shift, tu quoque, premature consensus), frame-lock self-check every three rounds, closing report with sycophancy log. |
 | **social-signal-sweep** | Recency-bounded sweep (default 30 days) of what people are publicly saying about a topic across GitHub, Hacker News, Reddit, and Stack Overflow, plus a browser-only tier for YouTube and X. Produces a tier-8 lead sheet (platform, date, engagement signal, link, what-to-verify) to seed a deeper investigation — strictly leads-only, never citable. No bundled engine, no API keys, no cookies; uses web fetch, the GitHub tools, and the simple browser. Feeds the `research-analyst` SOURCE phase. |
@@ -206,6 +207,47 @@ incomplete. Nothing is pushed.
 | **pswritehtml-reporting** | Generate interactive HTML reports, dashboards, tables, charts, and network diagrams from PowerShell objects with the PSWriteHTML module — no hand-written HTML, CSS, or JavaScript. Covers `New-HTML`, `New-HTMLTable` (DataTables filtering, paging, conditional formatting), `New-HTMLChart`, Section/Panel/Tab layout, `New-HTMLDiagram`, `Out-HtmlView`, large-dataset tuning, and HTML email bodies. |
 | **evidence-package-assembly** | Assemble paginated evidence packages (`Anlagen`) for authorities, courts, and insurers on Windows: verify documents against the claims made about them, decide which sheets may be omitted, render a Markdown cover with a locator index to PDF via pandoc and headless Edge, merge with pypdf, and verify page ranges, text layer, and the sources' own page numbering. |
 | **copilot-usage-stats** | Report how many tokens, API calls, and how much time a project has consumed, broken down by model, session, day, or surface, and convert those tokens into GitHub AI Credits and dollars at the published per-model rates. Carries the repository-scoped join that survives the three unnormalized spellings of the same repository, the verified fact that `input_tokens` already contains `cache_read_tokens`, the `cost` column that holds a legacy request multiplier rather than money, and the reason no hook, transcript, or local database can answer the question. Paired with the `/usage` Prompt on `Ctrl+K U`. |
+
+## Migrating Legacy Memory Bank Records
+
+Career, legal, and tax records now live under `.memory-bank/career/`,
+`.memory-bank/legal/`, and `.memory-bank/tax/`. Older repositories may still
+have files such as `profile.md`, `case-*.md`, or `deadlines.md` directly under
+`.memory-bank/`. Installation and updates never scan or change those private
+repository records.
+
+Run the migration from the repository you intend to update. Planning is
+read-only by default and inventories only that repository's direct
+`.memory-bank/` children:
+
+```powershell
+$skillRoot = "$HOME/.copilot/skills/memory-bank"
+$planner = "$skillRoot/scripts/New-MemoryBankRoleMigrationPlan.ps1"
+$plan = & $planner -Path $PWD.Path
+$plan.Entries | Format-Table Name, Classification, Decision, Status
+```
+
+Unambiguous files are assigned automatically. Ambiguous files such as
+`deadlines.md` require an explicit role, `ManualSplit`, or `Skip` decision.
+Save the metadata-only plan, preview the complete apply, and then run it only
+after reviewing the result:
+
+```powershell
+$plan = & $planner -Path $PWD.Path -Assignment @{
+  'deadlines.md' = 'tax'
+  'session-log.md' = 'ManualSplit'
+} -SavePlan
+
+$applicator = "$skillRoot/scripts/Invoke-MemoryBankRoleMigration.ps1"
+& $applicator -Path $PWD.Path -PlanPath $plan.PlanPath -WhatIf
+& $applicator -Path $PWD.Path -PlanPath $plan.PlanPath -Confirm
+```
+
+Apply validates the whole plan before writing, rejects changed sources,
+conflicts, path escapes, and reparse points, and copies bytes without replacing
+destinations. It verifies SHA-256 after every copy and never moves or deletes a
+legacy source. Reapplying the same plan is safe; identical destinations report
+`AlreadyMigrated`. Unknown, skipped, and manual-split files remain untouched.
 
 ## VS Code Settings Applied
 

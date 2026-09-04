@@ -88,9 +88,10 @@ dedicated files:
 Topic files are **loaded on demand** — only read them when the current task
 requires that context.
 
-Legacy unnamespaced files are ambiguous. If a namespaced file is absent, ask
-which role owns the legacy file before copying it; never move or delete it
-without explicit approval and verification.
+Before creating namespaced records, check for legacy files. If found, load
+`memory-bank`; resolve ambiguity via `#tool:vscode/askQuestions`; preview with
+`-WhatIf`; require explicit confirmation. Never move, delete, or split sources
+silently.
 
 ### Session Lifecycle — MANDATORY
 

@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-08-27
+last-verified: 2026-09-04
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,6 +14,17 @@ Copilot Atelier is published to the PowerShell Gallery and released at `v4.0.0`
 is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-09-04**: Added a repository-scoped, plan-then-apply migration for
+  legacy career, legal, and tax Memory Bank records. Planning is read-only by
+  default; ambiguous files require explicit assignment; apply validates the
+  whole plan, rejects path and reparse-point escapes, copies bytes exactly,
+  verifies SHA-256, preserves every source, and is idempotent. The three role
+  agents now invoke this workflow before creating namespaced replacements.
+  Validation: migration 27/27 and full build 1,057 passed, 0 failed, 61
+  skipped, 78.51% coverage. Behavioral cases are authored but unrun because no
+  Waza, ShellPilot, or model backend is installed. Changes remain uncommitted
+  on `ai/memory-bank-role-migration` by request.
 
 - **2026-09-04**: Audited all 16 Custom agents against current first-party and
   OWASP guidance, then repaired the structural findings: executable delegation
@@ -91,14 +102,6 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   → `software-engineer` → `security-reviewer` is the only other `send: true`
   path and the architect has no inbound edge.
 
-- **2026-09-01**: Diagnosed the red `main` build (CI run 33430725722) — the
-  second recurrence of one failure mode. `elster-form-capture` took
-  `activeContext.md` to 220 lines against a 200-line budget; five days earlier
-  `dc6206e` had taken `systemPatterns.md` to 122 against 110 (CI run
-  33080179473). Both failed on the Windows leg alone. The lesson both times was
-  that curating back to the edge only defers the breach, because the Post-flight
-  append every Substantive turn owes re-breaks it on the next commit.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -130,8 +133,6 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 - Review the twelve-agent browser allow-list role by role and add explicit
   public, authenticated, credential, upload, and irreversible-action bounds to
   every retained browser workflow.
-- Add a deterministic inventory and user-confirmed migration helper for legacy
-  career, legal, and tax files before relying exclusively on namespaced paths.
 - Replace the three handwritten agent-frontmatter parsers with one shared YAML
   parser and fixtures that prove malformed nested handoffs and lists fail.
 - Capture the trigger-eval harness's expected simulated backend failure so the
