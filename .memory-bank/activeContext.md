@@ -23,13 +23,14 @@ every handoff target, the cross-client README caveat, and the 30,000-character
 prompt limit. The four existing oversized bodies are a shrink-only baseline,
 not an exemption. The test went red on all six defect classes before the fixes
 and now passes 24/24. The full detached `build,test` gate passes 1,029 tests
-with 0 failures, 61 skips, 0
-inconclusive, and 78.51% coverage against 65%; AST parsing, PSScriptAnalyzer,
+with 0 failures, 61 skips, 0 inconclusive, and 78.51% coverage against 65%;
+AST parsing, PSScriptAnalyzer,
 Markdown diagnostics, corruption markers, and whitespace checks are clean.
 
 The prompt-budget refactor is deliberately separate. Its forward Session
-handoff is `.memory-bank/session/handoff-2026-09-04T1000Z.md`. The user asked
-that this work remain uncommitted.
+handoff is `.memory-bank/session/handoff-2026-09-04T1000Z.md`. The source turn
+left the remediation uncommitted as requested; it is now commit `5e603b7` on
+`main` and `origin/main`.
 
 ## Previously: the `long-running-job-monitor` discovery failure
 
@@ -103,6 +104,14 @@ run needs an explicit go-ahead rather than an assumption.
   README now documents staged private intake, local transformation, minimized
   public research, and user-confirmed browser actions, but guidance is not
   enforced containment.
+- **Medium:** Security Reviewer and Technical Writer delegate research to the
+  full `research-analyst` profile, whose tools include edit, terminal, browser,
+  GitHub, and MCP access. Their research-only delegation needs a narrower
+  read-only code explorer and a separate public-source researcher.
+- **Medium:** twelve agents now expose `browser`, but only Software Engineer
+  carries an explicit ephemeral-loopback, shared-authentication, and
+  user-confirmation contract. The hard-coded browser allow-list proves tool
+  presence, not role need or safe behavior; review it role by role.
 - **Major:** `career-coach` (35,672 chars), `research-analyst` (43,376),
   `security-reviewer` (43,772), and `technical-writer` (35,018) exceed GitHub's
   30,000-character Custom agent prompt limit. The new test prevents growth; the
@@ -115,6 +124,15 @@ run needs an explicit go-ahead rather than an assumption.
 - **Medium:** no executed agent behavioral eval set exists. The semantic tests
   catch structural regressions, but the Chat Customizations Evaluations
   extension is not installed and no live capability comparison was run.
+- **Low:** namespaced career, legal, and tax paths preserve ambiguous legacy
+  files but provide no deterministic inventory or migration helper. A missed
+  prompt could make existing records appear absent until the user notices.
+- **Low:** three test files parse agent frontmatter with independent regular
+  expressions. `powershell-yaml` is already available to the test suite; one
+  shared parser plus malformed nested fixtures would reduce false greens.
+- **Low:** the full build reports one warning for an intentionally simulated
+  trigger-eval backend failure. Expected failure output should be captured by
+  its test so a clean build has no warning that can mask a new one.
 
 ## Carried forward from the route-selection eval
 

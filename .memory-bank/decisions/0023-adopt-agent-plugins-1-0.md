@@ -1,9 +1,9 @@
 ---
 status: accepted
 date: 2026-08-26
-last-verified: 2026-08-26
+last-verified: 2026-09-04
 owner: software-engineer
-source: Agent Plugins 1.0 specification and VS Code agent plugin documentation
+source: Agent Plugins 1.0 specification and VS Code agent plugin documentation updated 2026-09-02
 ---
 
 # Adopt Agent Plugins 1.0 as the primary layout
@@ -50,12 +50,12 @@ deployment map onto it, rather than the other way round.
   deployment contract is preserved by translation, not by layout.
 - `keybindings/` stays at the root. It is not a plugin component type at all.
 
-The `rules/` and `commands/` file formats are not documented by VS Code or the
-Copilot CLI, so whether `.instructions.md` and `.prompt.md` register from a
-plugin install is unverified. The downside is bounded and one-sided: if a
-client rejects them, those components simply do not load *from the plugin*,
-while the module path continues to deliver them to the same deployed
-locations. There is no state in which this is worse than not moving them.
+VS Code's current Agent Plugins documentation explicitly lists `rules/` and
+`commands/` under `com.github.copilot/` and states that VS Code reads both from
+Agent Plugins packages. The source layout is therefore documented rather than
+an unverified compatibility bet. Client behavior can still differ after
+discovery because model fields, tools, handoffs, and Prompt execution are not a
+single portable runtime contract.
 
 Rejected: renaming the deployed directories to match the namespace. That would
 require pinning `chat.instructionsFilesLocations`, and this repository already

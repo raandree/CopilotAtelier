@@ -23,10 +23,10 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   semantic contracts, including a 30,000-character limit with a shrink-only
   baseline, plus cross-client and sensitive-data guidance. The semantic suite
   passes 24/24; the full detached build passes 1,029 tests, 0 failures, 61
-  skips, and
-  78.51% coverage. Prompt-size work has its own forward Session handoff; the
-  security containment redesign remains open. Changes are uncommitted by user
-  request.
+  skips, and 78.51% coverage. Prompt-size work has its own forward Session
+  handoff; the security containment redesign remains open. The source turn left
+  the changes uncommitted as requested; they are now commit `5e603b7` on `main`
+  and `origin/main`.
 
 - **2026-09-04**: Replaced `openSimpleBrowser` with VS Code's built-in
   `browser` tool set in the Software Engineer Custom agent and added a closed
@@ -125,10 +125,17 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- **2026-09-04 finding**: The Tax Researcher Custom agent cannot execute
-  `elster-form-capture` because it exposes `openSimpleBrowser`, while the Skill
-  requires Playwright browser tools against a user-shared page. Replace it with
-  `browser` and retain taxpayer-controlled authentication and transmission.
+- Split research delegation into a read-only code explorer and a public-source
+  researcher instead of granting the full `research-analyst` tool surface.
+- Review the twelve-agent browser allow-list role by role and add explicit
+  public, authenticated, credential, upload, and irreversible-action bounds to
+  every retained browser workflow.
+- Add a deterministic inventory and user-confirmed migration helper for legacy
+  career, legal, and tax files before relying exclusively on namespaced paths.
+- Replace the three handwritten agent-frontmatter parsers with one shared YAML
+  parser and fixtures that prove malformed nested handoffs and lists fail.
+- Capture the trigger-eval harness's expected simulated backend failure so the
+  successful full build emits no warning.
 - Restore a Windows PowerShell 5.1 CI leg now that `Repair_ManifestEncoding`
   fixes the manifest instead of working around it. The leg was dropped
   2026-07-29 for the defect this fix closes; re-adding it guards the fix and
