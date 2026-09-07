@@ -9,40 +9,38 @@ source: current task evidence
 
 ## Current focus
 
-Completed implementation and focused independent re-review for M1-M5 and L1-L6 on
-`ai/deployment-safety-and-diagnostics`, starting at clean `abf8970`. Leave all
-changes uncommitted. The user requested implementation and a focused independent
-re-review, not publication or the separate agent-permission/CLI backlog.
+Fixed the failures from CI run `34061934611` directly on `main`, as requested.
+The clean starting commit is `5acb69d`, the failed run's exact revision. No push,
+release, or active-profile deployment was performed.
 
-All eleven findings have implementations and focused regressions. Hook scripts
-and commands are checked against the loaded module; repair remains recorded-file
-only; recoverable pending operations require verified staging before completion
-can be inferred. Concurrent matching untracked files are not adopted. Filename
-identity and segment validation are shared. Destinations, legacy diagnostics,
-type-data restoration, strict hook JSON, and static Prompt policy are covered.
-The Glossary defines Owned file and Deployment plan.
+The Deployment plan bypassed the shared reparse-point guard; uninstall used a
+directory-only deletion API on dangling Unix Discovery links; the POSIX test
+fixture let `Join-Path` turn a literal backslash into a separator. All three
+causes are corrected, with existing regressions retained and fixture assertions
+strengthened. Focused results: Windows 120 passed/six skips, Linux 104 passed/22
+skips, zero failures. All four edited scripts pass AST and PSScriptAnalyzer.
 
-Full detached build/test: 1,234 passed, zero failures, 66 explained skips,
-87.8% coverage; 20 tasks, zero errors, one existing simulated-backend warning.
-Windows PowerShell 5.1: 473 passed/nine skips, plus the final six serialization
-checks passed after the fixture-only adjustment. All 22 changed scripts pass
-native AST and PSScriptAnalyzer. Pinned uv 0.8.15 executed 47 reference checks;
-only two documented divergence skips remain. Earlier serialization defects
-found by the full gate have regression guards; expected child failures no
-longer contaminate parent build accounting.
+Full clean-clone Windows gate: 1,266 passed, 67 skips, 88.03% coverage. Linux
+`Unit`/`QA` gate: 1,172 passed, 105 skips, 56 tag exclusions, 86.97% coverage.
+Both have zero failures and exceed the 65% coverage threshold. Windows
+PowerShell 5.1 focused tests: 120 passed/six skips. Updated Memory Bank health
+and routing: 15 passed. Existing warnings are the simulated backend failure
+and, on Windows, the unchanged tech-context line-budget notice.
 
-Independent security-reviewer decision: Approve, zero Blocker/Major, two Minor
-and three Nit observations retained in `assessment-log.md`. The filename
-probe's fail-closed prerequisite is documented. Non-Windows and live OneDrive
-remain unverified: no WSL distribution, Docker, or Podman is installed, and no
-authorized sync test account is available. Model-backed evaluations remain
-unrun without a supported runner and spending permission.
+Docker Desktop and a cached PowerShell 7.4 Ubuntu image are available; Linux
+validation used a disposable container and a clean clone. macOS and live
+OneDrive remain unverified locally. Independent review is off; recommend it
+for the changed link-removal boundary before publication.
 
-The earlier CONDITIONAL review did not close the findings. Prior wording that
-called them accepted residual risk was not user acceptance and is superseded.
-Historical runs (1,137 passed/60 skips/83.63% and 264 passed/1 skip on 5.1)
-remain historical evidence, not validation of these edits. The per-ID ledger
-and log names are in `assessment-log.md`.
+## Previous focus: deployment review
+
+M1-M5 and L1-L6 remediation landed in `5acb69d` on `main`. Its independent
+review approved the reviewed scope with zero Blocker/Major findings; two Minor
+and three Nit observations remain in `assessment-log.md`. Its historical full
+gate passed 1,234 tests with 66 skips and 87.8% coverage; those results did not
+prove the CI-only failures now reproduced. The earlier CONDITIONAL review and
+"accepted residual risk" wording were not user acceptance. The per-ID ledger
+and earlier verification evidence remain in `assessment-log.md`.
 
 ## Previous focus: role-record migration
 
@@ -107,7 +105,7 @@ run needs an explicit go-ahead rather than an assumption.
 ## Open findings
 
 - **Deployment review:** M1-M5 and L1-L6 are implemented and independently
-  approved on the verified scope. Non-Windows/cloud-sync execution and the
+  approved on the verified scope. macOS/live cloud-sync execution and the
   review's non-blocking observations remain explicitly disclosed, not waived.
 - **High:** `software-engineer-contoso` claims no egress while retaining an
   unrestricted terminal and mandating a generic `security-reviewer` delegate
@@ -172,6 +170,5 @@ run needs an explicit go-ahead rather than an assumption.
 
 ## Next step
 
-Await the user's review of the uncommitted remediation. No commit, merge,
-publication, push, or broader-backlog work is authorized. Non-Windows and live
-OneDrive verification need isolated environments before they can be claimed.
+No further implementation is planned for this CI fix. Leave independent review,
+publication, and any remote mutation to an explicit user request.

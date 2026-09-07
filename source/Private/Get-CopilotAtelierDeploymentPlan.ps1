@@ -64,12 +64,9 @@ function Get-CopilotAtelierDeploymentPlan
         {
             foreach ($item in Get-ChildItem -LiteralPath $pendingDirectory.Pop() -Force -ErrorAction Stop)
             {
-                if ($item.Attributes.HasFlag([System.IO.FileAttributes]::ReparsePoint))
-                {
-                    throw "Refusing reparse point in payload '$($item.FullName)'."
-                }
                 $relativePath = $directoryName + '/' + $item.FullName.Substring($sourceRoot.Length + 1).Replace([System.IO.Path]::DirectorySeparatorChar, '/')
                 Assert-CopilotAtelierDeploymentPath -Path $relativePath
+                Assert-CopilotAtelierRegularPath -LiteralPath $item.FullName -RootPath $sourceRoot
                 if ($item.PSIsContainer)
                 {
                     $pendingDirectory.Push($item.FullName)

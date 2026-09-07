@@ -167,7 +167,7 @@ function Uninstall-CopilotAtelier
                     $comparison = if ($path.IsWindowsPlatform) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
                     if ([string]::Equals([System.IO.Path]::GetFullPath($linkTarget).TrimEnd([char[]] '\/'), $destination.TrimEnd([char[]] '\/'), $comparison))
                     {
-                        [System.IO.Directory]::Delete($linkPath, $false)
+                        Remove-Item -LiteralPath $linkPath -Force -Confirm:$false
                     }
                 }
             }

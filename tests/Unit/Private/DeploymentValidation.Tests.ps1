@@ -89,7 +89,9 @@ Describe 'Deployment path validation' -Tag 'Unit' {
         @{ Name = 'trailing.' }
         @{ Name = 'CON.md' }
     ) {
-        [IO.File]::WriteAllText((Join-Path $script:contentPath "skills/$Name"), 'payload')
+        $payloadPath = [IO.Path]::Combine($script:contentPath, 'skills', $Name)
+        [IO.File]::WriteAllText($payloadPath, 'payload')
+        [IO.Path]::GetFileName($payloadPath) | Should -BeExactly $Name
 
         InModuleScope CopilotAtelier -Parameters @{ ContentPath = $script:contentPath; TargetPath = $script:targetPath } {
             { Get-CopilotAtelierDeploymentPlan -ContentPath $ContentPath -TargetPath $TargetPath -Directory @{ skills = 'skills' } } |

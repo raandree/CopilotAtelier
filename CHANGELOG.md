@@ -90,6 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Validate payload entries through the shared path guard so Windows Cloud Files placeholders are accepted while redirecting links remain rejected ([CI run #72](https://github.com/raandree/CopilotAtelier/actions/runs/34061934611/)).
+- Fix uninstall failures on dangling Linux and macOS Discovery links and preserve literal POSIX filenames in validation fixtures ([CI run #72](https://github.com/raandree/CopilotAtelier/actions/runs/34061934611/)).
 - Fail deployment health for modified hook files and redirected event commands, including platform overrides and `-Quiet`; keep ordinary modified-file warnings distinct.
 - Recover interrupted file applies through atomic replacements and per-file Deployment-record checkpoints, including retries with different or older payloads; coordinate local install/removal without claiming a filesystem or cloud-sync transaction.
 - Validate portable path segments consistently before planning and when reading records, reject `.` and `..` explicitly, use target-native filename identity, and diagnose retained capitalized legacy trees without removing them.

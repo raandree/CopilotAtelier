@@ -74,9 +74,13 @@ in `techContext.md`, not here.
 - Persist each pending file operation before atomic replacement and checkpoint
     it afterwards. Recovery reconciles observed hashes, not assumed completion;
     local exclusive handles coordinate callers, not cross-machine cloud sync.
-- Validate paths at and below the selected root, including non-directory
-    ancestors and reparse points. Trusted parent aliases are outside that
-    boundary; hash checks are not an atomic transaction or a sandbox.
+- Validate payload and destination paths through the shared guard, including
+    non-directory ancestors and reparse points. Windows Cloud Files placeholders
+    are not redirecting links. Trusted parent aliases are outside the selected
+    root; hash checks are not an atomic transaction or a sandbox.
+- Remove verified Discovery links non-recursively, including dangling Unix
+    links. Construct literal POSIX filename fixtures with .NET path APIs, not
+    the PowerShell provider's separator-normalizing `Join-Path`.
 - Hooks enforce unconditional rules; Instructions carry judgement calls. Hook
     commands resolve exact trusted roots, avoid pre-parse `$` substitution, and
     fail closed only for security controls.

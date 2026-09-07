@@ -15,6 +15,14 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-06**: Reproduced CI run `34061934611` at `5acb69d` in a clean
+  clone and a Linux container. Fixed shared payload-guard use, dangling Unix
+  Discovery links, and the literal POSIX filename fixture directly on `main`.
+  Full Windows gate: 1,266 passed/67 skips, 88.03% coverage. Linux `Unit`/`QA`:
+  1,172 passed/105 skips, 56 tag exclusions, 86.97% coverage. Both have zero
+  failures. PowerShell 5.1 focused: 120 passed/six skips; Memory Bank: 15 passed.
+  Existing backend and tech-context budget warnings remain. No push or release.
+
 - **2026-09-06**: Implemented M1-M5/L1-L6 deployment-review remediation with
   per-ID red/green evidence in `assessment-log.md`. Repair remains explicit;
   untracked content and abandoned staging are preserved. Native recovery and
@@ -22,8 +30,8 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   66 skips, 87.8% coverage; zero build errors. 5.1: 473 passed/nine skips plus
   six final serialization checks. Pinned reference validation: 47 passed/two
   divergence skips. Independent review: Approve, zero Blocker/Major; two Minor
-  and three Nit observations recorded. Changes remain uncommitted. The prior
-  "accepted residual risk" description was not user acceptance and is superseded.
+  and three Nit observations recorded. Remediation is now `5acb69d` on `main`.
+  The prior "accepted residual risk" wording was not user acceptance and is superseded.
 
 - **2026-09-05**: Implemented hash-aware deployment and conservative removal,
   read-only diagnostics, bounded SessionStart context, and configuration gates.
@@ -75,30 +83,11 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   native build 1,005 passed, 0 failed, 61 skipped, 78.51% coverage; deployed
   user-level file matches the source SHA-256 exactly.
 
-- **2026-09-02**: Added the generic `/complete-specifications` Prompt-led
-  workflow with capability-isolated controller, implementer, and reviewer
-  agents. Live mode defaults off; controller/worker egress is empty; an external
-  profile/verifier/appender owns containment and tamper-evident evidence. The
-  shared hook now resolves exact deployment paths and covers common Git/GitHub
-  CLI option forms. Validation: 237 focused tests; native build 957 passed,
-  0 failed, 108 environment-declared skips, 78.86% coverage; independent
-  security gate 0 Critical/High. Decision 0025 records the architecture.
-
-- **2026-09-02**: Deleted the `.github/hooks` smoke-test probe, which had been
-  failing on every turn since 2026-08-10. Its `windows` override hardcoded
-  `D:\Git\CopilotAtelier\...`, the drive the repo sat on when it was written,
-  and that override wins on Windows. It survived because `Hooks.Tests.ps1`
-  asserts exactly this failure but is scoped to
-  `com.github.copilot/hooks/hooks.json`; a second hook file one directory away
-  was outside every gate.
-
-- **2026-09-02**: Added a session clock so Post-flight closes with the chat's
-  measured duration rather than an estimate. Decision 0024 and the changelog
-  retain the hook design, rejected alternatives, and verification evidence.
-
-- **2026-09-01**: Fixed job-monitor discovery and same-turn heartbeat arming,
-  and bounded the development-cycle handoff graph by making the reviewer's
-  return user-gated. The changelog retains the incidents and detailed evidence.
+- **2026-09-01 to 2026-09-02**: Shipped bounded specification completion,
+  the measured session clock, job-monitor discovery and heartbeat fixes, and
+  a user-gated review handoff. Removed the failing workspace hook probe and
+  extended coverage to tracked hook files. Decisions 0024/0025 and the
+  changelog retain the detailed design, incidents, and verification evidence.
 
 ## Stable capabilities
 

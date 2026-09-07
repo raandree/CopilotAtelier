@@ -24,6 +24,7 @@ Describe 'Uninstall-CopilotAtelier' -Tag 'Unit' {
         $result.RemovedFiles.Count | Should -BeGreaterThan 4
         Test-Path -LiteralPath $script:profile.TargetPath | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $script:profile.CopilotRoot 'skills') | Should -BeFalse
+        @(Get-ChildItem -LiteralPath $script:profile.CopilotRoot -Force) | Should -HaveCount 0
         (Get-FileHash -LiteralPath $script:installation.SettingsPath).Hash | Should -Be $settingsHash
         { Uninstall-CopilotAtelier -Confirm:$false } | Should -Not -Throw
     }
