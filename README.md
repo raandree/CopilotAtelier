@@ -183,7 +183,7 @@ incomplete. Nothing is pushed.
 | **german-tax-research** | German income tax (Einkommensteuer) case work: assessment-notice review, deadline computation under the four-day notification fiction, point-by-point answers to a `Belegaufforderung`, reconciliation of every claimed figure against the return actually transmitted, and formal German drafts for `Einspruch`, `Begründung`, `AdV`, `Ruhen`, and `§ 153 AO` corrections. References cover AO procedure, V+V and AfA including `§ 7i`, Werbungskosten and Sonderausgaben, year-keyed amounts and filing deadlines, and letter templates; ships `Get-SteuerFrist.ps1` for the notification and objection dates including state holidays. |
 | **grammar-check** | Identify grammar, logical, and flow errors in text and suggest targeted fixes. Analyzes spelling, punctuation, subject-verb agreement, tense consistency, and transitions. |
 | **memory-bank** | Initialize, route, check, and safely migrate a repository Memory Bank for durable work. Manages seven required version-controlled files plus local prompt history, preserves existing content byte-for-byte, supports namespaced career, legal, and tax records, checks provenance and compactness budgets, retains a Full-read fallback, and provides offline pass@k/pass^k evaluation of natural-language route selection. |
-| **changed-file-validation** | An opt-in, bounded validation pass over the files one work batch actually changed. Paths are collected manually into an isolated session, deduplicated, and guarded against the selected project root before every read; each supported file is then copied to an isolated snapshot and checked once ΓÇö PowerShell parsing and PSScriptAnalyzer in an owned, time-bounded worker process, and markdown through a real markdownlint plus a deliberately partial four-rule native structure check that never stands in for it. Every result is a receipt naming the validation plan identity, each validator with its version and configuration identity, and the SHA-256 of the exact bytes read, so changed content, a changed plan, or a hand-edited receipt cannot inherit a pass. No hook is wired, missing tools and time-bound violations stay visible as unavailable, and it supplements immediate tests and the full build gate rather than replacing them. |
+| **changed-file-validation** | An opt-in, bounded validation pass over the files one work batch actually changed. Paths are collected manually into an isolated session, deduplicated, and guarded against the selected project root before every read; each supported file is then copied to an isolated snapshot and checked once — PowerShell parsing and PSScriptAnalyzer in an owned, time-bounded worker process, and markdown through a real markdownlint plus a deliberately partial four-rule native structure check that never stands in for it. Every result is a receipt naming the validation plan identity, each validator with its version and configuration identity, and the SHA-256 of the exact bytes read, so changed content, a changed plan, or a hand-edited receipt cannot inherit a pass. No hook is wired, missing tools and time-bound violations stay visible as unavailable, and it supplements immediate tests and the full build gate rather than replacing them. |
 | **reviewed-learning-inbox** | An on-demand, project-scoped review queue for reusable lessons taken from explicitly selected local artifacts. Records a candidate with a stable identifier, a sanitized single-line summary, evidence locators with SHA-256 content identity, and separated observations, interpretations, and contradictory evidence; deduplicates equivalents and retains rejections and supersessions. Candidates stay out of the routed Memory Bank base and the deployed Customizations, and a lesson reaches an existing Skill or Instruction only through an append-only promotion that a human approves by the SHA-256 of the preview they read. |
 | **citation-integrity** | Verify every external claim, quote, statistic, and reference in generated text against a fetched source. Defines a six-class failure taxonomy (F1 fabricated reference → F6 anchorless claim), a three-layer anchor (locator + ≤25-word quote + stable identifier), a `VERIFIED` / `MISMATCH` / `NOT_FOUND` verdict scheme with no gray zone, and a cross-index triangulation rule for contamination signals. |
 | **devils-advocate-review** | Argue against a proposal, design, claim, or draft from a hostile-but-fair position with explicit safeguards against sycophancy. 1–5 rebuttal scoring rubric (concession only at ≥ 4, no consecutive concessions, attack-intensity preservation), named deflection classes (reframe, authority, volume, sentiment, goalpost shift, tu quoque, premature consensus), frame-lock self-check every three rounds, closing report with sycophancy log. |
@@ -224,8 +224,6 @@ incomplete. Nothing is pushed.
 | **evidence-package-assembly** | Assemble paginated evidence packages (`Anlagen`) for authorities, courts, and insurers on Windows: verify documents against the claims made about them, decide which sheets may be omitted, render a Markdown cover with a locator index to PDF via pandoc and headless Edge, merge with pypdf, and verify page ranges, text layer, and the sources' own page numbering. |
 | **copilot-usage-stats** | Report how many tokens, API calls, and how much time a project has consumed, broken down by model, session, day, or surface, and convert those tokens into GitHub AI Credits and dollars at the published per-model rates. Carries the repository-scoped join that survives the three unnormalized spellings of the same repository, the verified fact that `input_tokens` already contains `cache_read_tokens`, the `cost` column that holds a legacy request multiplier rather than money, and the reason no hook, transcript, or local database can answer the question. Paired with the `/usage` Prompt on `Ctrl+K U`. |
 
-## Migrating Legacy Memory Bank Records
-
 ## Choosing What Gets Installed
 
 The complete installation is the default and stays the default: `Install-CopilotAtelier` with no selection argument deploys every Skill in the payload. When you only want part of the library, opt into a profile.
@@ -256,7 +254,7 @@ Install-CopilotAtelier -InstallationProfile research -IncludeSkill mcp-builder
 Install-CopilotAtelier -InstallationProfile engineering -ExcludeSkill mecm-dsc-deployment
 ```
 
-An unknown identifier, a Skill that is both included and excluded, an excluded mandatory Skill, an excluded dependency, a missing prerequisite, and a selected directory without an entry point are all rejected before anything is written ΓÇö no directory, Discovery link, setting, or Deployment record is touched by a request that does not resolve.
+An unknown identifier, a Skill that is both included and excluded, an excluded mandatory Skill, an excluded dependency, a missing prerequisite, and a selected directory without an entry point are all rejected before anything is written — no directory, Discovery link, setting, or Deployment record is touched by a request that does not resolve.
 
 The selection is recorded in `<target>/.copilotatelier.json`. A later `Install-CopilotAtelier` or `Update-CopilotAtelier` with no selection argument keeps it, so an update never silently re-expands a narrowed installation. Naming any selection argument restates the per-Skill adjustments in full and keeps only the recorded base profile, so `-IncludeSkill` alone still means "the profile I am on, plus this". The inherited selection is read again once the run holds the local deployment lock, so a second installer that changed it in the meantime is followed rather than overwritten from a stale read. `Test-CopilotAtelier` reports the selection as `InstallationProfile`. Records written before profiles existed carry no selection and are read as the complete installation.
 
@@ -278,7 +276,7 @@ Switching to a narrower profile retires the Owned files of the deselected Skills
 ## Skill health
 
 `Get-CopilotAtelierSkillHealth` is an on-demand, read-only maintenance report.
-It says which Skills are worth a look and why, and it changes nothing ΓÇö no file,
+It says which Skills are worth a look and why, and it changes nothing — no file,
 no setting, no installation, no retirement.
 
 ```powershell
@@ -291,15 +289,15 @@ the four sources prove genuinely different things:
 | Facet | Read from | What it can prove |
 |---|---|---|
 | Structure | each `SKILL.md` | Description cap, body budget, name match. A frontmatter fence is reported as parsed only when every line is a supported top-level key and both `name` and `description` resolved to a scalar |
-| Discoverability | `skills/agent-evals/assets/trigger-queries.<skill>.json` | That discovery material was authored. Never that it was measured ΓÇö this command runs no model |
+| Discoverability | `skills/agent-evals/assets/trigger-queries.<skill>.json` | That discovery material was authored. Never that it was measured — this command runs no model |
 | Evaluation and quality | `skills/<skill>/evals/*.json` in the shapes `agent-evals` defines | Only what a bound artifact records. Authored cases are not a run, and run output counts only when a provenance sidecar binds it to this Skill and this body |
 | Usage | records you import with `-ObservationPath` | Separate counts for a file read, an activation, and a tool outcome. One is never promoted into another |
 
 ### The observation gap
 
-Within the scope this command can inspect ΓÇö the deployed authoring Instruction
+Within the scope this command can inspect — the deployed authoring Instruction
 and the shipped hook configuration under the content root, at the version
-present there ΓÇö the enumerated hook events are `SessionStart`,
+present there — the enumerated hook events are `SessionStart`,
 `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `SubagentStart`,
 `SubagentStop`, and `Stop`, and each one is **verified against that Instruction
 rather than asserted**. None of them reports that a Skill was selected, loaded,
@@ -310,7 +308,7 @@ instead of claiming a universal fact.
 
 There is therefore no verified event to observe a Skill activation from, no
 automatic collection is implemented, and capture is disabled by default. Every
-accepted record is labelled `Imported` ΓÇö a document that claims observed trust
+accepted record is labelled `Imported` — a document that claims observed trust
 is recorded as a claim and still read as imported.
 
 So **a Skill with no observations is unknown, not unused.** Absence never counts
@@ -348,7 +346,7 @@ quietly merged into the current one.
 
 `grading.json` and `benchmark.json` are run output and carry no Skill identity
 of their own. Bind one with a sidecar named after the artifact with its
-extension replaced ΓÇö `grading.provenance.json` beside `grading.json`:
+extension replaced — `grading.provenance.json` beside `grading.json`:
 
 ```json
 {
@@ -365,7 +363,7 @@ later than the reference instant the report is measured against.
 
 A run whose provenance names a different body is labelled `DifferentBody` and
 excluded from the current counts. A run with no valid provenance stays visible
-as `Unbound` and is never counted ΓÇö an unbound artifact cannot prove anything
+as `Unbound` and is never counted — an unbound artifact cannot prove anything
 about the body shipping today.
 
 A `runId` is a quality identity, so only a graded result that could be counted
@@ -406,15 +404,17 @@ capture was complete:
 
 Even then the window must be at least 30 days, cover at least 20 sessions, and
 have closed within the last 90 days, the Skill must not be mandatory, and the
-result is a prompt for a human ΓÇö never a removal.
+result is a prompt for a human — never a removal.
 
 ### Suggestions are advisory
 
 Every suggestion cites local evidence and carries `Decision =
 'HumanReviewRequired'`. `Improve`, `Investigate`, and `Consolidate` come from
 structural and evaluation evidence. `RetirementReview` is only ever proposed
-against an observation window wide enough to judge ΓÇö never from absent or sparse
+against an observation window wide enough to judge — never from absent or sparse
 observations, never for a mandatory Skill, and never as a decision.
+
+## Migrating Legacy Memory Bank Records
 
 Career, legal, and tax records now live under `.memory-bank/career/`,
 `.memory-bank/legal/`, and `.memory-bank/tax/`. Older repositories may still
@@ -542,10 +542,12 @@ The module ships `Agents`, `Instructions`, `Skills`, `Prompts`, `Hooks`, and `Ke
 | `Install-CopilotAtelier` | Deploys the customizations to the canonical target, links the `~/.copilot` discovery folders, and merges the VS Code settings and keybindings. |
 | `Update-CopilotAtelier` | Checks the Gallery for a newer version, installs it, and redeploys. `-Force` redeploys the current version; `-SkipDeployment` stages the update for later. |
 | `Get-CopilotAtelierVersion` | Reports the installed module version, the deployed version, and whether the deployment is current. |
-
-| `Get-CopilotAtelierSkillHealth` | Reports read-only Skill maintenance evidence ΓÇö usage, discoverability, evaluation, quality, freshness, and overlap kept apart ΓÇö and suggests what a human should look at. See [Skill health](#skill-health). |
-Both `Install-CopilotAtelier` and `Update-CopilotAtelier` write their progress to the information stream, so add `-InformationAction Continue` when you want to watch each step.
 | `Get-CopilotAtelierProfile` | Lists the opt-in installation profiles and the Skills each one deploys from the payload. See [choosing what gets installed](#choosing-what-gets-installed). |
+| `Get-CopilotAtelierFootprint` | Reports the read-only loading footprint of the customization collection and concrete opportunities to reduce unnecessary loading. |
+| `Get-CopilotAtelierSkillHealth` | Reports read-only Skill maintenance evidence — usage, discoverability, evaluation, quality, freshness, and overlap kept apart — and suggests what a human should look at. See [Skill health](#skill-health). |
+| `Get-CopilotAtelierClientAdapter` | Reports how a Custom agent profile is composed for each supported Copilot client and what that client cannot do. See [client-specific adapters](#client-specific-adapters). |
+
+Both `Install-CopilotAtelier` and `Update-CopilotAtelier` write their progress to the information stream, so add `-InformationAction Continue` when you want to watch each step.
 
 Useful switches:
 
@@ -553,14 +555,14 @@ Useful switches:
 |---|---|
 | `-TargetPath` | Selects the Canonical target explicitly for Install, Update, or Setup. Multiple OneDrive accounts require this switch; unattended calls never reach an account prompt. |
 | `-Repair` | Restores modified Owned files still in the payload. Available on Install, Update, and Setup; see [repair and recovery](#repair-and-recovery). |
+| `-InstallationProfile` | Opts into a Skill selection instead of the complete installation. Available on Install, Update, and Setup; see [choosing what gets installed](#choosing-what-gets-installed). |
+| `-IncludeSkill` / `-ExcludeSkill` | Adjusts the profile selection by Skill identifier. Dependencies come along; mandatory Skills cannot be dropped. |
 | `-IncludeClaudeCodeLinks` | Also links `~/.claude/skills` and `~/.agents/skills`. Off by default; see [Claude Code and Agent Skills clients](#claude-code-and-agent-skills-clients-opt-in). |
 | `-SkipCopilotCliEnvironment` | Leaves `COPILOT_ALLOW_ALL` alone. Installation otherwise sets it to `1` at User scope, which is what stops the GitHub Copilot CLI prompting for every tool call. |
 | `-WhatIf` | Reports what would change without touching anything. |
 
 Run `Get-Help Install-CopilotAtelier -Full` for the complete parameter reference.
 
-| `-InstallationProfile` | Opts into a Skill selection instead of the complete installation. Available on Install, Update, and Setup; see [choosing what gets installed](#choosing-what-gets-installed). |
-| `-IncludeSkill` / `-ExcludeSkill` | Adjusts the profile selection by Skill identifier. Dependencies come along; mandatory Skills cannot be dropped. |
 #### Staying up to date
 
 ```powershell
@@ -738,21 +740,14 @@ The version comes from [GitVersion](https://gitversion.net/) via [`GitVersion.ym
 Start with `Test-CopilotAtelier` for a module or clone deployment, then verify
 Discovery in the client. A local health report cannot prove that an editor has
 loaded the files.
-| `Get-CopilotAtelierProfile` | Lists the opt-in installation profiles and the Skills each one deploys from the payload. See [choosing what gets installed](#choosing-what-gets-installed). |
-| `Get-CopilotAtelierFootprint` | Reports the read-only loading footprint of the customization collection and concrete opportunities to reduce unnecessary loading. |
-| `Get-CopilotAtelierSkillHealth` | Reports read-only Skill maintenance evidence ΓÇö usage, discoverability, evaluation, quality, freshness, and overlap kept apart ΓÇö and suggests what a human should look at. See [Skill health](#skill-health). |
-| `Get-CopilotAtelierClientAdapter` | Reports how a Custom agent profile is composed for each supported Copilot client and what that client cannot do. See [client-specific adapters](#client-specific-adapters). |
 
 - **Agents**: In Copilot Chat, check the agents dropdown — your custom agents should appear
-| `Get-CopilotAtelierFootprint` | Reports the read-only loading footprint of the customization collection and concrete opportunities to reduce unnecessary loading. |
 - **Instructions**: Type `/instructions` in chat to see the Configure Instructions menu
 - **Skills**: Type `/` in chat to see skills as slash commands
 - **Prompts**: Type `/` in chat to see prompt files as slash commands
 - **Hooks**: Run **Developer: Show Agent Debug Logs** and look for `Load Hooks` listing `~/.copilot/hooks`; hook output goes to the **GitHub Copilot Chat Hooks** channel in the Output panel
 - **Chat Customizations editor**: Click the gear icon in the Chat view (or run **Chat: Open Chat Customizations** from the Command Palette) to see all registered agents, instructions, skills, and prompts in one place
 - **Debug logs**: If customizations aren't being applied, open the ellipsis (**…**) menu in the Chat view → **Show Agent Debug Logs**
-| `-InstallationProfile` | Opts into a Skill selection instead of the complete installation. Available on Install, Update, and Setup; see [choosing what gets installed](#choosing-what-gets-installed). |
-| `-IncludeSkill` / `-ExcludeSkill` | Adjusts the profile selection by Skill identifier. Dependencies come along; mandatory Skills cannot be dropped. |
 
 ## Deployment diagnostics and removal
 
@@ -860,6 +855,128 @@ tools inherit the client context; an explicit empty list is also accepted.
 Unknown named targets fail. Acceptance of inheritance or an empty list does
 not prove an effective runtime boundary. Runtime tool containment and agent
 quality still require client verification and behavioral evaluations.
+
+### Client-specific adapters
+
+Custom agent files under [`com.github.copilot/agents/`](com.github.copilot/agents/)
+are the single authoritative source of every shared workflow, and they are
+authored in the VS Code shape. Discovery is cross-client, but the GitHub
+[custom agents configuration](https://docs.github.com/en/copilot/reference/custom-agents-configuration)
+that the Copilot CLI follows documents a narrower contract: one model string
+instead of a priority array, a closed set of tool aliases instead of
+product-qualified tool identifiers, and no subagent allow-list, handoff, or
+argument hint. An unrecognized tool name is *ignored* by that client, so a
+profile that loads there can quietly lose the capabilities its own body depends
+on. The scope here is VS Code Copilot Chat and the Copilot CLI; no other client
+was checked, and none is claimed.
+
+`Get-CopilotAtelierClientAdapter` makes that difference inspectable. It reads
+files only - no network, no writes, no model request - so it doubles as an
+offline smoke check of the mapping:
+
+```powershell
+Get-CopilotAtelierClientAdapter | Format-Table Name, Client, VerificationState, @{ n = 'Tool'; e = { $_.Tool -join ', ' } }
+(Get-CopilotAtelierClientAdapter -Name software-engineer -Client copilot-cli).UnsupportedCapability |
+    Format-Table Capability, Kind, Reason
+(Get-CopilotAtelierClientAdapter -Name software-engineer -Client copilot-cli).WorkflowCapability |
+    Format-Table Workflow, Status, ClientInstruction
+```
+
+Four rules govern the mapping, and each is a test rather than a promise:
+
+- **Every mapping is explicit.** A tool identifier with no entry in the
+  allow-list is an error. Nothing is guessed, and nothing is dropped quietly.
+  Frontmatter is parsed as a strict YAML subset, so an unknown top-level field,
+  a duplicate field, or an ambiguous value is rejected with a diagnostic rather
+  than silently ignored - a tool list is never partially mapped.
+- **Nothing is widened to make a workflow run.** Only a tool that genuinely
+  starts a command may become the shell-execution alias, and the contract names
+  those explicitly. A product prefix is a namespace, not proof of execution
+  authority: reading an existing terminal buffer, running a declared VS Code
+  task, or running tests all stay unsupported instead of being traded for a
+  terminal. Every other mapping has to stay inside the capability class of its
+  source identifier.
+- **A restriction that cannot be expressed removes what it guards.** The
+  subagent allow-list has no counterpart in the client contract, so the
+  composed variant loses the delegation tool instead of inheriting unbounded
+  delegation. The model field is omitted rather than translated into an
+  invented client model identifier.
+- **A workflow the client cannot run is refused, not degraded.** See below.
+
+If a capability or a workflow mode the shared body declares mandatory cannot be
+provided, the composition fails and no variant is produced.
+
+**Unsupported workflow modes.** The shared engineering body offers `review: on`
+and `cycle: full`. Both are satisfied in VS Code by dispatching the
+`security-reviewer` subagent and by advancing through handoffs, and the Copilot
+CLI contract provides neither. Rather than let a composed file carry a body that
+promises them, the composition prepends an additive client-limitation section
+that names both modes as unavailable and instructs the agent to **refuse the
+request and return it to VS Code Copilot Chat**. A required independent review
+is never silently replaced by a written recommendation. `bounded-default`
+(`review: off`, `cycle: off`) is the mode that is supported.
+
+That section is presentation composed by this repository, not a change to the
+shared body, and its boundary is explicit: it sits between
+`<!-- copilot-atelier:client-limitations:begin ... -->` and a matching `:end`
+marker that carries the SHA-256 of the shared body following it. The body is the
+last thing in the file and is byte for byte the authoritative one; tests assert
+both the hash and the absence of drift. Callers can also demand a mode up front:
+`Get-CopilotAtelierClientAdapter -RequiredWorkflow review:on` throws rather than
+returning content for a client that cannot honour it.
+
+The rollout is deliberately one profile wide. Only `software-engineer` is
+adapted; asking for any other profile is an error until that profile has its
+own passing compatibility test.
+
+**Installation channels.** The composed variants are a build artifact written
+to `output/clientAdapters/<client>/` by the `Build_Client_Adapter_Variants`
+build task. They are **not deployed**: they are not part of the module payload,
+not copied into the built module, not written to the canonical target, and not
+published through the plugin channel, because `output/` is not tracked. Placing
+a second profile for one agent in `~/.copilot/agents` - which VS Code and the
+Copilot CLI both read - would create a duplicate discovery entry rather than
+fix a compatibility gap. Use the artifact to review the mapping, or copy one
+variant into a client configuration you control yourself.
+
+The build task owns that directory rather than sweeping it. It writes a
+`.copilot-atelier-adapter-manifest.json` recording each file it generated
+together with that file's SHA-256, and a rebuild removes only files that are
+still byte for byte what it wrote. A directory without that marker, a reserved
+build directory such as `module` or `RequiredModules`, a path that is not a
+direct child of the build output, or a link anywhere along the path - the output
+root, the artifact directory, the manifest, a client directory, or a generated
+file - is refused instead of deleted, so a mistyped `ClientAdapterSubdirectory`
+cannot take unrelated build output with it.
+
+Three properties make that bound real rather than nominal. The whole operation
+is built and validated before the first delete, so a request that is going to be
+refused - a duplicate destination, a malformed manifest, a late unsafe entry -
+leaves the directory exactly as it was found. Ownership is proved by content, so
+a generated file you edited in place is refused rather than silently deleted or
+overwritten, and a file sitting at a destination the build never generated is
+refused rather than adopted, whatever it contains. And a names-only manifest
+cannot prove either of those, so a `schema 1` manifest left by an earlier build
+is refused with the paths it claims: review them, then remove the directory
+yourself or point `ClientAdapterSubdirectory` at a fresh name and rebuild.
+Nothing is adopted and nothing is deleted on your behalf.
+
+**Known limitations.** No client run backs these mappings. Both clients are
+reported as `StructurallyChecked` against current published documentation: the
+Copilot CLI is not installed here, and the observation that the source profile
+loaded in VS Code 1.136.1 is kept as historical source-profile evidence about
+that file, not as a property of a composed variant on an arbitrary content path.
+A composed variant loses handoff buttons, so a workflow that advances through a
+handoff cannot advance on that client. Notebook, task, problem, browser,
+GitHub-toolset, MCP, and VS Code-command tools have no documented client
+equivalent and are reported unsupported, each with its reason.
+
+**Migration and rollback.** Nothing migrates. The VS Code profiles and the
+deployment are byte-for-byte unchanged, and the whole feature is additive: one
+read-only command, one build task, and one untracked output directory. To roll
+back, remove `Build_Client_Adapter_Variants` from the `build` workflow in
+[`build.yaml`](build.yaml) and delete `output/clientAdapters/`; no deployed
+file, discovery link, or deployment record is affected.
 
 ## Troubleshooting Skills
 
