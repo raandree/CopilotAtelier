@@ -54,6 +54,22 @@ Describe 'GitHub Actions workflows' -Tag 'Unit' {
         $offendingStep | Should -BeNullOrEmpty -Because 'a step shell must be a literal; use jobs.<job_id>.defaults.run for a matrix-driven shell'
     }
 
+    It 'Should retain hidden ownership metadata in the output build artifact' {
+        $workflow = ConvertFrom-Yaml -Yaml (
+            Get-Content -LiteralPath (Join-Path -Path $script:workflowPath -ChildPath 'ci.yml') -Raw
+        )
+
+        $artifactStep = @(
+            $workflow.jobs['build'].steps |
+                Where-Object -FilterScript { $_.uses -like 'actions/upload-artifact@*' }
+        )
+
+        $artifactStep | Should -HaveCount 1
+        $artifactStep[0].with.path | Should -BeExactly 'output/'
+        $artifactStep[0].with['include-hidden-files'] |
+            Should -BeTrue -Because 'downstream tests require the hidden client-adapter ownership manifest'
+    }
+
     It 'Should verify the release secrets before publishing' {
         <#
             Publish_Release_To_GitHub skips itself when GitHubToken is empty while

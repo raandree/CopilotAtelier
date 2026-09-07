@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -9,7 +9,7 @@ import { MAX_STORE_BYTES, STORE_SCHEMA, StoreRejection, createStore } from '../.
 const documentId = 'a1b2c3d4e5f60718'
 
 function makeStore (options = {}) {
-  const stateRoot = mkdtempSync(join(tmpdir(), 'plan-review-integrity-'))
+  const stateRoot = realpathSync.native(mkdtempSync(join(tmpdir(), 'plan-review-integrity-')))
   mkdirSync(stateRoot, { recursive: true })
 
   return { stateRoot, store: createStore({ stateRoot, ...options }) }

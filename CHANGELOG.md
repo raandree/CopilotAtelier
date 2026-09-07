@@ -156,6 +156,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve the hidden client-adapter ownership manifest in GitHub Actions build artifacts so downstream jobs can verify generated files ([CI run #75](https://github.com/raandree/CopilotAtelier/actions/runs/34147860492)).
+- Use canonical temporary directories in plan-review filesystem tests on Windows and macOS, with a linked-directory regression, without weakening containment or link rejection ([CI run #75](https://github.com/raandree/CopilotAtelier/actions/runs/34147860492)).
 - Require the plan-review heading verifier at every document read, and fail the repository gate when a read stops being verified, so the check that keeps a comment anchored to the text the reader actually saw cannot regress unnoticed. An omitted verifier now raises instead of reading the document unchecked. Refuse a request body that nests deeper than the walk bound rather than leaving its deepest keys uninspected.
 - Align local plan-review section anchors with rendered indented ATX and setext
   headings, preserve literal trailing hashes, and refuse unsupported structures

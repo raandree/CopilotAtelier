@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -250,7 +250,7 @@ describe('documentIdFor', () => {
 
 describe('loadDocument', () => {
   it('reports a revision hash, size and section list', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'plan-review-doc-'))
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'plan-review-doc-')))
     const file = join(root, 'concept.md')
     writeFileSync(file, sample, 'utf8')
 
@@ -264,7 +264,7 @@ describe('loadDocument', () => {
   })
 
   it('refuses a document larger than the byte bound', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'plan-review-doc-'))
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'plan-review-doc-')))
     const file = join(root, 'big.md')
     writeFileSync(file, 'x'.repeat(4096), 'utf8')
 
@@ -275,7 +275,7 @@ describe('loadDocument', () => {
   })
 
   it('refuses a document that is not Markdown', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'plan-review-doc-'))
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'plan-review-doc-')))
     const file = join(root, 'concept.exe')
     writeFileSync(file, 'MZ', 'utf8')
 
@@ -286,7 +286,7 @@ describe('loadDocument', () => {
   })
 
   it('re-reads the file so a mutation between loads changes the revision', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'plan-review-doc-'))
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'plan-review-doc-')))
     const file = join(root, 'concept.md')
     writeFileSync(file, sample, 'utf8')
 
@@ -306,7 +306,7 @@ describe('loadDocument', () => {
 */
 describe('heading verification contract', () => {
   function fixture () {
-    const root = mkdtempSync(join(tmpdir(), 'plan-review-doc-'))
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'plan-review-doc-')))
     const file = join(root, 'concept.md')
     writeFileSync(file, sample, 'utf8')
 

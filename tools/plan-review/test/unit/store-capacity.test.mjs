@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -20,7 +20,7 @@ const documentHash = 'c'.repeat(64)
 const wideBody = '\u6f22'.repeat(STORE_LIMITS.maxCommentLength)
 
 function makeStore () {
-  const stateRoot = mkdtempSync(join(tmpdir(), 'plan-review-capacity-'))
+  const stateRoot = realpathSync.native(mkdtempSync(join(tmpdir(), 'plan-review-capacity-')))
   return { stateRoot, store: createStore({ stateRoot }) }
 }
 

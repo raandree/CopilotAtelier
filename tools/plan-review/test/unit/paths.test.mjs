@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, realpathSync, writeFileSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -7,7 +7,7 @@ import { describe, it } from 'node:test'
 import { PathRejection, isContained, resolveContainedPath } from '../../src/paths.mjs'
 
 function makeRoot () {
-  return mkdtempSync(join(tmpdir(), 'plan-review-paths-'))
+  return realpathSync.native(mkdtempSync(join(tmpdir(), 'plan-review-paths-')))
 }
 
 describe('resolveContainedPath', () => {

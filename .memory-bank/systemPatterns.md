@@ -81,9 +81,10 @@ when the task needs it; the repository layout lives in `techContext.md`.
     the PowerShell provider's separator-normalizing `Join-Path`. Hooks enforce
     unconditional rules; Instructions carry judgement calls. Hook commands
     resolve exact trusted roots and avoid pre-parse `$` substitution.
-- A gate that can skip is not a gate. External checks must fail in CI and prove
-    they reject a bad fixture. Known debt is a shrink-only baseline keyed to each
-    offender, never a disabled check.
+- CI retains hidden artifact ownership metadata; path fixtures use canonical
+    temporary roots. Nested Node runners clear inherited `NODE_TEST_CONTEXT`
+    and prove tests ran. External checks fail rather than skip in CI and reject
+    bad fixtures. Known debt is a shrink-only baseline, never a disabled check.
 - A Skill cannot override a Custom agent body or grant a missing tool. A
     conflicting discipline needs its own capability-bounded persona. A handoff
     cycle is bounded in frontmatter: a ring of `send: true` edges can run

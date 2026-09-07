@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -19,7 +19,7 @@ const documentId = 'a1b2c3d4e5f60718'
 const revisionHash = 'd'.repeat(64)
 
 function makeStore () {
-  const stateRoot = mkdtempSync(join(tmpdir(), 'plan-review-store-'))
+  const stateRoot = realpathSync.native(mkdtempSync(join(tmpdir(), 'plan-review-store-')))
   return { stateRoot, store: createStore({ stateRoot }) }
 }
 
@@ -41,7 +41,7 @@ describe('createStore', () => {
   })
 
   it('refuses a state root inside the Decision record folder', () => {
-    const base = mkdtempSync(join(tmpdir(), 'plan-review-state-'))
+    const base = realpathSync.native(mkdtempSync(join(tmpdir(), 'plan-review-state-')))
     const stateRoot = join(base, '.memory-bank', 'decisions', 'plan-review')
 
     assert.throws(

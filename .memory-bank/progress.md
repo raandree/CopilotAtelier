@@ -15,6 +15,12 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-07**: Repaired CI run `34147860492`: retain hidden adapter metadata
+  in build artifacts and canonicalize plan-review temporary fixtures. Workflow
+  regression 4/1 then 5/0; linked-temp regression red then green; Node 165/0.
+  Clean-checkout `build,test` passed with zero errors at 90.72% coverage.
+  User authorized commit and push on `main`, followed by Actions monitoring.
+
 - **2026-09-07**: Closed the CONDITIONAL review's Major on `f933946`. The
   heading verifier was wired but unproven by the gate CI runs, because the
   behavioural evidence needs `markdown-it`; `tests/PlanReview.Tests.ps1` now
@@ -97,16 +103,9 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   and no longer stands in for markdownlint. Red 23 of 72 then 12 of 85, 85/0/0.
 
 - **2026-09-07**: Added read-only `Get-CopilotAtelierSkillHealth` (task 04) with
-  private import and measure helpers, corrected over two rounds. Usage arrives
-  only through explicit validated `-ObservationPath` imports; nothing is stored
-  or uploaded, and missing telemetry is unknown rather than zero use. A run
-  counts only through a validated provenance sidecar, and a graded summary only
-  when it reconciles with `assertion_results`. Red 29 then 81/0.
-
-- **2026-09-07**: Shipped the reviewed learning inbox (task 03, `09416a4`):
-  off-route candidate storage, one intake/promotion content rule, guarded paths,
-  atomic state, and append-only approval bound to the reviewed preview hash.
-  Two correction rounds ended at 62/0; the changelog retains the full contract.
+  validated provenance and reconciled grading (red 29 then 81/0); shipped the
+  reviewed learning inbox (`09416a4`, 62/0) with guarded, hash-approved,
+  append-only promotion. Full contracts remain in `CHANGELOG.md` and git.
 
 - **2026-09-06**: Shipped profiles (`8e40815`) and footprint reporting
   (`c0c7166`), then fixed CI run `34061934611` in `35fa926` after a clean-clone

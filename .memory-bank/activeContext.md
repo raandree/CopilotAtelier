@@ -9,64 +9,41 @@ source: current task evidence
 
 ## Current focus
 
-The saved plan-review corrections are integrated on `main`, preserving both
-existing hardening rounds. The independent review covered `3d115a3` and found
-no Blocker, one Major, six Minor, and two Nit findings. PR-01 through PR-09 are
-resolved by implementation and regression evidence; the combined corrections
-have not received another independent review. `assessment-log.md` retains the
-original findings. Remote mutation and paid model evaluations remain off.
+Repair GitHub Actions run `34147860492` at `5337e5e`. The user explicitly
+requested work on `main`, a commit and push, and monitoring the resulting run.
+The full development cycle and independent review are off; paid evaluations
+remain off. Publication follows the existing workflow after its test matrix.
 
-- Section anchors support indented ATX and setext headings and preserve literal
-  trailing hashes. `headings.mjs` checks parser tokens against section levels,
-  text, and source lines at authorization and every read, including the locked
-  precondition and post-commit observation. Unsupported structures fail closed.
-  The splitter stays dependency-free, with CommonMark fences and unique keys.
-- Per-launch cookie names allow concurrent loopback servers; authorities follow
-  the bound IPv4 or IPv6 address. Mutation gates require Host, exact Origin,
-  JSON content type, session, CSRF, and valid Fetch Metadata when supplied.
-- Feedback reads and serialized writes share a 2 MiB bound and strict hashes
-  and authority validation. Refused files remain intact. Locks name their owner,
-  refuse live owners, reclaim only provably dead owners non-recursively, and
-  reject a write after ownership loss. Source revisions are rechecked inside
-  the lock and after commit; a last-window change reports `superseded`.
-- Immutable asset snapshots replace request-time streams; stale drafts and
-  pending notes survive refusals; guarded loads cannot render under another
-  selection; CLI and empty-revision failures report explicitly.
+- The uploaded `output` artifact omitted
+  `.copilot-atelier-adapter-manifest.json`. All three test jobs failed ownership
+  checks. Enable `include-hidden-files` only on the scoped `output/` upload;
+  the rebuilt output contains no other hidden file. The workflow regression
+  failed with the option absent, then passed: 5 tests, zero failures.
+- Windows used the `RUNNER~1` temp alias; macOS used the `/var` symlink.
+  Canonicalize the five failing filesystem suites' fixture roots with
+  `realpathSync.native`. Production containment and link rejection are unchanged.
+  A new linked-temp regression reproduces the failures on Windows and passes
+  after the repair. Clear inherited `NODE_TEST_CONTEXT` in the nested runner
+  and require a nonzero test count to prevent a skipped run returning success.
+- Node unit tests: 165 passed, zero failed or skipped. PowerShell AST and
+  PSScriptAnalyzer checks pass. Clean-checkout `build,test` passed with zero
+  errors and 90.72% coverage using the failed run's packaged dependencies and
+  exact module version. The known simulated-backend warning remains.
 
-Combined evidence: Windows build/test 1,775 passed, zero failed, 116 skipped at
-90.72% coverage; Node 255 on Windows, 248 on Linux Node 22; unit 157; Edge 42;
-focused Pester 44; AST, PSScriptAnalyzer, syntax, markdownlint clean. A mutation
-matrix proved the queued-write regression observes a lock, not elapsed time.
+## Previous plan-review work
 
-The tool remains absent from `CustomizationDirectory` and `source/`; npm
-dependencies stay opt-in. The repository gate runs dependency-free Node tests
-when available and never installs npm packages. Browser verdicts remain
-`local-http-feedback` under `chat-sign-off-required`, never Decision records,
-handoffs, or commands. A state root inside `.memory-bank/decisions` is refused.
-Ancestor reparse checks, raw-HTML disabling, DOMPurify, strict Mermaid, no image
-loads, and restrictive CSP remain in place; the guide and threat model own detail.
+PR-01 through PR-09 and the CONDITIONAL review's heading-verifier coverage gap
+are resolved in the integrated tree. The verifier is mandatory and every server
+read is checked by the dependency-free gate; excessive JSON nesting is refused.
+Per-launch sessions, bounded state, ownership locks, parser-verified anchors,
+source rechecks, immutable assets, and revision-scoped drafts remain intact.
+The guide, threat model, and `assessment-log.md` retain the full contracts and
+original findings. Browser feedback never grants chat sign-off authority.
 
-**The review of `f933946` returned CONDITIONAL and its Major is now closed.**
-The verifier was wired correctly but nothing in the gate that CI runs proved
-it: the behavioural evidence needs `markdown-it` and lives in
-`test/integration`, so removing the verifier from a read left the gate green.
-`tests/PlanReview.Tests.ps1` now asserts the import, the instantiation, and
-that every `loadDocument`/`loadDocumentSync` call site in `server.mjs` passes
-`verifyHeadings`, and a mutation experiment proved it: 43 passed with 1 failed
-naming the unverified call site, restored byte-identical afterwards. The hook
-is also mandatory rather than defaulting to `null`, so an omitted argument is a
-loud `TypeError` instead of a silent unverified read, and a request body that
-nests deeper than the walk bound is refused as `too-deep` rather than leaving
-its deepest keys uninspected. A test pins the fact that `JSON.parse` resolves
-`\u005f` escapes before the key exists, so the parsed-object walk is the real
-prototype-pollution control and the raw text scan is only defence in depth.
-
-Nested blockquote/list headings and parser disagreements are intentionally
-unreviewable, not silently mis-anchored; all 213 tracked Markdown files passed
-the corpus check. Same-user filesystem races are detected, not eliminated.
-macOS, current Linux PowerShell gates, live OneDrive, performance benchmarks,
-and paid model evaluations remain unverified. A fresh `review: on` is recommended
-for the combined HTTP, persistence, and approval boundaries.
+Earlier local evidence: Windows gate 1,775/0/116 at 90.72% coverage; Node 255;
+Edge 42. This did not prove the failing cross-platform artifact transfer.
+No fresh independent review of the combined HTTP and persistence corrections
+is claimed; `review: on` remains recommended for those earlier changes.
 
 ## Previous focuses
 
@@ -174,6 +151,6 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Integration and validation are complete. Keep publication and remote mutation
-behind a separate explicit request. The original review is not approval of the
-combined corrections; a fresh review remains available on request.
+Commit and push the focused repair on `main`, then monitor the resulting
+GitHub Actions run through the test matrix and existing deployment stage.
+Do not claim remote success until the run completes.
