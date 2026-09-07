@@ -22,10 +22,15 @@ source: build.yaml and source/
 | Version control | Git | Repository history and collaboration |
 | Tests | Pester 5 | Setup, module, and Customization regression checks |
 | Skill conformance | `uv` fetching upstream `skills-ref` (pinned) | Validates `Skills/*` against the open specification |
+| Optional plan review | Node 20.11+ with `markdown-it`, DOMPurify, `jsdom`, Mermaid, Lucide, Playwright | `tools/plan-review` only; never installed for module consumers |
 
-`uv` is the only non-PowerShell dependency and it is test-only: without it the
-conformance gate skips locally and throws in CI, where the workflow installs it.
-Nothing in building, installing, or using the module needs it.
+`uv` is the only non-PowerShell dependency of the module itself and it is
+test-only: without it the conformance gate skips locally and throws in CI, where
+the workflow installs it. Nothing in building, installing, or using the module
+needs it. `tools/plan-review` is opt-in and self-contained: its `npm install`
+is run by hand, its dependency-free half runs in the gate through
+`tests/PlanReview.Tests.ps1`, and its Playwright checks drive installed
+Microsoft Edge through the `msedge` channel rather than downloading a browser.
 
 ## Module layout
 
@@ -140,51 +145,46 @@ mutate a remote without an explicit current-turn request.
 - `./build.ps1 -Tasks build, test` is the full gate. Add `-ResolveDependency`
   on the first run.
 - Validate CI-affecting changes against a clean checkout, not just the
-  developer worktree: clone the repository into a temporary directory, copy
-  `output/` in as the build artifact, and run `./build.ps1 -Tasks test`. A
-  worktree carries gitignored files such as `.memory-bank/promptHistory.md`
-  that CI never has.
+  developer worktree: clone into a temporary directory, copy `output/` in as the
+  build artifact, and run `./build.ps1 -Tasks test`. A worktree carries
+  gitignored files that CI never has.
 - Windows PowerShell 5.1 decodes a BOM-less UTF-8 file with the ANSI code page.
   A test that string-matches repository Markdown must read it with
   `-Encoding UTF8`, or every non-ASCII character becomes mojibake. Most reads
-  in `tests/` still omit it and are only safe because they match ASCII.
+  in `tests/` omit it and are safe only because they match ASCII.
 - An environment-bound test declares its requirement through a
-  `BeforeDiscovery` probe feeding `-Skip`, never through `#requires`.
-  `#requires` fails Pester discovery on an unsupported host, which fails the
-  whole run instead of skipping one file. Tag it `Unit` only if it really is
-  portable, because the Linux job selects by tag.
+  `BeforeDiscovery` probe feeding `-Skip`, never through `#requires`, which
+  fails Pester discovery on an unsupported host and so fails the whole run
+  instead of skipping one file. Tag it `Unit` only if it really is portable,
+  because the Linux job selects by tag.
 - A hook resolves a payload-supplied path through .NET, never the PowerShell
-  provider. The provider writes to standard error for a path it cannot resolve,
-  and a hook's caller merges the streams, so that noise corrupts the JSON the
-  hook writes to standard output.
+  provider, which writes to standard error for a path it cannot resolve; a
+  hook's caller merges the streams, so that noise corrupts the JSON the hook
+  writes to standard output.
 - `tests/Workflows.Tests.ps1` parses every GitHub Actions workflow and rejects
   an expression in a step's `shell` key. That key accepts no context, so an
-  expression there fails the whole workflow file at compile time; a
-  matrix-driven shell belongs in `jobs.<job_id>.defaults.run`.
+  expression there fails the whole workflow file; a matrix-driven shell belongs
+  in `jobs.<job_id>.defaults.run`.
 - Read `tests/` for what each suite covers; do not restate that inventory here.
   Three gates there constrain unrelated work and are easy to trip:
   `MemoryBankRouting.Tests.ps1` requires at least 50 percent average context
-  reduction, so an append to a highly routed core file can fail it;
-  `MemoryBankHealth.Tests.ps1` enforces the per-file line budgets; and
-  `SkillFrontmatter.Tests.ps1` enforces a non-growing over-budget body baseline.
+  reduction; `MemoryBankHealth.Tests.ps1` enforces the per-file line budgets;
+  and `SkillFrontmatter.Tests.ps1` enforces a shrink-only body baseline.
 - PowerShell changes require AST parsing, focused Pester, and PSScriptAnalyzer
-  where available.
+  where available. Markdown Customizations require frontmatter checks and clean
+  editor or markdownlint diagnostics.
 - Pester is pinned to 5.7.1. `Initialize_TestResultSerialization` serializes
   file, drive, and provider references as paths or labels, then restores the
   caller's type data through build-exit cleanup, including failures. Raw
   provider metadata can stall `Export-Clixml` on both Windows hosts.
-- Markdown Customizations require frontmatter checks and clean editor or
-  markdownlint diagnostics.
 
 ## Sources of truth
 
 Do not duplicate changing inventories here. Use:
 
-- `Agents/` for Custom agents and tool declarations.
-- `Instructions/` for auto-applied rules and `applyTo` patterns.
-- `Skills/` for available Skills and their trigger descriptions.
-- `Prompts/` for Prompt bindings.
-- `Hooks/` for lifecycle events, hook commands, and the enforcement scripts.
+- `com.github.copilot/agents`, `rules`, `commands`, and `hooks` for Custom
+  agents, auto-applied rules and `applyTo` patterns, Prompt bindings, and
+  lifecycle events; `skills/` for Skills and their trigger descriptions.
 - `source/CopilotAtelier.psd1` for the exported command surface.
 - `build.yaml` for the build workflow, Pester configuration, and payload list.
 - `plugin.json` for the agent plugin manifest.
