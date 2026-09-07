@@ -14,6 +14,9 @@ output/
 # Eval harness run workspace — local, regenerated per run, not a repo artifact.
 .evalwork/
 
+# Changed-file validation batch store — local working state for one checkout.
+.copilot-atelier/
+
 # Trigger-eval scratch. -WorkDir belongs outside the repository; this catches
 # the runs where it was not, because skills/ is the published module payload.
 skills/*/scripts/work/

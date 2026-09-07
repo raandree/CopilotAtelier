@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "skill": "changed-file-validation",
+  "provenance": "authored",
+  "executed": false,
+  "note": "Offline capability cases only. No model-backed sweep has been run for this Skill, so no pass@k, pass^k, or judged verdict exists. Each case is a local, deterministic scenario a reviewer can reproduce with the shipped scripts and the regression suite named beside it.",
+  "cases": [
+    {
+      "id": "cfv-001",
+      "intent": "A batch is collected manually and validated once.",
+      "input": "Add source/Good.ps1 three times, then run validation twice.",
+      "expected": "One entry with Occurrences 3; the first run reports Action Validated, the second reports Reused and starts no validator.",
+      "regression": "tests/ChangedFileValidation.Tests.ps1 -> 'checks each unchanged supported file once per batch'"
+    },
+    {
+      "id": "cfv-002",
+      "intent": "A passing receipt expires the moment the content changes.",
+      "input": "Validate a clean script, then edit it so it no longer parses.",
+      "expected": "The report moves to Stale with Verified false, and revalidation reports Failed rather than reusing the receipt.",
+      "regression": "tests/ChangedFileValidation.Tests.ps1 -> 'never reuses a successful receipt for content that changed afterwards'"
+    },
+    {
+      "id": "cfv-003",
+      "intent": "A missing tool is not a pass.",
+      "input": "Request an external validator whose executable is not installed.",
+      "expected": "Outcome Unavailable with reason ExecutableNotFound; the entry stays Incomplete and unverified.",
+      "regression": "tests/ChangedFileValidation.Tests.ps1 -> 'reports a missing executable as unavailable rather than passed'"
+    },
+    {
+      "id": "cfv-004",
+      "intent": "A validator that overruns its bound is stopped.",
+      "input": "Invoke a child that sleeps for 45 seconds with a 2 second bound.",
+      "expected": "Outcome TimedOut, non-zero exit status, and the child process is gone.",
+      "regression": "tests/ChangedFileValidation.Tests.ps1 -> 'stops a child that outruns the time bound and reports a timeout'"
+    },
+    {
+      "id": "cfv-005",
+      "intent": "A hostile file name is data.",
+      "input": "Collect and validate a file whose name carries a subexpression, a backtick, a space, and a bracket pair.",
+      "expected": "The file parses normally, the name round-trips literally, and no side effect the name describes occurs.",
+      "regression": "tests/ChangedFileValidation.Tests.ps1 -> 'passes a hostile filename through as data and never executes it'"
+    },
+    {
+      "id": "cfv-006",
+      "intent": "Collection cannot escape the selected project.",
+      "input": "Collect a path outside the root, a traversal segment, and a path behind a junction inside the root.",
+      "expected": "Each one is refused before anything is recorded, naming the project and the offending component.",
+      "regression": "tests/ChangedFileValidation.Tests.ps1 -> 'refuses a path outside the selected root' and 'refuses a path reached through a reparse point'"
+    },
+    {
+      "id": "cfv-007",
+      "intent": "Optional collection cannot weaken a mandatory guard.",
+      "input": "Inspect the shipped hook configuration and run the remote-mutation guard against a push payload.",
+      "expected": "Exactly four hook events, no reference to changed-file collection anywhere in the hooks, and the guard still exits 2.",
+      "regression": "tests/ChangedFileValidation.Tests.ps1 -> 'Changed-file validation boundaries'"
+    }
+  ]
+}
