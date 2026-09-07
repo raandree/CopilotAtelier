@@ -1,9 +1,13 @@
 const state = {
   csrfToken: null,
   documentId: null,
+  documentName: null,
   revision: null,
   sections: [],
-  focusIndex: 0
+  focusIndex: 0,
+  // Every document load takes a ticket. A response that comes back after the
+  // selection moved on is discarded rather than rendered under the new choice.
+  generation: 0
 }
 
 const element = {
@@ -13,16 +17,64 @@ const element = {
   revision: document.getElementById('doc-revision'),
   status: document.getElementById('verdict-status'),
   statusText: document.getElementById('verdict-status-text'),
+  outlineDetails: document.getElementById('outline-details'),
   outline: document.getElementById('outline-list'),
   sections: document.getElementById('sections'),
   banner: document.getElementById('banner'),
   orphaned: document.getElementById('orphaned'),
   orphanedList: document.getElementById('orphaned-list'),
+  staleDrafts: document.getElementById('stale-drafts'),
+  staleDraftsList: document.getElementById('stale-drafts-list'),
+  staleDraftsDiscardAll: document.getElementById('stale-drafts-discard-all'),
   dialog: document.getElementById('verdict-dialog'),
   dialogBody: document.getElementById('verdict-dialog-body'),
   dialogNote: document.getElementById('verdict-note'),
   dialogConfirm: document.getElementById('verdict-confirm'),
   dialogCancel: document.getElementById('verdict-cancel')
+}
+
+const DRAFT_PREFIX = 'plan-review-draft:'
+const NOTE_PREFIX = 'plan-review-note:'
+
+function draftKey (documentId, revision, sectionKey) {
+  return `${DRAFT_PREFIX}${documentId}:${revision}:${sectionKey}`
+}
+
+function noteKey (documentId) {
+  return `${NOTE_PREFIX}${documentId}`
+}
+
+function storageKeys () {
+  try {
+    return Object.keys(sessionStorage)
+  } catch {
+    return []
+  }
+}
+
+function storageGet (key) {
+  try {
+    return sessionStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function storageSet (key, value) {
+  try {
+    sessionStorage.setItem(key, value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function storageRemove (key) {
+  try {
+    sessionStorage.removeItem(key)
+  } catch {
+    // Nothing to remove when the tab denies storage.
+  }
 }
 
 const VERDICT_LABEL = {
@@ -157,7 +209,7 @@ function renderComposer (section) {
   composer.hidden = true
   const documentId = state.documentId
   const documentHash = state.revision
-  const draftKey = `plan-review-draft:${documentId}:${documentHash}:${section.key}`
+  const key = draftKey(documentId, documentHash, section.key)
 
   const label = document.createElement('label')
   label.className = 'hint'
@@ -168,18 +220,16 @@ function renderComposer (section) {
   input.id = `composer-${section.key}`
   input.rows = 3
   input.maxLength = 4000
-  try {
-    input.value = sessionStorage.getItem(draftKey)?.slice(0, input.maxLength) ?? ''
-    composer.hidden = input.value.length === 0
-  } catch {
-    showBanner('Draft storage is unavailable in this browser tab.')
-  }
+  input.value = storageGet(key)?.slice(0, input.maxLength) ?? ''
+  composer.hidden = input.value.length === 0
 
   function saveDraft () {
-    try {
-      if (input.value.length === 0) sessionStorage.removeItem(draftKey)
-      else sessionStorage.setItem(draftKey, input.value.slice(0, input.maxLength))
-    } catch {
+    if (input.value.length === 0) {
+      storageRemove(key)
+      return
+    }
+
+    if (!storageSet(key, input.value.slice(0, input.maxLength))) {
       showBanner('This draft could not be saved in the tab. Keep the page open until it is submitted.')
     }
   }
@@ -229,6 +279,11 @@ function renderComposer (section) {
       saveDraft()
       composer.hidden = true
       await loadDocument()
+
+      if (result.payload.state === 'superseded') {
+        showBanner('The comment was recorded, but the document changed while it was being written. Read the current revision.')
+      }
+
       return
     }
 
@@ -267,7 +322,8 @@ function renderSection (section, comments) {
   commentButton.type = 'button'
   commentButton.className = 'button button-quiet'
   commentButton.dataset.action = 'open-composer'
-  commentButton.title = `Add a comment anchored to “${section.heading ?? 'Preamble'}”`
+  commentButton.title = `Add a comment anchored to “${section.heading ?? 'Preamble'}” (c)`
+  commentButton.setAttribute('aria-keyshortcuts', 'c')
   commentButton.append(icon('comment'), Object.assign(document.createElement('span'), { textContent: 'Comment' }))
 
   tools.append(commentButton)
@@ -343,8 +399,106 @@ function renderStatus (verdict) {
   element.status.querySelector('use').setAttribute('href', `#icon-${slot}`)
 }
 
+/**
+ * A draft written on content that has since changed is never re-attached: the
+ * remark was about text that is no longer there. It is listed with the section
+ * and revision it was written on, and only the reviewer decides its fate.
+ */
+function collectStaleDrafts (documentId, revision, sectionKeys) {
+  const drafts = []
+
+  for (const key of storageKeys()) {
+    if (!key.startsWith(DRAFT_PREFIX)) {
+      continue
+    }
+
+    const [id, draftRevision, ...rest] = key.slice(DRAFT_PREFIX.length).split(':')
+    const sectionKey = rest.join(':')
+
+    if (id !== documentId || (draftRevision === revision && sectionKeys.has(sectionKey))) {
+      continue
+    }
+
+    const body = storageGet(key)
+
+    if (typeof body !== 'string' || body.trim().length === 0) {
+      storageRemove(key)
+      continue
+    }
+
+    drafts.push({ key, revision: draftRevision, sectionKey, body })
+  }
+
+  return drafts
+}
+
+function renderStaleDrafts (documentId, revision, sections) {
+  const sectionKeys = new Set(sections.map((section) => section.key))
+  const drafts = collectStaleDrafts(documentId, revision, sectionKeys)
+
+  element.staleDrafts.hidden = drafts.length === 0
+  element.staleDraftsList.replaceChildren(...drafts.map((draft) => {
+    const item = document.createElement('li')
+    item.className = 'stale-draft'
+    item.dataset.draftKey = draft.key
+
+    const head = document.createElement('div')
+    head.className = 'comment-head'
+    head.append(
+      Object.assign(document.createElement('span'), {
+        className: 'comment-state',
+        textContent: 'Unsent'
+      }),
+      Object.assign(document.createElement('span'), {
+        textContent: `section “${draft.sectionKey}”`
+      }),
+      Object.assign(document.createElement('span'), {
+        textContent: `revision ${draft.revision.slice(0, 7)}`
+      }),
+      Object.assign(document.createElement('span'), {
+        textContent: state.documentName ?? ''
+      })
+    )
+
+    const body = document.createElement('p')
+    body.className = 'comment-body'
+    body.textContent = draft.body
+
+    const discard = document.createElement('button')
+    discard.type = 'button'
+    discard.className = 'button button-quiet'
+    discard.dataset.action = 'discard-draft'
+    discard.append(icon('dismiss'), Object.assign(document.createElement('span'), { textContent: 'Discard' }))
+    discard.addEventListener('click', () => {
+      storageRemove(draft.key)
+      renderStaleDrafts(documentId, revision, sections)
+    })
+
+    item.append(head, body, discard)
+    return item
+  }))
+
+  element.staleDraftsDiscardAll.onclick = () => {
+    for (const draft of drafts) {
+      storageRemove(draft.key)
+    }
+
+    renderStaleDrafts(documentId, revision, sections)
+  }
+}
+
 async function loadDocument () {
-  const result = await api(`/api/document/${state.documentId}`)
+  const documentId = state.documentId
+  const generation = state.generation + 1
+  state.generation = generation
+
+  const result = await api(`/api/document/${documentId}`)
+
+  // A response that lost its race must not render: it would put one document's
+  // content under another document's actions.
+  if (generation !== state.generation || documentId !== state.documentId) {
+    return
+  }
 
   if (result.status === 410) {
     showBanner('The document is no longer readable. It may have been moved, deleted or replaced by a link.')
@@ -361,6 +515,7 @@ async function loadDocument () {
   const payload = result.payload
   state.revision = payload.revision.hash
   state.sections = payload.sections
+  state.documentName = payload.name
 
   element.title.textContent = payload.title
   element.name.textContent = payload.name
@@ -390,14 +545,26 @@ async function loadDocument () {
   element.orphaned.hidden = orphaned.length === 0
   element.orphanedList.replaceChildren(...orphaned.map(renderComment))
 
-  if (payload.storeRecovered) {
-    showBanner('The stored feedback file was unreadable and has been reset.')
+  renderStaleDrafts(documentId, payload.revision.hash, payload.sections)
+
+  if (payload.storeUnreadable) {
+    showBanner(
+      `Stored feedback for this document cannot be read (${payload.storeUnreadableReason}). ` +
+      'The file was left untouched; nothing new can be recorded until it is repaired or moved aside.'
+    )
   }
 
   await renderDiagrams(element.sections)
 }
 
 function openVerdictDialog (verdict) {
+  // The verdict buttons are wired before the first load, so a load that failed
+  // leaves no revision to record against. The pending note stays in storage.
+  if (!state.revision) {
+    showBanner('No revision is loaded. Reload the document before recording a verdict.')
+    return
+  }
+
   element.dialogBody.textContent = verdict === 'approved'
     ? `Records approval feedback against revision ${state.revision.slice(0, 7)}. This is review input, not sign-off, and it does not start implementation.`
     : `Records a request for changes against revision ${state.revision.slice(0, 7)}.`
@@ -405,7 +572,8 @@ function openVerdictDialog (verdict) {
   element.dialogConfirm.dataset.verdict = verdict
   element.dialogConfirm.dataset.documentId = state.documentId
   element.dialogConfirm.dataset.documentHash = state.revision
-  element.dialogNote.value = ''
+  // A note survives a refusal: the text is the reviewer's, not the server's.
+  element.dialogNote.value = storageGet(noteKey(state.documentId)) ?? ''
   element.dialog.showModal()
   element.dialogNote.focus()
 }
@@ -429,7 +597,7 @@ async function submitVerdict () {
   if (result.status === 409) {
     element.dialog.close()
     await loadDocument()
-    showBanner('The document changed on disk. Review the current revision before recording a verdict.')
+    showBanner('The document changed on disk. The note is kept; review the current revision before recording a verdict.')
     return
   }
 
@@ -438,8 +606,13 @@ async function submitVerdict () {
     return
   }
 
+  storageRemove(noteKey(documentId))
   element.dialog.close()
   await loadDocument()
+
+  if (result.payload.state === 'superseded') {
+    showBanner('The verdict was recorded, but the document changed while it was being recorded. It does not apply to the current revision.')
+  }
 }
 
 function focusSection (delta) {
@@ -482,6 +655,15 @@ function installKeyboard () {
       loadDocument()
     }
   })
+}
+
+function syncOutlineDisclosure () {
+  // On a narrow viewport the outline would push the document below the fold,
+  // so it starts collapsed there and open where there is room beside the text.
+  const compact = window.matchMedia('(max-width: 60rem)')
+
+  element.outlineDetails.open = !compact.matches
+  compact.addEventListener('change', (event) => { element.outlineDetails.open = !event.matches })
 }
 
 async function shutdown () {
@@ -535,7 +717,15 @@ async function start () {
   document.getElementById('action-shutdown').addEventListener('click', () => shutdown())
   element.dialogConfirm.addEventListener('click', () => submitVerdict())
   element.dialogCancel.addEventListener('click', () => element.dialog.close())
+  element.dialogNote.addEventListener('input', () => {
+    const documentId = element.dialogConfirm.dataset.documentId
 
+    if (documentId) {
+      storageSet(noteKey(documentId), element.dialogNote.value)
+    }
+  })
+
+  syncOutlineDisclosure()
   installKeyboard()
 
   await loadDocument()

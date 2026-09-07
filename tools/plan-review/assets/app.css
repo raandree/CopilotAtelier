@@ -197,10 +197,40 @@ body {
   align-items: center;
   gap: 0.4rem;
   margin: 0 0 0.5rem;
+  padding: 0.2rem 0;
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-soft);
+  cursor: pointer;
+  list-style: none;
+}
+
+/* A flex summary loses the default marker, so the affordance is drawn back in. */
+.outline-heading::-webkit-details-marker { display: none; }
+
+.outline-heading::after {
+  content: "\25B8";
+  margin-left: auto;
+  font-size: 0.9rem;
+}
+
+#outline-details[open] > .outline-heading::after { content: "\25BE"; }
+
+.outline-heading:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 #outline-list {
@@ -422,6 +452,49 @@ textarea:focus-visible {
   padding-top: 1rem;
   border-top: 1px solid var(--line);
 }
+
+.stale-drafts {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.stale-drafts h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+  color: var(--warn);
+}
+
+.stale-drafts-note {
+  margin: 0 0 0.7rem;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+#stale-drafts-list {
+  margin: 0 0 0.7rem;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.stale-draft {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: start;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.88rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius);
+}
+
+.stale-draft .comment-state { color: var(--warn); }
 
 .orphaned h2 {
   display: flex;

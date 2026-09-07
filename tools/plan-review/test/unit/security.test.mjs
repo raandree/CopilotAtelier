@@ -6,7 +6,7 @@ import {
   BodyRejection,
   CSRF_HEADER_NAME,
   MAX_BODY_BYTES,
-  SESSION_COOKIE_NAME,
+  SESSION_COOKIE_PREFIX,
   checkCsrf,
   checkFetchMetadata,
   checkHost,
@@ -14,17 +14,22 @@ import {
   checkSession,
   constantTimeEqual,
   createSecret,
+  formatAuthority,
   guardMutation,
   isLoopbackAddress,
   parseCookies,
-  readJsonBody
+  readJsonBody,
+  sessionCookieName
 } from '../../src/security.mjs'
+
+const cookieName = sessionCookieName('0123456789abcdef')
 
 const context = {
   authorities: ['127.0.0.1:4711', 'localhost:4711'],
   origins: ['http://127.0.0.1:4711', 'http://localhost:4711'],
   sessionSecret: 'a'.repeat(64),
-  csrfToken: 'b'.repeat(64)
+  csrfToken: 'b'.repeat(64),
+  cookieName
 }
 
 function goodHeaders (overrides = {}) {
@@ -33,11 +38,29 @@ function goodHeaders (overrides = {}) {
     origin: 'http://127.0.0.1:4711',
     'sec-fetch-site': 'same-origin',
     'content-type': 'application/json',
-    cookie: `${SESSION_COOKIE_NAME}=${context.sessionSecret}`,
+    cookie: `${cookieName}=${context.sessionSecret}`,
     [CSRF_HEADER_NAME]: context.csrfToken,
     ...overrides
   }
 }
+
+describe('sessionCookieName', () => {
+  it('namespaces the cookie per launch', () => {
+    assert.equal(sessionCookieName('0123456789abcdef'), `${SESSION_COOKIE_PREFIX}0123456789abcdef`)
+    assert.notEqual(sessionCookieName('0123456789abcdef'), sessionCookieName('fedcba9876543210'))
+  })
+
+  it('refuses an identifier that is not a hexadecimal token', () => {
+    assert.throws(() => sessionCookieName('not hex'), /hexadecimal/)
+  })
+})
+
+describe('formatAuthority', () => {
+  it('brackets an IPv6 host and leaves IPv4 alone', () => {
+    assert.equal(formatAuthority('::1', 4711), '[::1]:4711')
+    assert.equal(formatAuthority('127.0.0.1', 4711), '127.0.0.1:4711')
+  })
+})
 
 describe('createSecret', () => {
   it('produces a long, unpredictable hex token', () => {
@@ -153,24 +176,31 @@ describe('checkFetchMetadata', () => {
 
 describe('checkSession', () => {
   it('accepts the current session secret', () => {
-    assert.equal(checkSession(goodHeaders(), context.sessionSecret).ok, true)
+    assert.equal(checkSession(goodHeaders(), context.sessionSecret, cookieName).ok, true)
   })
 
   it('rejects a secret minted by a previous server launch', () => {
     const previousLaunchSecret = 'c'.repeat(64)
-    const headers = goodHeaders({ cookie: `${SESSION_COOKIE_NAME}=${previousLaunchSecret}` })
+    const headers = goodHeaders({ cookie: `${cookieName}=${previousLaunchSecret}` })
 
-    const result = checkSession(headers, context.sessionSecret)
+    const result = checkSession(headers, context.sessionSecret, cookieName)
 
     assert.equal(result.ok, false)
     assert.equal(result.reason, 'session')
+  })
+
+  it('ignores a cookie minted by another concurrent server', () => {
+    const other = sessionCookieName('fedcba9876543210')
+    const headers = goodHeaders({ cookie: `${other}=${context.sessionSecret}` })
+
+    assert.equal(checkSession(headers, context.sessionSecret, cookieName).ok, false)
   })
 
   it('rejects a missing cookie', () => {
     const headers = goodHeaders()
     delete headers.cookie
 
-    assert.equal(checkSession(headers, context.sessionSecret).ok, false)
+    assert.equal(checkSession(headers, context.sessionSecret, cookieName).ok, false)
   })
 })
 

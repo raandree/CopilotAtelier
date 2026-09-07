@@ -1,25 +1,27 @@
 import { createServer } from 'node:http'
-import { createReadStream, existsSync, readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { DocumentRejection, loadDocument, loadDocumentSync } from './document.mjs'
+import { createHeadingVerifier } from './headings.mjs'
 import { buildIconSprite } from './icons.mjs'
 import { PathRejection } from './paths.mjs'
 import { createRenderer } from './render.mjs'
 import {
   BodyRejection,
   MAX_BODY_BYTES,
-  SESSION_COOKIE_NAME,
   checkFetchMetadata,
   checkHost,
   checkSession,
   constantTimeEqual,
   createSecret,
+  formatAuthority,
   guardMutation,
   isLoopbackAddress,
-  readJsonBody
+  readJsonBody,
+  sessionCookieName
 } from './security.mjs'
 import { StoreRejection, classifyComment, classifyVerdict, createStore } from './store.mjs'
 
@@ -28,6 +30,9 @@ const require = createRequire(import.meta.url)
 
 export const DEFAULT_TTL_SECONDS = 1800
 export const MAX_TTL_SECONDS = 14400
+// Application assets are trusted, immutable and small. Anything larger than
+// this is not one of ours and is not served.
+export const MAX_ASSET_BYTES = 16 * 1024 * 1024
 const DOCUMENT_ID_PATTERN = /^[0-9a-f]{16}$/
 
 const CONTENT_SECURITY_POLICY = [
@@ -52,27 +57,42 @@ function vendorFile (specifier) {
   }
 }
 
-function buildStaticMap () {
-  const map = new Map([
-    ['/app.css', { path: join(here, '..', 'assets', 'app.css'), type: 'text/css; charset=utf-8' }],
-    ['/app.mjs', { path: join(here, '..', 'assets', 'app.mjs'), type: 'text/javascript; charset=utf-8' }],
-    ['/brand.png', { path: join(here, '..', '..', '..', 'assets', 'CA-glyph-on-light.png'), type: 'image/png' }]
-  ])
+/**
+ * Read a trusted application asset once, at launch. Documents are read on every
+ * request because they are the thing under review; these files are not. Holding
+ * the bytes means a later edit, deletion or replacement of an asset can neither
+ * change what the page runs nor leave a request hanging on a broken read.
+ */
+function snapshotAsset (path, type) {
+  try {
+    const entry = statSync(path)
 
-  const mermaid = vendorFile('mermaid/dist/mermaid.min.js')
-  const purify = vendorFile('dompurify/dist/purify.min.js')
+    if (!entry.isFile() || entry.size > MAX_ASSET_BYTES) {
+      return null
+    }
 
-  if (mermaid) {
-    map.set('/vendor/mermaid.min.js', { path: mermaid, type: 'text/javascript; charset=utf-8' })
+    return { body: readFileSync(path), type }
+  } catch {
+    return null
   }
+}
 
-  if (purify) {
-    map.set('/vendor/purify.min.js', { path: purify, type: 'text/javascript; charset=utf-8' })
-  }
+function buildStaticMap (assetRoot) {
+  const candidates = [
+    ['/app.css', join(assetRoot, 'app.css'), 'text/css; charset=utf-8'],
+    ['/app.mjs', join(assetRoot, 'app.mjs'), 'text/javascript; charset=utf-8'],
+    ['/brand.png', join(here, '..', '..', '..', 'assets', 'CA-glyph-on-light.png'), 'image/png'],
+    ['/vendor/mermaid.min.js', vendorFile('mermaid/dist/mermaid.min.js'), 'text/javascript; charset=utf-8'],
+    ['/vendor/purify.min.js', vendorFile('dompurify/dist/purify.min.js'), 'text/javascript; charset=utf-8']
+  ]
 
-  for (const [route, entry] of [...map]) {
-    if (!existsSync(entry.path)) {
-      map.delete(route)
+  const map = new Map()
+
+  for (const [route, path, type] of candidates) {
+    const asset = path === null ? null : snapshotAsset(path, type)
+
+    if (asset) {
+      map.set(route, asset)
     }
   }
 
@@ -114,7 +134,8 @@ export function createReviewServer ({
   host = '127.0.0.1',
   port = 0,
   ttlSeconds = DEFAULT_TTL_SECONDS,
-  maxDocumentBytes
+  maxDocumentBytes,
+  assetRoot = join(here, '..', 'assets')
 } = {}) {
   if (!isLoopbackAddress(host)) {
     throw new Error(`the review server must bind to a loopback address, not "${host}"`)
@@ -126,12 +147,15 @@ export function createReviewServer ({
 
   const store = createStore({ stateRoot })
   const renderer = createRenderer()
-  const staticMap = buildStaticMap()
+  const verifyHeadings = createHeadingVerifier()
+  const staticMap = buildStaticMap(assetRoot)
+  const shell = snapshotAsset(join(assetRoot, 'app.html'), 'text/html; charset=utf-8')
   const iconSprite = buildIconSprite()
 
   const sessionSecret = createSecret()
   const csrfToken = createSecret()
   const serverId = createSecret(8)
+  const cookieName = sessionCookieName(serverId)
   const startedAt = new Date()
 
   // Authorization happens here, at launch. Nothing a request carries can widen
@@ -139,7 +163,7 @@ export function createReviewServer ({
   const registry = new Map()
 
   for (const descriptor of documents) {
-    const loaded = descriptorIdentity(descriptor, maxDocumentBytes)
+    const loaded = descriptorIdentity(descriptor, maxDocumentBytes, verifyHeadings)
     registry.set(loaded.id, loaded)
   }
 
@@ -160,12 +184,12 @@ export function createReviewServer ({
 
   function authority () {
     const address = httpServer.address()
-    return `127.0.0.1:${address.port}`
+    return formatAuthority(address.address, address.port)
   }
 
   function allowedAuthorities () {
     const address = httpServer.address()
-    return [`127.0.0.1:${address.port}`, `localhost:${address.port}`]
+    return [formatAuthority(address.address, address.port), `localhost:${address.port}`]
   }
 
   function allowedOrigins () {
@@ -177,8 +201,13 @@ export function createReviewServer ({
       authorities: allowedAuthorities(),
       origins: allowedOrigins(),
       sessionSecret,
-      csrfToken
+      csrfToken,
+      cookieName
     }
+  }
+
+  function hasSession (request) {
+    return checkSession(request.headers, sessionSecret, cookieName).ok
   }
 
   async function handleRequest (request, response) {
@@ -216,7 +245,7 @@ export function createReviewServer ({
     }
 
     if (request.method === 'GET' && path === '/icons.svg') {
-      if (!checkSession(request.headers, sessionSecret).ok) {
+      if (!hasSession(request)) {
         return sendJson(response, 401, { error: 'no session', reason: 'session' })
       }
 
@@ -224,7 +253,7 @@ export function createReviewServer ({
     }
 
     if (request.method === 'GET' && staticMap.has(path)) {
-      if (!checkSession(request.headers, sessionSecret).ok) {
+      if (!hasSession(request)) {
         return sendJson(response, 401, { error: 'no session', reason: 'session' })
       }
 
@@ -232,7 +261,7 @@ export function createReviewServer ({
     }
 
     if (request.method === 'GET' && path === '/api/session') {
-      if (!checkSession(request.headers, sessionSecret).ok) {
+      if (!hasSession(request)) {
         return sendJson(response, 401, { error: 'no session', reason: 'session' })
       }
 
@@ -282,12 +311,12 @@ export function createReviewServer ({
 
       response.writeHead(302, securityHeaders({
         location: '/',
-        'set-cookie': `${SESSION_COOKIE_NAME}=${sessionSecret}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${ttlSeconds}`
+        'set-cookie': `${cookieName}=${sessionSecret}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${ttlSeconds}`
       }))
       return response.end()
     }
 
-    if (!checkSession(request.headers, sessionSecret).ok) {
+    if (!hasSession(request)) {
       return sendText(
         response,
         401,
@@ -297,13 +326,23 @@ export function createReviewServer ({
       )
     }
 
-    const shell = readFileSync(join(here, '..', 'assets', 'app.html'), 'utf8')
-    return sendText(response, 200, 'text/html; charset=utf-8', shell)
+    if (!shell) {
+      return sendText(response, 503, 'text/plain; charset=utf-8', 'The review page assets are missing.\n')
+    }
+
+    return sendText(response, 200, 'text/html; charset=utf-8', shell.body.toString('utf8'))
   }
 
   function serveStatic (response, entry) {
-    response.writeHead(200, securityHeaders({ 'content-type': entry.type }))
-    createReadStream(entry.path).pipe(response)
+    response.writeHead(200, securityHeaders({
+      'content-type': entry.type,
+      'content-length': entry.body.byteLength
+    }))
+    response.end(entry.body)
+  }
+
+  function readDocument (entry) {
+    return loadDocument({ root: entry.root, path: entry.path, maxBytes: maxDocumentBytes, verifyHeadings })
   }
 
   async function routeDocument (request, response, documentId, action) {
@@ -318,7 +357,7 @@ export function createReviewServer ({
     }
 
     if (request.method === 'GET' && action === undefined) {
-      if (!checkSession(request.headers, sessionSecret).ok) {
+      if (!hasSession(request)) {
         return sendJson(response, 401, { error: 'no session', reason: 'session' })
       }
 
@@ -352,7 +391,7 @@ export function createReviewServer ({
 
     let document
     try {
-      document = await loadDocument({ root: entry.root, path: entry.path, maxBytes: maxDocumentBytes })
+      document = await readDocument(entry)
     } catch (error) {
       return sendUnavailable(response, error)
     }
@@ -367,6 +406,19 @@ export function createReviewServer ({
     }
 
     try {
+      // The revision was already checked above, but that check raced the store
+      // lock. This one runs inside the serialized mutation, so a file edited
+      // while the request queued cannot receive an approval for the old bytes.
+      const precondition = async () => {
+        const current = await readDocument(entry)
+
+        if (current.revision.hash !== document.revision.hash) {
+          const rejection = new StoreRejection('the document changed while the mutation was queued', 'stale-source')
+          rejection.revision = current.revision.hash
+          throw rejection
+        }
+      }
+
       if (action === 'comment') {
         const section = document.sections.find((candidate) => candidate.key === body.sectionKey)
 
@@ -385,32 +437,86 @@ export function createReviewServer ({
           ambiguousHeading: document.sections.filter((candidate) => candidate.heading === section.heading).length > 1,
           documentHash: document.revision.hash,
           body: body.body
-        })
+        }, { precondition })
 
-        return sendJson(response, 201, result)
+        return sendJson(response, 201, { ...result, ...(await observeCommit(entry, document.revision.hash)) })
       }
 
       const result = await store.setVerdict(documentId, {
         verdict: body.verdict,
         documentHash: document.revision.hash,
         note: body.note
-      })
+      }, { precondition })
 
       return sendJson(response, 201, {
         ...result,
+        ...(await observeCommit(entry, document.revision.hash)),
         // Said on every response so a caller cannot read this as sign-off.
         approvalAuthority: 'chat-sign-off-required'
       })
     } catch (error) {
-      if (error instanceof StoreRejection) {
-        return sendJson(response, error.reason === 'comment-limit' ? 409 : 400, {
+      if (error instanceof StoreRejection && error.reason === 'stale-source') {
+        return sendJson(response, 409, {
           error: error.message,
-          reason: error.reason
+          reason: 'stale',
+          state: 'stale',
+          revision: error.revision
         })
+      }
+
+      if (error instanceof StoreRejection) {
+        return sendJson(response, mutationStatus(error.reason), {
+          error: error.message,
+          reason: error.reason,
+          state: 'refused'
+        })
+      }
+
+      // The in-lock precondition reads the source again, so it can raise the
+      // same rejections the pre-lock read does. Those describe the document,
+      // not an internal fault, and answer as unavailable rather than 500.
+      if (error instanceof PathRejection || error instanceof DocumentRejection) {
+        return sendUnavailable(response, error)
       }
 
       throw error
     }
+  }
+
+  const CONFLICT_REASONS = new Set([
+    'comment-limit',
+    'lock-timeout',
+    'lock-lost',
+    'store-capacity',
+    'store-too-large',
+    'store-malformed',
+    'store-schema',
+    'store-foreign-document',
+    'store-comment-invalid',
+    'store-verdict-invalid'
+  ])
+
+  function mutationStatus (reason) {
+    return CONFLICT_REASONS.has(reason) ? 409 : 400
+  }
+
+  /**
+   * Read the source once more after the commit. A file edited in the moment
+   * between the in-lock check and the write is still recorded — the feedback is
+   * real — but the response must not present it as applying to what is on disk
+   * now.
+   */
+  async function observeCommit (entry, committedHash) {
+    let observed
+    try {
+      observed = await readDocument(entry)
+    } catch {
+      return { state: 'superseded', revision: null }
+    }
+
+    return observed.revision.hash === committedHash
+      ? { revision: committedHash }
+      : { state: 'superseded', revision: observed.revision.hash }
   }
 
   function sendUnavailable (response, error) {
@@ -428,7 +534,7 @@ export function createReviewServer ({
   async function serveDocument (response, entry) {
     let document
     try {
-      document = await loadDocument({ root: entry.root, path: entry.path, maxBytes: maxDocumentBytes })
+      document = await readDocument(entry)
     } catch (error) {
       return sendUnavailable(response, error)
     }
@@ -459,7 +565,8 @@ export function createReviewServer ({
       orphanedComments: comments.filter((comment) => comment.state === 'orphaned').length,
       verdict: classifyVerdict(record.verdict, document.revision.hash),
       approvalAuthority: 'chat-sign-off-required',
-      storeRecovered: record.recovered === true
+      storeUnreadable: record.unreadable === true,
+      storeUnreadableReason: record.unreadableReason ?? null
     })
   }
 
@@ -496,11 +603,11 @@ export function createReviewServer ({
     },
 
     get origin () {
-      return `http://127.0.0.1:${httpServer.address().port}`
+      return `http://${authority()}`
     },
 
     get url () {
-      return `http://127.0.0.1:${httpServer.address().port}/?s=${sessionSecret}`
+      return `http://${authority()}/?s=${sessionSecret}`
     },
 
     listen () {
@@ -517,8 +624,8 @@ export function createReviewServer ({
   }
 }
 
-function descriptorIdentity (descriptor, maxBytes) {
-  const document = loadDocumentSync({ root: descriptor.root, path: descriptor.path, maxBytes })
+function descriptorIdentity (descriptor, maxBytes, verifyHeadings) {
+  const document = loadDocumentSync({ root: descriptor.root, path: descriptor.path, maxBytes, verifyHeadings })
 
   return {
     id: document.id,

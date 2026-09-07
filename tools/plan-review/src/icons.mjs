@@ -16,7 +16,6 @@ export const ICON_NAME = Object.freeze({
   shutdown: 'Power',
   dismiss: 'X',
   submit: 'Send',
-  keyboard: 'Keyboard',
   pending: 'Clock',
   diagram: 'Workflow'
 })

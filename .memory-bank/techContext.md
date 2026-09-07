@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-06
+last-verified: 2026-09-07
 owner: software-engineer
 source: build.yaml and source/
 ---
@@ -144,57 +144,34 @@ mutate a remote without an explicit current-turn request.
 
 - `./build.ps1 -Tasks build, test` is the full gate. Add `-ResolveDependency`
   on the first run.
-- Validate CI-affecting changes against a clean checkout, not just the
-  developer worktree: clone into a temporary directory, copy `output/` in as the
-  build artifact, and run `./build.ps1 -Tasks test`. A worktree carries
-  gitignored files that CI never has.
-- Windows PowerShell 5.1 decodes a BOM-less UTF-8 file with the ANSI code page.
-  A test that string-matches repository Markdown must read it with
-  `-Encoding UTF8`, or every non-ASCII character becomes mojibake. Most reads
-  in `tests/` omit it and are safe only because they match ASCII.
-- An environment-bound test declares its requirement through a
-  `BeforeDiscovery` probe feeding `-Skip`, never through `#requires`, which
-  fails Pester discovery on an unsupported host and so fails the whole run
-  instead of skipping one file. Tag it `Unit` only if it really is portable,
-  because the Linux job selects by tag.
-- A hook resolves a payload-supplied path through .NET, never the PowerShell
-  provider, which writes to standard error for a path it cannot resolve; a
-  hook's caller merges the streams, so that noise corrupts the JSON the hook
-  writes to standard output.
-- `tests/Workflows.Tests.ps1` parses every GitHub Actions workflow and rejects
-  an expression in a step's `shell` key. That key accepts no context, so an
-  expression there fails the whole workflow file; a matrix-driven shell belongs
-  in `jobs.<job_id>.defaults.run`.
-- Read `tests/` for what each suite covers; do not restate that inventory here.
-  Three gates there constrain unrelated work and are easy to trip:
-  `MemoryBankRouting.Tests.ps1` requires at least 50 percent average context
-  reduction; `MemoryBankHealth.Tests.ps1` enforces the per-file line budgets;
-  and `SkillFrontmatter.Tests.ps1` enforces a shrink-only body baseline.
-- PowerShell changes require AST parsing, focused Pester, and PSScriptAnalyzer
-  where available. Markdown Customizations require frontmatter checks and clean
-  editor or markdownlint diagnostics.
-- Pester is pinned to 5.7.1. `Initialize_TestResultSerialization` serializes
-  file, drive, and provider references as paths or labels, then restores the
-  caller's type data through build-exit cleanup, including failures. Raw
-  provider metadata can stall `Export-Clixml` on both Windows hosts.
+- Test CI-affecting changes in a temporary clean clone with copied `output/`
+  artifacts and `./build.ps1 -Tasks test`; local ignored files can mask failures.
+- Read non-ASCII Markdown with `-Encoding UTF8` on Windows PowerShell 5.1;
+  its ANSI default corrupts BOM-less UTF-8. Existing ASCII-only matches are safe.
+- Environment-bound tests use `BeforeDiscovery` probes and `-Skip`, never
+  discovery-failing `#requires`. Reserve `Unit` for portable tests: Linux selects
+  by tag. Hooks resolve payload paths with .NET to avoid provider errors
+  contaminating their JSON output through merged streams.
+- Workflow step `shell` forbids expressions; matrix shells belong in
+  `jobs.<job_id>.defaults.run`, enforced by `tests/Workflows.Tests.ps1`.
+- `tests/` owns suite coverage. Routing requires 50% average context reduction;
+  Memory Bank health enforces line budgets; Skill bodies use shrink-only bounds.
+- PowerShell changes require AST, focused Pester, and available PSScriptAnalyzer;
+  Markdown Customizations need frontmatter checks and clean lint diagnostics.
+- Pester 5.7.1 result serialization stores file/provider references as paths or
+  labels to avoid `Export-Clixml` stalls. `Initialize_TestResultSerialization`
+  restores caller type data through build-exit cleanup, including failures.
 
 ## Sources of truth
 
-Do not duplicate changing inventories here. Use:
-
-- `com.github.copilot/agents`, `rules`, `commands`, and `hooks` for Custom
-  agents, auto-applied rules and `applyTo` patterns, Prompt bindings, and
-  lifecycle events; `skills/` for Skills and their trigger descriptions.
-- `source/CopilotAtelier.psd1` for the exported command surface.
-- `build.yaml` for the build workflow, Pester configuration, and payload list.
-- `plugin.json` for the agent plugin manifest.
-- `README.md` for the user-facing catalog.
-- `CHANGELOG.md` and git history for historical detail.
+Avoid duplicate inventories: `com.github.copilot/{agents,rules,commands,hooks}`
+owns Custom agents, Instructions, Prompts, and lifecycle events; `skills/` owns
+Skill descriptions. The source manifest owns exports, `build.yaml` owns build,
+test, and payload configuration, and `plugin.json` owns the plugin manifest.
+Use `README.md` for the catalog and `CHANGELOG.md` plus git for history.
 
 ## Development setup
 
-1. Clone the repository.
-2. Run `Setup-CopilotSettings.ps1` to deploy the working tree, or
-   `./build.ps1 -ResolveDependency -Tasks build, test` to build and validate.
-3. Restart VS Code or reselect the Custom agent.
-4. Verify Customization discovery in Copilot Chat diagnostics.
+Clone, then run `Setup-CopilotSettings.ps1` to deploy or
+`./build.ps1 -ResolveDependency -Tasks build, test` to validate. Restart VS Code
+or reselect the Custom agent, then check Copilot Chat discovery diagnostics.

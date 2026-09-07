@@ -42,38 +42,31 @@ when the task needs it; the repository layout lives in `techContext.md`.
 
 ## Live relationships
 
-- Agent conformance has three independent gates: schema validity, executable
-    behavior, and effective containment. A passing frontmatter parser or exact
-    tool-list fingerprint proves only the first. A no-egress claim is transitive
-    across terminal commands, subagents, handoffs, MCP tools, and hooks: every
-    reachable execution context needs an enforced empty allow-list, and prose
-    and omitted web tools are not containment.
-- Sensitive-data research is staged: narrow read-only intake, local
-    transformation, minimized public research, then explicitly shared
-    authenticated actions. Tool availability is capability, not authorization.
-    The `agents` property authorizes which Custom agents may run as subagents but
-    does not inherit their bodies; share instructions through a referenced
-    Instruction or inline with a drift test.
+- Agent conformance needs schema, executable behavior, and enforced containment.
+    Tool-list fingerprints prove schema only. No-egress must hold across
+    terminals, delegates, handoffs, MCP, and hooks; prose or omitted web tools
+    do not enforce it, especially without a native Windows terminal sandbox.
+- Sensitive-data work separates read-only intake, local transformation, public
+    research, and explicitly shared authenticated actions. Tools are capability,
+    not authorization; `agents` grants delegation, not body inheritance. Share
+    Instructions through references or inline text with a drift test.
 - Cross-client discovery is not parity. Compose from one authoritative profile
     through strict parsing and explicit capability mappings. Reject unknown
     grants, remove inexpressible restrictions' tools, and refuse unsupported
     workflows inside the variant. Generated variants require hash ownership.
 - A local HTTP verdict is feedback, not authority: the transport proves that a
-    content hash was posted, not who posted it. Bind dialogs and remarks to the
-    viewed revision, keep ambiguous anchors unassigned, and retain chat sign-off.
-    Browser validation is ephemeral and loopback-only; authenticated state needs
-    explicit sharing. Independent review is user-controlled and deferred
-    high-risk review stays explicit in the Definition of Done.
-- The module carries the Customizations as payload; the installer translates
-    Agent Plugins paths into the five `~/.copilot` Discovery siblings. File
-    equality is not deployment ownership: preserve untracked matches, require a
-    recorded relative path and matching bytes before removing, and keep source
-    and deployment trees from overlapping.
-- Opt-in narrowing is a payload filter, not a second removal path, so profile
-    switching reuses the existing retire and ownership checks. Selection state is
-    an additive, strictly validated optional record field, omitted for the
-    default, and never confers ownership. Inherited state read before a lock is
-    stale.
+    hash was posted, not who posted it. Bind feedback to the viewed revision and
+    retain chat sign-off. Compare section anchors with parser tokens on every
+    read, including locked mutations; refuse disagreement. Prove queued-write
+    tests reached the lock with observable readiness, not elapsed time.
+    Browser validation stays ephemeral and loopback-only; sharing authentication
+    and independent review are user-controlled, with deferred risks explicit.
+- The installer maps Agent Plugins payload paths into five `~/.copilot`
+    Discovery siblings. Preserve unowned matches, require recorded paths and
+    hashes before removal, and keep source and deployment trees separate.
+- Profile narrowing reuses ownership and retirement checks. Its optional,
+    validated Selection record never grants ownership; omit it for the default
+    and re-read inherited state inside the lock.
 - A selected artifact is an untrusted observation, never policy: keep candidates
     off automatically loaded surfaces, apply one content rule at intake and at
     promotion, gate an append-only write on an approved preview hash, and bind

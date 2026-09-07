@@ -101,13 +101,23 @@ Describe 'Plan review trust boundaries' -Tag 'Unit' {
     }
 
     It 'Should gate every mutation on Host, Origin, session and CSRF' {
+        <#
+            This is a source-shape tripwire on the gate composition: a check
+            that is defined but not in the gate array is not applied. The
+            behavioural regression that fails when a gate stops being applied is
+            tools/plan-review/test/unit/mutation-gate.test.mjs, which the Node
+            suite below runs without any installed dependency.
+        #>
         $script:serverText | Should -Match 'guardMutation\(request\.headers'
 
         $security = Get-Content -LiteralPath (Join-Path $script:sourceRoot 'security.mjs') -Raw
+        $gate = [regex]::Match($security, 'function guardMutation[\s\S]*?const gate = \[([\s\S]*?)\r?\n\s*\]')
 
-        foreach ($gate in 'checkHost', 'checkOrigin', 'checkFetchMetadata', 'checkContentType', 'checkSession', 'checkCsrf')
+        $gate.Success | Should -BeTrue -Because 'every mutation clears the gate array, not the definitions'
+
+        foreach ($check in 'checkHost', 'checkOrigin', 'checkFetchMetadata', 'checkContentType', 'checkSession', 'checkCsrf')
         {
-            $security | Should -Match "$gate\(headers"
+            $gate.Groups[1].Value | Should -Match "$check\(headers" -Because 'a check removed from the gate array is no longer applied'
         }
     }
 
@@ -130,6 +140,35 @@ Describe 'Plan review trust boundaries' -Tag 'Unit' {
         $script:serverText | Should -Match 'staticMap\.has\(path\)'
         $script:serverText | Should -Not -Match 'join\(.*request\.url'
         $script:serverText | Should -Not -Match 'readdir'
+    }
+
+    It 'Should hold application assets as an immutable launch snapshot' {
+        <#
+            A document is re-read on every request because it is the thing under
+            review. The page's own assets are not: serving them from a snapshot
+            keeps a file swapped or deleted after launch from changing what the
+            page runs or hanging a request on a broken read stream.
+        #>
+        $script:serverText | Should -Match 'function snapshotAsset'
+        $script:serverText | Should -Match 'MAX_ASSET_BYTES'
+        $script:serverText | Should -Not -Match 'createReadStream'
+    }
+
+    It 'Should namespace the session cookie per launch' {
+        <#
+            Cookies are scoped by host, not by port, so a fixed name lets a
+            second local server overwrite the first server's session.
+        #>
+        $security = Get-Content -LiteralPath (Join-Path $script:sourceRoot 'security.mjs') -Raw
+
+        $security | Should -Match 'export function sessionCookieName'
+        $security | Should -Not -Match "SESSION_COOKIE_NAME = 'plan_review_session'"
+        $script:serverText | Should -Match 'sessionCookieName\(serverId\)'
+    }
+
+    It 'Should derive the allowed authority from the address actually bound' {
+        $script:serverText | Should -Match 'formatAuthority\(address\.address, address\.port\)'
+        $script:serverText | Should -Not -Match '`127\.0\.0\.1:\$\{'
     }
 
     It 'Should never load a resource from a remote origin' {
@@ -157,8 +196,13 @@ Describe 'Plan review trust boundaries' -Tag 'Unit' {
 Describe 'Plan review approval authority' -Tag 'Unit' {
     It 'Should record a browser verdict as feedback, never as sign-off' {
         $script:storeText | Should -Match "approvalAuthority: 'chat-sign-off-required'"
-        $script:storeText | Should -Match "authority: 'local-http-feedback'"
+        $script:storeText | Should -Match "FEEDBACK_AUTHORITY = 'local-http-feedback'"
+        $script:storeText | Should -Match 'authority: FEEDBACK_AUTHORITY'
         $script:serverText | Should -Match "approvalAuthority: 'chat-sign-off-required'"
+    }
+
+    It 'Should refuse to read a stored authority as anything better than feedback' {
+        $script:storeText | Should -Match 'verdict\.authority === FEEDBACK_AUTHORITY'
     }
 
     It 'Should refuse a state root inside the Decision record folder' {
@@ -197,6 +241,35 @@ Describe 'Plan review containment' -Tag 'Unit' {
     It 'Should authorize documents at launch and address them by an opaque identifier' {
         $script:serverText | Should -Match 'DOCUMENT_ID_PATTERN = /\^\[0-9a-f\]\{16\}\$/'
         $script:serverText | Should -Match 'registry\.get\(documentId\)'
+    }
+
+    It 'Should recheck the source revision inside the serialized mutation' {
+        $script:serverText | Should -Match "'stale-source'"
+        $script:serverText | Should -Match '\{ precondition \}'
+        $script:storeText | Should -Match 'await precondition\(record\)'
+    }
+
+    It 'Should preserve unreadable feedback rather than overwriting it' {
+        $script:storeText | Should -Match 'unreadableReason'
+        $script:storeText | Should -Match 'MAX_STORE_BYTES'
+        $script:storeText | Should -Not -Match 'rmSync'
+        $script:storeText | Should -Match "'lock-lost'"
+    }
+
+    It 'Should refuse to write a record its own reader would refuse' {
+        $script:storeText | Should -Match "Buffer\.byteLength\(bytes, 'utf8'\) > MAX_STORE_BYTES"
+        $script:storeText | Should -Match "'store-capacity'"
+        $script:storeText | Should -Match 'SHA256_PATTERN = /\^\[0-9a-f\]\{64\}\$/'
+        $script:storeText | Should -Match "'invalid-section-hash'"
+        $script:storeText | Should -Match "'invalid-document-hash'"
+    }
+
+    It 'Should issue a section key that is unique across the whole document' {
+        $document = Get-Content -LiteralPath (Join-Path $script:sourceRoot 'document.mjs') -Raw
+
+        $document | Should -Match 'const used = new Set\(\)'
+        $document | Should -Match 'while \(used\.has\(key\)\)'
+        $document | Should -Match 'used\.add\(key\)'
     }
 }
 

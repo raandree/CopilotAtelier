@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -314,4 +314,179 @@ test('stops the server from the page', async ({ page }) => {
 
   await server.stopped
   expect(server.address).toBeNull()
+})
+
+test('keeps two review servers usable in one browser', async ({ page }) => {
+  const otherWorkspace = mkdtempSync(join(tmpdir(), 'plan-review-second-'))
+  const otherPath = join(otherWorkspace, 'other.md')
+  writeFileSync(otherPath, '# Second concept\n\n## Scope\n\nSeparate server content.\n', 'utf8')
+
+  const second = createReviewServer({
+    documents: [{ root: otherWorkspace, path: otherPath }],
+    stateRoot: join(otherWorkspace, '.state'),
+    ttlSeconds: 300
+  })
+  await second.listen()
+
+  try {
+    const problems = await openReview(page)
+
+    const otherPage = await page.context().newPage()
+    await otherPage.goto(second.url)
+    await expect(otherPage.locator('#doc-title')).toHaveText('Second concept')
+
+    // The second launch must not have overwritten the first launch's cookie.
+    await page.reload()
+    await expect(page.locator('#doc-title')).toHaveText('Renderer fixture — plan review browser checks')
+
+    const first = page.locator('#section-scope')
+    await first.getByRole('button', { name: 'Comment', exact: true }).click()
+    await first.locator('textarea').fill('Recorded on the first server.')
+    await first.getByRole('button', { name: 'Add comment', exact: true }).click()
+    await expect(first.locator('.comment')).toHaveCount(1)
+
+    const other = otherPage.locator('#section-scope')
+    await other.getByRole('button', { name: 'Comment', exact: true }).click()
+    await other.locator('textarea').fill('Recorded on the second server.')
+    await other.getByRole('button', { name: 'Add comment', exact: true }).click()
+    await expect(other.locator('.comment')).toHaveCount(1)
+    await expect(other.locator('.comment')).toContainText('Recorded on the second server.')
+
+    await otherPage.close()
+    expect(problems).toEqual([])
+  } finally {
+    await second.close()
+  }
+})
+
+test('surfaces a draft written on an earlier revision instead of hiding it', async ({ page }) => {
+  const problems = await openReview(page)
+
+  const section = page.locator('#section-removable')
+  await section.getByRole('button', { name: 'Comment', exact: true }).click()
+  await section.locator('textarea').fill('Written before the document changed.')
+
+  const trimmed = readFileSync(documentPath, 'utf8').split('## Removable')[0]
+  writeFileSync(documentPath, trimmed, 'utf8')
+
+  await page.getByRole('button', { name: 'Reload' }).click()
+  await expect(page.locator('#section-removable')).toHaveCount(0)
+
+  const drafts = page.locator('#stale-drafts')
+  await expect(drafts).toBeVisible()
+  await expect(drafts.locator('.stale-draft')).toHaveCount(1)
+  await expect(drafts.locator('.stale-draft')).toContainText('Written before the document changed.')
+  await expect(drafts.locator('.stale-draft')).toContainText('removable')
+
+  // The text must never be re-attached to a section it was not written on.
+  const scope = page.locator('#section-scope')
+  await scope.getByRole('button', { name: 'Comment', exact: true }).click()
+  await expect(scope.locator('textarea')).toHaveValue('')
+
+  await drafts.locator('.stale-draft').getByRole('button', { name: 'Discard' }).click()
+  await expect(drafts).toBeHidden()
+
+  expect(problems).toEqual([])
+})
+
+test('keeps a pending verdict note after a stale revision refusal', async ({ page }) => {
+  const problems = await openReview(page)
+
+  await page.getByRole('button', { name: 'Approve', exact: true }).click()
+  await page.locator('#verdict-note').fill('Hold this note across the refusal.')
+
+  writeFileSync(documentPath, `${readFileSync(documentPath, 'utf8')}\nEdited under the open dialog.\n`, 'utf8')
+
+  const verdictResponse = page.waitForResponse((response) => response.url().endsWith('/verdict'))
+  await page.getByRole('button', { name: 'Record', exact: true }).click()
+  expect((await verdictResponse).status()).toBe(409)
+  await expect(page.locator('#banner')).toContainText('changed')
+
+  await page.getByRole('button', { name: 'Approve', exact: true }).click()
+  await expect(page.locator('#verdict-note')).toHaveValue('Hold this note across the refusal.')
+
+  // The refusal itself is the expected outcome, so the browser's log entry for
+  // the 409 is not a defect.
+  expect(problems.filter((problem) => !problem.includes('409'))).toEqual([])
+})
+
+test('never renders a slow response under a different selected document', async ({ page }) => {
+  const otherPath = join(workspace, 'second-concept.md')
+  writeFileSync(otherPath, '# Second review fixture\n\n## Scope\n\nSeparate document content.\n', 'utf8')
+  await server.close()
+  server = createReviewServer({
+    documents: [{ root: workspace, path: documentPath }, { root: workspace, path: otherPath }],
+    stateRoot: join(workspace, '.state'),
+    ttlSeconds: 300
+  })
+  await server.listen()
+
+  const first = server.documents[0].id
+  const problems = await openReview(page)
+
+  await page.route(`**/api/document/${first}`, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    await route.continue()
+  })
+
+  await page.getByRole('button', { name: 'Reload' }).click()
+  await page.getByLabel('Opened document').selectOption({ label: 'Second review fixture' })
+
+  await expect(page.locator('#doc-title')).toHaveText('Second review fixture')
+  await page.waitForTimeout(2500)
+  await expect(page.locator('#doc-title')).toHaveText('Second review fixture')
+  await expect(page.locator('#sections')).toContainText('Separate document content.')
+  await expect(page.locator('#sections')).not.toContainText('This section carries')
+
+  await page.unroute(`**/api/document/${first}`)
+  expect(problems).toEqual([])
+})
+
+test('offers the outline as a disclosure and shows no permanent shortcut line', async ({ page }, testInfo) => {
+  const problems = await openReview(page)
+
+  await expect(page.locator('.outline kbd')).toHaveCount(0)
+
+  const outline = page.locator('#outline-details')
+  await expect(outline).toBeVisible()
+
+  if (testInfo.project.name === 'mobile') {
+    await expect(page.locator('#outline-list')).toBeHidden()
+    // The document itself must be reachable without scrolling past an outline.
+    const documentTop = await page.locator('#document').evaluate((node) => node.getBoundingClientRect().top)
+    expect(documentTop).toBeLessThan(page.viewportSize().height)
+
+    await outline.locator('summary').click()
+    await expect(page.locator('#outline-list')).toBeVisible()
+  } else {
+    await expect(page.locator('#outline-list')).toBeVisible()
+  }
+
+  expect(problems).toEqual([])
+})
+
+test('explains a verdict action taken when no revision is loaded', async ({ page }) => {
+  const problems = []
+
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      problems.push(`console: ${message.text()}`)
+    }
+  })
+  page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`))
+
+  rmSync(documentPath)
+  await page.goto(server.url)
+  await expect(page.locator('#banner')).toContainText('no longer readable')
+
+  await page.getByRole('button', { name: 'Approve' }).click()
+  await expect(page.locator('#verdict-dialog')).toBeHidden()
+  await expect(page.locator('#banner')).toContainText('No revision is loaded')
+
+  await page.getByRole('button', { name: 'Request changes' }).click()
+  await expect(page.locator('#verdict-dialog')).toBeHidden()
+
+  // The removed document answers 410 by design, which the browser logs as a
+  // failed resource load; an application error would still show up here.
+  expect(problems.filter((problem) => !problem.includes('Failed to load resource'))).toEqual([])
 })

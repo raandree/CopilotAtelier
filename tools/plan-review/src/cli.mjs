@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 
+import { DocumentRejection } from './document.mjs'
 import { PathRejection, directoryOf, resolveRoot } from './paths.mjs'
 import { DEFAULT_TTL_SECONDS, MAX_TTL_SECONDS, createReviewServer } from './server.mjs'
 import { StoreRejection } from './store.mjs'
@@ -97,17 +98,20 @@ export async function main (argv = process.argv.slice(2)) {
       port: Number.isFinite(options.port) ? options.port : 0,
       ttlSeconds: options.ttlSeconds
     })
+
+    // A failed bind is the most common start-up failure, so it has to reach the
+    // same diagnostic as a refused path rather than an unhandled rejection.
+    await server.listen()
   } catch (error) {
-    if (error instanceof PathRejection || error instanceof StoreRejection) {
+    if (error instanceof PathRejection || error instanceof StoreRejection || error instanceof DocumentRejection) {
       process.stderr.write(`refused to start: ${error.message} (${error.reason})\n`)
       return 1
     }
 
-    process.stderr.write(`refused to start: ${error.message}\n`)
+    const detail = error.code ? `${error.message} (${error.code})` : error.message
+    process.stderr.write(`refused to start: ${detail}\n`)
     return 1
   }
-
-  await server.listen()
 
   const stop = () => { server.close() }
   process.on('SIGINT', stop)
@@ -141,5 +145,8 @@ export async function main (argv = process.argv.slice(2)) {
 if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('cli.mjs')) {
   main().then((code) => {
     process.exitCode = code
+  }).catch((error) => {
+    process.stderr.write(`refused to start: ${error.message}\n`)
+    process.exitCode = 1
   })
 }

@@ -15,6 +15,31 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-07**: Integrated saved PR-01 through PR-09 corrections with the
+  existing plan-review hardening. Parser-verified headings refuse ambiguous
+  anchors before comment or verdict writes, including queued mutations; CLI,
+  empty-revision actions, and mutation-gate coverage are corrected. Preserved
+  per-launch sessions, bounded state, ownership locks, snapshots, and drafts.
+  Windows full gate 1,774/0/116 at 90.72% coverage; Node 248/0 on Windows and
+  Linux; Edge 42; focused Pester 43. Replaced a scheduling-based lock regression
+  with observable readiness and proved discrimination under a slow schedule.
+  The original independent review covers `3d115a3`; no re-review is claimed.
+
+- **2026-09-07 09:44 UTC**: Closed this session's seven-task implementation with
+  task07 corrections uncommitted and concurrent history preserved at `3d115a3`.
+  Final Windows build/test: 1,773 passed, zero failed, 116 skipped, 90.72%
+  coverage; Node 180, Edge desktop/mobile 40, focused Pester 42. Controller
+  verified logs, screenshots, sample HTTP 200, and offline markdownlint 0.45.0.
+  Earlier Linux evidence predates these corrections. No push or paid evaluation.
+
+- **2026-09-07**: Corrected `tools/plan-review` in two uncommitted rounds:
+  per-launch cookies and bound-address authorities, strict byte-bounded state
+  reads/writes that preserve refused content, ownership-aware locks, source
+  rechecks inside and after mutation, immutable asset snapshots, visible stale
+  drafts, guarded asynchronous selection, CommonMark fences, and globally
+  unique section keys. `CHANGELOG.md` retains the defects and regression details.
+  Round 1's Node 178 was a miscount; the suite held 163 before round 2.
+
 - **2026-09-07**: Committed tasks 01-06 on `main` as six feature commits
   (`c0c7166` through `288a4ad`) plus records at `555c260`. Added global
   `node_modules/` exclusion and committed task 07 in `3b04d46` with
@@ -29,9 +54,7 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   unreferenced by `source/`, and keeps Node dependencies optional. Browser
   feedback never authorizes implementation; chat sign-off remains authoritative.
   Host, Origin, session, and CSRF checks protect the bounded local HTTP surface.
-  Initial evidence: 124 Node tests, 22 desktop/mobile browser checks, and 30
-  repository checks. Later integration evidence is recorded above; the guide
-  and threat model retain detailed boundaries and residual risks.
+  The guide and threat model retain the boundaries and residual risks.
 
 - **2026-09-07**: Added read-only `Get-CopilotAtelierClientAdapter` (task 06 of
   the sequential series) and corrected it in one round. The VS Code profiles
@@ -39,15 +62,14 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   where an unmapped identifier is an error and a strict YAML subset that rejects
   an unknown or duplicate field instead of dropping it. An `execute/` prefix is
   a namespace, not execution authority: only `execute/runInTerminal` reaches the
-  execute alias, and every other mapping stays inside its capability class. A
-  restriction that cannot be expressed removes what it guards. `review: on` and
-  `cycle: full` are declared unsupported inside the composed file behind an
-  explicit marker carrying the byte-identical shared body's SHA-256. Neither
-  client is runtime verified. The build task owns `output/clientAdapters/`
-  through a hashed manifest: every path component is guarded, the whole
-  operation is validated before the first delete, and an edited generated file,
-  an unowned collision, and a names-only `schema 1` manifest are all refused.
-  Red 46/103, then 103/103; round 2 red 15/121, then 121/121.
+  execute alias. A restriction that cannot be expressed removes what it guards,
+  so `review: on` and `cycle: full` are declared unsupported inside the composed
+  file behind a marker carrying the byte-identical shared body's SHA-256.
+  Neither client is runtime verified. The build task owns
+  `output/clientAdapters/` through a hashed manifest: every path component is
+  guarded, the whole operation is validated before the first delete, and an
+  edited generated file, an unowned collision, and a names-only `schema 1`
+  manifest are all refused. Red 46/103, then 103/103; round 2 121/121.
 
 - **2026-09-07**: Added the `changed-file-validation` Skill (task 05 of the
   sequential series) and corrected it in two rounds: an opt-in, bounded
@@ -69,68 +91,24 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   and `Measure-CopilotAtelierSkillHealth`, then corrected it in two rounds.
   Usage arrives only through explicit `-ObservationPath` imports validated
   against a closed schema; nothing is stored or uploaded, and missing telemetry
-  is unknown, never zero use. Evaluation evidence is content-bound: run output
-  counts only through a validated provenance sidecar, and a graded summary only
-  when it reconciles with the bounded verdicts in `assertion_results`.
-  Red 29 then green 81/0; canonical `build, test` 1492/0, exit 0.
+  is unknown, never zero use. Run output counts only through a validated
+  provenance sidecar, and a graded summary only when it reconciles with the
+  bounded verdicts in `assertion_results`. Red 29 then green 81/0.
 
-- **2026-09-07**: Added the `reviewed-learning-inbox` Skill (task 03 of the
-  sequential series): an on-demand, project-scoped review queue that turns an
-  explicitly selected local correction into a reviewable suggestion for an
-  existing Skill or Instruction, through six scripts covering record, read,
-  decide, discard, preview, and apply. The store at
-  `.memory-bank/learning-inbox/candidates.json` sits outside the routed base and
-  the deployed tree. Promotion is append-only and needs `-Approve` plus the
-  SHA-256 of the reviewed preview, and refuses a foreign project, a contradicting
-  or out-of-surface destination, and stale candidate, evidence, destination, or
-  preview state before the first write. One content rule guards intake and
-  promotion alike, so a hand-edited store cannot smuggle a capability key or
-  shell substitution into a Customization. Round 1 added parent-chain reparse
-  guards, evidence bound to the candidate record, a byte-preserving exclusive
-  append, an atomic locked store, and verified-block repeat handling. Red 39
-  then 39/0/0; round 2 red 18 of 62 then 62/0/0. `evals/candidate-cases.json` is
-  authored and unexecuted.
+- **2026-09-07**: Shipped the reviewed learning inbox (task 03, `09416a4`):
+  off-route candidate storage, one intake/promotion content rule, guarded paths,
+  atomic state, and append-only approval bound to the reviewed preview hash.
+  Two correction rounds ended at 62/0; the changelog retains the full contract.
 
-- **2026-09-06**: Added opt-in installation profiles (task 02 of the sequential
-  series). `-InstallationProfile` (`complete` default, `engineering`,
-  `research`, `document-processing`) plus `-IncludeSkill`/`-ExcludeSkill` on
-  Install, Update, and Setup; new read-only `Get-CopilotAtelierProfile`;
-  `Test-CopilotAtelier` reports the deployed profile. Only Skills are
-  selectable, three mandatory Skills are protected, whole Skill folders and
-  declared dependencies come along, and every rejection happens before the first
-  write. The selection is an additive optional `Selection` field in schema 1.
-  Correction round 1 closed three defects: validating a narrowing request
-  against the payload it narrows, re-reading the inherited selection under the
-  deployment lock, and validating the recorded `Selection` shape strictly.
-  Focused suites red 34 then green; regressions red 15 then 210/0/6 on
-  PowerShell 7 and 5.1; full gate green.
-- **2026-09-06**: Added read-only `Get-CopilotAtelierFootprint` (task 01) with
-  the shared `Get-CopilotAtelierDirectoryMap` helper, which the installer now
-  reuses, and the filesystem-pure `Measure-CopilotAtelierFootprint` engine. Two
-  correction rounds followed: wording says potential automatic loading
-  contingent on discovery, not "always loaded"; every mapped root is guarded
-  through `Assert-CopilotAtelierRegularPath`; and ambiguous frontmatter fails
-  closed. Regressions ran red before each round and green after; committed in
-  `c0c7166` as part of the six-feature sequence.
+- **2026-09-06**: Shipped profiles (`8e40815`) and footprint reporting
+  (`c0c7166`). Profiles preserve mandatory Skills and inherited selection under
+  the deployment lock; PowerShell 7/5.1 regressions 210/0/6. Footprint reports
+  potential loading contingent on discovery and refuses ambiguous frontmatter.
 
-- **2026-09-06**: Reproduced CI run `34061934611` at `5acb69d` in a clean clone
-  and a Linux container and fixed shared payload-guard use, dangling Unix
-  Discovery links, and the literal POSIX filename fixture on `main`. Windows
-  1,266 passed at 88.03% coverage; Linux 1,172; 5.1 focused 120; zero failures.
-
-- **2026-09-06**: Implemented M1-M5/L1-L6 deployment-review remediation with
-  per-ID red/green evidence in `assessment-log.md`. Repair remains explicit;
-  untracked content and abandoned staging are preserved. Full gate 1,234 passed
-  at 87.8% coverage. Independent review: Approve, zero Blocker/Major.
-
-- **2026-09-05**: Implemented hash-aware deployment and conservative removal,
-  read-only diagnostics, bounded SessionStart context, and configuration gates.
-  1,137 passed at 83.63% coverage; the independent security review returned
-  CONDITIONAL with no Critical or High and unresolved findings stay in
-  `assessment-log.md`.
-
-- **2026-09-04**: Role-record migration and job-monitor work shipped in `e23eb7e`;
-  historical validation is retained in the changelog.
+- **2026-09-06**: Fixed CI run `34061934611` in `35fa926` after clean-clone
+  reproduction: Windows 1,266 passed at 88.03%, Linux 1,172, 5.1 focused 120.
+  Earlier deployment-review M1-M5/L1-L6 remediation and approval remain in
+  `assessment-log.md`; migration and monitoring shipped in `e23eb7e`.
 
 ## Stable capabilities
 
@@ -151,20 +129,20 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 - Prompt templates for repeatable development, research, legal, and operations
   workflows.
 - Detached Pester and build execution with persistent completion evidence.
-- Test-first behavior changes, regression guards, risk-scaled review, and
+  Test-first behavior changes, regression guards, risk-scaled review, and
   agentic-security checks. Routed Memory Bank loading with deterministic
   non-inferiority, health, provenance, compactness, and rollback checks.
 
 ## Open work
 
 - Split research delegation into a read-only code explorer and a public-source
-  researcher instead of granting the full `research-analyst` tool surface.
-- Review the twelve-agent browser allow-list role by role and add explicit
+  researcher instead of granting the full `research-analyst` tool surface, and
+  review the twelve-agent browser allow-list role by role, adding explicit
   public, authenticated, credential, upload, and irreversible-action bounds to
   every retained browser workflow.
 - Replace the three handwritten agent-frontmatter parsers with one shared YAML
-  parser and fixtures that prove malformed nested handoffs and lists fail.
-- Capture the trigger-eval harness's expected simulated backend failure so the
+  parser and fixtures that prove malformed nested handoffs and lists fail, and
+  capture the trigger-eval harness's expected simulated backend failure so the
   successful full build emits no warning.
 - Restore a Windows PowerShell 5.1 CI leg now that `Repair_ManifestEncoding`
   fixes the manifest. Re-adding it guards the fix and needs the `ci.yml`
@@ -179,9 +157,8 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   rules plus on-demand Skill references. Keep Custom agent bodies within
   explicit prompt budgets and add deterministic regression checks for other
   frequently used agents.
-- Extend the routing eval set when real retrieval failures are observed.
-- Add Markdown linting to continuous integration when the required runtime is
-  available.
+- Extend the routing eval set when real retrieval failures are observed, and add
+  Markdown linting to continuous integration when the runtime is available.
 - Review model identifiers when Copilot model availability changes; the last
   entry of every agent `model` array must stay GA.
 - Curate `techContext.md` and `systemPatterns.md` when either approaches its

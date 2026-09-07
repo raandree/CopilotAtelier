@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-06
+last-verified: 2026-09-07
 owner: security-reviewer
 source: security assessments of this repository
 ---
@@ -193,3 +193,71 @@ recorded in `activeContext.md` remain open.
 
 **Not exercised.** Live OneDrive sync, non-Windows hosts, concurrent
 install/uninstall, and any behavioral eval of the shipped Customizations.
+
+## 2026-09-07 independent review: plan-review local review surface
+
+Scope: `tools/plan-review` at pinned `3d115a3` (base `555c260`) — the loopback
+HTTP surface, containment and path handling, Markdown/Mermaid rendering, section
+and revision identity, feedback store, CLI lifetime, the browser assets,
+`tests/PlanReview.Tests.ps1`, both plan-review documents, and the architect
+sign-off reference. Report:
+`…/atelier-security-review-20260907-0831/report.md`.
+
+**Verdict: CONDITIONAL.** Zero Blocker, one Major, six Minor, two Nit.
+
+**Process condition — the review baseline did not hold.** The brief pinned a
+clean worktree at `3d115a3`. Mid-review, six files under `tools/plan-review`
+were modified and three new test files appeared, with mtimes from 08:35 to
+08:39 UTC; `src/server.mjs` was rewritten three seconds before the query that
+observed it. The reviewed feature was being hardened while the single
+authorized independent review of it ran. All findings were re-derived from
+`git show 3d115a3:…` extracted into a temp fixture, so they are valid for the
+pinned commit only. The delta to whatever is eventually committed is
+unreviewed. Re-pin before treating this as a verdict on shipped code.
+
+**Findings that outlived the review.**
+
+- `splitSections` recognises only column-0 ATX headings, while the renderer it
+  feeds honours setext and 1–3-space-indented headings. Three rendered headings
+  collapsed to one section in a reproduction, so comments anchor to the
+  preceding section and per-section revision state degrades to per-document.
+  This falsifies the feature's own "never silently attaches comments to
+  unrelated text" guarantee. Neither heading form is covered by a test.
+- `serveStatic` pipes without an error listener; an async read failure escapes
+  the request `try/catch` and terminates the process. The documented rollback
+  ("delete `node_modules`") is itself a reachable trigger for the vendor routes.
+- `cli.mjs` awaits `server.listen()` outside its error handling and invokes
+  `main()` with no `.catch()`, so `EADDRINUSE` prints a Node stack trace instead
+  of the file's own `refused to start:` message.
+- `openVerdictDialog` dereferences `state.revision` unguarded, so a verdict
+  button clicked after a failed first load throws instead of reporting.
+- `store.removeComment` is exported, unreachable, untested, and — alone among
+  the store mutations — not bound to a document hash.
+- The PowerShell trust-boundary suite asserts that gate functions are *defined*
+  in `security.mjs`, not that `guardMutation` calls them. Dropping a gate from
+  the array would keep the repository gate green; behavioural coverage exists
+  only in the Node integration suite, which the gate does not run.
+- Documentation drift on the load-bearing boundary: the threat model quotes a
+  UI label ("Reviewer feedback — not sign-off") that the interface never
+  renders, and describes the `Origin` check as conditional when the code
+  requires it unconditionally.
+
+**Controls confirmed by reading and probing, not by comment.** Approval
+authority holds end to end — feedback persists as `local-http-feedback` under
+`chat-sign-off-required`, no endpoint writes a Decision record or triggers a
+handoff, `--state` inside `.memory-bank/decisions` is refused, and the architect
+frontmatter grants are untouched. The lethal trifecta is broken at the outbound
+leg structurally: no server-side `fetch`, no `child_process`, no `vm`, CSP
+`default-src 'none'`, images rendered as alt text. Containment re-checks
+realpath and every ancestor reparse point at read time, not only at launch.
+Mutations clear Host, Origin, `Sec-Fetch-Site`, content type, session cookie,
+and a constant-time double-submit CSRF token before the body is read; Host is
+checked on every route, which also closes DNS rebinding. `build.yaml` carries no
+`tools` entry, so a Gallery install cannot ship the package.
+
+**Not exercised.** Desktop and mobile screenshots (gitignored, absent from the
+diff, so the layout and console-error criteria are unverified by this review),
+the browser suite, the full PowerShell and Node suites, and the npm audit — all
+named as already run and deliberately not repeated. `package-lock.json` contents
+were not reviewed. The same-user local attacker and the `lstat`/`realpath`
+TOCTOU remain accepted, disclosed residual risks.

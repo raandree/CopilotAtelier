@@ -91,6 +91,141 @@ describe('splitSections', () => {
   })
 })
 
+/*
+  The renderer accepts every heading form CommonMark defines. A form the
+  splitter does not recognise is swallowed into the preceding section, so a
+  comment about it is stored against the previous heading. These cases bind the
+  splitter to the forms the reader actually sees.
+*/
+describe('splitSections heading forms', () => {
+  it('splits at an ATX heading indented by one to three spaces', () => {
+    const sections = splitSections('# Alpha\n\nBody.\n\n   ## Indented\n\nMore.\n')
+
+    assert.deepEqual(sections.map((section) => section.key), ['alpha', 'indented'])
+    assert.equal(sections[1].heading, 'Indented')
+    assert.equal(sections[1].level, 2)
+  })
+
+  it('does not split at an ATX heading indented by four spaces', () => {
+    const sections = splitSections('# Alpha\n\nBody.\n\n    # Code block\n')
+
+    assert.deepEqual(sections.map((section) => section.key), ['alpha'])
+  })
+
+  it('splits at a setext heading underlined with equals signs', () => {
+    const sections = splitSections('# Alpha\n\nBody.\n\nSetext title\n======\n\nMore.\n')
+
+    assert.deepEqual(sections.map((section) => section.key), ['alpha', 'setext-title'])
+    assert.equal(sections[1].heading, 'Setext title')
+    assert.equal(sections[1].level, 1)
+    assert.match(sections[1].body, /More\./)
+    assert.ok(!sections[0].body.includes('Setext title'))
+  })
+
+  it('splits at a setext heading underlined with dashes', () => {
+    const sections = splitSections('# Alpha\n\nBody.\n\nSecond level\n---\n\nMore.\n')
+
+    assert.deepEqual(sections.map((section) => section.key), ['alpha', 'second-level'])
+    assert.equal(sections[1].level, 2)
+  })
+
+  it('treats a dash rule after a blank line as a thematic break, not a heading', () => {
+    const sections = splitSections('# Alpha\n\nBody.\n\n---\n\nMore.\n')
+
+    assert.deepEqual(sections.map((section) => section.key), ['alpha'])
+  })
+
+  it('ignores a setext underline inside a fenced code block', () => {
+    const sections = splitSections('# Alpha\n\n```text\nNot a heading\n===\n```\n')
+
+    assert.deepEqual(sections.map((section) => section.key), ['alpha'])
+  })
+
+  it('does not treat a closing fence as setext heading content', () => {
+    const sections = splitSections('# Alpha\n\n```text\ncode\n```\n---\n\nMore.\n')
+
+    assert.deepEqual(sections.map((section) => section.key), ['alpha'])
+  })
+
+  it('does not treat a list item as setext heading content', () => {
+    const sections = splitSections('# Alpha\n\n- item\n---\n\nMore.\n')
+
+    assert.deepEqual(sections.map((section) => section.key), ['alpha'])
+  })
+
+  it('gives duplicate setext headings an occurrence ordinal', () => {
+    const sections = splitSections('Risks\n-----\n\nFirst.\n\nRisks\n-----\n\nSecond.\n')
+
+    assert.deepEqual(sections.map((section) => section.key), ['risks', 'risks-2'])
+  })
+
+  it('allocates a setext key against every key the document already issued', () => {
+    const keys = splitSections('Risks\n-----\n\nFirst.\n\n## Risks\n\nSecond.\n\n## Risks 2\n\nThird.\n')
+      .map((section) => section.key)
+
+    assert.equal(keys.length, 3)
+    assert.equal(new Set(keys).size, 3, 'a setext heading must not take a key a later heading also claims')
+    assert.equal(keys[0], 'risks')
+  })
+
+  it('keeps frontmatter out of the section that follows it', () => {
+    const sections = splitSections('---\ntitle: Concept\n---\n\n# Purpose\n\nBody.\n')
+
+    assert.equal(sections.at(-1).key, 'purpose')
+    assert.ok(!sections.at(-1).body.includes('title: Concept'))
+  })
+
+  it('keeps a trailing hash that no whitespace separates from the text', () => {
+    const sections = splitSections('## Budget#\n\nBody.\n')
+
+    assert.equal(sections[0].heading, 'Budget#')
+    assert.equal(sections[0].key, 'budget')
+  })
+
+  it('drops a closing sequence that whitespace separates from the text', () => {
+    const sections = splitSections('## Budget ###\n\nBody.\n')
+
+    assert.equal(sections[0].heading, 'Budget')
+  })
+
+  it('drops a closing sequence with trailing spaces after it', () => {
+    const sections = splitSections('## Budget ##   \n\nBody.\n')
+
+    assert.equal(sections[0].heading, 'Budget')
+  })
+
+  it('keeps a hash run that is not at the end of the heading', () => {
+    const sections = splitSections('## Budget ## revised\n\nBody.\n')
+
+    assert.equal(sections[0].heading, 'Budget ## revised')
+  })
+
+  it('reads a heading that is only a closing sequence as empty', () => {
+    const sections = splitSections('## #\n\nBody.\n')
+
+    assert.equal(sections[0].heading, '')
+    assert.equal(sections[0].level, 2)
+  })
+
+  it('accepts a tab between the opening sequence and the text', () => {
+    const sections = splitSections('#\tPurpose\n\nBody.\n')
+
+    assert.equal(sections[0].heading, 'Purpose')
+  })
+
+  it('refuses an opening sequence with no separator', () => {
+    const sections = splitSections('#Purpose\n\nBody.\n')
+
+    assert.deepEqual(sections.map((section) => section.key), ['preamble'])
+  })
+
+  it('refuses more than six opening hashes', () => {
+    const sections = splitSections('####### Purpose\n\nBody.\n')
+
+    assert.deepEqual(sections.map((section) => section.key), ['preamble'])
+  })
+})
+
 describe('hashContent', () => {
   it('is stable and sensitive', () => {
     assert.equal(hashContent('a'), hashContent('a'))

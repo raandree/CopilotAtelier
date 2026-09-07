@@ -1,10 +1,27 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 
-export const SESSION_COOKIE_NAME = 'plan_review_session'
+export const SESSION_COOKIE_PREFIX = 'plan_review_session_'
 export const CSRF_HEADER_NAME = 'x-csrf-token'
 export const MAX_BODY_BYTES = 65536
 
 const FORBIDDEN_KEY = new Set(['__proto__', 'constructor', 'prototype'])
+
+/**
+ * Cookies are scoped by host, not by port, so two review servers on loopback
+ * share one cookie jar. Naming the cookie after the launch keeps a second
+ * server from overwriting the first one's session.
+ */
+export function sessionCookieName (serverId) {
+  if (typeof serverId !== 'string' || !/^[0-9a-f]{8,64}$/.test(serverId)) {
+    throw new Error('server identifier must be a hexadecimal token')
+  }
+
+  return `${SESSION_COOKIE_PREFIX}${serverId}`
+}
+
+export function formatAuthority (host, port) {
+  return host.includes(':') ? `[${host}]:${port}` : `${host}:${port}`
+}
 
 export class BodyRejection extends Error {
   constructor (message, reason) {
@@ -98,8 +115,8 @@ export function checkFetchMetadata (headers) {
   return site === 'same-origin' || site === 'none' ? ok : deny('fetch-site')
 }
 
-export function checkSession (headers, sessionSecret) {
-  const presented = parseCookies(headers?.cookie)[SESSION_COOKIE_NAME]
+export function checkSession (headers, sessionSecret, cookieName) {
+  const presented = parseCookies(headers?.cookie)[cookieName]
 
   return constantTimeEqual(presented, sessionSecret) ? ok : deny('session')
 }
@@ -129,7 +146,7 @@ export function guardMutation (headers, context) {
     () => checkOrigin(headers, context.origins),
     () => checkFetchMetadata(headers),
     () => checkContentType(headers),
-    () => checkSession(headers, context.sessionSecret),
+    () => checkSession(headers, context.sessionSecret, context.cookieName),
     () => checkCsrf(headers, context.csrfToken)
   ]
 
@@ -188,8 +205,8 @@ export async function readJsonBody (stream, headers = {}, { limit = MAX_BODY_BYT
     throw new BodyRejection('body is empty', 'invalid-json')
   }
 
-  // Scan the raw text as well: JSON.parse silently discards a literal
-  // "__proto__" key, so the parsed object alone cannot prove it was absent.
+  // Belt and braces: the parsed object is checked below, and this catches a
+  // literal "__proto__" key before it is ever materialized.
   if (/"__proto__"\s*:/.test(text)) {
     throw new BodyRejection('forbidden property name: __proto__', 'forbidden-key')
   }

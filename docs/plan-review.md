@@ -52,7 +52,10 @@ node tools/plan-review/src/cli.mjs --document tools/plan-review/samples/design-c
 
 The launcher prints the URL, the expiry, and the process id. The URL carries a
 per-launch session key; opening it sets an `HttpOnly`, `SameSite=Strict` cookie and
-redirects to a key-free address.
+redirects to a key-free address. The cookie is named after the launch, so a
+second review server opened in the same browser does not sign the first one out.
+Binding to `::1` is supported and produces a bracketed `http://[::1]:<port>`
+URL; any other address is refused.
 
 The shipped sample under `tools/plan-review/samples/` is a demonstration fixture.
 It describes no planned work and approving it approves nothing.
@@ -65,13 +68,20 @@ It describes no planned work and approving it approves nothing.
   hash.
 - **Approve** and **Request changes** record a verdict against the revision hash
   you are looking at. If the file changed underneath you, the request is refused
-  with a stale response rather than silently applied to new content.
+  with a stale response rather than silently applied to new content. That check
+  runs again inside the serialized write, so an edit made while the request is
+  queued cannot receive an approval for the old bytes.
   An open verdict dialog retains its original document and revision even if a
   background refresh loads newer content.
 - **Reload** re-reads the file from disk.
 - **Stop server** shuts the server down.
+- The section outline is a disclosure. It starts open beside the document on a
+  wide viewport and collapsed on a narrow one, so the document is readable
+  without scrolling past a list of links.
 - Keyboard: <kbd>j</kbd> / <kbd>k</kbd> move between sections, <kbd>c</kbd>
-  opens the composer for the focused section, <kbd>r</kbd> reloads.
+  opens the composer for the focused section, <kbd>r</kbd> reloads. The
+  shortcuts are named in the button tooltips and announced to assistive
+  technology rather than printed permanently on the page.
 
 ### Revision and section states
 
@@ -87,7 +97,9 @@ It describes no planned work and approving it approves nothing.
 
 For duplicate headings, an anchor survives only when exactly one section has
 the original heading and content hash. Ambiguous or changed duplicates remain
-unanchored rather than attaching a comment to a different section.
+unanchored rather than attaching a comment to a different section. Section keys
+are unique across the whole document, so a numbered heading such as `Risks 2`
+can never share a key with the second `Risks`.
 
 ## Trust boundaries
 
@@ -117,6 +129,10 @@ The full analysis is in
   the next one even when the stored feedback is reused.
 - **Bounded.** Request bodies cap at 64 KiB, comment bodies at 4000 characters,
   notes at 2000, comments at 200 per document, and documents at 1 MiB. The
+  stored feedback file caps at 2 MiB on both the read and the write path,
+  measured in UTF-8 bytes, so multibyte comments cannot produce a file the next
+  read refuses; a write that would cross it is refused and the existing file is
+  left unchanged. The
   same document checks run at launch and reload; binary and invalid UTF-8
   input are rejected. Revision hashes cover the original file bytes.
   The server exits when its lifetime expires.
@@ -126,18 +142,37 @@ The full analysis is in
 Feedback is written to `<state>/<documentId>.json` — by default under
 `<root>/.copilot-atelier/plan-review`, which is gitignored. Writes are atomic
 (temp file then rename) and serialized with an exclusive directory lock that
-expires after 30 seconds so a crashed process cannot deadlock the next one.
+names its owning process. A lock whose owner is still running is waited on and
+then refused; only a lock whose named owner is provably gone is reclaimed, and
+the reclaim removes the two entries this tool writes rather than deleting a
+directory tree it does not own. A mutation that loses its lock does not commit.
 
 A record holds the document id, the revision hash, section keys and hashes,
 comment text, and one verdict. It never holds document content, credentials, or
-unrelated project material. A store file that cannot be parsed is reported and
-reset rather than crashing the view.
+unrelated project material.
+
+A store file that cannot be read within its bound, does not name this document,
+or fails record validation is reported in the page and **left exactly as it is**.
+The next comment or verdict is refused rather than overwriting somebody's
+pending feedback. Recovery is a deliberate act: move or delete
+`<state>/<documentId>.json` yourself, then reload. A stored `authority` value is
+never trusted as sign-off; only the value this tool writes is accepted, and
+every stored hash must be a lowercase SHA-256 digest.
+
+A comment or verdict that would push the file past the 2 MiB bound is refused
+with `store-capacity` and the existing file is untouched, so the store can never
+write a record it would later refuse to read. Remove some feedback, or move the
+file aside, to make room.
 
 Unsent comments are saved in the browser tab's session storage, keyed by the
 document, revision, and section. Reloading the same revision restores them;
-closing the tab clears them. Drafts from a different revision are not attached
-to newer content, and no session key or CSRF token is stored with them. A
-temporary connection failure leaves submission available for retry.
+closing the tab clears them. A draft written against a revision or a section
+that is no longer current is **not** attached to the new content: it is listed
+under *Unsent drafts from an earlier revision* with the section and revision it
+was written on, and you discard it explicitly. A pending verdict note survives a
+stale refusal and is offered again when the dialog is reopened. No session key
+or CSRF token is stored with any of this. A temporary connection failure leaves
+submission available for retry.
 
 `--state` resolving inside `.memory-bank/decisions` is refused at launch.
 State roots, records, temporary files, and locks reject linked ancestors,
@@ -183,6 +218,14 @@ cleanly when it is not. It never runs `npm install`.
 
 ## Unsupported
 
+- Headings the section splitter cannot anchor: a heading inside a blockquote or
+  a list item, and any document whose heading structure the Markdown parser
+  reads differently from the splitter. A section is the anchor for every
+  comment, so a disagreement would attach feedback to text the reader never saw.
+  Such a document is refused rather than shown: the launcher exits with
+  `heading-structure` and an open page reports it as no longer readable. This is
+  a hard refusal, not a degraded read-only view. ATX headings indented by up to
+  three spaces and setext headings (underlined with `=` or `-`) are supported.
 - Multiple concurrent reviewers, accounts, or any authentication provider.
 - Remote or shared storage, telemetry, and network access of any kind.
 - Editing the document from the browser.

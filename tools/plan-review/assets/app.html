@@ -41,7 +41,7 @@
       <svg class="icon" aria-hidden="true"><use href="#icon-changes"></use></svg>
       <span>Request changes</span>
     </button>
-    <button type="button" id="action-reload" class="button button-quiet" title="Re-read the document from disk">
+    <button type="button" id="action-reload" class="button button-quiet" title="Re-read the document from disk (r)" aria-keyshortcuts="r">
       <svg class="icon" aria-hidden="true"><use href="#icon-reload"></use></svg>
       <span>Reload</span>
     </button>
@@ -59,20 +59,38 @@
 
 <div class="layout">
   <nav class="outline" id="outline" aria-label="Document outline">
-    <h2 class="outline-heading">
-      <svg class="icon" aria-hidden="true"><use href="#icon-outline"></use></svg>
-      Sections
-    </h2>
-    <ol id="outline-list"></ol>
-    <p class="hint">
-      <svg class="icon" aria-hidden="true"><use href="#icon-keyboard"></use></svg>
-      <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>c</kbd> comment · <kbd>r</kbd> reload
-    </p>
+    <details id="outline-details">
+      <summary class="outline-heading">
+        <svg class="icon" aria-hidden="true"><use href="#icon-outline"></use></svg>
+        Sections
+      </summary>
+      <ol id="outline-list"></ol>
+    </details>
   </nav>
 
-  <main id="document" tabindex="-1">
+  <main id="document" tabindex="-1" aria-describedby="shortcut-help">
+    <p id="shortcut-help" class="visually-hidden">
+      Press j and k to move between sections, c to comment on the focused section, and r to reload the document.
+    </p>
     <div id="banner" class="banner" hidden role="alert"></div>
     <div id="sections"></div>
+
+    <section id="stale-drafts" class="stale-drafts" hidden aria-labelledby="stale-drafts-heading">
+      <h2 id="stale-drafts-heading">
+        <svg class="icon" aria-hidden="true"><use href="#icon-stale"></use></svg>
+        Unsent drafts from an earlier revision
+      </h2>
+      <p class="stale-drafts-note">
+        These were typed against content that has since changed. They are kept
+        here rather than attached to the current text. Copy what is still
+        relevant, then discard them.
+      </p>
+      <ul id="stale-drafts-list"></ul>
+      <button type="button" id="stale-drafts-discard-all" class="button button-quiet">
+        <svg class="icon" aria-hidden="true"><use href="#icon-dismiss"></use></svg>
+        <span>Discard all</span>
+      </button>
+    </section>
 
     <section id="orphaned" class="orphaned" hidden aria-labelledby="orphaned-heading">
       <h2 id="orphaned-heading">

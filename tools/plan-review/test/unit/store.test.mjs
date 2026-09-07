@@ -14,6 +14,9 @@ import {
 } from '../../src/store.mjs'
 
 const documentId = 'a1b2c3d4e5f60718'
+// The store writes and reads only real SHA-256 digests, so a stand-in hash in a
+// test has to have that shape too.
+const revisionHash = 'd'.repeat(64)
 
 function makeStore () {
   const stateRoot = mkdtempSync(join(tmpdir(), 'plan-review-store-'))
@@ -66,7 +69,7 @@ describe('addComment', () => {
       sectionKey: scope.key,
       sectionHash: scope.hash,
       headingText: scope.heading,
-      documentHash: 'deadbeef',
+      documentHash: revisionHash,
       body: 'Narrow this.'
     })
 
@@ -76,7 +79,7 @@ describe('addComment', () => {
     const record = await store.read(documentId)
     assert.equal(record.comments.length, 1)
     assert.equal(record.comments[0].sectionHash, scope.hash)
-    assert.equal(record.comments[0].documentHash, 'deadbeef')
+    assert.equal(record.comments[0].documentHash, revisionHash)
 
     const written = readdirSync(stateRoot).filter((name) => name.endsWith('.json'))
     assert.equal(written.length, 1)
@@ -92,7 +95,7 @@ describe('addComment', () => {
       sectionKey: scope.key,
       sectionHash: scope.hash,
       headingText: scope.heading,
-      documentHash: 'deadbeef',
+      documentHash: revisionHash,
       body: hostile
     })
 
@@ -109,7 +112,7 @@ describe('addComment', () => {
         sectionKey: scope.key,
         sectionHash: scope.hash,
         headingText: scope.heading,
-        documentHash: 'deadbeef',
+        documentHash: revisionHash,
         body: 'x'.repeat(STORE_LIMITS.maxCommentLength + 1)
       }),
       (error) => error instanceof StoreRejection && error.reason === 'comment-too-long'
@@ -125,7 +128,7 @@ describe('addComment', () => {
         sectionKey: scope.key,
         sectionHash: scope.hash,
         headingText: scope.heading,
-        documentHash: 'deadbeef',
+        documentHash: revisionHash,
         body: '   '
       }),
       (error) => error instanceof StoreRejection && error.reason === 'comment-empty'
@@ -141,7 +144,7 @@ describe('addComment', () => {
         sectionKey: scope.key,
         sectionHash: scope.hash,
         headingText: scope.heading,
-        documentHash: 'deadbeef',
+        documentHash: revisionHash,
         body: `comment ${index}`
       })
     }
@@ -151,7 +154,7 @@ describe('addComment', () => {
         sectionKey: scope.key,
         sectionHash: scope.hash,
         headingText: scope.heading,
-        documentHash: 'deadbeef',
+        documentHash: revisionHash,
         body: 'one too many'
       }),
       (error) => error instanceof StoreRejection && error.reason === 'comment-limit'
@@ -167,7 +170,7 @@ describe('addComment', () => {
         sectionKey: scope.key,
         sectionHash: scope.hash,
         headingText: scope.heading,
-        documentHash: 'deadbeef',
+        documentHash: revisionHash,
         body: `concurrent ${index}`
       }))
     )
@@ -184,21 +187,22 @@ describe('addComment', () => {
       sectionKey: scope.key,
       sectionHash: scope.hash,
       headingText: scope.heading,
-      documentHash: 'deadbeef',
+      documentHash: revisionHash,
       body: 'Narrow this.'
     })
 
     assert.deepEqual(readdirSync(stateRoot).filter((name) => name.includes('.tmp')), [])
   })
 
-  it('recovers from a corrupt store file instead of throwing at read time', async () => {
+  it('reports a corrupt store file instead of emptying it', async () => {
     const { store, stateRoot } = makeStore()
     writeFileSync(join(stateRoot, `${documentId}.json`), '{ not json', 'utf8')
 
     const record = await store.read(documentId)
 
-    assert.deepEqual(record.comments, [])
-    assert.equal(record.recovered, true)
+    assert.equal(record.unreadable, true)
+    assert.equal(record.unreadableReason, 'store-malformed')
+    assert.equal(readFileSync(join(stateRoot, `${documentId}.json`), 'utf8'), '{ not json')
   })
 })
 
@@ -208,13 +212,13 @@ describe('setVerdict', () => {
 
     await store.setVerdict(documentId, {
       verdict: 'approved',
-      documentHash: 'hash-one',
+      documentHash: revisionHash,
       note: 'Looks right.'
     })
 
     const record = await store.read(documentId)
     assert.equal(record.verdict.verdict, 'approved')
-    assert.equal(record.verdict.documentHash, 'hash-one')
+    assert.equal(record.verdict.documentHash, revisionHash)
     assert.equal(record.verdict.authority, 'local-http-feedback')
   })
 
@@ -222,7 +226,7 @@ describe('setVerdict', () => {
     const { store } = makeStore()
 
     await assert.rejects(
-      () => store.setVerdict(documentId, { verdict: 'signed-off', documentHash: 'hash-one' }),
+      () => store.setVerdict(documentId, { verdict: 'signed-off', documentHash: revisionHash }),
       (error) => error instanceof StoreRejection && error.reason === 'invalid-verdict'
     )
   })
@@ -230,8 +234,8 @@ describe('setVerdict', () => {
   it('replaces an earlier verdict rather than accumulating verdicts', async () => {
     const { store } = makeStore()
 
-    await store.setVerdict(documentId, { verdict: 'approved', documentHash: 'hash-one' })
-    await store.setVerdict(documentId, { verdict: 'changes-requested', documentHash: 'hash-one' })
+    await store.setVerdict(documentId, { verdict: 'approved', documentHash: revisionHash })
+    await store.setVerdict(documentId, { verdict: 'changes-requested', documentHash: revisionHash })
 
     const record = await store.read(documentId)
     assert.equal(record.verdict.verdict, 'changes-requested')

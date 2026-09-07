@@ -82,8 +82,12 @@ This is the load-bearing boundary.
   authority to start implementation.
 - Therefore a verdict is persisted as feedback with
   `authority: "local-http-feedback"` and the store header
-  `approvalAuthority: "chat-sign-off-required"`. The UI labels an approval
-  "Reviewer feedback — not sign-off".
+  `approvalAuthority: "chat-sign-off-required"`. The page says so in three
+  places the reader cannot miss: the note above the document ("Feedback
+  recorded here is review input only. Implementation is still authorized by the
+  existing sign-off in chat."), the verdict dialog ("This is review input, not
+  sign-off, and it does not start implementation."), and the recorded status
+  label `Approved (feedback)`.
 - The server has no endpoint that writes `.memory-bank/decisions/`, no endpoint
   that runs a command, and no handoff trigger. `--state` resolving inside
   `.memory-bank/decisions` is refused at launch.
@@ -98,24 +102,48 @@ This is the load-bearing boundary.
   paths are checked for links before reads and mutations. Replacing the state
   root with a junction after launch fails closed.
 - Writes are atomic: a temp file in the same directory, then `rename`. Mutual
-  exclusion uses an exclusive `mkdir` lock with a stale-lock timeout, so a
-  crashed process does not deadlock the next one.
+  exclusion uses an exclusive `mkdir` lock that records its owning process id
+  and a token. A lock held by a live process is waited on and then refused; a
+  lock is reclaimed only when its named owner is provably gone, and the reclaim
+  removes the owner file and the directory rather than deleting a tree it does
+  not own. A mutation that loses ownership refuses to commit.
+- Reads are bounded and validated: a store file over 2 MiB, naming a different
+  document, or failing comment and verdict validation is reported and left
+  untouched, and the next mutation is refused rather than overwriting it. A
+  stored `authority` value other than `local-http-feedback` is rejected, so a
+  file cannot promote itself to sign-off. Every stored hash must be a lowercase
+  SHA-256 digest; a comment recorded with no anchor at all may carry an empty
+  string, and nothing else is accepted.
+- Writes obey the same 2 MiB bound, measured on the serialized UTF-8 payload.
+  The count and length bounds alone do not imply it — 200 comments of 4000
+  multibyte characters cost up to three bytes each — so a write that would cross
+  the bound is refused as `store-capacity` before the temporary file exists and
+  the stored feedback is left unchanged. The store never commits a record its
+  own reader would refuse.
 - The store holds only the document id, the revision hash, section keys and
   hashes, comment text, and verdicts. It never holds document content, secrets,
   or unrelated project material.
 - Unsent comments use tab-scoped session storage keyed by document, revision,
   and section. They contain user-entered text only, no authentication data,
-  and are never applied automatically to a newer revision.
+  and are never applied automatically to a newer revision: a draft from an
+  earlier revision or a removed section is listed separately for explicit
+  discard.
 
 ### 6. Server lifetime and session
 
-- Bind address is `127.0.0.1` only. `Host` must match the bound authority and
-  `Origin`, when present, must equal the exact server origin; `Sec-Fetch-Site`
-  must be `same-origin` or `none` when the browser sends it.
+- Bind address is `127.0.0.1` or `::1` only, and the allowed authority follows
+  the bound address (`[::1]:<port>` when bound to IPv6). `Host` must match the
+  bound authority and `Origin` must be present and equal the exact server
+  origin, so a mutation that omits it is refused; `Sec-Fetch-Site` must be
+  `same-origin` or `none` when the browser sends it.
 - A session secret is generated per launch with `crypto.randomBytes` and is
   never persisted. Feedback written by an earlier server therefore cannot grant
   a later server's session any access: a new launch mints a new secret, and the
   cookie from the old launch fails constant-time comparison.
+- Cookies are scoped by host, not by port, so the cookie name carries a
+  per-launch identifier. Two review servers open in one browser keep separate
+  sessions instead of overwriting each other, and a cookie minted by one is not
+  accepted by the other.
 - Mutating requests require the session cookie *and* a matching `X-CSRF-Token`
   header (double submit), so a cross-site form or `fetch` without the token is
   rejected even if the cookie rides along.
@@ -126,8 +154,19 @@ This is the load-bearing boundary.
 ## Revision and section identity
 
 - A revision is `sha256` over the document bytes, reported as `revision.hash`.
-- A section key is the slug of its heading plus an occurrence ordinal, so two
-  identically-titled headings do not collide.
+- The splitter is not a CommonMark parser, so it is checked by one.
+  `src/headings.mjs` parses the same bytes with `markdown-it` and compares the
+  `heading_open` tokens — level, source line, and text — against the sections.
+  Any disagreement, and any heading nested in a blockquote or list item, raises
+  `heading-structure`. It runs at launch authorization, on every read, on the
+  read that precedes a mutation, and again inside the store lock, so a document
+  that becomes unanchorable is refused rather than served with feedback
+  attached to a combined or shifted section.
+- A section key is the slug of its heading plus an occurrence ordinal, allocated
+  against every key the document has already issued. An ordinal alone is not
+  enough: `Risks`, `Risks`, `Risks 2` would issue `risks-2` twice, and two
+  sections sharing a key anchor a comment to the wrong heading. Keys are unique
+  across the whole document, including the preamble.
 - Comments on duplicate headings retain an ambiguity flag. Reattachment needs
   one exact heading and content-hash match; changed, removed, or
   indistinguishable duplicates remain unanchored.
@@ -139,7 +178,11 @@ This is the load-bearing boundary.
 - A verdict stores the document hash it was cast against. When the document
   changes the verdict becomes `stale` and the UI reports the approval as
   invalidated. Posting a comment or verdict with a hash that no longer matches
-  the file returns `409` with `state: "stale"`.
+  the file returns `409` with `state: "stale"`. The hash is checked again inside
+  the serialized store mutation, so a file edited while the request waits for
+  the lock is refused instead of approved, and the source is read once more
+  after the commit so a change that lands in that window is reported as
+  `superseded` rather than presented as current approval.
 
 ## What is out of scope
 
