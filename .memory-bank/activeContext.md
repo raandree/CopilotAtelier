@@ -122,6 +122,13 @@ need ShellPilot plus a paid model backend and an explicit go-ahead.
 
 ## Open findings
 
+- **Major:** the fail-closed heading verification that closes review finding
+  PR-01 is proven only by `tools/plan-review/test/integration`, which needs
+  `markdown-it` and never runs in the repository gate, and no source tripwire
+  covers it. Removing the verifier from `readDocument` keeps the gate green.
+  Close it the way PR-07 was closed: a composition assertion in
+  `tests/PlanReview.Tests.ps1`. `verifyHeadings` also defaults to `null` in
+  `loadDocument`, so an omitted argument skips the check silently.
 - **High:** `software-engineer-contoso` claims no egress while retaining an
   unrestricted terminal and mandating a generic `security-reviewer` delegate
   with web, GitHub, MCP, and terminal tools. Eleven older agents likewise

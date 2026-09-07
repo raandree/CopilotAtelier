@@ -261,3 +261,59 @@ the browser suite, the full PowerShell and Node suites, and the npm audit — al
 named as already run and deliberately not repeated. `package-lock.json` contents
 were not reviewed. The same-user local attacker and the `lstat`/`realpath`
 TOCTOU remain accepted, disclosed residual risks.
+
+## 2026-09-07 review: plan-review correction integration (`f933946`)
+
+Scope: the integration commit `3d115a3..f933946` — 32 files, +3,423/-500 —
+covering the PR-01…PR-09 corrections merged onto the concurrent hardening.
+
+**Verdict: CONDITIONAL.** Zero Blocker, one Major, two Minor, two Nit. No new
+vulnerability: every trust boundary the previous review confirmed still holds,
+and the Major is a missing regression guard rather than a defect in shipped
+behavior.
+
+**Major — the fail-closed heading check is invisible to the gate that runs.**
+`tests/PlanReview.Tests.ps1` discovers `test/unit/*.test.mjs` only, and its
+single Node execution case runs that list. The behavioral proof of the PR-01
+fix lives in `test/integration/heading-verification.test.mjs` and
+`heading-agreement.test.mjs`, both of which need `markdown-it` and therefore
+never run in the repository gate or CI. A search of the gate file for
+`verifyHeadings`, `createHeadingVerifier`, or `heading-structure` returns
+nothing, so there is no source tripwire either. Deleting the verifier wiring
+from `readDocument` leaves `./build.ps1 -Tasks test` green. This is the defect
+PR-07 raised about the mutation gate, which was closed with both a
+dependency-free behavioral test and a composition tripwire; the heading control
+received neither. Remediation is the same shape and costs one `It`.
+
+**Minor — the control is fail-open at its own API.** `verifyHeadings` defaults
+to `null` in `loadDocument` and `loadDocumentSync`, so an omitted argument
+silently skips verification. Safe today only because `server.mjs` funnels four
+reads through `readDocument` and the fifth through `descriptorIdentity`.
+Nothing enforces that, which is what makes the missing tripwire load-bearing.
+
+**Minor — `f933946` landed directly on `main`.** Post-flight prefers a topic
+branch. Consistent with this series and with the user's standing instruction,
+recorded as a deviation rather than a defect.
+
+**Nit.** `assertNoForbiddenKey` stops silently at depth 8; defence in depth
+only, since no downstream sink merges or assigns the parsed body. The queued-
+lock regression patches `fs.mkdirSync` process-wide through
+`syncBuiltinESMExports`; capture-before, always-delegate, restore-in-`finally`
+and per-file process isolation make it sound, but the patch is worth knowing.
+
+**Controls confirmed by reading the source, not the comments.** The corrected
+prototype-pollution rationale is now accurate: the raw-text regex is bypassable
+with `\u005f` escapes, but `assertNoForbiddenKey` walks `Object.keys()` against
+`FORBIDDEN_KEY` and catches the escaped form, so PR-08 is properly closed. The
+lethal trifecta stays broken at the outbound leg — `headings.mjs` adds a
+`markdown-it` import and nothing else, with no network, `child_process`, or
+`vm` anywhere in the package. A stored file still cannot promote itself:
+`verdict.authority === FEEDBACK_AUTHORITY` is enforced on read and
+`approvalAuthority: 'chat-sign-off-required'` is repeated on every response.
+Refusal was verified to write no state at launch, on read, and inside the
+serialized mutation, and the queued-write regression is genuinely
+discriminating.
+
+**Not exercised.** The full gates were read from this session's completed runs
+rather than re-run; macOS, current Linux PowerShell, live OneDrive, `npm audit`,
+and any performance benchmark of the now-doubled parse remain unmeasured.
