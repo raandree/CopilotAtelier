@@ -9,10 +9,11 @@ source: current task evidence
 
 ## Current focus
 
-Repair GitHub Actions run `34147860492` at `5337e5e`. The user explicitly
-requested work on `main`, a commit and push, and monitoring the resulting run.
-The full development cycle and independent review are off; paid evaluations
-remain off. Publication follows the existing workflow after its test matrix.
+GitHub Actions repair `0367ce3` is committed and pushed on `main`, as explicitly
+requested. Run [#76](https://github.com/raandree/CopilotAtelier/actions/runs/34163989373)
+completed successfully at 2026-09-07 21:54 UTC: packaging, Linux, Windows,
+macOS, and deployment all passed. The full development cycle and independent
+review stayed off; no paid evaluations were run.
 
 - The uploaded `output` artifact omitted
   `.copilot-atelier-adapter-manifest.json`. All three test jobs failed ownership
@@ -26,9 +27,13 @@ remain off. Publication follows the existing workflow after its test matrix.
   after the repair. Clear inherited `NODE_TEST_CONTEXT` in the nested runner
   and require a nonzero test count to prevent a skipped run returning success.
 - Node unit tests: 165 passed, zero failed or skipped. PowerShell AST and
-  PSScriptAnalyzer checks pass. Clean-checkout `build,test` passed with zero
-  errors and 90.72% coverage using the failed run's packaged dependencies and
-  exact module version. The known simulated-backend warning remains.
+  PSScriptAnalyzer checks pass. Clean-checkout `build,test`: 1,777 passed,
+  zero failed, 116 skipped, 90.72% coverage using the failed run's dependencies
+  and exact module version. Final Memory Bank/workflow checks: 12 passed.
+  Markdown lint passed. The known simulated-backend warning remains.
+- The actual GitHub output artifact contains the schema-2 ownership manifest;
+  its generated file's SHA-256 matches. Existing setup-uv cache-glob warnings
+  remain non-fatal. No production path or security guard was changed.
 
 ## Previous plan-review work
 
@@ -151,6 +156,6 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Commit and push the focused repair on `main`, then monitor the resulting
-GitHub Actions run through the test matrix and existing deployment stage.
-Do not claim remote success until the run completes.
+The requested repair and GitHub monitoring are complete. No build blocker
+remains. The records-only follow-up commit skips CI to avoid another release;
+all executable changes are covered by successful run #76 at `0367ce3`.

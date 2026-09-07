@@ -18,8 +18,10 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 - **2026-09-07**: Repaired CI run `34147860492`: retain hidden adapter metadata
   in build artifacts and canonicalize plan-review temporary fixtures. Workflow
   regression 4/1 then 5/0; linked-temp regression red then green; Node 165/0.
-  Clean-checkout `build,test` passed with zero errors at 90.72% coverage.
-  User authorized commit and push on `main`, followed by Actions monitoring.
+  Clean-checkout gate 1,777/0/116 at 90.72%; final record/workflow checks 12/0.
+  Committed and pushed `0367ce3` on `main` as requested. GitHub Actions run
+  `34163989373` passed packaging, all three test jobs, and deployment at 21:54
+  UTC. The uploaded ownership manifest and generated-file hash were verified.
 
 - **2026-09-07**: Closed the CONDITIONAL review's Major on `f933946`. The
   heading verifier was wired but unproven by the gate CI runs, because the
