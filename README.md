@@ -542,6 +542,7 @@ The module ships `Agents`, `Instructions`, `Skills`, `Prompts`, `Hooks`, and `Ke
 | `Update-CopilotAtelier` | Checks the Gallery for a newer version, installs it, and redeploys. `-Force` redeploys the current version; `-SkipDeployment` stages the update for later. |
 | `Get-CopilotAtelierVersion` | Reports the installed module version, the deployed version, and whether the deployment is current. |
 
+| `Get-CopilotAtelierSkillHealth` | Reports read-only Skill maintenance evidence ΓÇö usage, discoverability, evaluation, quality, freshness, and overlap kept apart ΓÇö and suggests what a human should look at. See [Skill health](#skill-health). |
 Both `Install-CopilotAtelier` and `Update-CopilotAtelier` write their progress to the information stream, so add `-InformationAction Continue` when you want to watch each step.
 | `Get-CopilotAtelierProfile` | Lists the opt-in installation profiles and the Skills each one deploys from the payload. See [choosing what gets installed](#choosing-what-gets-installed). |
 

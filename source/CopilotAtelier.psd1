@@ -20,6 +20,7 @@
         'Get-CopilotAtelierFootprint'
         'Get-CopilotAtelierVersion'
         'Get-CopilotAtelierProfile'
+        'Get-CopilotAtelierSkillHealth'
         'Install-CopilotAtelier'
         'Test-CopilotAtelier'
         'Uninstall-CopilotAtelier'
