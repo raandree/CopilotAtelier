@@ -17,6 +17,7 @@
     PowerShellVersion = '5.1'
 
     FunctionsToExport = @(
+        'Get-CopilotAtelierFootprint'
         'Get-CopilotAtelierVersion'
         'Install-CopilotAtelier'
         'Test-CopilotAtelier'

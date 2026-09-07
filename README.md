@@ -542,6 +542,7 @@ Discovery in the client. A local health report cannot prove that an editor has
 loaded the files.
 
 - **Agents**: In Copilot Chat, check the agents dropdown — your custom agents should appear
+| `Get-CopilotAtelierFootprint` | Reports the read-only loading footprint of the customization collection and concrete opportunities to reduce unnecessary loading. |
 - **Instructions**: Type `/instructions` in chat to see the Configure Instructions menu
 - **Skills**: Type `/` in chat to see skills as slash commands
 - **Prompts**: Type `/` in chat to see prompt files as slash commands

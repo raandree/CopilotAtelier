@@ -145,6 +145,7 @@ Describe 'General module control' -Tag 'QA' {
 
     It 'Should export exactly the documented commands' {
         $expected = @(
+            'Get-CopilotAtelierFootprint'
             'Get-CopilotAtelierVersion'
             'Install-CopilotAtelier'
             'Test-CopilotAtelier'

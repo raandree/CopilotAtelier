@@ -127,19 +127,9 @@ function Install-CopilotAtelier
 
     $ContentPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ContentPath)
 
-    <#
-        Deployed directory name -> source path inside the content root. Every
-        Copilot-specific component lives under the Agent Plugins 1.0 client
-        extension namespace, where the format names them rules and commands, so
-        the source layout no longer matches the deployed layout.
-    #>
-    $customizationDirectory = [ordered] @{
-        agents       = 'com.github.copilot/agents'
-        instructions = 'com.github.copilot/rules'
-        skills       = 'skills'
-        prompts      = 'com.github.copilot/commands'
-        hooks        = 'com.github.copilot/hooks'
-    }
+    # Deployed directory name -> source path inside the content root. The shared
+    # helper keeps this translation identical for the installer and the report.
+    $customizationDirectory = Get-CopilotAtelierDirectoryMap
 
     $presentDirectory = @(
         $customizationDirectory.Keys |
