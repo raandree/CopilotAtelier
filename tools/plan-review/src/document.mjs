@@ -235,6 +235,15 @@ function resolveDocumentPath ({ root, path, maxBytes }) {
   return contained
 }
 
+// Required rather than optional: an omitted hook would read a document with no
+// agreement between the sections a comment anchors to and the headings the
+// reader sees, and nothing would say so.
+function assertHeadingVerifier (verifyHeadings) {
+  if (typeof verifyHeadings !== 'function') {
+    throw new TypeError('a heading verifier function is required to read a document')
+  }
+}
+
 function documentFromBytes (contained, bytes, maxBytes, verifyHeadings) {
   if (bytes.byteLength > maxBytes) {
     throw new DocumentRejection(`document exceeds ${maxBytes} bytes`, 'too-large')
@@ -252,11 +261,9 @@ function documentFromBytes (contained, bytes, maxBytes, verifyHeadings) {
   }
   const sections = splitSections(markdown)
 
-  // Supplied by the caller that has the Markdown parser, because this module
+  // Injected by the caller that has the Markdown parser, because this module
   // stays dependency-free for the repository gate.
-  if (verifyHeadings) {
-    verifyHeadings(markdown, sections)
-  }
+  verifyHeadings(markdown, sections)
 
   return {
     id: documentIdFor(contained.path),
@@ -275,12 +282,14 @@ function documentFromBytes (contained, bytes, maxBytes, verifyHeadings) {
   }
 }
 
-export async function loadDocument ({ root, path, maxBytes = DEFAULT_MAX_DOCUMENT_BYTES, verifyHeadings = null }) {
+export async function loadDocument ({ root, path, maxBytes = DEFAULT_MAX_DOCUMENT_BYTES, verifyHeadings }) {
+  assertHeadingVerifier(verifyHeadings)
   const contained = resolveDocumentPath({ root, path, maxBytes })
   return documentFromBytes(contained, await readFile(contained.path), maxBytes, verifyHeadings)
 }
 
-export function loadDocumentSync ({ root, path, maxBytes = DEFAULT_MAX_DOCUMENT_BYTES, verifyHeadings = null }) {
+export function loadDocumentSync ({ root, path, maxBytes = DEFAULT_MAX_DOCUMENT_BYTES, verifyHeadings }) {
+  assertHeadingVerifier(verifyHeadings)
   const contained = resolveDocumentPath({ root, path, maxBytes })
   return documentFromBytes(contained, readFileSync(contained.path), maxBytes, verifyHeadings)
 }

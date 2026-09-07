@@ -9,9 +9,14 @@ import {
   documentIdFor,
   hashContent,
   loadDocument,
+  loadDocumentSync,
   slugifyHeading,
   splitSections
 } from '../../src/document.mjs'
+
+// A read supplies its verifier or is refused, so a test about something else
+// has to opt out of heading agreement in the open.
+const unverifiedHeadings = () => {}
 
 const sample = [
   'Intro paragraph before any heading.',
@@ -249,7 +254,7 @@ describe('loadDocument', () => {
     const file = join(root, 'concept.md')
     writeFileSync(file, sample, 'utf8')
 
-    const document = await loadDocument({ root, path: file })
+    const document = await loadDocument({ root, path: file, verifyHeadings: unverifiedHeadings })
 
     assert.equal(document.revision.hash, hashContent(sample))
     assert.equal(document.revision.size, Buffer.byteLength(sample, 'utf8'))
@@ -264,7 +269,7 @@ describe('loadDocument', () => {
     writeFileSync(file, 'x'.repeat(4096), 'utf8')
 
     await assert.rejects(
-      () => loadDocument({ root, path: file, maxBytes: 1024 }),
+      () => loadDocument({ root, path: file, maxBytes: 1024, verifyHeadings: unverifiedHeadings }),
       (error) => error instanceof DocumentRejection && error.reason === 'too-large'
     )
   })
@@ -275,7 +280,7 @@ describe('loadDocument', () => {
     writeFileSync(file, 'MZ', 'utf8')
 
     await assert.rejects(
-      () => loadDocument({ root, path: file }),
+      () => loadDocument({ root, path: file, verifyHeadings: unverifiedHeadings }),
       (error) => error instanceof DocumentRejection && error.reason === 'unsupported-type'
     )
   })
@@ -285,11 +290,67 @@ describe('loadDocument', () => {
     const file = join(root, 'concept.md')
     writeFileSync(file, sample, 'utf8')
 
-    const first = await loadDocument({ root, path: file })
+    const first = await loadDocument({ root, path: file, verifyHeadings: unverifiedHeadings })
     writeFileSync(file, `${sample}\n## Added\n\nMore.\n`, 'utf8')
-    const second = await loadDocument({ root, path: file })
+    const second = await loadDocument({ root, path: file, verifyHeadings: unverifiedHeadings })
 
     assert.notEqual(first.revision.hash, second.revision.hash)
     assert.equal(first.id, second.id)
+  })
+})
+
+/*
+  The verifier is what keeps a comment from anchoring to text the reader never
+  saw. An optional hook makes "nobody passed one" indistinguishable from "this
+  read is deliberately unverified", so the argument is mandatory.
+*/
+describe('heading verification contract', () => {
+  function fixture () {
+    const root = mkdtempSync(join(tmpdir(), 'plan-review-doc-'))
+    const file = join(root, 'concept.md')
+    writeFileSync(file, sample, 'utf8')
+
+    return { root, file }
+  }
+
+  it('refuses a read that supplies no heading verifier', async () => {
+    const { root, file } = fixture()
+
+    await assert.rejects(
+      () => loadDocument({ root, path: file }),
+      (error) => error instanceof TypeError && /heading verifier/.test(error.message)
+    )
+
+    assert.throws(
+      () => loadDocumentSync({ root, path: file }),
+      (error) => error instanceof TypeError && /heading verifier/.test(error.message)
+    )
+  })
+
+  it('hands the verifier the markdown and the sections it split', async () => {
+    const { root, file } = fixture()
+    let seen = null
+
+    await loadDocument({
+      root,
+      path: file,
+      verifyHeadings: (markdown, sections) => { seen = { markdown, sections } }
+    })
+
+    assert.equal(seen.markdown, sample)
+    assert.deepEqual(seen.sections.map((section) => section.key), ['preamble', 'purpose', 'scope', 'scope-2'])
+  })
+
+  it('propagates a verifier rejection instead of returning the document', async () => {
+    const { root, file } = fixture()
+
+    await assert.rejects(
+      () => loadDocument({
+        root,
+        path: file,
+        verifyHeadings: () => { throw new DocumentRejection('ambiguous', 'heading-structure') }
+      }),
+      (error) => error instanceof DocumentRejection && error.reason === 'heading-structure'
+    )
   })
 })

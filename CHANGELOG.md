@@ -156,6 +156,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Require the plan-review heading verifier at every document read, and fail the repository gate when a read stops being verified, so the check that keeps a comment anchored to the text the reader actually saw cannot regress unnoticed. An omitted verifier now raises instead of reading the document unchecked. Refuse a request body that nests deeper than the walk bound rather than leaving its deepest keys uninspected.
 - Align local plan-review section anchors with rendered indented ATX and setext
   headings, preserve literal trailing hashes, and refuse unsupported structures
   before feedback writes, including queued mutations. Report startup failures

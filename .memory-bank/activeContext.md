@@ -20,8 +20,7 @@ original findings. Remote mutation and paid model evaluations remain off.
   trailing hashes. `headings.mjs` checks parser tokens against section levels,
   text, and source lines at authorization and every read, including the locked
   precondition and post-commit observation. Unsupported structures fail closed.
-  The dependency-free splitter retains CommonMark fences and globally unique
-  keys, including duplicate headings colliding with numbered siblings.
+  The splitter stays dependency-free, with CommonMark fences and unique keys.
 - Per-launch cookie names allow concurrent loopback servers; authorities follow
   the bound IPv4 or IPv6 address. Mutation gates require Host, exact Origin,
   JSON content type, session, CSRF, and valid Fetch Metadata when supplied.
@@ -30,18 +29,14 @@ original findings. Remote mutation and paid model evaluations remain off.
   refuse live owners, reclaim only provably dead owners non-recursively, and
   reject a write after ownership loss. Source revisions are rechecked inside
   the lock and after commit; a last-window change reports `superseded`.
-- Immutable asset snapshots replace request-time streams. Stale drafts and
-  pending verdict notes survive refusals; generation-guarded loads cannot render
-  under another selection. CLI bind failures and verdict actions without a
-  loaded revision have explicit diagnostics. Unused deletion was removed.
+- Immutable asset snapshots replace request-time streams; stale drafts and
+  pending notes survive refusals; guarded loads cannot render under another
+  selection; CLI and empty-revision failures report explicitly.
 
-Combined evidence: Windows build/test 1,774 passed, zero failed, 116 skipped,
-90.72% coverage; Node 248 passed on Windows and Linux Node 22; dependency-free
-unit suite 157 passed; Edge desktop/mobile 42 passed; focused Pester 43 passed.
-Syntax checks cover 32 files; AST, PSScriptAnalyzer, and guide markdownlint are
-clean. The controller inspected screenshots and reran 42 focused regressions.
-The queued-write regression now observes a lock attempt: a disposable mutation
-matrix proves the old timing-based test could miss a removed in-lock check.
+Combined evidence: Windows build/test 1,775 passed, zero failed, 116 skipped at
+90.72% coverage; Node 255 on Windows, 248 on Linux Node 22; unit 157; Edge 42;
+focused Pester 44; AST, PSScriptAnalyzer, syntax, markdownlint clean. A mutation
+matrix proved the queued-write regression observes a lock, not elapsed time.
 
 The tool remains absent from `CustomizationDirectory` and `source/`; npm
 dependencies stay opt-in. The repository gate runs dependency-free Node tests
@@ -50,6 +45,21 @@ when available and never installs npm packages. Browser verdicts remain
 handoffs, or commands. A state root inside `.memory-bank/decisions` is refused.
 Ancestor reparse checks, raw-HTML disabling, DOMPurify, strict Mermaid, no image
 loads, and restrictive CSP remain in place; the guide and threat model own detail.
+
+**The review of `f933946` returned CONDITIONAL and its Major is now closed.**
+The verifier was wired correctly but nothing in the gate that CI runs proved
+it: the behavioural evidence needs `markdown-it` and lives in
+`test/integration`, so removing the verifier from a read left the gate green.
+`tests/PlanReview.Tests.ps1` now asserts the import, the instantiation, and
+that every `loadDocument`/`loadDocumentSync` call site in `server.mjs` passes
+`verifyHeadings`, and a mutation experiment proved it: 43 passed with 1 failed
+naming the unverified call site, restored byte-identical afterwards. The hook
+is also mandatory rather than defaulting to `null`, so an omitted argument is a
+loud `TypeError` instead of a silent unverified read, and a request body that
+nests deeper than the walk bound is refused as `too-deep` rather than leaving
+its deepest keys uninspected. A test pins the fact that `JSON.parse` resolves
+`\u005f` escapes before the key exists, so the parsed-object walk is the real
+prototype-pollution control and the raw text scan is only defence in depth.
 
 Nested blockquote/list headings and parser disagreements are intentionally
 unreviewable, not silently mis-anchored; all 213 tracked Markdown files passed
@@ -92,15 +102,14 @@ for the combined HTTP, persistence, and approval boundaries.
   `long-running-job-monitor`, and `agent-security-review` are mandatory because
   deployed Instructions and shipped agents load them by name. The selection is
   an additive optional `Selection` field inside schema 1.
-- **Footprint reporting (task 01).** `Get-CopilotAtelierFootprint` reports
-  potential automatic loading contingent on discovery, never "always loaded",
-  guards every mapped root, and fails closed on ambiguous frontmatter.
-- **CI run 34061934611 and the deployment review.** Fixed on `main` at
-  `35fa926`; M1-M5 and L1-L6 landed at `5acb69d` with zero Blocker/Major
-  findings; the per-ID ledger stays in `assessment-log.md`.
-- **Agent Plugins 1.0.** VS Code's documentation confirms all four Copilot-only
-  component paths under `com.github.copilot/`, so Decision 0023's layout is
-  documented upstream; only the accepted cross-type-link mismatch remains.
+- **Footprint reporting (task 01), CI run 34061934611, and Agent Plugins 1.0.**
+  `Get-CopilotAtelierFootprint` reports potential loading contingent on
+  discovery, guards every mapped root, and fails closed on ambiguous
+  frontmatter. The CI fix landed at `35fa926` and the deployment review's M1-M5
+  and L1-L6 at `5acb69d` with zero Blocker or Major findings, per-ID detail in
+  `assessment-log.md`. VS Code documents all four Copilot-only component paths
+  under `com.github.copilot/`, so only the accepted cross-type-link mismatch
+  remains open against Decision 0023.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -122,13 +131,6 @@ need ShellPilot plus a paid model backend and an explicit go-ahead.
 
 ## Open findings
 
-- **Major:** the fail-closed heading verification that closes review finding
-  PR-01 is proven only by `tools/plan-review/test/integration`, which needs
-  `markdown-it` and never runs in the repository gate, and no source tripwire
-  covers it. Removing the verifier from `readDocument` keeps the gate green.
-  Close it the way PR-07 was closed: a composition assertion in
-  `tests/PlanReview.Tests.ps1`. `verifyHeadings` also defaults to `null` in
-  `loadDocument`, so an omitted argument skips the check silently.
 - **High:** `software-engineer-contoso` claims no egress while retaining an
   unrestricted terminal and mandating a generic `security-reviewer` delegate
   with web, GitHub, MCP, and terminal tools. Eleven older agents likewise

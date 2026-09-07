@@ -7,6 +7,9 @@ import { afterEach, beforeEach, describe, it } from 'node:test'
 import { loadDocument } from '../../src/document.mjs'
 import { createReviewServer } from '../../src/server.mjs'
 
+// This suite is about the byte-level input boundary, not heading agreement.
+const unverifiedHeadings = () => {}
+
 describe('document input boundary', () => {
   let workspace
   let documentPath
@@ -44,6 +47,9 @@ describe('document input boundary', () => {
 
   it('rejects invalid UTF-8 instead of hashing replacement characters', async () => {
     writeFileSync(documentPath, Buffer.from([35, 32, 0xff]))
-    await assert.rejects(loadDocument({ root: workspace, path: documentPath }), { reason: 'unsupported-type' })
+    await assert.rejects(
+      loadDocument({ root: workspace, path: documentPath, verifyHeadings: unverifiedHeadings }),
+      { reason: 'unsupported-type' }
+    )
   })
 })

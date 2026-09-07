@@ -3,6 +3,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 export const SESSION_COOKIE_PREFIX = 'plan_review_session_'
 export const CSRF_HEADER_NAME = 'x-csrf-token'
 export const MAX_BODY_BYTES = 65536
+export const MAX_BODY_DEPTH = 8
 
 const FORBIDDEN_KEY = new Set(['__proto__', 'constructor', 'prototype'])
 
@@ -162,8 +163,14 @@ export function guardMutation (headers, context) {
 }
 
 function assertNoForbiddenKey (value, depth = 0) {
-  if (depth > 8 || value === null || typeof value !== 'object') {
+  if (value === null || typeof value !== 'object') {
     return
+  }
+
+  // Refused rather than left unwalked, so no key escapes the check by sitting
+  // below the recursion bound.
+  if (depth > MAX_BODY_DEPTH) {
+    throw new BodyRejection(`body nests deeper than ${MAX_BODY_DEPTH} levels`, 'too-deep')
   }
 
   for (const key of Object.keys(value)) {

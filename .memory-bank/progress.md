@@ -15,6 +15,16 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-07**: Closed the CONDITIONAL review's Major on `f933946`. The
+  heading verifier was wired but unproven by the gate CI runs, because the
+  behavioural evidence needs `markdown-it`; `tests/PlanReview.Tests.ps1` now
+  asserts the import, the instantiation, and every `server.mjs` read call site,
+  proven by a mutation that failed exactly that test and was restored
+  byte-identical. The hook is mandatory rather than `null`-defaulted, and an
+  over-deep request body is refused as `too-deep` instead of leaving its
+  deepest keys unwalked. Windows gate 1,775 passed, zero failed, 116 skipped at
+  90.72% coverage; Node 255, Edge 42, focused Pester 44.
+
 - **2026-09-07**: Integrated saved PR-01 through PR-09 corrections with the
   existing plan-review hardening. Parser-verified headings refuse ambiguous
   anchors before comment or verdict writes, including queued mutations; CLI,
@@ -86,14 +96,12 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   a per-session execution lock. `Markdown.NativeStructure` is `coverage=partial`
   and no longer stands in for markdownlint. Red 23 of 72 then 12 of 85, 85/0/0.
 
-- **2026-09-07**: Added read-only `Get-CopilotAtelierSkillHealth` (task 04 of
-  the sequential series) with private `Import-CopilotAtelierSkillObservation`
-  and `Measure-CopilotAtelierSkillHealth`, then corrected it in two rounds.
-  Usage arrives only through explicit `-ObservationPath` imports validated
-  against a closed schema; nothing is stored or uploaded, and missing telemetry
-  is unknown, never zero use. Run output counts only through a validated
-  provenance sidecar, and a graded summary only when it reconciles with the
-  bounded verdicts in `assertion_results`. Red 29 then green 81/0.
+- **2026-09-07**: Added read-only `Get-CopilotAtelierSkillHealth` (task 04) with
+  private import and measure helpers, corrected over two rounds. Usage arrives
+  only through explicit validated `-ObservationPath` imports; nothing is stored
+  or uploaded, and missing telemetry is unknown rather than zero use. A run
+  counts only through a validated provenance sidecar, and a graded summary only
+  when it reconciles with `assertion_results`. Red 29 then 81/0.
 
 - **2026-09-07**: Shipped the reviewed learning inbox (task 03, `09416a4`):
   off-route candidate storage, one intake/promotion content rule, guarded paths,
@@ -101,14 +109,9 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   Two correction rounds ended at 62/0; the changelog retains the full contract.
 
 - **2026-09-06**: Shipped profiles (`8e40815`) and footprint reporting
-  (`c0c7166`). Profiles preserve mandatory Skills and inherited selection under
-  the deployment lock; PowerShell 7/5.1 regressions 210/0/6. Footprint reports
-  potential loading contingent on discovery and refuses ambiguous frontmatter.
-
-- **2026-09-06**: Fixed CI run `34061934611` in `35fa926` after clean-clone
-  reproduction: Windows 1,266 passed at 88.03%, Linux 1,172, 5.1 focused 120.
-  Earlier deployment-review M1-M5/L1-L6 remediation and approval remain in
-  `assessment-log.md`; migration and monitoring shipped in `e23eb7e`.
+  (`c0c7166`), then fixed CI run `34061934611` in `35fa926` after a clean-clone
+  reproduction: Windows 1,266 at 88.03%, Linux 1,172, 5.1 focused 120. Earlier
+  deployment-review remediation stays in `assessment-log.md`.
 
 ## Stable capabilities
 

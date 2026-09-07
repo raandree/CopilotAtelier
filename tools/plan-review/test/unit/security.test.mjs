@@ -6,6 +6,7 @@ import {
   BodyRejection,
   CSRF_HEADER_NAME,
   MAX_BODY_BYTES,
+  MAX_BODY_DEPTH,
   SESSION_COOKIE_PREFIX,
   checkCsrf,
   checkFetchMetadata,
@@ -263,6 +264,16 @@ describe('readJsonBody', () => {
     return stream
   }
 
+  function nested (levels) {
+    let payload = '{"leaf":1}'
+
+    for (let level = 0; level < levels; level += 1) {
+      payload = `{"a":${payload}}`
+    }
+
+    return payload
+  }
+
   it('parses a bounded JSON object', async () => {
     const parsed = await readJsonBody(streamOf('{"a":1}'), { 'content-length': '7' })
 
@@ -302,6 +313,41 @@ describe('readJsonBody', () => {
   it('rejects a prototype pollution attempt', async () => {
     await assert.rejects(
       () => readJsonBody(streamOf('{"__proto__":{"polluted":true}}'), {}),
+      (error) => error instanceof BodyRejection && error.reason === 'forbidden-key'
+    )
+  })
+
+  it('catches a forbidden key the raw text scan cannot see', async () => {
+    // JSON.parse resolves \u005f before the key exists, so the parsed-object
+    // walk is the control here and the text scan is only defence in depth.
+    const escaped = '{"\\u005f\\u005fproto\\u005f\\u005f":{"polluted":true}}'
+
+    assert.equal(/"__proto__"\s*:/.test(escaped), false, 'the fixture must defeat the raw scan')
+
+    await assert.rejects(
+      () => readJsonBody(streamOf(escaped), {}),
+      (error) => error instanceof BodyRejection && error.reason === 'forbidden-key'
+    )
+  })
+
+  it('refuses a body that nests deeper than the bound instead of stopping the walk', async () => {
+    await assert.rejects(
+      () => readJsonBody(streamOf(nested(MAX_BODY_DEPTH + 1)), {}),
+      (error) => error instanceof BodyRejection && error.reason === 'too-deep'
+    )
+  })
+
+  it('accepts a body at the depth bound', async () => {
+    const parsed = await readJsonBody(streamOf(nested(MAX_BODY_DEPTH)), {})
+
+    assert.equal(typeof parsed, 'object')
+  })
+
+  it('inspects keys at the deepest level it accepts', async () => {
+    const buried = nested(MAX_BODY_DEPTH).replace('{"leaf":1}', '{"__proto__":{"polluted":true}}')
+
+    await assert.rejects(
+      () => readJsonBody(streamOf(buried), {}),
       (error) => error instanceof BodyRejection && error.reason === 'forbidden-key'
     )
   })

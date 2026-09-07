@@ -243,6 +243,37 @@ Describe 'Plan review containment' -Tag 'Unit' {
         $script:serverText | Should -Match 'registry\.get\(documentId\)'
     }
 
+    It 'Should verify every document read against the Markdown parser' {
+        <#
+            The behavioural proof needs markdown-it, so it lives in
+            test/integration/heading-verification.test.mjs and this
+            dependency-free gate cannot run it. A read that skips the verifier
+            anchors feedback to text the reader never saw, so the wiring is
+            asserted from the source here. The call sites are one line each; a
+            reformat that breaks this also fails the mandatory-argument check
+            in test/unit/document.test.mjs, which the gate does run.
+        #>
+        $script:serverText | Should -Match "import \{ createHeadingVerifier \} from './headings\.mjs'"
+        $script:serverText | Should -Match 'const verifyHeadings = createHeadingVerifier\(\)'
+
+        $readSite = @(
+            [regex]::Matches($script:serverText, '(?m)^.*\bloadDocument(?:Sync)?\(.*$') |
+                ForEach-Object -Process { $_.Value.Trim() }
+        )
+
+        $readSite | Should -Not -BeNullOrEmpty -Because 'the server must still read the document under review'
+
+        foreach ($site in $readSite)
+        {
+            $site | Should -Match 'verifyHeadings' -Because 'an unverified read can anchor feedback to unrendered text'
+        }
+
+        $headings = Get-Content -LiteralPath (Join-Path $script:sourceRoot 'headings.mjs') -Raw
+
+        $headings | Should -Match "'heading-structure'"
+        $headings | Should -Match 'token\.level !== 0'
+    }
+
     It 'Should recheck the source revision inside the serialized mutation' {
         $script:serverText | Should -Match "'stale-source'"
         $script:serverText | Should -Match '\{ precondition \}'
