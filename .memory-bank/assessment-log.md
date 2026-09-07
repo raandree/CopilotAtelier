@@ -11,6 +11,53 @@ Episodic record of completed security assessments. One entry per assessment:
 date, scope, verdict, and the findings that outlived the review. Retain two
 years; archive older entries to a dated Memory Bank topic.
 
+## 2026-09-07 uncommitted feature review: validation, learning inbox, adapters
+
+Scope: the uncommitted working tree at `35fa926` — the `changed-file-validation`
+and `reviewed-learning-inbox` Skills, the client adapter and its build task, the
+footprint, profile, and Skill-health commands, and the installation-profile
+changes to planning, install, update, and the Deployment record.
+
+Verdict: **Approve.** Zero Blocker, zero Major. No network egress, no
+`Invoke-Expression`, no dynamic script block, and no credential handling exists
+anywhere in the new code, so the lethal trifecta has no outbound leg.
+
+Controls confirmed by reading, not by comment: validators only ever see a
+snapshot copied under a generated name, so no project text reaches a command
+line; PSScriptAnalyzer runs with an inline settings hashtable, so no project
+settings file or custom rule module loads; the external-tool host uses
+`UseShellExecute = $false`, a deadline, output caps, and `Kill($true)`; promoted
+learning text passes a printable-prose allow-list that excludes `<`, `` ` ``,
+`$`, and backslash, so a block marker cannot be forged, and a capability-key
+denylist blocks `tools`, `model`, `agents`, and `applyTo`; promotion requires
+`-Approve` plus the SHA-256 of the reviewed preview rather than a blind prompt,
+and appends through an exclusive handle that restores the original bytes when
+verification fails; mandatory lifecycle and security Skills cannot be excluded
+from an installation profile, and Instructions and Hooks are never narrowed.
+
+Retained findings, none blocking:
+
+| ID | Severity | Finding |
+|---|---|---|
+| CFV-1 | Withdrawn | Hypothesised that `Remove-ChangedFileSnapshot` could delete through a link planted in the snapshot directory. Measured on every supported host instead of assumed: Windows PowerShell 5.1.26100, PowerShell 7.6.5 on Windows, and PowerShell 7.4.6 on Linux all remove the link and leave the target intact. The scenario cannot happen, so no guard was written. |
+| RLI-1 | Resolved | The learning inbox documented its storage and a conditional ignore rule but never said what becomes of a saved proposal. The Skill now states that a proposal is working state to delete once applied or abandoned, and that promoted or rejected candidates are pruned with `Remove-LearningCandidate.ps1`. |
+| RLI-2 | Informational | Promotion may append to auto-applied Instructions, which steers every later session. Accepted by design and well gated; the gate is the only thing standing between a candidate and global behaviour. |
+| CFV-2 | Informational | The markdownlint executable resolves through `Get-Command -CommandType Application`, so a bare name follows PATH order. Caller-supplied and documented. |
+| Q-1 | Minor | `ChangedFileValidationCommon.ps1` (90 KB) and `Measure-CopilotAtelierSkillHealth.ps1` (63 KB) are large enough that no single review pass holds either whole. |
+
+Evidence: `review-compliance-1d4a231cff0248afab4b15f2eb87b9c0.log` (617 passed;
+its 39 failures and 2 container errors were caused by the harness pre-importing
+`powershell-yaml`, not by the code) and
+`review-compliance2-*.log` (39 passed, zero failures on the clean re-run of
+`CustomizationSecurity` and `Workflows`). Skill frontmatter and budgets, README
+catalogue, trigger coverage, Customization frontmatter, secret scan, and Memory
+Bank health all pass.
+
+Unverified and disclosed: no build ran, so the new commands, the
+`Build_Client_Adapter_Variants` task, and roughly 330 KB of new unit tests are
+unexecuted here; a rebuild would have collided with concurrent work in this
+worktree. Non-Windows was not exercised. The tree changed during the review.
+
 ## 2026-09-06 remediation and independent re-review
 
 The user's remediation request is the acceptance contract. Earlier

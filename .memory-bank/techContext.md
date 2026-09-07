@@ -47,11 +47,22 @@ Customization directories listed in `build.yaml` into the built module at
 | `Install-CopilotAtelier` | Deploy the Customizations, link `~/.copilot`, merge settings and keybindings, write the Deployment record |
 | `Update-CopilotAtelier` | Compare against the Gallery, install a newer version, redeploy |
 | `Get-CopilotAtelierVersion` | Report installed version, deployed version, and currency |
+| `Get-CopilotAtelierProfile` | Read-only report of each installation profile and the Skills it deploys |
+| `Get-CopilotAtelierFootprint` | Read-only footprint report of the Customization collection with loading-reduction opportunities |
+| `Get-CopilotAtelierClientAdapter` | Read-only report of how a Custom agent profile is composed per Copilot client, and what that client cannot do |
 | `Test-CopilotAtelier` | Read-only deployment, hash, link, hook, and settings diagnostics |
 | `Uninstall-CopilotAtelier` | Remove unchanged owned files; preserve personal content and configuration |
 
 Never hand-edit `ModuleVersion` in `source/CopilotAtelier.psd1`; GitVersion
 supplies it at build time.
+
+`Build_Client_Adapter_Variants` composes the client-specific Custom agent
+variants into `output/clientAdapters/<client>/` — outside the built module,
+`CustomizationDirectory`, and the tracked tree the plugin channel publishes. It
+owns that directory through a schema 2 `.copilot-atelier-adapter-manifest.json`
+recording a SHA-256 per generated file: every path component is guarded, the
+whole operation is validated before the first delete, and only files still byte
+for byte what it wrote are removed.
 
 ## Deployment boundary
 
@@ -73,6 +84,13 @@ pending operations and verified staging state; completed records remain schema
 removal. Explicit Repair affects recorded files only. Install and Update accept
 TargetPath and reject ambiguous account selection without prompting. Local
 install/removal callers on one target coordinate with an exclusive handle.
+
+Only `skills/` is selectable. `-InstallationProfile`, `-IncludeSkill`, and
+`-ExcludeSkill` narrow it to whole Skill folders; the other four directories
+always deploy in full. The resolved selection is an additive optional
+`Selection` field in schema 1, omitted for a complete installation, so older and
+default records are unchanged. The native Agent Plugins channel has no selection
+mechanism.
 
 ## Discovery model
 

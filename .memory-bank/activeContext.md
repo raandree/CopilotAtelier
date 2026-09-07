@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-06
+last-verified: 2026-09-07
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,123 +9,163 @@ source: current task evidence
 
 ## Current focus
 
-Fixed the failures from CI run `34061934611` directly on `main`, as requested.
-The clean starting commit is `5acb69d`, the failed run's exact revision. No push,
-release, or active-profile deployment was performed.
+Client-specific adapters (task 06, correction round 2). Read-only
+`Get-CopilotAtelierClientAdapter` over private
+`Get-CopilotAtelierClientContract`, `ConvertFrom-`/`ConvertTo-`
+`CopilotAtelierAgentFrontmatter`, `ConvertTo-CopilotAtelierClientAgent`,
+`Export-CopilotAtelierClientAdapterArtifact`, plus the build task.
 
-The Deployment plan bypassed the shared reparse-point guard; uninstall used a
-directory-only deletion API on dangling Unix Discovery links; the POSIX test
-fixture let `Join-Path` turn a literal backslash into a separator. All three
-causes are corrected, with existing regressions retained and fixture assertions
-strengthened. Focused results: Windows 120 passed/six skips, Linux 104 passed/22
-skips, zero failures. All four edited scripts pass AST and PSScriptAnalyzer.
+**Discovery is not parity, and the mismatch is specific.** The shipped profiles
+are authored in the VS Code shape. The published custom agents configuration the
+Copilot CLI follows documents one model string, a closed set of tool aliases,
+and no subagent allow-list, handoff, or argument hint — and it *ignores* an
+unrecognized tool name. `software-engineer` declares 45 tool identifiers; 5 map.
+Scope is VS Code and the CLI; no cloud client is claimed.
 
-Full clean-clone Windows gate: 1,266 passed, 67 skips, 88.03% coverage. Linux
-`Unit`/`QA` gate: 1,172 passed, 105 skips, 56 tag exclusions, 86.97% coverage.
-Both have zero failures and exceed the 65% coverage threshold. Windows
-PowerShell 5.1 focused tests: 120 passed/six skips. Updated Memory Bank health
-and routing: 15 passed. Existing warnings are the simulated backend failure
-and, on Windows, the unchanged tech-context line-budget notice.
+The VS Code files stay the only source; only frontmatter is rewritten. Four
+rules are tests, not prose: every mapping is explicit and an unmapped identifier
+is an error; frontmatter is a strict YAML subset that rejects an unknown or
+duplicate field rather than dropping it; **an `execute/` prefix is a namespace,
+not execution authority** — only `execute/runInTerminal` may reach the execute
+alias, so `execute/getTerminalOutput`, `runTests`, task runners, and `useMcp`
+stay unsupported; and a restriction that cannot be expressed removes what it
+guards, so the variant loses the `agent` tool. Every other mapping stays inside
+its capability class. A mandatory capability or workflow that cannot be provided
+fails the composition and emits nothing.
 
-Docker Desktop and a cached PowerShell 7.4 Ubuntu image are available; Linux
-validation used a disposable container and a clean clone. macOS and live
-OneDrive remain unverified locally. Independent review is off; recommend it
-for the changed link-removal boundary before publication.
+**`review: on` and `cycle: full` are refused, not degraded.** The composed file
+carries an additive limitation section, between explicit markers with the shared
+body's SHA-256 in the end marker, telling the agent to refuse those modes and
+return to VS Code. The body stays byte-identical and last.
 
-## Previous focus: deployment review
+Neither client is runtime verified: no receipt is bound to an artifact, so both
+are `StructurallyChecked`. The VS Code 1.136.1 observation is kept as historical
+source-profile evidence. The CLI is **not installed**;
+`docs/client-adapter-evals.md` carries the authored, unexecuted cases.
 
-M1-M5 and L1-L6 remediation landed in `5acb69d` on `main`. Its independent
-review approved the reviewed scope with zero Blocker/Major findings; two Minor
-and three Nit observations remain in `assessment-log.md`. Its historical full
-gate passed 1,234 tests with 66 skips and 87.8% coverage; those results did not
-prove the CI-only failures now reproduced. The earlier CONDITIONAL review and
-"accepted residual risk" wording were not user acceptance. The per-ID ledger
-and earlier verification evidence remain in `assessment-log.md`.
+Variants land in `output/clientAdapters/<client>/` and are **never deployed**.
+The build task owns that directory through a manifest and removes only what it
+generated; an unowned directory, a reserved build name, a non-child path, or a
+reparse point is refused rather than deleted.
 
-## Previous focus: role-record migration
+**Round 2 hardened the exporter, and only the exporter.** Every path component —
+output root, artifact directory, manifest, client directory, generated file,
+destination — goes through `Assert-CopilotAtelierRegularPath`, because a link
+*between* root and leaf redirects a delete just as well as one at either end.
+The whole operation is validated before the first mutation, so a late unsafe
+manifest entry no longer arrives after a valid earlier one was already deleted.
+Ownership is proved by content: schema 2 records a SHA-256 per generated file,
+so an edited generated file, an unowned destination collision — identical
+content included — and a names-only `schema 1` manifest are all refused.
 
-Legacy role records use metadata-only planning, whole-plan validation, and
-verified copies without overwriting or deleting sources. The three role agents
-require explicit decisions and preview with `-WhatIf`. The migration shipped
-in `e23eb7e`; focused tests passed 27/27 and the full gate passed 1,057 with
-78.51% coverage. Behavioral cases remain unexecuted without a model backend.
-Installation never owns those private repository records. Details are in the
-changelog and `skills/memory-bank/notes-evals.md`.
+Red 46/103 before round 1, then 103/103. Round 2 red 15/121, then 121/121 with
+no skips (elevated, so the link cases ran). Uncommitted; `review: off` —
+recommend `review: on` for the permission mapping and the ownership model.
 
-## Previously: the `long-running-job-monitor` discovery failure
+## Previous focus: changed-file validation
 
-A 45-minute live Hyper-V proof ran in another workspace with the Skill never
-loaded: no cadence tick, thirty silent minutes, two mid-job turns with no status
-line. Every rule it broke was already written down correctly, so the defect is
-discovery, not content. Two lessons generalise. A `USE FOR:` list must carry the
-words the user's own glossary uses — that workspace says *proof*, the list said
-"live test". And guidance that sits downstream of the step it constrains does not
-bind that step: arming the tick lived in a later section, so an agent could
-follow the launch step exactly and still end the turn with nothing armed.
+Task 05 added the `changed-file-validation` Skill: an opt-in, bounded validation
+pass over one work batch, collected manually because no documented hook event
+reports an edit contract this implementation has verified. Validators read an
+isolated snapshot under a generated name, and a receipt binds to those bytes
+plus a plan identity hashing the linter entry point and the shipped checker
+code. Parse and PSScriptAnalyzer run in an owned child worker with a wall clock
+and inline settings. `Markdown.NativeStructure` is `coverage=partial` and never
+stands in for markdownlint. 12 regressions red, then 85/0/0.
 
-## Agent Plugins 1.0 status
+## Previous focus: Skill health report
 
-The latest VS Code Agent Plugins documentation confirms all four Copilot-only
-component paths under `com.github.copilot/`, including `rules/` and `commands/`.
-The source layout chosen in Decision 0023 is therefore documented upstream;
-only the accepted cross-type-link mismatch in the translated module deployment
-remains.
+Task 04 added read-only `Get-CopilotAtelierSkillHealth` plus private
+`Import-CopilotAtelierSkillObservation`, `Measure-CopilotAtelierSkillHealth`,
+and the shared `Get-CopilotAtelierBoundedFile` enumerator.
+
+The client-event contract is **verified, not asserted**: each of the eight
+documented hook events is checked against the deployed authoring Instruction,
+and the report publishes `VerificationState` and `VerificationScope` — *no
+reliable Skill-activation contract verified for this implementation*. No capture
+is implemented, it is off by default, and missing telemetry is unknown, not
+zero. Evaluation evidence is read in the shapes `agent-evals` defines: run
+output counts only through a validated provenance sidecar, a graded summary only
+when it reconciles exactly with the bounded verdicts in `assertion_results`, and
+disagreeing copies surface as `ConflictingRun`. `RetirementReview` needs an
+explicit `coverage` declaration and is never raised for a mandatory Skill.
+Focused suites red 29 then green 81/0; canonical `build, test` green at 1492
+passed, 0 failed (`%TEMP%\ca-sh2-final2.log`).
+
+## Previous focus: reviewed learning inbox
+
+Task 03 added `reviewed-learning-inbox`: an on-demand, project-scoped review
+queue whose store at `.memory-bank/learning-inbox/candidates.json` sits outside
+the routed base, every Skill description, and the deployed tree. A selected
+artifact is an untrusted observation, never a directive; one content rule runs
+at intake and again at promotion. Promotion is append-only and hash-gated —
+`-Approve` plus the preview SHA-256 — and round 1 added parent-chain reparse
+guards, evidence binding, a byte-preserving exclusive append, an atomic locked
+store, and verified-block repeat handling. Red 18 of 62 then 62/0/0.
+
+## Previous focuses
+
+- **Installation profiles (task 02).** `-InstallationProfile` (`complete`
+  default, `engineering`, `research`, `document-processing`) plus
+  `-IncludeSkill`/`-ExcludeSkill` on Install, Update, and Setup, with
+  `Get-CopilotAtelierProfile` and an `InstallationProfile` field on the
+  `Test-CopilotAtelier` result. Only Skills are selectable; `memory-bank`,
+  `long-running-job-monitor`, and `agent-security-review` are mandatory because
+  deployed Instructions and shipped agents load them by name. The selection is
+  an additive optional `Selection` field inside schema 1, omitted for a complete
+  installation, and the plan filters whole top-level folders.
+- **Footprint reporting (task 01).** `Get-CopilotAtelierFootprint` reports
+  potential automatic loading contingent on discovery, never "always loaded",
+  guards every mapped root, and fails closed on ambiguous frontmatter. The
+  shared `Get-CopilotAtelierDirectoryMap` keeps installer and report aligned.
+- **CI run 34061934611 and the deployment review.** Fixed on `main` at
+  `5acb69d`, where M1-M5 and L1-L6 also landed with zero Blocker/Major findings;
+  the per-ID ledger stays in `assessment-log.md`. Windows 1,266 passed, Linux
+  1,172, 5.1 focused 120; macOS and live OneDrive remain unverified locally.
+- **Agent Plugins 1.0.** VS Code's documentation confirms all four Copilot-only
+  component paths under `com.github.copilot/`, so Decision 0023's layout is
+  documented upstream; only the accepted cross-type-link mismatch remains.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
 Two bulk PowerShell read-modify-write passes over this working tree replaced
 whole file contents with a monoalphabetic substitution cipher (`instructions`
 → `nnkteuotnonk`, `applyTo` → `aeelyTo`), 129 files each time. Both were caught
-and fully restored from git; no corruption reached a commit.
-
-- It is asynchronous. The script's own byte-exact read-back verification passed
-  for all 175 files, and `git diff` showed the corruption afterwards, so the
-  rewrite lands after the write returns. A verify-after-write loop cannot
-  detect it.
-- A single-file scripted write was clean, so it correlates with volume.
-- Every `replace_string_in_file` edit was clean, across roughly forty files.
-
-Until the cause is found, edit files through the editor tooling, and treat any
-scripted bulk rewrite of this tree as unsafe. `git grep -l -e nnkteuotnon -e\naeelyTo` detects it in one pass.
+and restored from git; no corruption reached a commit. It is asynchronous: the
+script's own byte-exact read-back passed for all 175 files and `git diff` showed
+it afterwards, so a verify-after-write loop cannot detect it. Until the cause is
+found, edit through the editor tooling and treat any scripted bulk rewrite as
+unsafe; `git grep -l -e nnkteuotnon -e aeelyTo` detects it.
 
 ## Blocked, not deferred
 
-The ShellPilot module and `Invoke-ShpBatch` are absent on this machine, so
-`-Mode Execute` is unavailable for both eval harnesses. That blocks the two
-measurement items outright rather than by choice of priority:
-
-- The 75 prepared route-selection prompts cannot be answered, so no
-  pass@k or pass^k result exists yet.
-- The seven authored trigger-query sets cannot be swept, so `german-tax-research`
-  and the other 37 baselined Skills stay unmeasured for discovery.
-
-Both need ShellPilot plus a paid model backend, and a sweep costs money, so the
-run needs an explicit go-ahead rather than an assumption.
+ShellPilot and `Invoke-ShpBatch` are absent here, so `-Mode Execute` is
+unavailable for both eval harnesses. The 75 prepared route-selection prompts
+cannot be answered and the authored trigger-query sets cannot be swept, so the
+baselined Skills stay unmeasured for discovery. Both need ShellPilot plus a paid
+model backend and an explicit go-ahead.
 
 ## Open findings
 
+- **Medium:** under Windows PowerShell 5.1, `Get-FileHash` is unresolvable
+  inside a script invoked from a Pester `It`, though it resolves in a bare `It`
+  and in a plain 5.1 child. The untouched `MemoryBankRoleMigration` suite fails
+  identically, so it is a harness anomaly, not a code defect.
 - **Deployment review:** M1-M5 and L1-L6 are implemented and independently
-  approved on the verified scope. macOS/live cloud-sync execution and the
-  review's non-blocking observations remain explicitly disclosed, not waived.
+  approved on the verified scope. macOS and live cloud-sync execution remain
+  disclosed, not waived.
 - **High:** `software-engineer-contoso` claims no egress while retaining an
   unrestricted terminal and mandating a generic `security-reviewer` delegate
-  that can read the repository and use web, GitHub, MCP, and terminal tools.
-  Prose does not enforce the boundary, especially on native Windows where VS
-  Code terminal sandboxing is unavailable.
-- **High:** eleven older agents combine workspace/private-data access,
-  untrusted web content, arbitrary execution, and broad MCP access. Replace
-  copied omnibus tool lists with role-specific least-privilege surfaces. The
-  README now documents staged private intake, local transformation, minimized
-  public research, and user-confirmed browser actions, but guidance is not
-  enforced containment.
+  with web, GitHub, MCP, and terminal tools. Eleven older agents likewise
+  combine workspace and private-data access, untrusted web content, arbitrary
+  execution, and broad MCP access. Prose is not enforced containment, especially
+  on native Windows without terminal sandboxing; replace copied omnibus tool
+  lists with role-specific least-privilege surfaces.
 - **Medium:** Security Reviewer and Technical Writer delegate research to the
-  full `research-analyst` profile, whose tools include edit, terminal, browser,
-  GitHub, and MCP access. Their research-only delegation needs a narrower
-  read-only code explorer and a separate public-source researcher.
-- **Medium:** twelve agents now expose `browser`, but only Software Engineer
-  carries an explicit ephemeral-loopback, shared-authentication, and
-  user-confirmation contract. The hard-coded browser allow-list proves tool
-  presence, not role need or safe behavior; review it role by role.
+  full `research-analyst` profile (edit, terminal, browser, GitHub, MCP), and
+  twelve agents expose `browser` while only Software Engineer carries an
+  explicit ephemeral-loopback, shared-authentication, and user-confirmation
+  contract. Both need narrower role-specific surfaces.
 - **Major:** `career-coach` (35,672 chars), `research-analyst` (43,376),
   `security-reviewer` (43,772), and `technical-writer` (35,018) exceed GitHub's
   30,000-character Custom agent prompt limit. The new test prevents growth; the
@@ -133,42 +173,28 @@ run needs an explicit go-ahead rather than an assumption.
 - **Major:** every profile omits `target` but declares a VS Code model-priority
   array and mostly VS Code-qualified tool IDs. Copilot CLI documents one model
   string plus CLI tool names such as `view`, `edit`, `powershell`, `grep`, and
-  `task`; the README now warns that discovery is not capability parity, but
-  product-specific profiles or a shared compatible subset remain open.
+  `task`; product-specific profiles or a shared compatible subset remain open.
 - **Medium:** no executed agent behavioral eval set exists. The semantic tests
-  catch structural regressions, but the Chat Customizations Evaluations
-  extension is not installed and no live capability comparison was run.
+  catch structural regressions, but no live capability comparison was run.
 - **Low:** three test files parse agent frontmatter with independent regular
-  expressions. `powershell-yaml` is already available to the test suite; one
-  shared parser plus malformed nested fixtures would reduce false greens.
-- **Low:** the full build reports one warning for an intentionally simulated
-  trigger-eval backend failure. Expected failure output should be captured by
-  its test so a clean build has no warning that can mask a new one.
+  expressions; one shared `powershell-yaml` parser plus malformed nested
+  fixtures would reduce false greens.
 
-## Carried forward from the route-selection eval
+## Carried forward
 
-- `Invoke-MemoryBankRouteSelectionEval.ps1` has offline `Prepare` and `Grade`
-  modes, and `MemoryBankRouteSelection.Tests.ps1` covers prompt isolation, label
-  leakage, fallback, strict shape, reliability aggregation, and failure
-  accounting.
-- The first stage infers routes and fallback only; the deterministic resolver
-  still receives human labels for `durableWrite`, role files, and Decision
-  records.
-- Context-window cost, latency, and answer quality under routed versus full
-  loading remain unmeasured. Safety is gameable on its own \u2014 a reply naming
-  every route never misses \u2014 and no precision floor is set, so `Passed = True`
-  at low precision is not yet a failing build.
-
-## Carried forward from earlier focuses
-
-- `WindowsAccessControl` slots 1 and 2 use the older ink-variant reading of
-  dark/light, so two sets in one shared library disagree on "dark mode". That
-  repository is not in this workspace.
-- The `brand-logo-system` integration step was measured on one project only.
-- The `skill-creator` description edit remains unproven: train reached 100 %
-  while validation fell, which is the overfitting signal.
+`Invoke-MemoryBankRouteSelectionEval.ps1` has offline `Prepare` and `Grade`
+modes covering prompt isolation, label leakage, fallback, strict shape,
+reliability aggregation, and failure accounting. The first stage infers routes
+and fallback only; the resolver still receives human labels. Context cost,
+latency, and answer quality under routed versus full loading remain unmeasured,
+and no precision floor is set, so `Passed = True` at low precision is not a
+failing build. `WindowsAccessControl` slots 1 and 2 use the older ink-variant
+reading of dark/light, so two sets in one shared library disagree on "dark
+mode"; `brand-logo-system` integration was measured on one project only; and the
+`skill-creator` description edit remains unproven — train reached 100 % while
+validation fell, which is the overfitting signal.
 
 ## Next step
 
-No further implementation is planned for this CI fix. Leave independent review,
-publication, and any remote mutation to an explicit user request.
+Leave independent review, publication, and any remote mutation to an explicit
+user request.

@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-06
+last-verified: 2026-09-07
 owner: software-engineer
 source: .memory-bank/decisions and source/
 ---
@@ -8,8 +8,7 @@ source: .memory-bank/decisions and source/
 # System patterns
 
 Durable relationships and the Decision record index. Read a linked record only
-when the task needs its rationale or consequences. The repository layout lives
-in `techContext.md`, not here.
+when the task needs it; the repository layout lives in `techContext.md`.
 
 ## Decision index
 
@@ -51,48 +50,58 @@ in `techContext.md`, not here.
     empty allow-list; prose and omitted web tools are not containment.
 - Sensitive-data research is staged: narrow read-only intake, local
     transformation, minimized public research, then explicitly shared
-    authenticated actions. Tool availability is capability, not authorization;
-    prompt guidance does not replace an OS-enforced boundary.
+    authenticated actions. Tool availability is capability, not authorization.
 - The `agents` property authorizes which Custom agents may run as subagents; it
     does not inherit their bodies. Share instructions through an actual referenced
     Instruction or inline with a drift test when composition is unavailable.
-- Copilot-specific plugin agents are read by VS Code, Copilot CLI, and the
-    Copilot app. Cross-client bodies, model fields, and tool names satisfy the
-    strictest shared contract; otherwise declare an intentional `target` and
-    ship a compatible counterpart.
+- Copilot-specific plugin agents are read by several clients, and an
+    unrecognized tool name is ignored rather than rejected, so loading proves
+    discovery and nothing else. Keep one authoritative profile and compose
+    variants through an allow-list parsed as a strict subset: an unmapped or
+    unknown field is an error, a tool prefix is a namespace and not proof of
+    authority, and an inexpressible restriction removes what it guards. A
+    workflow the client cannot run is refused inside the composed file, behind a
+    marker carrying the body's hash. Verification stays structural until a
+    receipt binds to the artifact; a variant is owned build output, never swept.
 - The Software Engineer uses `browser` for ephemeral loopback validation;
-    authenticated state requires explicit sharing.
-- A handoff cycle is bounded in frontmatter, not prose: any ring made entirely
-    of `send: true` edges can run unattended and must fail a graph test.
-- Costly independent review is a user-set switch with a named default. The
-    shared Definition of Done records deferred high-risk review explicitly.
+    authenticated state requires explicit sharing. Costly independent review is a
+    user-set switch with a named default, and the shared Definition of Done
+    records a deferred high-risk review explicitly.
 - The module carries the Customizations as payload; the installer translates
     Agent Plugins paths into the five `~/.copilot` Discovery siblings.
 - File equality is not deployment ownership. Preserve untracked matches;
     removal requires both a recorded relative path and matching bytes. Source
     and deployment trees must not overlap.
-- Persist each pending file operation before atomic replacement and checkpoint
-    it afterwards. Recovery reconciles observed hashes, not assumed completion;
-    local exclusive handles coordinate callers, not cross-machine cloud sync.
-- Validate payload and destination paths through the shared guard, including
-    non-directory ancestors and reparse points. Windows Cloud Files placeholders
-    are not redirecting links. Trusted parent aliases are outside the selected
-    root; hash checks are not an atomic transaction or a sandbox.
+- Opt-in narrowing is a payload filter, not a second removal path, so profile
+    switching reuses the existing retire and ownership checks. Selection state is
+    an additive, strictly validated optional record field, omitted for the
+    default, and never confers ownership. Inherited state read before a lock is
+    stale: re-read it under the lock and reject an invalid explicit request.
+- A selected artifact is an untrusted observation, never policy: keep candidates
+    off automatically loaded surfaces, apply one content rule at intake and at
+    promotion, gate an append-only write on an approved preview hash, and bind
+    evidence to the stored record and verified block, not a marker.
+- Persist each pending operation before atomic replacement and checkpoint after.
+    Recovery reconciles observed hashes, not assumed completion; one exclusive
+    handle hashes and writes the same bytes, coordinating callers, not sync.
+- Validate every path through the shared guard by walking each existing ancestor
+    from the selected root, not the leaf alone; trusted aliases sit above it.
+    Placeholders are not links, and a hash check is not a transaction or sandbox.
 - Remove verified Discovery links non-recursively, including dangling Unix
     links. Construct literal POSIX filename fixtures with .NET path APIs, not
     the PowerShell provider's separator-normalizing `Join-Path`.
 - Hooks enforce unconditional rules; Instructions carry judgement calls. Hook
-    commands resolve exact trusted roots, avoid pre-parse `$` substitution, and
-    fail closed only for security controls.
+    commands resolve exact trusted roots and avoid pre-parse `$` substitution.
 - A gate that can skip is not a gate. External checks must fail in CI and prove
-    they reject a bad fixture.
-- Known debt is a shrink-only baseline keyed to each offender, never a disabled
-    check or a silently growing allowance.
+    they reject a bad fixture. Known debt is a shrink-only baseline keyed to each
+    offender, never a disabled check or a silently growing allowance.
 - A Skill cannot override a Custom agent body or grant a missing tool. A
-    conflicting discipline needs its own capability-bounded persona.
+    conflicting discipline needs its own capability-bounded persona. A handoff
+    cycle is bounded in frontmatter: a ring of `send: true` edges can run
+    unattended and must fail a graph test.
 - Role-record migration is repository-selected and split into metadata-only
-    planning plus whole-plan-validated apply. Ambiguous records need a user
-    decision; apply copies and verifies bytes but never moves or deletes sources.
+    planning plus whole-plan-validated apply. Apply copies and verifies bytes but
+    never moves or deletes a source; an ambiguous record needs a user decision.
 - Memory Bank routing has deterministic and label-free eval layers. Compaction
     bypasses both lifecycle gates, so `PreCompact` writes the anchor Pre-flight
     reloads.
