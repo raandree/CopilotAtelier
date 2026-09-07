@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Plan review</title>
+<link rel="icon" href="/brand.png" type="image/png">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div id="icon-sprite" hidden aria-hidden="true"></div>
+
+<a class="skip-link" href="#document">Skip to document</a>
+
+<header class="bar" role="banner">
+  <div class="bar-identity">
+    <img class="bar-mark" src="/brand.png" alt="" width="24" height="24">
+    <div class="bar-titles">
+      <h1 id="doc-title">Loading…</h1>
+      <p class="bar-meta">
+        <span id="doc-name"></span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span>revision <code id="doc-revision">…</code></span>
+      </p>
+      <select id="document-select" aria-label="Opened document" hidden></select>
+    </div>
+  </div>
+
+  <p id="verdict-status" class="status status-pending" role="status" aria-live="polite">
+    <svg class="icon" aria-hidden="true"><use href="#icon-pending"></use></svg>
+    <span id="verdict-status-text">Pending review</span>
+  </p>
+
+  <div class="bar-actions" role="toolbar" aria-label="Review actions">
+    <button type="button" id="action-approve" class="button button-approve" title="Record approval feedback for this revision">
+      <svg class="icon" aria-hidden="true"><use href="#icon-approve"></use></svg>
+      <span>Approve</span>
+    </button>
+    <button type="button" id="action-changes" class="button button-changes" title="Record a request for changes against this revision">
+      <svg class="icon" aria-hidden="true"><use href="#icon-changes"></use></svg>
+      <span>Request changes</span>
+    </button>
+    <button type="button" id="action-reload" class="button button-quiet" title="Re-read the document from disk">
+      <svg class="icon" aria-hidden="true"><use href="#icon-reload"></use></svg>
+      <span>Reload</span>
+    </button>
+    <button type="button" id="action-shutdown" class="button button-quiet" title="Stop the local review server">
+      <svg class="icon" aria-hidden="true"><use href="#icon-shutdown"></use></svg>
+      <span>Stop server</span>
+    </button>
+  </div>
+</header>
+
+<p id="authority-note" class="authority">
+  Feedback recorded here is review input only. Implementation is still authorized
+  by the existing sign-off in chat.
+</p>
+
+<div class="layout">
+  <nav class="outline" id="outline" aria-label="Document outline">
+    <h2 class="outline-heading">
+      <svg class="icon" aria-hidden="true"><use href="#icon-outline"></use></svg>
+      Sections
+    </h2>
+    <ol id="outline-list"></ol>
+    <p class="hint">
+      <svg class="icon" aria-hidden="true"><use href="#icon-keyboard"></use></svg>
+      <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>c</kbd> comment · <kbd>r</kbd> reload
+    </p>
+  </nav>
+
+  <main id="document" tabindex="-1">
+    <div id="banner" class="banner" hidden role="alert"></div>
+    <div id="sections"></div>
+
+    <section id="orphaned" class="orphaned" hidden aria-labelledby="orphaned-heading">
+      <h2 id="orphaned-heading">
+        <svg class="icon" aria-hidden="true"><use href="#icon-stale"></use></svg>
+        Unanchored feedback
+      </h2>
+      <p class="orphaned-note">
+        The sections these remarks were written on are no longer in the document.
+        They are kept here rather than moved onto different content.
+      </p>
+      <ul id="orphaned-list"></ul>
+    </section>
+  </main>
+</div>
+
+<dialog id="verdict-dialog" aria-labelledby="verdict-dialog-title">
+  <form method="dialog">
+    <h2 id="verdict-dialog-title">Record feedback</h2>
+    <p id="verdict-dialog-body" class="dialog-body"></p>
+    <label for="verdict-note">Note (optional)</label>
+    <textarea id="verdict-note" rows="4" maxlength="2000"></textarea>
+    <div class="dialog-actions">
+      <button type="button" id="verdict-cancel" class="button button-quiet">Cancel</button>
+      <button type="button" id="verdict-confirm" class="button button-approve">
+        <svg class="icon" aria-hidden="true"><use href="#icon-submit"></use></svg>
+        <span>Record</span>
+      </button>
+    </div>
+  </form>
+</dialog>
+
+<script src="/vendor/purify.min.js"></script>
+<script src="/vendor/mermaid.min.js"></script>
+<script type="module" src="/app.mjs"></script>
+</body>
+</html>

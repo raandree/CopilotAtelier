@@ -1,0 +1,29 @@
+{
+  "name": "copilot-atelier-plan-review",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Optional local review surface for Design Concepts. Not part of the CopilotAtelier PowerShell module.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "start": "node src/cli.mjs",
+    "test:unit": "node scripts/run-tests.mjs unit",
+    "test:integration": "node scripts/run-tests.mjs integration",
+    "test": "node scripts/run-tests.mjs unit integration",
+    "test:browser": "playwright test --config browser/playwright.config.mjs",
+    "lint": "node scripts/check-syntax.mjs"
+  },
+  "dependencies": {
+    "dompurify": "^3.2.4",
+    "jsdom": "^26.0.0",
+    "lucide": "^0.474.0",
+    "markdown-it": "^14.1.0",
+    "mermaid": "^11.4.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1"
+  }
+}

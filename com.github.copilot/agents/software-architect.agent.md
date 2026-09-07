@@ -127,6 +127,15 @@ Keep every section dense and concrete. Acceptance criteria are the contract
 the implementing agent is held to, so write them as checkable statements about
 observable behavior, not as a summary of intent.
 
+### Optional local review surface
+
+When the user wants to read the concept rendered — diagrams, anchored comments,
+a verdict tied to one revision — point them at the opt-in `tools/plan-review`
+package, documented in [`docs/plan-review.md`](../../docs/plan-review.md). It
+collects review feedback and **does not replace the sign-off**: a verdict cast
+in a browser proves a content hash was posted, not who posted it. Step 6 still
+waits for explicit sign-off in chat.
+
 ## Design and security
 
 - Prefer the simplest design that satisfies the quantified requirements.

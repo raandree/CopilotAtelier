@@ -414,6 +414,38 @@ structural and evaluation evidence. `RetirementReview` is only ever proposed
 against an observation window wide enough to judge — never from absent or sparse
 observations, never for a mandatory Skill, and never as a decision.
 
+## Reviewing a Design Concept in a browser (optional)
+
+`tools/plan-review/` is an opt-in local surface that renders a Design Concept
+with its Mermaid diagrams, anchors comments to stable sections, and records a
+verdict against one specific revision hash. It is not part of the PowerShell
+module: `Install-CopilotAtelier` never deploys it, the built module does not
+carry it, and it needs Node.js only for whoever chooses to use it.
+
+```powershell
+Push-Location tools/plan-review
+npm install
+node src/cli.mjs --document samples/design-concept-sample.md --ttl 900
+Pop-Location
+```
+
+The server binds to loopback, validates `Host` and `Origin`, requires a
+per-launch session cookie plus a CSRF token on every mutation, reads only the
+files named at launch, and stops on `Ctrl+C`, on the page's **Stop server**
+button, or when its bounded lifetime expires.
+
+**It does not sign anything off.** A verdict cast in a browser proves that a
+content hash was posted, not who posted it, so feedback is stored as
+`local-http-feedback` under `approvalAuthority: "chat-sign-off-required"`. The
+Software Architect sign-off in chat remains the only thing that authorizes
+implementation. Editing the document invalidates a recorded approval, and a
+comment whose section disappears is listed as unanchored rather than moved onto
+different content.
+
+Setup, trust boundaries, storage, shutdown, and rollback:
+[`docs/plan-review.md`](docs/plan-review.md). Threat model:
+[`docs/plan-review-threat-model.md`](docs/plan-review-threat-model.md).
+
 ## Migrating Legacy Memory Bank Records
 
 Career, legal, and tax records now live under `.memory-bank/career/`,

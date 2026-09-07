@@ -1,0 +1,192 @@
+# Plan review — optional local review surface
+
+A small, loopback-only web surface that renders a Design Concept, lets you
+attach comments to stable sections, and records a verdict against one specific
+revision of the document.
+
+It is **optional**. Nothing in the CopilotAtelier PowerShell module needs it,
+`Install-CopilotAtelier` never deploys it, and a Gallery install does not carry
+it. The existing chat review of a Design Concept keeps working unchanged.
+
+## What it is not
+
+It does not sign anything off. A verdict recorded in the browser proves that
+something holding the session cookie and the CSRF token posted a content hash —
+it does not prove who did it or that they may authorize implementation. Feedback
+is therefore stored with `authority: "local-http-feedback"` under a store header
+of `approvalAuthority: "chat-sign-off-required"`, and the page says so above the
+document. The
+[Software Architect](../com.github.copilot/agents/software-architect.agent.md)
+sign-off in chat stays the only thing that starts implementation.
+
+There is no handoff trigger, no command endpoint, and no path that writes a
+Decision record.
+
+## Setup
+
+Requires Node.js 20.11 or newer. Install the dependencies once, explicitly, in
+the package folder:
+
+```powershell
+Push-Location tools/plan-review
+npm install
+Pop-Location
+```
+
+For the browser checks, Playwright drives the installed Microsoft Edge through
+its `msedge` channel; no browser bundle is downloaded.
+
+## Running it
+
+```powershell
+node tools/plan-review/src/cli.mjs --document tools/plan-review/samples/design-concept-sample.md --ttl 900
+```
+
+| Option | Meaning | Default |
+|---|---|---|
+| `--document <path>` | A Markdown file to open. Repeat for several. Only these files are ever readable. | required |
+| `--root <dir>` | Containment root every document must sit inside. | the first document's folder |
+| `--state <dir>` | Where feedback is stored. | `<root>/.copilot-atelier/plan-review` |
+| `--port <number>` | Loopback port. | `0` (an unused port) |
+| `--ttl <seconds>` | Bounded lifetime, 1 to 14400. | `1800` |
+
+The launcher prints the URL, the expiry, and the process id. The URL carries a
+per-launch session key; opening it sets an `HttpOnly`, `SameSite=Strict` cookie and
+redirects to a key-free address.
+
+The shipped sample under `tools/plan-review/samples/` is a demonstration fixture.
+It describes no planned work and approving it approves nothing.
+
+## Using it
+
+- Select an opened document from the title-bar selector when several files
+  were authorized at launch. It cannot open an additional filesystem path.
+- **Comment** on a section anchors the remark to that section's key and content
+  hash.
+- **Approve** and **Request changes** record a verdict against the revision hash
+  you are looking at. If the file changed underneath you, the request is refused
+  with a stale response rather than silently applied to new content.
+  An open verdict dialog retains its original document and revision even if a
+  background refresh loads newer content.
+- **Reload** re-reads the file from disk.
+- **Stop server** shuts the server down.
+- Keyboard: <kbd>j</kbd> / <kbd>k</kbd> move between sections, <kbd>c</kbd>
+  opens the composer for the focused section, <kbd>r</kbd> reloads.
+
+### Revision and section states
+
+| State shown | Meaning |
+|---|---|
+| Pending review | No verdict has been recorded for this document |
+| Approved (feedback) · revision `abc1234` | A verdict exists and matches the file on disk |
+| Changes requested · revision `abc1234` | Likewise, for a change request |
+| … invalidated by an edit | The document changed after the verdict; the verdict no longer applies |
+| Comment badge *Current* | The section is byte-identical to when the comment was written |
+| Comment badge *Section revised* | The section still exists but its content changed |
+| Comment badge *Unanchored* | The section was removed; the comment is listed separately and never re-attached |
+
+For duplicate headings, an anchor survives only when exactly one section has
+the original heading and content hash. Ambiguous or changed duplicates remain
+unanchored rather than attaching a comment to a different section.
+
+## Trust boundaries
+
+The full analysis is in
+[plan-review-threat-model.md](plan-review-threat-model.md). In short:
+
+- **Loopback only.** The server refuses any non-loopback bind address. Loopback
+  is a reachability reduction, not an authorization boundary.
+- **Host and Origin.** Every request must carry a `Host` matching the bound
+  authority; every mutation must carry the exact server `Origin`, a
+  `Sec-Fetch-Site` of `same-origin` or `none` when the browser sends one, a JSON
+  content type, the session cookie, and a matching `X-CSRF-Token`.
+- **Explicit artifacts only.** Documents are authorized at launch and addressed
+  on the wire by an opaque 16-character identifier. No request parameter names a
+  path. There is no directory listing, URL fetcher, or shell endpoint.
+- **Containment.** Every path is realpath-resolved, required to sit inside the
+  declared root, and rejected if any ancestor from the root down is a symbolic
+  link or junction. The check runs again at read time, not only at launch.
+- **Rendering.** `markdown-it` runs with raw HTML disabled; DOMPurify then
+  applies a tag, attribute, and URI allow-list. Images are not fetched — the
+  alternative text is rendered instead. Mermaid runs client-side with
+  `securityLevel: 'strict'` and its SVG is sanitized again before insertion.
+  The response carries `Content-Security-Policy: default-src 'none'` with
+  `script-src 'self'`.
+- **Sessions do not survive a restart.** The session secret is generated per
+  launch and never persisted, so a cookie from an earlier server is rejected by
+  the next one even when the stored feedback is reused.
+- **Bounded.** Request bodies cap at 64 KiB, comment bodies at 4000 characters,
+  notes at 2000, comments at 200 per document, and documents at 1 MiB. The
+  same document checks run at launch and reload; binary and invalid UTF-8
+  input are rejected. Revision hashes cover the original file bytes.
+  The server exits when its lifetime expires.
+
+## Where state lives
+
+Feedback is written to `<state>/<documentId>.json` — by default under
+`<root>/.copilot-atelier/plan-review`, which is gitignored. Writes are atomic
+(temp file then rename) and serialized with an exclusive directory lock that
+expires after 30 seconds so a crashed process cannot deadlock the next one.
+
+A record holds the document id, the revision hash, section keys and hashes,
+comment text, and one verdict. It never holds document content, credentials, or
+unrelated project material. A store file that cannot be parsed is reported and
+reset rather than crashing the view.
+
+Unsent comments are saved in the browser tab's session storage, keyed by the
+document, revision, and section. Reloading the same revision restores them;
+closing the tab clears them. Drafts from a different revision are not attached
+to newer content, and no session key or CSRF token is stored with them. A
+temporary connection failure leaves submission available for retry.
+
+`--state` resolving inside `.memory-bank/decisions` is refused at launch.
+State roots, records, temporary files, and locks reject linked ancestors,
+including a state directory replaced by a junction after launch. These checks
+do not provide containment against a hostile process running as the same user
+that can race a filesystem check or read the launch-session key.
+
+## Shutdown
+
+Any of:
+
+- press <kbd>Ctrl</kbd>+<kbd>C</kbd> in the launching terminal;
+- press **Stop server** in the page;
+- `Stop-Process -Id <the process id the launcher printed>`;
+- wait for `--ttl` to expire.
+
+The server closes its listener and destroys open sockets, so the port is free
+immediately. Nothing survives except the feedback file.
+
+## Rollback
+
+Delete `tools/plan-review/node_modules` and the state folder. To remove the
+feature entirely, delete `tools/plan-review/`, this document, the threat model,
+and `tests/PlanReview.Tests.ps1`. Nothing else in the repository depends on it,
+and no migration is required in either direction — the store format is version 1
+and is only ever read by this tool.
+
+## Testing
+
+```powershell
+Push-Location tools/plan-review
+npm run test:unit               # no dependencies required
+npm test                       # unit plus integration, needs npm install
+npm run lint                   # native Node syntax checks
+npm run test:browser           # Playwright against installed Edge
+Pop-Location
+```
+
+`tests/PlanReview.Tests.ps1` runs in the ordinary repository gate. It checks the
+package layout and the trust-boundary invariants, and it executes the
+dependency-free half of the Node suite when `node` is on `PATH`, skipping it
+cleanly when it is not. It never runs `npm install`.
+
+## Unsupported
+
+- Multiple concurrent reviewers, accounts, or any authentication provider.
+- Remote or shared storage, telemetry, and network access of any kind.
+- Editing the document from the browser.
+- Rendering anything other than Markdown, including HTML fragments and images.
+- Proving who recorded a verdict, and therefore anything that would need that
+  proof — automatic handoff, unattended implementation, or updating a Decision
+  record.

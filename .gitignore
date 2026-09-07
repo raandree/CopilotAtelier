@@ -1,6 +1,9 @@
 # Sampler build output.
 output/
 
+# Dependencies for optional Node.js tools.
+node_modules/
+
 # Session-scoped ephemera produced by per-session prompts.
 # Curated project knowledge lives in the rest of .memory-bank/ and stays tracked.
 .memory-bank/session/handoff-*.md
@@ -20,3 +23,9 @@ output/
 # Trigger-eval scratch. -WorkDir belongs outside the repository; this catches
 # the runs where it was not, because skills/ is the published module payload.
 skills/*/scripts/work/
+
+# Optional plan-review package: dependencies are installed explicitly by whoever
+# uses the feature, and browser artifacts are regenerated per run.
+tools/plan-review/node_modules/
+tools/plan-review/browser/screenshots/
+tools/plan-review/test-results/
