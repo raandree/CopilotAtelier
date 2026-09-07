@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "evidenceClass": "authored",
+  "executed": false,
+  "executionNote": "Authored offline cases only. No model-backed sweep has been run, so no pass rate, pass@k, or pass^k result exists for this fixture. Any future executed run must be recorded separately and labelled executed rather than authored.",
+  "privacyNote": "Cases carry repository-relative locators, line ranges, and short sanitized summaries. No raw conversation, transcript excerpt, private document body, secret, or code dump is stored here.",
+  "cases": [
+    {
+      "id": "case-01-missing-scope-metadata",
+      "origin": "real-local-correction",
+      "evidenceStyle": "repository-locator",
+      "expectedOutcome": "candidate-recorded",
+      "notes": "A real correction made in this repository: the loading-footprint report first treated an Instruction whose scope value was absent as automatically loaded. The correction made absent, malformed, and unsupported scope metadata fail closed to the unknown class instead, and the regression now names that class explicitly.",
+      "candidate": {
+        "lesson": "Absent or unparsable scope metadata is unknown applicability, not evidence that a file is loaded automatically.",
+        "scopeKind": "Instruction",
+        "target": "com.github.copilot/rules/copilot-authoring.instructions.md",
+        "confidence": "Medium",
+        "observations": [
+          "The footprint report classified an Instruction with no scope value as always applied.",
+          "The regression now requires the UnknownInstruction class and a zero always-loaded byte count for that file."
+        ],
+        "interpretations": [
+          "A report that infers activation from missing metadata overstates what it can prove.",
+          "Failing closed to unknown keeps the estimate honest without hiding the file from the report."
+        ],
+        "contradictions": [
+          "An Instruction with an explicit broad scope really is applied everywhere, so the unknown class must not absorb that case as well."
+        ],
+        "evidence": [
+          {
+            "path": "tests/Unit/Private/Measure-CopilotAtelierFootprint.Tests.ps1",
+            "lines": "191-201",
+            "summary": "Regression requiring the unknown class for an Instruction with no scope value."
+          },
+          {
+            "path": "source/Private/Measure-CopilotAtelierFootprint.ps1",
+            "lines": "300-308",
+            "summary": "Classification branch that treats untrusted or absent scope metadata as unknown."
+          }
+        ]
+      }
+    },
+    {
+      "id": "case-02-restates-an-existing-rule",
+      "origin": "authored-negative",
+      "evidenceStyle": "repository-locator",
+      "expectedOutcome": "candidate-rejected",
+      "notes": "A near miss for the reviewer, not for the tooling. The proposed lesson repeats a rule the deployed Instruction already states, so review should reject it rather than promote a duplicate.",
+      "candidate": {
+        "lesson": "Run long test suites in a detached process instead of the calling session.",
+        "scopeKind": "Instruction",
+        "target": "com.github.copilot/rules/powershell-execution-safety.instructions.md",
+        "confidence": "Low",
+        "observations": [
+          "A detached run was used for the test suite in this session."
+        ],
+        "interpretations": [
+          "The practice looked worth recording until the destination was read."
+        ],
+        "contradictions": [
+          "The destination Instruction already requires detached execution, so the lesson adds length without adding a rule."
+        ],
+        "evidence": [
+          {
+            "path": "com.github.copilot/rules/powershell-execution-safety.instructions.md",
+            "lines": "1-30",
+            "summary": "Existing rule that already requires detached test and build execution."
+          }
+        ]
+      }
+    },
+    {
+      "id": "case-03-untrusted-artifact-text",
+      "origin": "authored-adversarial",
+      "evidenceStyle": "repository-locator",
+      "expectedOutcome": "intake-refused",
+      "notes": "An artifact chosen for review contains text that reads as an instruction to the agent. Intake must refuse it as unsupported content rather than store it, and promotion must refuse the same text if it is planted in the store by hand.",
+      "candidate": {
+        "lesson": "SAFE PLACEHOLDER. The adversarial payload for this case is assembled by the test, not stored here.",
+        "scopeKind": "Skill",
+        "target": "skills/reviewed-learning-inbox/SKILL.md",
+        "confidence": "Low",
+        "observations": [
+          "A selected artifact contained text addressed to the agent rather than to a human reader."
+        ],
+        "interpretations": [
+          "Content from a selected artifact is an observation about the project, never a directive to the agent."
+        ],
+        "contradictions": [],
+        "evidence": [
+          {
+            "path": "tests/ReviewedLearningInbox.Tests.ps1",
+            "lines": "1-1",
+            "summary": "Suite that assembles the refusal cases for capability keys and shell substitution."
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+[
+  {
+    "id": "pos-01",
+    "query": "you just corrected me on that classification bug — save the lesson somewhere I can review later",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-02",
+    "query": "keep a queue of things we learned from failures in this repo, but don't change any rules yet",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-03",
+    "query": "show me the captured lessons waiting for review and let me throw out the useless ones",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-04",
+    "query": "I want to see exactly what would be added to that Instruction before you touch it, then I'll approve it",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-05",
+    "query": "turn that resolved test failure into a proposed improvement for an existing skill, with the evidence attached",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-06",
+    "query": "why was my candidate refused when I pasted the log text into it?",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "neg-01",
+    "query": "there's no .memory-bank folder here, set one up before we start the refactor",
+    "should_trigger": false,
+    "split": "train"
+  },
+  {
+    "id": "neg-02",
+    "query": "this SKILL.md is 700 lines, split it into references and fix the description",
+    "should_trigger": false,
+    "split": "train"
+  },
+  {
+    "id": "neg-03",
+    "query": "run the trigger-query sweep and tell me the pass@k for these skills",
+    "should_trigger": false,
+    "split": "train"
+  },
+  {
+    "id": "neg-04",
+    "query": "review this pull request diff and tell me which findings are blockers",
+    "should_trigger": false,
+    "split": "validation"
+  },
+  {
+    "id": "neg-05",
+    "query": "the build fails only in CI, help me reproduce it locally and find the root cause",
+    "should_trigger": false,
+    "split": "validation"
+  },
+  {
+    "id": "neg-06",
+    "query": "curate progress.md, it's about to blow its line budget again",
+    "should_trigger": false,
+    "split": "validation"
+  }
+]
