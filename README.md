@@ -25,6 +25,8 @@ well-known `~/.copilot/` folders that VS Code and the Copilot CLI both read.
 - [What Each Folder Contains](#what-each-folder-contains)
 - [How Much Process You Want](#how-much-process-you-want)
 - [Available Skills](#available-skills)
+- [Choosing What Gets Installed](#choosing-what-gets-installed)
+- [Skill health](#skill-health)
 - [Migrating Legacy Memory Bank Records](#migrating-legacy-memory-bank-records)
 - [VS Code Settings Applied](#vs-code-settings-applied)
   - [File Locations](#file-locations)
@@ -222,6 +224,196 @@ incomplete. Nothing is pushed.
 
 ## Migrating Legacy Memory Bank Records
 
+## Choosing What Gets Installed
+
+The complete installation is the default and stays the default: `Install-CopilotAtelier` with no selection argument deploys every Skill in the payload. When you only want part of the library, opt into a profile.
+
+```powershell
+Get-CopilotAtelierProfile | Format-Table Name, SkillCount, Description
+Install-CopilotAtelier -InstallationProfile engineering -InformationAction Continue
+```
+
+| Profile | What it deploys |
+|---|---|
+| `complete` | Every Skill in the payload. The default; no argument needed. |
+| `engineering` | Build, test, review, debugging, DSC, lab, and Customization authoring. |
+| `research` | Verification, critique, co-authoring, and the German legal and tax domains. |
+| `document-processing` | PDF, Word, Excel, slides, transcripts, reports, branding, and Outlook. |
+
+Four rules keep a narrowed installation usable:
+
+- **Only Skills are selectable.** Agents, Instructions, Prompts, and Hooks always deploy in full, so the lifecycle and security behaviour never depends on a profile.
+- **Mandatory Skills are always present.** `memory-bank`, `long-running-job-monitor`, and `agent-security-review` are loaded by name from the deployed Instructions and shipped Custom agents. `-ExcludeSkill` refuses to drop them.
+- **Dependencies come along.** A Skill that hands part of its workflow to another one pulls that one in, and a whole Skill folder ships with its scripts, references, and assets. Excluding a Skill that a selected Skill requires is refused, with the dependent named.
+- **A narrowed selection is checked against the payload it is narrowing.** A payload that does not ship a mandatory Skill, a selected Skill whose required Skill is missing, and an explicitly selected directory with no `SKILL.md` entry point are all refused rather than quietly left out. The complete installation is exempt: with no selection argument it deploys the payload exactly as releases before profiles did, and `Get-CopilotAtelierProfile` reports `PrerequisiteValidated` as `False` for it rather than implying it checked.
+
+Adjust a profile with `-IncludeSkill` and `-ExcludeSkill`:
+
+```powershell
+Install-CopilotAtelier -InstallationProfile research -IncludeSkill mcp-builder
+Install-CopilotAtelier -InstallationProfile engineering -ExcludeSkill mecm-dsc-deployment
+```
+
+An unknown identifier, a Skill that is both included and excluded, an excluded mandatory Skill, an excluded dependency, a missing prerequisite, and a selected directory without an entry point are all rejected before anything is written ΓÇö no directory, Discovery link, setting, or Deployment record is touched by a request that does not resolve.
+
+The selection is recorded in `<target>/.copilotatelier.json`. A later `Install-CopilotAtelier` or `Update-CopilotAtelier` with no selection argument keeps it, so an update never silently re-expands a narrowed installation. Naming any selection argument restates the per-Skill adjustments in full and keeps only the recorded base profile, so `-IncludeSkill` alone still means "the profile I am on, plus this". The inherited selection is read again once the run holds the local deployment lock, so a second installer that changed it in the meantime is followed rather than overwritten from a stale read. `Test-CopilotAtelier` reports the selection as `InstallationProfile`. Records written before profiles existed carry no selection and are read as the complete installation.
+
+To return to everything:
+
+```powershell
+Install-CopilotAtelier -InstallationProfile complete
+```
+
+Switching to a narrower profile retires the Owned files of the deselected Skills, and only those: a file you added stays, and a file you edited stops the switch with the path named instead of being overwritten. Preview any switch with `-WhatIf`, and reconcile a reported file before retrying.
+
+> [!NOTE]
+> Profiles apply to the PowerShell module and repository-clone paths only.
+> Installing the package through the native [Agent Plugins](#3-agent-plugin)
+> channel deploys the whole package from its Git URL; that channel has no
+> per-component selection mechanism, and the Deployment record does not
+> describe its cache. Enable or disable the whole plugin per workspace instead.
+
+## Skill health
+
+`Get-CopilotAtelierSkillHealth` is an on-demand, read-only maintenance report.
+It says which Skills are worth a look and why, and it changes nothing ΓÇö no file,
+no setting, no installation, no retirement.
+
+```powershell
+Get-CopilotAtelierSkillHealth -AsText
+```
+
+It keeps its evidence apart rather than averaging it into one number, because
+the four sources prove genuinely different things:
+
+| Facet | Read from | What it can prove |
+|---|---|---|
+| Structure | each `SKILL.md` | Description cap, body budget, name match. A frontmatter fence is reported as parsed only when every line is a supported top-level key and both `name` and `description` resolved to a scalar |
+| Discoverability | `skills/agent-evals/assets/trigger-queries.<skill>.json` | That discovery material was authored. Never that it was measured ΓÇö this command runs no model |
+| Evaluation and quality | `skills/<skill>/evals/*.json` in the shapes `agent-evals` defines | Only what a bound artifact records. Authored cases are not a run, and run output counts only when a provenance sidecar binds it to this Skill and this body |
+| Usage | records you import with `-ObservationPath` | Separate counts for a file read, an activation, and a tool outcome. One is never promoted into another |
+
+### The observation gap
+
+Within the scope this command can inspect ΓÇö the deployed authoring Instruction
+and the shipped hook configuration under the content root, at the version
+present there ΓÇö the enumerated hook events are `SessionStart`,
+`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `SubagentStart`,
+`SubagentStop`, and `Stop`, and each one is **verified against that Instruction
+rather than asserted**. None of them reports that a Skill was selected, loaded,
+or executed, so **no reliable Skill-activation contract is verified for this
+implementation**. Another client, or a newer version of this one, may expose a
+contract this check cannot see; the report publishes its verification state
+instead of claiming a universal fact.
+
+There is therefore no verified event to observe a Skill activation from, no
+automatic collection is implemented, and capture is disabled by default. Every
+accepted record is labelled `Imported` ΓÇö a document that claims observed trust
+is recorded as a claim and still read as imported.
+
+So **a Skill with no observations is unknown, not unused.** Absence never counts
+as evidence for removal, and an imported `SkillFileRead` is evidence of a read
+rather than of an activation.
+
+### Importing observations
+
+`-ObservationPath` takes files or directories you select explicitly. A document
+is JSON and holds `schemaVersion`, `client`, `clientVersion`, `trust`, `records`
+(which must be an array), and optionally `coverage`; a record holds `eventId`,
+`eventType` (`SkillFileRead`, `SkillActivation`, or `SkillToolExecution`),
+`skillName`, `skillSha256`, `timestampUtc`, `sessionId`, and `outcome`. Anything
+else is refused rather than partially read, and every field is length- and
+format-bounded.
+
+An `eventId` is unique only inside the client and the session that minted it, so
+records are scoped by client, client version, session, and event identifier
+together. Exact copies of one record deduplicate onto a single accepted record;
+records that share an identity scope but **disagree** are reported as a conflict
+listing the import locator of every variant, and none of them is accepted,
+because accepting one would mean accepting whichever file happened to be read
+first. Every accepted record keeps its source path and declaring client.
+
+Prompt text, Skill bodies, tool responses, credentials, and free-form notes are
+not in the schema, so they cannot be imported. A rejection names the field and
+the rule and never echoes the offending value. Nothing is stored, and nothing
+leaves the machine.
+
+Each record is bound to the SHA-256 of the body it names, so records written
+against an older body are counted and labelled separately instead of being
+quietly merged into the current one.
+
+### Binding an evaluation result to a body
+
+`grading.json` and `benchmark.json` are run output and carry no Skill identity
+of their own. Bind one with a sidecar named after the artifact with its
+extension replaced ΓÇö `grading.provenance.json` beside `grading.json`:
+
+```json
+{
+  "schemaVersion": 1,
+  "skillName": "xlsx-to-markdown",
+  "skillSha256": "<sha-256 of the SKILL.md the run scored>",
+  "runId": "iteration-1-with-skill",
+  "completedUtc": "2026-08-30T10:00:00Z"
+}
+```
+
+All five fields are required, and `completedUtc` must be a real UTC instant no
+later than the reference instant the report is measured against.
+
+A run whose provenance names a different body is labelled `DifferentBody` and
+excluded from the current counts. A run with no valid provenance stays visible
+as `Unbound` and is never counted ΓÇö an unbound artifact cannot prove anything
+about the body shipping today.
+
+A `runId` is a quality identity, so only a graded result that could be counted
+consumes one: a `benchmark.json` sharing the identifier costs nothing, and
+neither does a graded result whose counts do not hold up. Copies of one run that
+agree are counted once and the rest are labelled `DuplicateRun`; copies that
+disagree are labelled `ConflictingRun` and **none** of them is counted, because
+counting one would mean counting whichever filename sorted first.
+
+A graded run is its assertion list; the summary is a claim about that list. The
+claim counts only when it reconciles exactly: `passed` and `failed` must match
+the Boolean verdicts recorded in `assertion_results`, `total` must match the
+number of assertions, and `passed + failed` must equal `total`. A summary with
+no assertions, a summary that contradicts a verdict, an ungraded case, a verdict
+that is not a Boolean, and a count that is missing, negative, non-numeric, or
+outside the supported range are all reported and none of them becomes a pass.
+Assertion text and evidence are never read out of the artifact.
+
+### Declaring coverage before asking about retirement
+
+Absence of a record is unknown use, so nothing about a quiet Skill can be
+inferred from a window that belongs to a different one. A retirement review is
+raised only when an import states, explicitly and per body, that activation
+capture was complete:
+
+```json
+"coverage": [
+  {
+    "skillName": "some-skill",
+    "skillSha256": "<sha-256 of the current SKILL.md>",
+    "windowStartUtc": "2026-07-01T00:00:00Z",
+    "windowEndUtc": "2026-08-30T00:00:00Z",
+    "sessionCount": 25,
+    "activationCaptureComplete": true
+  }
+]
+```
+
+Even then the window must be at least 30 days, cover at least 20 sessions, and
+have closed within the last 90 days, the Skill must not be mandatory, and the
+result is a prompt for a human ΓÇö never a removal.
+
+### Suggestions are advisory
+
+Every suggestion cites local evidence and carries `Decision =
+'HumanReviewRequired'`. `Improve`, `Investigate`, and `Consolidate` come from
+structural and evaluation evidence. `RetirementReview` is only ever proposed
+against an observation window wide enough to judge ΓÇö never from absent or sparse
+observations, never for a mandatory Skill, and never as a decision.
+
 Career, legal, and tax records now live under `.memory-bank/career/`,
 `.memory-bank/legal/`, and `.memory-bank/tax/`. Older repositories may still
 have files such as `profile.md`, `case-*.md`, or `deadlines.md` directly under
@@ -350,6 +542,7 @@ The module ships `Agents`, `Instructions`, `Skills`, `Prompts`, `Hooks`, and `Ke
 | `Get-CopilotAtelierVersion` | Reports the installed module version, the deployed version, and whether the deployment is current. |
 
 Both `Install-CopilotAtelier` and `Update-CopilotAtelier` write their progress to the information stream, so add `-InformationAction Continue` when you want to watch each step.
+| `Get-CopilotAtelierProfile` | Lists the opt-in installation profiles and the Skills each one deploys from the payload. See [choosing what gets installed](#choosing-what-gets-installed). |
 
 Useful switches:
 
@@ -363,6 +556,8 @@ Useful switches:
 
 Run `Get-Help Install-CopilotAtelier -Full` for the complete parameter reference.
 
+| `-InstallationProfile` | Opts into a Skill selection instead of the complete installation. Available on Install, Update, and Setup; see [choosing what gets installed](#choosing-what-gets-installed). |
+| `-IncludeSkill` / `-ExcludeSkill` | Adjusts the profile selection by Skill identifier. Dependencies come along; mandatory Skills cannot be dropped. |
 #### Staying up to date
 
 ```powershell
@@ -540,6 +735,10 @@ The version comes from [GitVersion](https://gitversion.net/) via [`GitVersion.ym
 Start with `Test-CopilotAtelier` for a module or clone deployment, then verify
 Discovery in the client. A local health report cannot prove that an editor has
 loaded the files.
+| `Get-CopilotAtelierProfile` | Lists the opt-in installation profiles and the Skills each one deploys from the payload. See [choosing what gets installed](#choosing-what-gets-installed). |
+| `Get-CopilotAtelierFootprint` | Reports the read-only loading footprint of the customization collection and concrete opportunities to reduce unnecessary loading. |
+| `Get-CopilotAtelierSkillHealth` | Reports read-only Skill maintenance evidence ΓÇö usage, discoverability, evaluation, quality, freshness, and overlap kept apart ΓÇö and suggests what a human should look at. See [Skill health](#skill-health). |
+| `Get-CopilotAtelierClientAdapter` | Reports how a Custom agent profile is composed for each supported Copilot client and what that client cannot do. See [client-specific adapters](#client-specific-adapters). |
 
 - **Agents**: In Copilot Chat, check the agents dropdown — your custom agents should appear
 | `Get-CopilotAtelierFootprint` | Reports the read-only loading footprint of the customization collection and concrete opportunities to reduce unnecessary loading. |
@@ -549,6 +748,8 @@ loaded the files.
 - **Hooks**: Run **Developer: Show Agent Debug Logs** and look for `Load Hooks` listing `~/.copilot/hooks`; hook output goes to the **GitHub Copilot Chat Hooks** channel in the Output panel
 - **Chat Customizations editor**: Click the gear icon in the Chat view (or run **Chat: Open Chat Customizations** from the Command Palette) to see all registered agents, instructions, skills, and prompts in one place
 - **Debug logs**: If customizations aren't being applied, open the ellipsis (**…**) menu in the Chat view → **Show Agent Debug Logs**
+| `-InstallationProfile` | Opts into a Skill selection instead of the complete installation. Available on Install, Update, and Setup; see [choosing what gets installed](#choosing-what-gets-installed). |
+| `-IncludeSkill` / `-ExcludeSkill` | Adjusts the profile selection by Skill identifier. Dependencies come along; mandatory Skills cannot be dropped. |
 
 ## Deployment diagnostics and removal
 

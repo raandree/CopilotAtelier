@@ -41,6 +41,20 @@ function Update-CopilotAtelier
             Passed through to Install-CopilotAtelier so the redeployment keeps
             the Claude Code and agentskills.io links.
 
+        .PARAMETER InstallationProfile
+            Passed through to Install-CopilotAtelier. Without it the redeployment
+            keeps the Skill selection the deployment already records, so an
+            update never silently re-expands a narrowed installation.
+
+        .PARAMETER IncludeSkill
+            Passed through to Install-CopilotAtelier. Adds Skills, and their
+            declared dependencies, to the profile selection.
+
+        .PARAMETER ExcludeSkill
+            Passed through to Install-CopilotAtelier. Drops Skills from the
+            selection; mandatory lifecycle and security Skills and Skills another
+            selected Skill requires are refused before anything is written.
+
         .OUTPUTS
             System.Management.Automation.PSCustomObject
 
@@ -90,7 +104,22 @@ function Update-CopilotAtelier
 
         [Parameter()]
         [System.Management.Automation.SwitchParameter]
-        $IncludeClaudeCodeLinks
+        $IncludeClaudeCodeLinks,
+
+        [Parameter()]
+        [ValidateSet('complete', 'engineering', 'research', 'document-processing')]
+        [System.String]
+        $InstallationProfile,
+
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [System.String[]]
+        $IncludeSkill,
+
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [System.String[]]
+        $ExcludeSkill
     )
 
     $ErrorActionPreference = 'Stop'
@@ -184,6 +213,15 @@ function Update-CopilotAtelier
         if ($PSBoundParameters.ContainsKey('Confirm'))
         {
             $installParameter.Confirm = $PSBoundParameters.Confirm
+        }
+
+        # Unbound selection parameters leave the recorded selection in place.
+        foreach ($parameterName in @('InstallationProfile', 'IncludeSkill', 'ExcludeSkill'))
+        {
+            if ($PSBoundParameters.ContainsKey($parameterName))
+            {
+                $installParameter[$parameterName] = $PSBoundParameters[$parameterName]
+            }
         }
 
         $deployment = & $updatedModule {

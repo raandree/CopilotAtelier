@@ -17,6 +17,10 @@ function Invoke-CopilotAtelierDeploymentPlan
 
         [Parameter()]
         [AllowNull()]
+        [System.Management.Automation.PSObject] $Selection,
+
+        [Parameter()]
+        [AllowNull()]
         [System.String] $Version
     )
 
@@ -37,6 +41,19 @@ function Invoke-CopilotAtelierDeploymentPlan
             }
         }
         $record.PSObject.Properties.Remove('PendingAction')
+    }
+    <#
+        Record the intent before the first write so an interrupted narrowing
+        apply is recovered against the selection the caller asked for, not the
+        one the previous deployment used.
+    #>
+    if ($null -eq $Selection)
+    {
+        $record.PSObject.Properties.Remove('Selection')
+    }
+    else
+    {
+        $record | Add-Member -NotePropertyName Selection -NotePropertyValue $Selection -Force
     }
     $record | Add-Member -NotePropertyName Applying -NotePropertyValue $true -Force
     Set-CopilotAtelierDeploymentRecord -TargetPath $TargetPath -Record $record -Confirm:$false

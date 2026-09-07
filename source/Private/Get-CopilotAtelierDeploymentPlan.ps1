@@ -19,6 +19,11 @@ function Get-CopilotAtelierDeploymentPlan
         $Directory,
 
         [Parameter()]
+        [AllowNull()]
+        [System.Collections.IDictionary]
+        $Selection,
+
+        [Parameter()]
         [System.Management.Automation.SwitchParameter]
         $Repair
     )
@@ -58,12 +63,31 @@ function Get-CopilotAtelierDeploymentPlan
             continue
         }
 
+        <#
+            An installation profile narrows the payload to whole top-level
+            folders of one deployed directory. Unselected folders are skipped
+            before they are read, so a reparse point inside content nobody asked
+            for cannot fail the plan.
+        #>
+        $selectedChild = $null
+        if ($null -ne $Selection -and $Selection.Contains($directoryName))
+        {
+            $selectedChild = [System.Collections.Generic.HashSet[string]]::new([string[]] @($Selection[$directoryName]), $pathComparer)
+        }
+
         $pendingDirectory = [System.Collections.Generic.Stack[string]]::new()
         $pendingDirectory.Push($sourceRoot)
         while ($pendingDirectory.Count -gt 0)
         {
-            foreach ($item in Get-ChildItem -LiteralPath $pendingDirectory.Pop() -Force -ErrorAction Stop)
+            $currentDirectory = $pendingDirectory.Pop()
+            $isSelectionRoot = $null -ne $selectedChild -and $currentDirectory -eq $sourceRoot
+            foreach ($item in Get-ChildItem -LiteralPath $currentDirectory -Force -ErrorAction Stop)
             {
+                if ($isSelectionRoot -and $item.PSIsContainer -and -not $selectedChild.Contains($item.Name))
+                {
+                    continue
+                }
+
                 $relativePath = $directoryName + '/' + $item.FullName.Substring($sourceRoot.Length + 1).Replace([System.IO.Path]::DirectorySeparatorChar, '/')
                 Assert-CopilotAtelierDeploymentPath -Path $relativePath
                 Assert-CopilotAtelierRegularPath -LiteralPath $item.FullName -RootPath $sourceRoot

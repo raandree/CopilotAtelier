@@ -19,6 +19,7 @@
     FunctionsToExport = @(
         'Get-CopilotAtelierFootprint'
         'Get-CopilotAtelierVersion'
+        'Get-CopilotAtelierProfile'
         'Install-CopilotAtelier'
         'Test-CopilotAtelier'
         'Uninstall-CopilotAtelier'

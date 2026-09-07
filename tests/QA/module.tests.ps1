@@ -147,6 +147,7 @@ Describe 'General module control' -Tag 'QA' {
         $expected = @(
             'Get-CopilotAtelierFootprint'
             'Get-CopilotAtelierVersion'
+            'Get-CopilotAtelierProfile'
             'Install-CopilotAtelier'
             'Test-CopilotAtelier'
             'Uninstall-CopilotAtelier'

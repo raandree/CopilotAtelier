@@ -79,6 +79,52 @@ function Get-CopilotAtelierDeploymentRecord
     {
         throw 'Invalid Deployment record: Applying must be a Boolean.'
     }
+    <#
+        Selection is additive and optional: a record written by a release that
+        predates installation profiles, or by a complete installation, has no
+        Selection and still describes a complete deployment. When it is present
+        the shape is checked strictly - the lists are arrays, not scalars that a
+        list check would silently accept - and it never confers file ownership,
+        which stays with Files alone.
+    #>
+    if ($record.PSObject.Properties.Name -contains 'Selection')
+    {
+        $selection = $record.Selection
+        if ($selection -isnot [System.Management.Automation.PSCustomObject] -or
+            $selection.Profile -isnot [string] -or [string]::IsNullOrWhiteSpace($selection.Profile) -or
+            $selection.PSObject.Properties.Name -notcontains 'Skill')
+        {
+            throw 'Invalid Deployment record: malformed Selection.'
+        }
+        $selectionIdentifier = @{}
+        foreach ($listName in @('Skill', 'IncludeSkill', 'ExcludeSkill'))
+        {
+            $identifier = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $selectionIdentifier[$listName] = $identifier
+            if ($selection.PSObject.Properties.Name -notcontains $listName)
+            {
+                continue
+            }
+            if ($selection.$listName -isnot [System.Array])
+            {
+                throw 'Invalid Deployment record: malformed Selection.'
+            }
+            foreach ($name in $selection.$listName)
+            {
+                if ($name -isnot [string] -or $name -cnotmatch '\A[A-Za-z0-9][A-Za-z0-9._-]*\z' -or -not $identifier.Add($name))
+                {
+                    throw 'Invalid Deployment record: malformed Selection.'
+                }
+            }
+        }
+        foreach ($name in $selectionIdentifier['ExcludeSkill'])
+        {
+            if ($selectionIdentifier['IncludeSkill'].Contains($name) -or $selectionIdentifier['Skill'].Contains($name))
+            {
+                throw 'Invalid Deployment record: malformed Selection.'
+            }
+        }
+    }
     if ($record.PSObject.Properties.Name -contains 'PendingAction')
     {
         $pending = $record.PendingAction

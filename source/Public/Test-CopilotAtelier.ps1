@@ -12,6 +12,10 @@ function Test-CopilotAtelier
             contains structured Checks with Code, Severity, Path, and Message.
             IsHealthy means no Error was found; warnings still need review.
 
+            InstallationProfile reports the opt-in Skill selection the record
+            carries, or complete when it carries none. A record that excludes a
+            mandatory lifecycle or security Skill is an error.
+
             Modified hook scripts and hook configuration are errors. Hook
             commands must match their event definitions in the loaded module,
             including platform overrides. Required hook scripts must also match
@@ -117,6 +121,26 @@ function Test-CopilotAtelier
     if ($record.Version -and $moduleVersion -and $record.Version -ne $moduleVersion)
     {
         $checks.Add([pscustomobject]@{ Code = 'VersionDrift'; Severity = 'Warning'; Path = $path.DeploymentManifestPath; Message = "Loaded version $moduleVersion differs from deployed version $($record.Version)." })
+    }
+
+    <#
+        A record without a Selection describes the complete installation, which
+        is what every release before opt-in profiles wrote.
+    #>
+    $installationProfile = 'complete'
+    if ($record.Selection)
+    {
+        $installationProfile = [string] $record.Selection.Profile
+        $checks.Add([pscustomobject]@{ Code = 'InstallationProfile'; Severity = 'Information'; Path = $path.DeploymentManifestPath; Message = "Deployed with the '$installationProfile' installation profile: $(@($record.Selection.Skill).Count) Skill(s)." })
+
+        $excludedMandatory = @(
+            (Get-CopilotAtelierProfileCatalog).MandatorySkill |
+                Where-Object -FilterScript { @($record.Selection.ExcludeSkill) -contains $_ }
+        )
+        if ($excludedMandatory.Count -gt 0)
+        {
+            $checks.Add([pscustomobject]@{ Code = 'MandatorySkillExcluded'; Severity = 'Error'; Path = $path.DeploymentManifestPath; Message = "The Deployment record excludes the mandatory Skill(s): $($excludedMandatory -join ', '). Reinstall to restore them." })
+        }
     }
 
     foreach ($directoryName in @('agents', 'instructions', 'skills', 'prompts', 'hooks'))
@@ -280,6 +304,7 @@ function Test-CopilotAtelier
         TargetPath = $path.TargetPath
         Version = $moduleVersion
         DeployedVersion = $record.Version
+        InstallationProfile = $installationProfile
         IsHealthy = $isHealthy
         Checks = @($checks)
     }

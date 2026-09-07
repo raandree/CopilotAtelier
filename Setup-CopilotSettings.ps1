@@ -20,6 +20,21 @@
         Their modified content is not backed up. Does not overwrite untracked
         files. Passed through to Install-CopilotAtelier; preview with WhatIf.
 
+    .PARAMETER InstallationProfile
+        Opt-in Skill selection passed through to Install-CopilotAtelier. The
+        complete installation is the default. Without any selection parameter an
+        existing deployment keeps the selection it recorded. Run
+        Get-CopilotAtelierProfile to see what each profile deploys.
+
+    .PARAMETER IncludeSkill
+        Skill identifiers added to the profile selection, together with their
+        declared dependencies. Passed through to Install-CopilotAtelier.
+
+    .PARAMETER ExcludeSkill
+        Skill identifiers dropped from the selection. Mandatory lifecycle and
+        security Skills, and Skills another selected Skill requires, are refused
+        before anything is written. Passed through to Install-CopilotAtelier.
+
     .PARAMETER SkipCopilotCliEnvironment
         Skips the user-scoped COPILOT_ALLOW_ALL configuration. Intended for
         sandboxed tests that must not mutate the host user profile.
@@ -42,6 +57,11 @@
 
         Deploys the customizations in this clone and configures VS Code.
 
+    .EXAMPLE
+        ./Setup-CopilotSettings.ps1 -InstallationProfile engineering
+
+        Deploys only the engineering Skill selection from this clone.
+
     .LINK
         https://github.com/raandree/CopilotAtelier
 #>
@@ -55,6 +75,18 @@ param
 
     [Parameter()]
     [switch]$Repair,
+
+    [Parameter()]
+    [ValidateSet('complete', 'engineering', 'research', 'document-processing')]
+    [string]$InstallationProfile,
+
+    [Parameter()]
+    [AllowEmptyCollection()]
+    [string[]]$IncludeSkill,
+
+    [Parameter()]
+    [AllowEmptyCollection()]
+    [string[]]$ExcludeSkill,
 
     [Parameter()]
     [switch]$SkipCopilotCliEnvironment,

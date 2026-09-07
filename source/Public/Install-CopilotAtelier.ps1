@@ -38,6 +38,41 @@ function Install-CopilotAtelier
             Without it, ambiguous accounts cause a directed error, never a
             prompt. Relative paths resolve from the current PowerShell location.
 
+        .PARAMETER InstallationProfile
+            Opt-in Skill selection. Defaults to the complete installation, which
+            deploys every Skill in the payload. The engineering, research, and
+            document-processing profiles deploy a named subset; mandatory
+            lifecycle and security Skills stay in every selection. Run
+            Get-CopilotAtelierProfile to see what each one deploys.
+
+            Without any selection parameter, an existing deployment keeps the
+            selection it recorded, so a reinstall or update never silently
+            re-expands it. The recorded selection is read again once this run
+            holds the local deployment lock, so a concurrent local installer
+            that changed it is followed rather than overwritten from a stale
+            read. Naming any selection parameter restates the per-Skill
+            adjustments in full and keeps only the recorded base profile, so
+            -InstallationProfile complete returns to the complete installation.
+            Agents, Instructions, Prompts, and Hooks are never narrowed.
+            Installing the package through the native Agent Plugins channel
+            deploys everything: that channel has no selection mechanism, so
+            profiles apply to the module and clone paths only.
+
+        .PARAMETER IncludeSkill
+            Skill identifiers to add to the profile selection. Each Skill's
+            declared dependencies are added with it, and the whole Skill folder
+            ships including its scripts, references, and assets. An unknown
+            identifier, a directory without a SKILL.md entry point, and a
+            required Skill this payload does not ship are rejected before
+            anything is written.
+
+        .PARAMETER ExcludeSkill
+            Skill identifiers to drop from the selection. Excluding a mandatory
+            lifecycle or security Skill, a Skill another selected Skill requires,
+            or a Skill that is also included is rejected before anything is
+            written. Profile switching removes only unchanged Owned files;
+            user-added and locally changed content is preserved or reported.
+
         .PARAMETER SkipCopilotCliEnvironment
             Skips the user-scoped COPILOT_ALLOW_ALL configuration. Intended for
             sandboxed tests that must not mutate the host user profile.
@@ -84,6 +119,12 @@ function Install-CopilotAtelier
 
             Previews restoring modified Owned files from the loaded module.
 
+        .EXAMPLE
+            Install-CopilotAtelier -InstallationProfile research -IncludeSkill mcp-builder
+
+            Deploys the research Skill selection plus one extra Skill and its
+            dependencies.
+
         .LINK
             https://github.com/raandree/CopilotAtelier
     #>
@@ -100,6 +141,21 @@ function Install-CopilotAtelier
         [ValidateNotNullOrEmpty()]
         [System.String]
         $TargetPath,
+
+        [Parameter()]
+        [ValidateSet('complete', 'engineering', 'research', 'document-processing')]
+        [System.String]
+        $InstallationProfile,
+
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [System.String[]]
+        $IncludeSkill,
+
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [System.String[]]
+        $ExcludeSkill,
 
         [Parameter()]
         [System.Management.Automation.SwitchParameter]
@@ -149,7 +205,27 @@ function Install-CopilotAtelier
         $pathParameters.TargetPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($TargetPath)
     }
     $path = Get-CopilotAtelierPath @pathParameters
-    $deploymentPlan = Get-CopilotAtelierDeploymentPlan -ContentPath $ContentPath -TargetPath $path.TargetPath -Directory $customizationDirectory -Repair:$Repair
+
+    <#
+        Resolve and validate the Skill selection before anything is written, so
+        an invalid explicit request never creates an artefact. This resolution
+        also feeds the -WhatIf preview. It is deliberately not the one that gets
+        deployed: another local installer can change the recorded selection
+        between here and the deployment lock, so the selection is resolved again
+        under the lock, against the record as it stands there.
+    #>
+    $selectionRequest = @{}
+    foreach ($parameterName in @('InstallationProfile', 'IncludeSkill', 'ExcludeSkill'))
+    {
+        if ($PSBoundParameters.ContainsKey($parameterName))
+        {
+            $selectionRequest[$parameterName] = $PSBoundParameters[$parameterName]
+        }
+    }
+
+    $skillSelection = Resolve-CopilotAtelierDeploymentSelection -ContentPath $ContentPath -TargetPath $path.TargetPath -Request $selectionRequest
+
+    $deploymentPlan = Get-CopilotAtelierDeploymentPlan -ContentPath $ContentPath -TargetPath $path.TargetPath -Directory $customizationDirectory -Selection $skillSelection.PlanFilter -Repair:$Repair
     if ($deploymentPlan.UnownedFiles.Count -gt 0)
     {
         Write-Warning -Message "Preserved $($deploymentPlan.UnownedFiles.Count) matching untracked file(s) without claiming ownership. Uninstall will leave them untouched."
@@ -164,12 +240,21 @@ function Install-CopilotAtelier
             SettingsPath = $path.SettingsPath
             KeybindingsPath = $path.KeybindingsPath
             Deployed = $presentDirectory
+            InstallationProfile = $skillSelection.Profile
+            SelectedSkills = @($skillSelection.Skill)
         }
     }
     $deploymentLock = Enter-CopilotAtelierDeploymentLock -TargetPath $path.TargetPath
     try
     {
-        $deploymentPlan = Get-CopilotAtelierDeploymentPlan -ContentPath $ContentPath -TargetPath $path.TargetPath -Directory $customizationDirectory -Repair:$Repair
+        $skillSelection = Resolve-CopilotAtelierDeploymentSelection -ContentPath $ContentPath -TargetPath $path.TargetPath -Request $selectionRequest
+
+        if (-not $skillSelection.IsComplete)
+        {
+            Write-Information -MessageData "Installation profile: $($skillSelection.Profile) ($(@($skillSelection.Skill).Count) of $(@($skillSelection.AvailableSkill).Count) Skills)."
+        }
+
+        $deploymentPlan = Get-CopilotAtelierDeploymentPlan -ContentPath $ContentPath -TargetPath $path.TargetPath -Directory $customizationDirectory -Selection $skillSelection.PlanFilter -Repair:$Repair
         $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 
         if (-not (Test-Path -LiteralPath $path.SettingsDirectory))
@@ -297,7 +382,7 @@ function Install-CopilotAtelier
             New-Item -ItemType Directory -Path $destination -Force | Out-Null
         }
 
-        $deployment = Invoke-CopilotAtelierDeploymentPlan -TargetPath $path.TargetPath -ContentPath $ContentPath -Plan $deploymentPlan -Version $deployedVersion
+        $deployment = Invoke-CopilotAtelierDeploymentPlan -TargetPath $path.TargetPath -ContentPath $ContentPath -Plan $deploymentPlan -Selection $skillSelection.RecordSelection -Version $deployedVersion
 
         foreach ($directoryName in $customizationDirectory.Keys)
         {
@@ -453,6 +538,8 @@ function Install-CopilotAtelier
             SettingsPath    = $path.SettingsPath
             KeybindingsPath = $path.KeybindingsPath
             Deployed        = $presentDirectory
+            InstallationProfile = $skillSelection.Profile
+            SelectedSkills  = @($skillSelection.Skill)
         }
     }
     finally
