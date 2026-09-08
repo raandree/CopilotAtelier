@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-07
+last-verified: 2026-09-08
 owner: software-engineer
 source: .memory-bank/decisions and source/
 ---
@@ -85,14 +85,14 @@ when the task needs it; the repository layout lives in `techContext.md`.
     temporary roots. Nested Node runners clear inherited `NODE_TEST_CONTEXT`
     and prove tests ran. External checks fail rather than skip in CI and reject
     bad fixtures. Known debt is a shrink-only baseline, never a disabled check.
+- Incident transfers keep version-scoped diagnostics in the owning Skill and
+    final outcomes out of eval input. Structural checks are not agent behavior;
+    completed requests with zero Skill loads cannot prove body improvements.
+    Runner-specific discovery is not native-client or hosted-publication proof.
 - A Skill cannot override a Custom agent body or grant a missing tool. A
     conflicting discipline needs its own capability-bounded persona. A handoff
     cycle is bounded in frontmatter: a ring of `send: true` edges can run
     unattended and must fail a graph test.
-- Role-record migration is split into metadata-only planning plus
-    whole-plan-validated apply, which copies and verifies bytes but never moves
-    or deletes a source.
-- Memory Bank routing has deterministic and label-free eval layers. Compaction
-    bypasses both lifecycle gates, so `PreCompact` writes the anchor Pre-flight
-    reloads. Agent Plugins and module deployment have irreconcilable layouts, so
-    functional loading cannot depend on a cross-type relative link.
+- Role-record migration plans before a validated, copy-only apply; sources stay.
+- Routing has deterministic and label-free eval layers; `PreCompact` anchors
+    recovery. Cross-client loading cannot depend on cross-type relative links.

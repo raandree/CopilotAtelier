@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-07
+last-verified: 2026-09-08
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,31 +9,45 @@ source: current task evidence
 
 ## Current focus
 
+Transferred the resolved WindowsAccessControl wiki-publication lessons into
+the canonical lowercase `skills/sampler-build-debug` and `sampler-framework`
+sources. Changes are uncommitted at the user's request; no originating checkout,
+deployed copy, pipeline template code, dependency, or remote state was changed.
+
+- The debugging Skill has a version-scoped gotcha and directly linked diagnostic
+  reference. The framework reference covers runner rationale and partial-release
+  recovery without duplicating the diagnosis.
+- One real correction is retained verbatim in `notes-evals.md`, with sanitized
+  input fixtures and separate grader-only success evidence. No custom task,
+  new Skill, evaluator, or unsupported machine-input schema was created.
+- Pester 5.7.1 structural and Memory Bank suites: 617 passed, 0 failed,
+  108 skipped; `skills-ref` could not execute without `uv`. Nine Markdown
+  documents render, 30 local links resolve, and evaluated Skill hashes match;
+  frontmatter and CI code blocks are unchanged, and input excludes final success.
+  Editor Markdown diagnostics are clean. These are not behavioral eval results.
+- Prior guidance is recoverable from `6429220283477aaefaa819818ca1b689b717ac1c`.
+  ShellPilot ran five fresh samples per arm on `claude-opus-4.7`; all ten
+  completed, but none loaded either Skill. Each read only the incident fixture.
+  Post-load behavior and native VS Code discovery remain unmeasured, with no
+  pass-rate or value-delta claim. The existing grader rejects absent verdicts.
+  Snapshots and raw traces are outside the repository under the temporary
+  `copilot-atelier-wiki-eval-88be5535519943d180baff1bddcbcca4` directory.
+
+## Previous CI repair
+
 GitHub Actions repair `0367ce3` is committed and pushed on `main`, as explicitly
 requested. Run [#76](https://github.com/raandree/CopilotAtelier/actions/runs/34163989373)
 completed successfully at 2026-09-07 21:54 UTC: packaging, Linux, Windows,
 macOS, and deployment all passed. The full development cycle and independent
 review stayed off; no paid evaluations were run.
 
-- The uploaded `output` artifact omitted
-  `.copilot-atelier-adapter-manifest.json`. All three test jobs failed ownership
-  checks. Enable `include-hidden-files` only on the scoped `output/` upload;
-  the rebuilt output contains no other hidden file. The workflow regression
-  failed with the option absent, then passed: 5 tests, zero failures.
-- Windows used the `RUNNER~1` temp alias; macOS used the `/var` symlink.
-  Canonicalize the five failing filesystem suites' fixture roots with
-  `realpathSync.native`. Production containment and link rejection are unchanged.
-  A new linked-temp regression reproduces the failures on Windows and passes
-  after the repair. Clear inherited `NODE_TEST_CONTEXT` in the nested runner
-  and require a nonzero test count to prevent a skipped run returning success.
-- Node unit tests: 165 passed, zero failed or skipped. PowerShell AST and
-  PSScriptAnalyzer checks pass. Clean-checkout `build,test`: 1,777 passed,
-  zero failed, 116 skipped, 90.72% coverage using the failed run's dependencies
-  and exact module version. Final Memory Bank/workflow checks: 12 passed.
-  Markdown lint passed. The known simulated-backend warning remains.
-- The actual GitHub output artifact contains the schema-2 ownership manifest;
-  its generated file's SHA-256 matches. Existing setup-uv cache-glob warnings
-  remain non-fatal. No production path or security guard was changed.
+- Retain hidden adapter metadata in the scoped `output/` upload; canonicalize
+  temporary fixture roots without changing production containment. Clear
+  inherited `NODE_TEST_CONTEXT` and require a nonzero nested test count.
+- Workflow regression 5/0; Node 165/0; clean-checkout `build,test` 1,777/0/116,
+  90.72% coverage; final record/workflow checks 12/0. The uploaded ownership
+  manifest and generated-file hash were verified. Details remain in git and
+  `CHANGELOG.md`; simulated-backend and setup-uv warnings were non-fatal.
 
 ## Previous plan-review work
 
@@ -106,10 +120,15 @@ aeelyTo` detects it.
 
 ## Blocked, not deferred
 
-ShellPilot and `Invoke-ShpBatch` are absent here, so `-Mode Execute` is
-unavailable for both eval harnesses. The 75 prepared route-selection prompts
-cannot be answered and the authored trigger-query sets cannot be swept. Both
-need ShellPilot plus a paid model backend and an explicit go-ahead.
+On 2026-09-08 ShellPilot and `Invoke-ShpBatch` are installed, and
+`Test-ShpCiReadiness -NonInteractive` reports ready with the existing Copilot
+backend. The wiki case used it with candidate-scoped read-only tools and no
+browsing, terminal, user tools, or MCP. Its ten paired requests plus one setup
+pilot made no Skill loads, writes, or shell calls. Waza and its native extension
+are absent; the earlier Copilot CLI check also reported it unavailable.
+No graded body comparison exists. The bundled matcher aggregates independent
+reviewer verdicts, not investigative actions or candidate-authored PASS text.
+Earlier route-selection and trigger-query sets remain unmeasured.
 
 ## Open findings
 
@@ -156,6 +175,7 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-The requested repair and GitHub monitoring are complete. No build blocker
-remains. The records-only follow-up commit skips CI to avoid another release;
-all executable changes are covered by successful run #76 at `0367ce3`.
+Review the uncommitted Sampler knowledge transfer. A later, separately equipped
+native-client or controlled post-load evaluation is needed to measure the
+guidance itself; do not infer behavioral improvement from completed model
+requests or structural checks. Preserve the recorded zero-load result.

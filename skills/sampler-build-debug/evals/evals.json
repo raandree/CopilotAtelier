@@ -1,0 +1,11 @@
+{
+    "cases": [
+        {
+            "id": "wiki-commit-timeout-no-custom-task",
+            "set": "regression",
+            "prompt": "we have other repors especially in the dsccommunity without this fix and where the wiki publishing works. can we investigate furter? I don't want to have a custom build task for the wiki.",
+            "expect": "PASS",
+            "match": "exact"
+        }
+    ]
+}

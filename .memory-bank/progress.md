@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-07
+last-verified: 2026-09-08
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,6 +14,16 @@ Copilot Atelier is published to the PowerShell Gallery and released at `v4.0.0`
 is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-09-08**: Transferred wiki timeout and partial-publication recovery
+  lessons into the two existing Sampler Skills, with one real regression case,
+  sanitized fixtures, and grader-only success evidence. Pester 5.7.1 structural
+  and Memory Bank gates: 617/0/108; nine Markdown documents render, 30 local
+  links resolve, and prompt, CI fences, and evaluated hashes are verified.
+  `uv` conformance is unavailable. Five ShellPilot requests
+  per prior/changed arm completed with zero Skill loads in either arm; body
+  effects and native discovery remain unmeasured. Descriptions unchanged; no
+  commit or remote mutation. Raw traces and snapshots remain external scratch.
 
 - **2026-09-07**: Repaired CI run `34147860492`: retain hidden adapter metadata
   in build artifacts and canonicalize plan-review temporary fixtures. Workflow
@@ -43,12 +53,9 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   with observable readiness and proved discrimination under a slow schedule.
   The original independent review covers `3d115a3`; no re-review is claimed.
 
-- **2026-09-07 09:44 UTC**: Closed this session's seven-task implementation with
-  task07 corrections uncommitted and concurrent history preserved at `3d115a3`.
-  Final Windows build/test: 1,773 passed, zero failed, 116 skipped, 90.72%
-  coverage; Node 180, Edge desktop/mobile 40, focused Pester 42. Controller
-  verified logs, screenshots, sample HTTP 200, and offline markdownlint 0.45.0.
-  Earlier Linux evidence predates these corrections. No push or paid evaluation.
+- **2026-09-07 09:44 UTC**: Seven-task integration at `3d115a3`: Windows gate
+  1,773/0/116, 90.72% coverage; Node 180, Edge 40, focused Pester 42. Earlier
+  Linux evidence predates these corrections; no push or paid evaluation.
 
 - **2026-09-07**: Corrected `tools/plan-review` in two uncommitted rounds:
   per-launch cookies and bound-address authorities, strict byte-bounded state
@@ -65,14 +72,9 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   Unit/QA: 1,707 passed, 90.42%. Node: 133 per OS; browser: 30; zero failures.
   Existing warnings remain; no push, real-profile deployment, or paid evaluation.
 
-- **2026-09-07**: Added `tools/plan-review` (task 07 of the sequential series):
-  an optional, loopback-only local surface that renders a Design Concept and its
-  Mermaid diagrams, anchors comments to stable section keys, and records a
-  verdict against one revision hash. It is absent from `CustomizationDirectory`,
-  unreferenced by `source/`, and keeps Node dependencies optional. Browser
-  feedback never authorizes implementation; chat sign-off remains authoritative.
-  Host, Origin, session, and CSRF checks protect the bounded local HTTP surface.
-  The guide and threat model retain the boundaries and residual risks.
+- **2026-09-07**: Added optional `tools/plan-review` outside the module payload.
+  Revision-bound browser feedback never authorizes implementation; chat sign-off
+  remains authoritative. The guide and threat model retain security boundaries.
 
 - **2026-09-07**: Added read-only `Get-CopilotAtelierClientAdapter` (task 06 of
   the sequential series) and corrected it in one round. The VS Code profiles
@@ -108,11 +110,6 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   validated provenance and reconciled grading (red 29 then 81/0); shipped the
   reviewed learning inbox (`09416a4`, 62/0) with guarded, hash-approved,
   append-only promotion. Full contracts remain in `CHANGELOG.md` and git.
-
-- **2026-09-06**: Shipped profiles (`8e40815`) and footprint reporting
-  (`c0c7166`), then fixed CI run `34061934611` in `35fa926` after a clean-clone
-  reproduction: Windows 1,266 at 88.03%, Linux 1,172, 5.1 focused 120. Earlier
-  deployment-review remediation stays in `assessment-log.md`.
 
 ## Stable capabilities
 
@@ -153,7 +150,9 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   `shell: pwsh` steps distinguished from `powershell.exe`.
 - Run the eleven shipped trigger-query sets, then cover the 37 Skills still on
   the `SkillTriggerCoverage` uncovered baseline. Every set is authored but
-  unmeasured; Execute mode needs ShellPilot plus a paid backend, neither present.
+  unmeasured. ShellPilot now reports ready with the existing Copilot backend;
+  the wiki case completed ten paired requests, but no Skill loaded. Native
+  discovery and a graded post-load comparison are still needed.
 - Split the nine Skills on the `SkillFrontmatter` over-budget baseline into
   bodies under 500 lines plus one-level references, one per change, removing
   each from the baseline as it lands; `german-legal-research` at 780 is worst.

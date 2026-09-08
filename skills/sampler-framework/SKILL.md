@@ -210,6 +210,12 @@ GitVersion.yml configuration, branch strategies, version source override, and Mo
 
 Azure Pipelines and GitHub Actions templates, build/test/publish stage layout, artefact handling, and gallery publishing — read [`references/ci-cd-pipelines.md`](references/ci-cd-pipelines.md).
 
+When choosing a publication runner or recovering from a partially published
+release, load that reference's publication runner and recovery section. Check
+each destination before retrying; publication is not transactional. For a wiki
+`git commit` timeout with empty streams, use the
+[sampler-build-debug Skill](../sampler-build-debug/SKILL.md).
+
 ## Adding Code Samples with Add-Sample
 
 Use `Add-Sample` to add scaffolded elements to an existing project:

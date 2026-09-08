@@ -152,6 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Extend the Sampler Skills with [version-scoped wiki commit-timeout diagnosis](skills/sampler-build-debug/references/wiki-commit-timeout.md), supported publication-runner rationale, and destination-by-destination recovery after partial publication; retain the real incident as a [transcript-graded regression case](skills/sampler-build-debug/notes-evals.md) without claiming behavioral improvement from structural checks or completed requests that did not load the Skills.
 - Reject a source tree that overlaps the Canonical target. A clone kept at `~/OneDrive/CopilotAtelier/`, the location earlier documentation suggested, now fails before any write; move it aside — for example to `~/OneDrive/CopilotAtelier-src/` — and reinstall. See [repository clone](README.md#2-repository-clone).
 
 ### Fixed

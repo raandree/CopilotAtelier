@@ -4,11 +4,47 @@ Extracted from `Skills/sampler-framework/SKILL.md` to keep the main skill body u
 
 ## Contents
 
+- Publication runner and recovery
 - Azure Pipelines (azure-pipelines.yml)
 - GitHub Actions (.github/workflows/ci.yml)
 - Azure Pipelines to GitHub Actions translation
 - Critical CI/CD Configuration
 - Required Pipeline Variables (Secrets)
+
+### Publication runner and recovery
+
+The templates publish prepared artifacts on Ubuntu. A Windows-only module
+runtime does not imply Windows-only artifact publication: keep platform-bound
+build, documentation generation, and tests on Windows, and move publication
+only after checking what the selected tasks load or execute. On 2026-09-08 the
+[ActiveDirectoryDsc](https://github.com/dsccommunity/ActiveDirectoryDsc/blob/main/azure-pipelines.yml)
+and [SqlServerDsc](https://github.com/dsccommunity/SqlServerDsc/blob/main/azure-pipelines.yml)
+pipeline sources both build on Windows and download prepared output for Ubuntu
+publication using PowerShell 7. This is a supported configuration pattern, not
+proof that every task or artifact is portable. Preserve the templates below;
+choose platform-bound build and test runners for the target module.
+
+Publication is not transactional. In the 2026-09-06 WindowsAccessControl
+incident, the GitHub release, release assets, and Gallery package existed before
+the wiki task failed. A blanket rerun could hit an immutable-version conflict
+before it reaches the wiki. Before retrying, inspect and report each destination:
+
+| Destination | Check independently |
+| --- | --- |
+| GitHub | Release, assets, tag and its target commit |
+| Gallery | Package and exact published version |
+| Wiki | Branch head, release tag, and actual generated content |
+| Changelog | Whether the applicable branch or pull-request step completed |
+
+Distinguish a same-commit rerun, a new version-producing build, and targeted
+recovery of an unfinished destination. Choose only after reporting the partial
+state and task order. Never delete releases, move tags, or republish remotely
+without explicit authorization. Verify the requested destination as well as
+the job result: optional tasks may skip when tokens or prerequisites are absent.
+
+For a wiki timeout at `git commit` with empty captured streams, load the
+[sampler-build-debug Skill](../../sampler-build-debug/SKILL.md); it owns the
+version-scoped diagnostic procedure and initial-versus-incremental comparison.
 
 ### Azure Pipelines (azure-pipelines.yml)
 

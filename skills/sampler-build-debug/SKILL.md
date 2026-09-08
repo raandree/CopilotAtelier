@@ -25,6 +25,20 @@ Skill for troubleshooting Sampler-based PowerShell module builds and Pester 5 te
 - Mock-related test failures (parameter validation, missing commands)
 - Need to run builds safely from the integrated terminal
 
+## Gotcha: wiki commit timeout with empty streams
+
+With DscResource.DocGenerator `0.13.0`, `Invoke-Git` waits for Git to exit
+before reading redirected stdout/stderr. A sufficiently verbose initial wiki
+commit can block on output; the wrapper then retains its initial `-1` result
+and empty streams at timeout. This is not a native authentication error.
+Successful incremental updates do not disprove this output-dependent failure.
+
+When wiki publication times out at `git commit` with empty captured streams,
+read [references/wiki-commit-timeout.md](references/wiki-commit-timeout.md).
+It covers version checks, bounded comparisons with the unmodified dependency,
+runner evidence, and claim limits. Other commands, versions, and failure
+signatures need their own diagnosis; increasing the timeout is not a repair.
+
 ## Running Builds Without Freezing VSCode
 
 **CRITICAL**: Never run `./build.ps1` directly inside the VS Code integrated terminal's
