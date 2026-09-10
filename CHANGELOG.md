@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-09-10
+
 ### Removed
 
 - **The `.github/hooks` smoke-test probe, which had been failing on every turn since it was committed** (2026-09-02). `stop-probe.json` and `Test-HookLoaded.ps1` were scratch: a `Stop` hook that appended one line to `%TEMP%\workspace-hook-probe.log` to prove the workspace hook location loads at all. They answered that question on 2026-08-10 and the answer is written into [`com.github.copilot/hooks/README.md`](com.github.copilot/hooks/README.md) and the changelog entry below — the files themselves had no further job.
