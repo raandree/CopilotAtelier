@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-07
+last-verified: 2026-09-10
 owner: software-engineer
 source: build.yaml and source/
 ---
@@ -99,9 +99,11 @@ mechanism.
 
 ## Discovery model
 
-The Canonical target is `~/OneDrive/CopilotAtelier/` when OneDrive is available
-and `~/CopilotAtelier/` otherwise. Discovery links expose its five deployed
-directories through `~/.copilot/{agents,instructions,skills,prompts,hooks}`.
+The Canonical target is `CopilotAtelier/` under a detected OneDrive root or the
+user profile, unless TargetPath selects it explicitly. Windows requires an
+existing root from `OneDriveConsumer` or `OneDriveCommercial`, not the generic
+variable or a folder alone. macOS/Linux discovery is unchanged. Discovery links
+expose `~/.copilot/{agents,instructions,skills,prompts,hooks}`.
 
 - Windows uses NTFS junctions.
 - macOS and Linux use symbolic links.

@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-08
+last-verified: 2026-09-10
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,29 +9,23 @@ source: current task evidence
 
 ## Current focus
 
-Transferred the resolved WindowsAccessControl wiki-publication lessons into
-the canonical lowercase `skills/sampler-build-debug` and `sampler-framework`
-sources. Changes are uncommitted at the user's request; no originating checkout,
-deployed copy, pipeline template code, dependency, or remote state was changed.
+Fixed Windows OneDrive false detection on `ai/fix-onedrive-detection`.
+The generic `OneDrive` variable and an existing folder were present despite
+unset account-specific variables and account keys without `UserFolder` values.
+Windows automatic selection now requires `OneDriveConsumer` or
+`OneDriveCommercial`; explicit targets and macOS/Linux discovery are unchanged.
 
-- The debugging Skill has a version-scoped gotcha and directly linked diagnostic
-  reference. The framework reference covers runner rationale and partial-release
-  recovery without duplicating the diagnosis.
-- One real correction is retained verbatim in `notes-evals.md`, with sanitized
-  input fixtures and separate grader-only success evidence. No custom task,
-  new Skill, evaluator, or unsupported machine-input schema was created.
-- Pester 5.7.1 structural and Memory Bank suites: 617 passed, 0 failed,
-  108 skipped; `skills-ref` could not execute without `uv`. Nine Markdown
-  documents render, 30 local links resolve, and evaluated Skill hashes match;
-  frontmatter and CI code blocks are unchanged, and input excludes final success.
-  Editor Markdown diagnostics are clean. These are not behavioral eval results.
-- Prior guidance is recoverable from `6429220283477aaefaa819818ca1b689b717ac1c`.
-  ShellPilot ran five fresh samples per arm on `claude-opus-4.7`; all ten
-  completed, but none loaded either Skill. Each read only the incident fixture.
-  Post-load behavior and native VS Code discovery remain unmeasured, with no
-  pass-rate or value-delta claim. The existing grader rejects absent verdicts.
-  Snapshots and raw traces are outside the repository under the temporary
-  `copilot-atelier-wiki-eval-88be5535519943d180baff1bddcbcca4` directory.
+- Both regressions failed before the fix; all seven path tests now pass.
+  Full Windows `build,test`: 1,779 passed, zero failed, 116 skipped, 90.67%
+  coverage. AST and PSScriptAnalyzer 1.25.0 are clean; Markdown renders with
+  clean editor diagnostics. `uv` conformance remains unavailable.
+- The read-only machine probe selects the local profile's `CopilotAtelier`.
+  Setup was not rerun; installed files, Discovery links, and old targets were
+  not moved or changed. An earlier deployment remains addressable by TargetPath.
+- The first build hit a transient generated-file sharing violation; an
+  exclusive-read probe succeeded and the unchanged build passed on retry.
+  The full gate retained the known simulated-backend warning. Independent
+  review is off; recommend it for shared deployment-target selection.
 
 ## Previous CI repair
 
@@ -175,7 +169,6 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Review the uncommitted Sampler knowledge transfer. A later, separately equipped
-native-client or controlled post-load evaluation is needed to measure the
-guidance itself; do not infer behavioral improvement from completed model
-requests or structural checks. Preserve the recorded zero-load result.
+The OneDrive fix is ready for a user-controlled Setup rerun. Do not remove or
+migrate the earlier target automatically. Prior Sampler Skill behavior remains
+unmeasured: preserve the recorded zero-load result and its evidence in git.

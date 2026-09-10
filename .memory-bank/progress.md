@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-08
+last-verified: 2026-09-10
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,6 +14,13 @@ Copilot Atelier is published to the PowerShell Gallery and released at `v4.0.0`
 is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-09-10**: Fixed Windows OneDrive false detection from a generic variable
+  or pre-created folder, preserving account-specific selection, explicit
+  targets, and macOS/Linux defaults. Both regressions red then green; focused
+  7/0; full Windows `build,test` 1,779/0/116 at 90.67% coverage. AST/analyzer
+  clean; README and changelog updated. Live path resolution now stays local;
+  no real-profile deployment, migration, or remote mutation was performed.
 
 - **2026-09-08**: Transferred wiki timeout and partial-publication recovery
   lessons into the two existing Sampler Skills, with one real regression case,
@@ -92,19 +99,10 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   manifest are all refused. Red 46/103, then 103/103; round 2 121/121.
 
 - **2026-09-07**: Added the `changed-file-validation` Skill (task 05 of the
-  sequential series) and corrected it in two rounds: an opt-in, bounded
-  validation pass over the files one work batch changed, with five scripts
-  covering collect, report, validate, clear, and the child worker. Collection
-  stays manual — no hook is wired: `PostToolUse` is the only plausible
-  collector, its input contract is unverified here, and the shipped hooks are
-  mandatory. Validators read an isolated snapshot, so a receipt binds to the
-  bytes actually read and no project text reaches a command line; the receipt's
-  plan identity hashes the linter entry point and the shipped checker code, and
-  reuse also requires producible results, a typed Boolean change flag, exactly
-  the planned checks, and an agreeing exit status. Parse and PSScriptAnalyzer
-  run in an owned child worker with a wall clock, inline analyzer settings, and
-  a per-session execution lock. `Markdown.NativeStructure` is `coverage=partial`
-  and no longer stands in for markdownlint. Red 23 of 72 then 12 of 85, 85/0/0.
+  sequential series): opt-in, bounded, manual collection with snapshot-bound
+  receipts and plan identity. Owned workers bound PowerShell checks; partial
+  Markdown structure checks never replace markdownlint. Red 23 of 72 then
+  12 of 85, 85/0/0. Full contracts remain in `CHANGELOG.md` and git.
 
 - **2026-09-07**: Added read-only `Get-CopilotAtelierSkillHealth` (task 04) with
   validated provenance and reconciled grading (red 29 then 81/0); shipped the

@@ -148,6 +148,54 @@ Describe 'Get-CopilotAtelierPath' -Tag 'Unit' {
         }
     }
 
+    Context 'When only a generic OneDrive location is available' {
+        It 'Should require account-specific configuration on Windows for <Scenario>' -ForEach @(
+            @{ Scenario = 'the generic OneDrive environment variable'; HasGenericEnvironment = $true }
+            @{ Scenario = 'a default OneDrive folder'; HasGenericEnvironment = $false }
+        ) {
+            $homePath = Join-Path -Path $TestDrive -ChildPath "unconfigured-home-$HasGenericEnvironment"
+            $configPath = Join-Path -Path $TestDrive -ChildPath "unconfigured-config-$HasGenericEnvironment"
+            $oneDrivePath = Join-Path -Path $homePath -ChildPath 'OneDrive'
+
+            New-Item -ItemType Directory -Path $homePath, $configPath, $oneDrivePath -Force | Out-Null
+
+            $environment = @{
+                APPDATA         = $configPath
+                HOME            = $homePath
+                USERPROFILE     = $homePath
+                XDG_CONFIG_HOME = $configPath
+            }
+            if ($HasGenericEnvironment)
+            {
+                $environment['OneDrive'] = $oneDrivePath
+            }
+
+            $original = Enter-Sandbox -Value $environment
+
+            try
+            {
+                $result = InModuleScope -ModuleName $script:moduleName {
+                    Get-CopilotAtelierPath -NonInteractive
+                }
+
+                if ([System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT)
+                {
+                    $result.OneDriveRoot | Should -BeNullOrEmpty
+                    $result.TargetPath | Should -Be (Join-Path -Path $homePath -ChildPath 'CopilotAtelier')
+                }
+                else
+                {
+                    $result.OneDriveRoot | Should -Be $oneDrivePath
+                    $result.TargetPath | Should -Be (Join-Path -Path $oneDrivePath -ChildPath 'CopilotAtelier')
+                }
+            }
+            finally
+            {
+                Exit-Sandbox -Original $original
+            }
+        }
+    }
+
     Context 'When a single OneDrive root is available' {
         BeforeAll {
             $homePath = Join-Path -Path $TestDrive -ChildPath 'onedrive-home'

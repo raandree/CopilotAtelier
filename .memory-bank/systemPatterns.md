@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-08
+last-verified: 2026-09-10
 owner: software-engineer
 source: .memory-bank/decisions and source/
 ---
@@ -64,6 +64,7 @@ when the task needs it; the repository layout lives in `techContext.md`.
 - The installer maps Agent Plugins payload paths into five `~/.copilot`
     Discovery siblings. Preserve unowned matches, require recorded paths and
     hashes before removal, and keep source and deployment trees separate.
+    Windows OneDrive selection needs account-specific metadata, not a generic variable or folder; TargetPath overrides it.
 - Profile narrowing reuses ownership and retirement checks. Its optional,
     validated Selection record never grants ownership; omit it for the default
     and re-read inherited state inside the lock.
@@ -72,10 +73,9 @@ when the task needs it; the repository layout lives in `techContext.md`.
     promotion, gate an append-only write on an approved preview hash, and bind
     evidence to the stored record and verified block, not a marker.
 - Persist each pending operation before atomic replacement and checkpoint after.
-    Recovery reconciles observed hashes, not assumed completion.
-- Validate every path through the shared guard by walking each existing ancestor
-    from the selected root, not the leaf alone; trusted aliases sit above it.
-    Placeholders are not links, and a hash check is not a transaction or sandbox.
+    Reconcile observed hashes, not assumed completion. Guard every ancestor
+    below the selected root; trusted aliases sit above it. Placeholders are not
+    links, and hashes do not provide a transaction or sandbox.
 - Remove verified Discovery links non-recursively, including dangling Unix
     links. Construct literal POSIX filename fixtures with .NET path APIs, not
     the PowerShell provider's separator-normalizing `Join-Path`. Hooks enforce
@@ -93,6 +93,5 @@ when the task needs it; the repository layout lives in `techContext.md`.
     conflicting discipline needs its own capability-bounded persona. A handoff
     cycle is bounded in frontmatter: a ring of `send: true` edges can run
     unattended and must fail a graph test.
-- Role-record migration plans before a validated, copy-only apply; sources stay.
-- Routing has deterministic and label-free eval layers; `PreCompact` anchors
-    recovery. Cross-client loading cannot depend on cross-type relative links.
+- Role-record migration is planned and copy-only; sources stay. Routing has deterministic and label-free evals.
+    `PreCompact` anchors recovery. Cross-client loading cannot depend on cross-type relative links.

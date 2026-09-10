@@ -8,9 +8,11 @@ function Get-CopilotAtelierPath
             Determines the user profile, the VS Code user configuration
             directory, and the canonical customization target for the current
             platform. OneDrive is preferred for the target so a single synced
-            copy serves every machine; the user profile is the fallback. When
-            both a consumer and a commercial OneDrive are present the caller is
-            asked which one to use.
+            copy serves every machine; the user profile is the fallback. On
+            Windows, an account-specific environment variable must identify the
+            OneDrive root; a generic OneDrive variable or folder is not evidence
+            of a configured account. When both a consumer and a commercial
+            OneDrive are present the caller is asked which one to use.
 
         .PARAMETER TargetName
             The folder name used for the canonical target. Defaults to
@@ -159,11 +161,11 @@ function Get-CopilotAtelierPath
     {
         $oneDriveRoot = @($oneDriveCandidate.Values)[0]
     }
-    elseif ($env:OneDrive -and (Test-Path -LiteralPath $env:OneDrive))
+    elseif (-not $isWindowsPlatform -and $env:OneDrive -and (Test-Path -LiteralPath $env:OneDrive))
     {
         $oneDriveRoot = $env:OneDrive
     }
-    else
+    elseif (-not $isWindowsPlatform)
     {
         $defaultOneDrivePath = Join-Path -Path $userHome -ChildPath 'OneDrive'
 

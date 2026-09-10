@@ -101,8 +101,8 @@ Two layouts are in play, and they are deliberately different shapes.
 What gets **deployed** to your machine — unchanged by the plugin migration:
 
 ```text
-~/OneDrive/CopilotAtelier/       # Used when OneDrive is detected (preferred)
-~/CopilotAtelier/                # Fallback — used only when OneDrive is not installed
+~/OneDrive/CopilotAtelier/       # Preferred when a configured OneDrive root is detected
+~/CopilotAtelier/                # Fallback when no OneDrive account is detected
 ├── agents/          # Custom agents (.agent.md files)
 ├── instructions/    # Custom instructions (.instructions.md files)
 ├── skills/          # Agent skills (folders with SKILL.md)
@@ -508,7 +508,8 @@ share one Canonical target:
 %USERPROFILE%\.copilot\hooks        --> <target>\Hooks
 ```
 
-Where `<target>` is `%USERPROFILE%\OneDrive\CopilotAtelier` when OneDrive is installed, otherwise `%USERPROFILE%\CopilotAtelier`.
+Unless `-TargetPath` is supplied, `<target>` is `CopilotAtelier` under the
+detected OneDrive account root, otherwise `%USERPROFILE%\CopilotAtelier`.
 
 If one of the `~/.copilot\<name>` folders already exists as a real directory:
 
@@ -625,7 +626,7 @@ IsCurrent       : True
 
 #### More than one machine
 
-When OneDrive is present the canonical target lives inside it, so a second machine that already syncs the folder still needs its own `Install-CopilotAtelier` run to create the `~/.copilot` links and patch VS Code. After that, editing an agent in the synced folder propagates on its own; a module update needs `Update-CopilotAtelier` on each machine.
+When a configured OneDrive root is selected, the Canonical target lives inside it, so a second machine that already syncs the folder still needs its own `Install-CopilotAtelier` run to create the `~/.copilot` links and patch VS Code. After that, editing an agent in the synced folder propagates on its own; a module update needs `Update-CopilotAtelier` on each machine.
 
 ### 2. Repository clone
 
@@ -652,11 +653,20 @@ clone that sits at `~/OneDrive/CopilotAtelier/` — for example to
 ### What either path does
 
 The Customizations are copied into the explicit `-TargetPath`,
-`~/OneDrive/CopilotAtelier/` when one OneDrive account is detected, or
+`CopilotAtelier/` under the selected OneDrive account root when detected, or
 `~/CopilotAtelier/` otherwise. Discovery links expose the
 five deployed directories. VS Code settings and keybindings are merged with
 timestamped backups. The Deployment record at `<target>/.copilotatelier.json`
 stores the version and each Owned file's relative path and SHA-256.
+
+On Windows, automatic OneDrive selection requires `OneDriveConsumer` or
+`OneDriveCommercial` to point to an existing root. An installed client, the
+generic `OneDrive` variable, or a pre-created `~/OneDrive/` folder does not
+establish account configuration; without account-specific metadata, the
+Canonical target stays local. For a known sync root that is not detected, pass
+`-TargetPath` explicitly. macOS and Linux retain their existing generic-variable
+and default-folder discovery. Existing targets are not automatically migrated;
+use `-TargetPath` to address an earlier deployment.
 
 Installation validates the complete Deployment plan before writing, preserves
 untracked files and legacy trees, and retires only unchanged Owned files.
