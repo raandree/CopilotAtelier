@@ -27,6 +27,7 @@ on:
   push:
     branches:
       - main
+      - 'ai/**'
     tags:
       - 'v*'
       - '!v*-*'

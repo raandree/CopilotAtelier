@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-10
+last-verified: 2026-09-24
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,23 +9,27 @@ source: current task evidence
 
 ## Current focus
 
-Fixed Windows OneDrive false detection on `ai/fix-onedrive-detection`.
-The generic `OneDrive` variable and an existing folder were present despite
-unset account-specific variables and account keys without `UserFolder` values.
-Windows automatic selection now requires `OneDriveConsumer` or
-`OneDriveCommercial`; explicit targets and macOS/Linux discovery are unchanged.
+Harden the existing evaluation gates on `ai/eval-gate-integrity`, rather than
+add another evaluation framework. Tools and clean `main` were verified; the
+previous session made no changes. The removed lifecycle clock is not installed.
 
-- Both regressions failed before the fix; all seven path tests now pass.
-  Full Windows `build,test`: 1,779 passed, zero failed, 116 skipped, 90.67%
-  coverage. AST and PSScriptAnalyzer 1.25.0 are clean; Markdown renders with
-  clean editor diagnostics. `uv` conformance remains unavailable.
-- The read-only machine probe selects the local profile's `CopilotAtelier`.
-  Setup was not rerun; installed files, Discovery links, and old targets were
-  not moved or changed. An earlier deployment remains addressable by TargetPath.
-- The first build hit a transient generated-file sharing violation; an
-  exclusive-read probe succeeded and the unchanged build passed on retry.
-  The full gate retained the known simulated-backend warning. Independent
-  review is off; recommend it for shared deployment-target selection.
+- Fetched primary research includes Anthropic's 2026-01-09 evaluation guide and
+  the living Agent Skills evaluation guide. Repeated trials and balanced cases
+  were already described here; the controlling gaps were false-green graders.
+- Offline grading now validates cases and path-safe IDs, matches literal
+  substrings, bounds regex evaluation, and requires exactly K numbered samples.
+  Trigger Grade rejects incomplete/invalid evidence and fails its process gate.
+- Original 45-case CLI corpus: 17 passed, 28 failed. Full Windows run before
+  final follow-ups: 1,875/0/67 at 90.67% coverage. Final rebuilt affected gate:
+  634/0/59, including the root-shape and self-review regressions. Skips retain
+  existing baselines; this is grader evidence, not live model behavior.
+- CI now runs packaging and all three existing PowerShell 7 test legs on
+  `ai/**` pushes. The upstream main/tag deployment condition is unchanged.
+  User authorized topic pushes and CI fixes, not force-push, PR creation,
+  protected-branch merge, or security-setting changes.
+- Complete diff self-reviewed; case-insensitive target identity is preserved
+  and array-valued split labels are rejected (both red then green). Markdown
+  lint and Memory Bank health are clean. Exact pushed-head CI gates completion.
 
 ## Previous CI repair
 
@@ -169,6 +173,7 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-The OneDrive fix is ready for a user-controlled Setup rerun. Do not remove or
-migrate the earlier target automatically. Prior Sampler Skill behavior remains
-unmeasured: preserve the recorded zero-load result and its evidence in git.
+Verify the exact topic head's CI before any user-controlled merge. Preserve
+fresh per-revision eval directories: the graders do not authenticate provenance
+or establish native Skill activation. Keep prior zero-load results as unknown
+behavior, and do not deploy or migrate the user's installed Customizations.

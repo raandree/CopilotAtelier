@@ -54,6 +54,25 @@ Describe 'GitHub Actions workflows' -Tag 'Unit' {
         $offendingStep | Should -BeNullOrEmpty -Because 'a step shell must be a literal; use jobs.<job_id>.defaults.run for a matrix-driven shell'
     }
 
+    It 'Should validate topic branch pushes without allowing topic branch deployment' {
+        $workflow = ConvertFrom-Yaml -Yaml (
+            Get-Content -LiteralPath (Join-Path $script:workflowPath 'ci.yml') -Raw
+        )
+        $workflow.on.push.branches | Should -Contain 'ai/**'
+        $workflow.on.push.branches | Should -Contain 'main'
+        $workflow.permissions.contents | Should -BeExactly 'read'
+        @($workflow.jobs.test.strategy.matrix.include) | Should -HaveCount 3
+        $workflow.jobs.deploy.if.Trim() | Should -BeExactly (
+            "github.repository_owner == 'raandree' && " +
+            "(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))"
+        )
+        $workflow.jobs.deploy.needs | Should -Contain 'build'
+        $workflow.jobs.deploy.needs | Should -Contain 'test'
+        $workflow.on.push['paths-ignore'] | Should -Contain 'CHANGELOG.md'
+        $workflow.on.push.tags | Should -Contain 'v*'
+        $workflow.on.push.tags | Should -Contain '!v*-*'
+    }
+
     It 'Should retain hidden ownership metadata in the output build artifact' {
         $workflow = ConvertFrom-Yaml -Yaml (
             Get-Content -LiteralPath (Join-Path -Path $script:workflowPath -ChildPath 'ci.yml') -Raw
