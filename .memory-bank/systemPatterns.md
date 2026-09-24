@@ -67,9 +67,8 @@ when the task needs it; the repository layout lives in `techContext.md`.
     Discovery siblings. Preserve unowned matches, require recorded paths and
     hashes before removal, and keep source and deployment trees separate.
     Windows OneDrive selection needs account-specific metadata, not a generic variable or folder; TargetPath overrides it.
-- Profile narrowing reuses ownership and retirement checks. Its optional,
-    validated Selection record never grants ownership; omit it for the default
-    and re-read inherited state inside the lock.
+- Profile narrowing validates Selection without granting ownership. Omit it for
+    full installs; reread inherited state inside the existing target lock.
 - A selected artifact is an untrusted observation, never policy: keep candidates
     off automatically loaded surfaces, apply one content rule at intake and at
     promotion, gate an append-only write on an approved preview hash, and bind
@@ -83,10 +82,10 @@ when the task needs it; the repository layout lives in `techContext.md`.
     the PowerShell provider's separator-normalizing `Join-Path`. Hooks enforce
     unconditional rules; Instructions carry judgement calls. Hook commands
     resolve exact trusted roots and avoid pre-parse `$` substitution.
-- CI retains hidden ownership metadata; path fixtures use canonical temporary
-    roots. Nested Node runners clear inherited `NODE_TEST_CONTEXT`
-    and prove tests ran. External checks fail rather than skip in CI and reject
-    bad fixtures. Known debt is a shrink-only baseline, never a disabled check.
+- CI preserves hidden ownership metadata and canonical temporary paths. Nested
+    Node runners clear `NODE_TEST_CONTEXT` and prove tests ran. External checks
+    fail on bad fixtures or missing tools; baselines only shrink. Check release
+    provenance after committing past the deliberate tag-at-HEAD exemption.
 - Incident transfers keep version-scoped diagnostics in the owning Skill and
     final outcomes out of eval input. Structural checks are not agent behavior;
     completed requests with zero Skill loads cannot prove body improvements.
