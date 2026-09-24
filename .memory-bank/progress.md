@@ -15,6 +15,13 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-09-24**: Independent review of `7a186c5..2b45419` approved the eval/CI
+  batch with no Blocker, Major, or exploitable vulnerability. Four Minor
+  observations concern reply-format compatibility, message-derived severity,
+  duplicate CI cost, and future rollover coordination; the sample-query ID gap
+  was verified as pre-existing. No implementation changes or remote mutations.
+  The prior exact-head run `36043691291` is green; review records stay local.
+
 - **2026-09-24**: Research-backed evaluation gate hardening on
   `ai/eval-gate-integrity`: strict case/ID validation, literal substring
   matching, exact sample counts, bounded regex execution, and trigger failures
@@ -100,10 +107,9 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   Markdown structure checks never replace markdownlint. Red 23 of 72 then
   12 of 85, 85/0/0. Full contracts remain in `CHANGELOG.md` and git.
 
-- **2026-09-07**: Added read-only `Get-CopilotAtelierSkillHealth` (task 04) with
-  validated provenance and reconciled grading (red 29 then 81/0); shipped the
-  reviewed learning inbox (`09416a4`, 62/0) with guarded, hash-approved,
-  append-only promotion. Full contracts remain in `CHANGELOG.md` and git.
+- **2026-09-07**: Added Skill health reporting (81/0) and the reviewed learning
+  inbox (`09416a4`, 62/0). Provenance and hash-approved, append-only promotion
+  contracts remain in `CHANGELOG.md` and git.
 
 ## Stable capabilities
 
