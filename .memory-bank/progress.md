@@ -24,6 +24,9 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   affected gate 634/0/59 passed afterward. Topic pushes run the unchanged
   three-platform CI matrix without enabling deployment. No live
   model quality, trigger discovery, or containment improvement is claimed.
+  First-push CI run `36040997940` caught the overdue v5 release rollover after
+  the tag-at-HEAD exemption lapsed. Restored its verified history and static
+  plugin version; repair gate 40/0/0. No remote merge or weakened gate.
 
 - **2026-09-10**: Fixed Windows OneDrive false detection from a generic variable
   or pre-created folder, preserving account-specific selection, explicit
@@ -69,10 +72,6 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   Linux; Edge 42; focused Pester 43. Replaced a scheduling-based lock regression
   with observable readiness and proved discrimination under a slow schedule.
   The original independent review covers `3d115a3`; no re-review is claimed.
-
-- **2026-09-07 09:44 UTC**: Seven-task integration at `3d115a3`: Windows gate
-  1,773/0/116, 90.72% coverage; Node 180, Edge 40, focused Pester 42. Earlier
-  Linux evidence predates these corrections; no push or paid evaluation.
 
 - **2026-09-07**: Integrated the seven-task series and the optional
   `tools/plan-review` surface, outside the module payload. Browser feedback

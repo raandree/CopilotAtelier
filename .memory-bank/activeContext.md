@@ -9,7 +9,7 @@ source: current task evidence
 
 ## Current focus
 
-Harden the existing evaluation gates on `ai/eval-gate-integrity`, rather than
+Hardened the existing evaluation gates on `ai/eval-gate-integrity`, rather than
 add another evaluation framework. Tools and clean `main` were verified; the
 previous session made no changes. The removed lifecycle clock is not installed.
 
@@ -30,22 +30,22 @@ previous session made no changes. The removed lifecycle clock is not installed.
 - Complete diff self-reviewed; case-insensitive target identity is preserved
   and array-valued split labels are rejected (both red then green). Markdown
   lint and Memory Bank health are clean. Exact pushed-head CI gates completion.
+- First push `c02d25e` reached CI run `36040997940`: all three test jobs failed
+  only the missing published `[5.0.0]` changelog section. Local pre-commit tests
+  had legitimately exempted v5 because HEAD still pointed at its tag. The
+  existing guard reproduced 18/1 after the commit; no assertion was weakened.
+  Restored the release-history header from `78c67b1`, verified its entries
+  exactly, and kept current fixes Unreleased. Static plugin version is 5.0.0;
+  generated module metadata is unchanged. The release/workflow/Memory Bank
+  gate passed 40/0/0; lint and JSON checks passed before the follow-up push.
 
 ## Previous CI repair
 
-GitHub Actions repair `0367ce3` is committed and pushed on `main`, as explicitly
-requested. Run [#76](https://github.com/raandree/CopilotAtelier/actions/runs/34163989373)
-completed successfully at 2026-09-07 21:54 UTC: packaging, Linux, Windows,
-macOS, and deployment all passed. The full development cycle and independent
-review stayed off; no paid evaluations were run.
-
-- Retain hidden adapter metadata in the scoped `output/` upload; canonicalize
-  temporary fixture roots without changing production containment. Clear
-  inherited `NODE_TEST_CONTEXT` and require a nonzero nested test count.
-- Workflow regression 5/0; Node 165/0; clean-checkout `build,test` 1,777/0/116,
-  90.72% coverage; final record/workflow checks 12/0. The uploaded ownership
-  manifest and generated-file hash were verified. Details remain in git and
-  `CHANGELOG.md`; simulated-backend and setup-uv warnings were non-fatal.
+Earlier repair `0367ce3` passed [CI run 34163989373](https://github.com/raandree/CopilotAtelier/actions/runs/34163989373)
+on 2026-09-07. Retain hidden adapter metadata, canonical temporary roots, and
+nested Node test-count checks with `NODE_TEST_CONTEXT` cleared. The detailed
+1,777/0/116 clean-checkout result and ownership evidence remain in git,
+`progress.md`, and `CHANGELOG.md`; this older run does not validate new work.
 
 ## Previous plan-review work
 
