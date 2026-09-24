@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-10
+last-verified: 2026-09-24
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -9,11 +9,21 @@ source: CHANGELOG.md and git history
 
 ## Project status
 
-Copilot Atelier is published to the PowerShell Gallery and released at `v4.0.0`
-(2026-08-26), whose changelog section landed on `main` in #22. Incremental work
+Copilot Atelier's latest GitHub release is `v5.0.0`, published 2026-09-10,
+verified through the release API on 2026-09-24. Incremental work
 is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-09-24**: Research-backed evaluation gate hardening on
+  `ai/eval-gate-integrity`: strict case/ID validation, literal substring
+  matching, exact sample counts, bounded regex execution, and trigger failures
+  that cannot disappear into correct negatives or smaller denominators.
+  Original scripts failed 28 of 45 corrected CLI regressions. Full Windows gate
+  1,875/0/67 at 90.67% coverage preceded final self-review follow-ups; rebuilt
+  affected gate 634/0/59 passed afterward. Topic pushes run the unchanged
+  three-platform CI matrix without enabling deployment. No live
+  model quality, trigger discovery, or containment improvement is claimed.
 
 - **2026-09-10**: Fixed Windows OneDrive false detection from a generic variable
   or pre-created folder, preserving account-specific selection, explicit
@@ -64,24 +74,11 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   1,773/0/116, 90.72% coverage; Node 180, Edge 40, focused Pester 42. Earlier
   Linux evidence predates these corrections; no push or paid evaluation.
 
-- **2026-09-07**: Corrected `tools/plan-review` in two uncommitted rounds:
-  per-launch cookies and bound-address authorities, strict byte-bounded state
-  reads/writes that preserve refused content, ownership-aware locks, source
-  rechecks inside and after mutation, immutable asset snapshots, visible stale
-  drafts, guarded asynchronous selection, CommonMark fences, and globally
-  unique section keys. `CHANGELOG.md` retains the defects and regression details.
-  Round 1's Node 178 was a miscount; the suite held 163 before round 2.
-
-- **2026-09-07**: Committed tasks 01-06 on `main` as six feature commits
-  (`c0c7166` through `288a4ad`) plus records at `555c260`. Added global
-  `node_modules/` exclusion and committed task 07 in `3b04d46` with
-  regression guards. Windows full gate: 1,810 passed, 90.72% coverage; Linux
-  Unit/QA: 1,707 passed, 90.42%. Node: 133 per OS; browser: 30; zero failures.
-  Existing warnings remain; no push, real-profile deployment, or paid evaluation.
-
-- **2026-09-07**: Added optional `tools/plan-review` outside the module payload.
-  Revision-bound browser feedback never authorizes implementation; chat sign-off
-  remains authoritative. The guide and threat model retain security boundaries.
+- **2026-09-07**: Integrated the seven-task series and the optional
+  `tools/plan-review` surface, outside the module payload. Browser feedback
+  stays revision-bound and cannot authorize implementation. Earlier per-task
+  measurements and correction rounds remain in git and `CHANGELOG.md`; the
+  later integrated and cross-platform results above supersede them.
 
 - **2026-09-07**: Added read-only `Get-CopilotAtelierClientAdapter` (task 06 of
   the sequential series) and corrected it in one round. The VS Code profiles

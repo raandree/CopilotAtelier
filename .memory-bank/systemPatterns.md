@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-10
+last-verified: 2026-09-24
 owner: software-engineer
 source: .memory-bank/decisions and source/
 ---
@@ -42,10 +42,12 @@ when the task needs it; the repository layout lives in `techContext.md`.
 
 ## Live relationships
 
-- Agent conformance needs schema, executable behavior, and enforced containment.
-    Tool-list fingerprints prove schema only. No-egress must hold across
-    terminals, delegates, handoffs, MCP, and hooks; prose or omitted web tools
-    do not enforce it, especially without a native Windows terminal sandbox.
+- A grader must reject invalid or incomplete evidence before scoring quality.
+    Preserve every scheduled case in the denominator; literal matchers must not
+    interpret wildcard syntax. Grader regressions do not prove model behavior.
+- Agent conformance needs schema, executable behavior, and containment. Tool
+    lists prove schema only. Enforce no-egress across terminals, delegates,
+    handoffs, MCP, and hooks; prose cannot sandbox native Windows execution.
 - Sensitive-data work separates read-only intake, local transformation, public
     research, and explicitly shared authenticated actions. Tools are capability,
     not authorization; `agents` grants delegation, not body inheritance. Share
@@ -81,17 +83,16 @@ when the task needs it; the repository layout lives in `techContext.md`.
     the PowerShell provider's separator-normalizing `Join-Path`. Hooks enforce
     unconditional rules; Instructions carry judgement calls. Hook commands
     resolve exact trusted roots and avoid pre-parse `$` substitution.
-- CI retains hidden artifact ownership metadata; path fixtures use canonical
-    temporary roots. Nested Node runners clear inherited `NODE_TEST_CONTEXT`
+- CI retains hidden ownership metadata; path fixtures use canonical temporary
+    roots. Nested Node runners clear inherited `NODE_TEST_CONTEXT`
     and prove tests ran. External checks fail rather than skip in CI and reject
     bad fixtures. Known debt is a shrink-only baseline, never a disabled check.
 - Incident transfers keep version-scoped diagnostics in the owning Skill and
     final outcomes out of eval input. Structural checks are not agent behavior;
     completed requests with zero Skill loads cannot prove body improvements.
     Runner-specific discovery is not native-client or hosted-publication proof.
-- A Skill cannot override a Custom agent body or grant a missing tool. A
-    conflicting discipline needs its own capability-bounded persona. A handoff
-    cycle is bounded in frontmatter: a ring of `send: true` edges can run
-    unattended and must fail a graph test.
-- Role-record migration is planned and copy-only; sources stay. Routing has deterministic and label-free evals.
-    `PreCompact` anchors recovery. Cross-client loading cannot depend on cross-type relative links.
+- A Skill cannot grant tools or override a Custom agent. Conflicting disciplines
+    need capability-bounded personas. Auto-sending handoff cycles can run
+    unattended; reject them with a graph test.
+- Role-record migration is copy-only; sources stay. Routing has deterministic
+    and label-free evals; `PreCompact` anchors recovery. Avoid cross-type links.
