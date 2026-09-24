@@ -9,35 +9,30 @@ source: current task evidence
 
 ## Current focus
 
-Hardened the existing evaluation gates on `ai/eval-gate-integrity`, rather than
-add another evaluation framework. Tools and clean `main` were verified; the
-previous session made no changes. The removed lifecycle clock is not installed.
+Independent review of `7a186c5..2b45419` on `ai/eval-gate-integrity` is complete:
+APPROVE, with no Blocker, Major, or exploitable vulnerability in the diff.
+The reviewer left the project untouched and used bounded offline reproductions,
+not another broad suite or a live-model evaluation. Implementation is unchanged.
 
-- Fetched primary research includes Anthropic's 2026-01-09 evaluation guide and
-  the living Agent Skills evaluation guide. Repeated trials and balanced cases
-  were already described here; the controlling gaps were false-green graders.
-- Offline grading now validates cases and path-safe IDs, matches literal
-  substrings, bounds regex evaluation, and requires exactly K numbered samples.
-  Trigger Grade rejects incomplete/invalid evidence and fails its process gate.
-- Original 45-case CLI corpus: 17 passed, 28 failed. Full Windows run before
-  final follow-ups: 1,875/0/67 at 90.67% coverage. Final rebuilt affected gate:
-  634/0/59, including the root-shape and self-review regressions. Skips retain
-  existing baselines; this is grader evidence, not live model behavior.
-- CI now runs packaging and all three existing PowerShell 7 test legs on
-  `ai/**` pushes. The upstream main/tag deployment condition is unchanged.
-  User authorized topic pushes and CI fixes, not force-push, PR creation,
-  protected-branch merge, or security-setting changes.
-- Complete diff self-reviewed; case-insensitive target identity is preserved
-  and array-valued split labels are rejected (both red then green). Markdown
-  lint and Memory Bank health are clean. Exact pushed-head CI gates completion.
-- First push `c02d25e` reached CI run `36040997940`: all three test jobs failed
-  only the missing published `[5.0.0]` changelog section. Local pre-commit tests
-  had legitimately exempted v5 because HEAD still pointed at its tag. The
-  existing guard reproduced 18/1 after the commit; no assertion was weakened.
-  Restored the release-history header from `78c67b1`, verified its entries
-  exactly, and kept current fixes Unreleased. Static plugin version is 5.0.0;
-  generated module metadata is unchanged. The release/workflow/Memory Bank
-  gate passed 40/0/0; lint and JSON checks passed before the follow-up push.
+- F1 (Minor): trigger replies with a mixed-case keyword or no space after the
+  colon now fail closed, unlike the base. Restore those harmless variants or
+  explicitly document/test the compatibility tightening.
+- F2 (Minor): query-problem severity is inferred from English messages;
+  structured severity would remove latent diagnostic/control-flow coupling.
+- F3 (Minor): topic pushes and an eventual pull request can run duplicate CI
+  matrices; consider cancellation of superseded non-release runs.
+- F4 (Minor/process risk): reconcile the separate generated v5 rollover when
+  integrating. There is no present duplicate section; remote PR state was not
+  verified. A unique-release-heading assertion is optional insurance.
+- P1 is pre-existing: the linked sample trigger-query file lacks IDs and fails
+  at both base and head. Lower-priority observations cover ingestion limits,
+  fixture coverage, localized timeout messages, and changelog-only CI skips.
+- These are optional follow-ups, not blocking fixes. The security conclusion
+  is scoped to this diff, not a certification of backends or runtime isolation.
+- The reviewed/pushed code is `2b4541939610a17366b229abb7d664fa48defb72`;
+  [CI run 36043691291](https://github.com/raandree/CopilotAtelier/actions/runs/36043691291)
+  passed packaging and all three platforms in the preceding turn. No new CI
+  or push was requested for this review-only turn; record changes stay local.
 
 ## Previous CI repair
 
@@ -173,7 +168,7 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Verify the exact topic head's CI before any user-controlled merge. Preserve
-fresh per-revision eval directories: the graders do not authenticate provenance
-or establish native Skill activation. Keep prior zero-load results as unknown
-behavior, and do not deploy or migrate the user's installed Customizations.
+User may select the optional review follow-ups. Any implementation needs its
+own regression evidence; any push requires fresh current-turn authorization.
+Keep native Skill activation and model behavior unmeasured, rather than
+inferring them from grader tests. Do not deploy installed Customizations.
