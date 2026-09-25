@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-24
+last-verified: 2026-09-25
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,6 +14,14 @@ verified through the release API on 2026-09-24. Incremental work
 is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-09-25**: Implemented F1-F4, N1-N3, P1/P2 review follow-ups: compatible
+  trigger replies, structured severity, bounded reads, stable timeout errors,
+  valid sample IDs, missing edge-case coverage, CI deduplication/cancellation,
+  non-publishing changelog validation, and unique release headings. Eval red
+  12 then 176/0/38; CI red 18 then 43/0/0; duplicate-header mutation rejected.
+  Final focused 220/0/38; full Windows build/test 1,917/0/65 at 90.67% coverage.
+  Exact-head remote CI is required for the authorized push/PR; no merge.
 
 - **2026-09-24**: Independent review of `7a186c5..2b45419` approved the eval/CI
   batch with no Blocker, Major, or exploitable vulnerability. Four Minor
@@ -87,19 +95,10 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   later integrated and cross-platform results above supersede them.
 
 - **2026-09-07**: Added read-only `Get-CopilotAtelierClientAdapter` (task 06 of
-  the sequential series) and corrected it in one round. The VS Code profiles
-  stay the only source; only frontmatter is rewritten, through an allow-list
-  where an unmapped identifier is an error and a strict YAML subset that rejects
-  an unknown or duplicate field instead of dropping it. An `execute/` prefix is
-  a namespace, not execution authority: only `execute/runInTerminal` reaches the
-  execute alias. A restriction that cannot be expressed removes what it guards,
-  so `review: on` and `cycle: full` are declared unsupported inside the composed
-  file behind a marker carrying the byte-identical shared body's SHA-256.
-  Neither client is runtime verified. The build task owns
-  `output/clientAdapters/` through a hashed manifest: every path component is
-  guarded, the whole operation is validated before the first delete, and an
-  edited generated file, an unowned collision, and a names-only `schema 1`
-  manifest are all refused. Red 46/103, then 103/103; round 2 121/121.
+  the series): strict capability mappings and hash-owned output preserve the
+  authoritative VS Code body and reject inexpressible grants. Final regression
+  121/121; neither client is runtime verified. Full contracts remain in git and
+  `CHANGELOG.md`.
 
 - **2026-09-07**: Added the `changed-file-validation` Skill (task 05 of the
   sequential series): opt-in, bounded, manual collection with snapshot-bound

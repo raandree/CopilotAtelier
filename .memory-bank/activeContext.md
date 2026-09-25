@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-24
+last-verified: 2026-09-25
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,30 +9,27 @@ source: current task evidence
 
 ## Current focus
 
-Independent review of `7a186c5..2b45419` on `ai/eval-gate-integrity` is complete:
-APPROVE, with no Blocker, Major, or exploitable vulnerability in the diff.
-The reviewer left the project untouched and used bounded offline reproductions,
-not another broad suite or a live-model evaluation. Implementation is unchanged.
+Implemented all recorded review follow-ups on `ai/eval-gate-integrity` for an
+authorized push and PR to `main`. Do not merge or publish.
+The original independent approval covers `7a186c5..2b45419`, not these fixes.
 
-- F1 (Minor): trigger replies with a mixed-case keyword or no space after the
-  colon now fail closed, unlike the base. Restore those harmless variants or
-  explicitly document/test the compatibility tightening.
-- F2 (Minor): query-problem severity is inferred from English messages;
-  structured severity would remove latent diagnostic/control-flow coupling.
-- F3 (Minor): topic pushes and an eventual pull request can run duplicate CI
-  matrices; consider cancellation of superseded non-release runs.
-- F4 (Minor/process risk): reconcile the separate generated v5 rollover when
-  integrating. There is no present duplicate section; remote PR state was not
-  verified. A unique-release-heading assertion is optional insurance.
-- P1 is pre-existing: the linked sample trigger-query file lacks IDs and fails
-  at both base and head. Lower-priority observations cover ingestion limits,
-  fixture coverage, localized timeout messages, and changelog-only CI skips.
-- These are optional follow-ups, not blocking fixes. The security conclusion
-  is scoped to this diff, not a certification of backends or runtime isolation.
-- The reviewed/pushed code is `2b4541939610a17366b229abb7d664fa48defb72`;
-  [CI run 36043691291](https://github.com/raandree/CopilotAtelier/actions/runs/36043691291)
-  passed packaging and all three platforms in the preceding turn. No new CI
-  or push was requested for this review-only turn; record changes stay local.
+- F1/F2: single-line reply case/spacing compatibility restored; query severity
+  is structured, with a diagnostic-rewording regression.
+- P1/N2: sample IDs repaired; schema checks no longer exempt the sample. Added
+  Prepare, unrelated-file, hidden-sample, and byte-boundary coverage.
+- N1/N3: shared bounded reads cover definitions and evidence (1 MiB by default,
+  explicit override up to 100 MiB); regex timeouts expose a stable diagnostic.
+- F3: read-only CI admission defers duplicate topic pushes only to an open PR
+  for the same repository/head SHA; event-scoped concurrency cancels only
+  superseded topic/PR runs. Main and version-tag runs cannot be cancelled.
+- F4/P2: duplicate release headings fail; changelog-only pushes run validation
+  without republishing from main. Existing v5 rollover content is unchanged.
+  No open PR existed at pre-flight; the old generated branch is not deleted.
+- Eval regressions: 12 red, then 176/0/38 with prior execution tests. CI tests:
+  18 red, then 43/0/0; an isolated duplicate-header mutation failed its guard.
+  Final affected suites: 220/0/38. Full Windows build/test: 1,917/0/65 at
+  90.67% coverage. Markdown lint/render, AST/JSON and Memory Bank health pass;
+  analyzer warnings are unchanged. Exact-head GitHub checks gate publication.
 
 ## Previous CI repair
 
@@ -168,7 +165,7 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-User may select the optional review follow-ups. Any implementation needs its
-own regression evidence; any push requires fresh current-turn authorization.
-Keep native Skill activation and model behavior unmeasured, rather than
-inferring them from grader tests. Do not deploy installed Customizations.
+Verify the authorized topic push and PR on GitHub for the final head SHA.
+Keep PR and publication decisions separate; the
+default-branch release workflow remains guarded. Grader tests still do not
+measure native discovery, model quality, or runtime containment.

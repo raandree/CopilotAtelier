@@ -145,17 +145,15 @@ Describe 'Trigger-query sets' -Tag 'Unit' {
     }
 
     It '<QueryName> parses and labels every case' -ForEach $script:queryFileCase {
-        if (-not $IsSkillSet) {
-            Set-ItResult -Skipped -Because 'the set is a documented non-Skill example'
-            return
-        }
-
-        $case = @(Get-Content -LiteralPath $QueryPath -Raw -Encoding UTF8 | ConvertFrom-Json)
+        $case = Get-Content -LiteralPath $QueryPath -Raw -Encoding UTF8 | ConvertFrom-Json -NoEnumerate
+        ($case -is [array]) | Should -BeTrue
 
         $case.Count | Should -BeGreaterOrEqual 8 -Because 'a handful of queries cannot separate a trigger from a coin flip'
 
         foreach ($currentCase in $case) {
-            $currentCase.id | Should -Not -BeNullOrEmpty
+            $currentCase.id | Should -BeOfType [string]
+            $currentCase.id | Should -MatchExactly '\A[A-Za-z0-9][A-Za-z0-9_-]{0,127}\z'
+            $currentCase.query | Should -BeOfType [string]
             $currentCase.query | Should -Not -BeNullOrEmpty
             $currentCase.should_trigger | Should -BeOfType [bool]
             $currentCase.split | Should -BeIn @('train', 'validation')
@@ -166,11 +164,6 @@ Describe 'Trigger-query sets' -Tag 'Unit' {
     }
 
     It '<QueryName> carries positives and near-miss negatives in both splits' -ForEach $script:queryFileCase {
-        if (-not $IsSkillSet) {
-            Set-ItResult -Skipped -Because 'the set is a documented non-Skill example'
-            return
-        }
-
         $case = @(Get-Content -LiteralPath $QueryPath -Raw -Encoding UTF8 | ConvertFrom-Json)
 
         @($case | Where-Object { $_.should_trigger }).Count |
@@ -180,8 +173,10 @@ Describe 'Trigger-query sets' -Tag 'Unit' {
             Should -BeGreaterOrEqual 3 -Because 'without negatives, a description that matches everything scores perfectly'
 
         foreach ($split in @('train', 'validation')) {
-            @($case | Where-Object { $_.split -eq $split }).Count |
-                Should -BeGreaterThan 0 -Because 'the split exists to expose overfitting and needs both halves populated'
+            foreach ($label in @($true, $false)) {
+                @($case | Where-Object { $_.split -eq $split -and $_.should_trigger -eq $label }).Count |
+                    Should -BeGreaterThan 0 -Because 'each split needs both positive and near-miss negative cases'
+            }
         }
     }
 }

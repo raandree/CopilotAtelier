@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve unambiguous trigger replies with mixed capitalization or no space after the colon; keep multiline or contradictory replies invalid. Classify query errors structurally and repair the schema-checked sample query IDs.
+- Bound evaluation definitions, samples, and replies to 1 MiB per file by default (`-MaxInputBytes` can opt into larger inputs), and provide stable timeout diagnostics. See [grading contracts](skills/agent-evals/SKILL.md#bundled-grading-contracts).
 - Harden the bundled evaluation gates against false success: validate case definitions and path-safe IDs, match `contains` literally, require complete numbered samples, bound regex matching, reject malformed trigger replies, and return failing exit codes without dropping incomplete queries from split totals. See [grading contracts](skills/agent-evals/SKILL.md#bundled-grading-contracts).
 - Restore the published [v5.0.0 release history](https://github.com/raandree/CopilotAtelier/releases/tag/v5.0.0) and align the static plugin manifest with that release, so post-release builds and plugin update discovery use the recorded version.
 

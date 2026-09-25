@@ -113,6 +113,10 @@
 .PARAMETER MaxBudgetUSD
     Execute mode only. Hard ceiling passed to each call.
 
+.PARAMETER MaxInputBytes
+    Per-file limit for query definitions and Grade replies. Defaults to 1 MiB;
+    accepts up to 100 MiB. Does not change catalogue or model-output generation.
+
 .PARAMETER Force
     Execute mode only. Re-answer prompts whose reply file already exists.
 
@@ -175,10 +179,14 @@ param(
 
     [double] $MaxBudgetUSD = 2.0,
 
+    [ValidateRange(1, 104857600)]
+    [int] $MaxInputBytes = 1MB,
+
     [switch] $Force
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Get-EvalText.ps1')
 
 function Get-SkillCatalogue {
     [CmdletBinding()]
@@ -215,23 +223,39 @@ function Test-QuerySet {
     [CmdletBinding()]
     param([Parameter(Mandatory)][object[]] $Queries)
 
-    $problems = [System.Collections.Generic.List[string]]::new()
+    $problems = [System.Collections.Generic.List[object]]::new()
 
     $dupes = $Queries | Group-Object id | Where-Object Count -gt 1
-    foreach ($d in $dupes) { $problems.Add("duplicate id: $($d.Name)") }
+    foreach ($d in $dupes) {
+        $problems.Add([pscustomobject]@{ Severity = 'Error'; Message = "duplicate id: $($d.Name)" })
+    }
 
     foreach ($q in $Queries) {
-        if ($q -isnot [pscustomobject]) { $problems.Add('invalid query object'); continue }
+        if ($q -isnot [pscustomobject]) {
+            $problems.Add([pscustomobject]@{ Severity = 'Error'; Message = 'invalid query object' })
+            continue
+        }
         if ($q.id -isnot [string] -or $q.id -cnotmatch '\A[A-Za-z0-9][A-Za-z0-9_-]{0,127}\z') {
-            $problems.Add('a query has an invalid id; use 1-128 letters, digits, underscores or hyphens')
+            $problems.Add([pscustomobject]@{
+                Severity = 'Error'
+                Message = 'a query has an invalid id; use 1-128 letters, digits, underscores or hyphens'
+            })
         }
         if ($q.query -isnot [string] -or [string]::IsNullOrWhiteSpace($q.query)) {
-            $problems.Add("query '$($q.id)' has empty or invalid text")
+            $problems.Add([pscustomobject]@{
+                Severity = 'Error'; Message = "query '$($q.id)' has empty or invalid text"
+            })
         }
         if ($q.split -isnot [string] -or $q.split -notin 'train', 'validation') {
-            $problems.Add("query '$($q.id)' has invalid split '$($q.split)'")
+            $problems.Add([pscustomobject]@{
+                Severity = 'Error'; Message = "query '$($q.id)' has invalid split '$($q.split)'"
+            })
         }
-        if ($q.should_trigger -isnot [bool])        { $problems.Add("query '$($q.id)' should_trigger is not a boolean") }
+        if ($q.should_trigger -isnot [bool]) {
+            $problems.Add([pscustomobject]@{
+                Severity = 'Error'; Message = "query '$($q.id)' should_trigger is not a boolean"
+            })
+        }
     }
 
     # Upstream guidance: 8-10 positives and 8-10 near-miss negatives. Fewer
@@ -240,16 +264,24 @@ function Test-QuerySet {
     # positives alone.
     $pos = @($Queries | Where-Object { $_.should_trigger }).Count
     $neg = @($Queries | Where-Object { -not $_.should_trigger }).Count
-    if ($pos -lt 8) { $problems.Add("only $pos positive queries; guidance says 8-10") }
-    if ($neg -lt 8) { $problems.Add("only $neg negative queries; guidance says 8-10") }
+    if ($pos -lt 8) {
+        $problems.Add([pscustomobject]@{ Severity = 'Warning'; Message = "only $pos positive queries; guidance says 8-10" })
+    }
+    if ($neg -lt 8) {
+        $problems.Add([pscustomobject]@{ Severity = 'Warning'; Message = "only $neg negative queries; guidance says 8-10" })
+    }
 
     foreach ($split in 'train', 'validation') {
         $inSplit = @($Queries | Where-Object { $_.split -eq $split })
         if (@($inSplit | Where-Object { $_.should_trigger }).Count -lt 1) {
-            $problems.Add("split '$split' has no positive queries")
+            $problems.Add([pscustomobject]@{
+                Severity = 'Error'; Message = "split '$split' has no positive queries"
+            })
         }
         if (@($inSplit | Where-Object { -not $_.should_trigger }).Count -lt 1) {
-            $problems.Add("split '$split' has no negative queries")
+            $problems.Add([pscustomobject]@{
+                Severity = 'Error'; Message = "split '$split' has no negative queries"
+            })
         }
     }
 
@@ -303,7 +335,7 @@ $($q.query)
     }
 }
 
-$queries = Get-Content -LiteralPath $QueryFile -Raw -Encoding utf8 | ConvertFrom-Json -NoEnumerate
+$queries = Get-EvalText -LiteralPath $QueryFile -MaxBytes $MaxInputBytes | ConvertFrom-Json -NoEnumerate
 if ($queries -isnot [array] -or $queries.Count -eq 0) {
     throw "Query file '$QueryFile' must contain a nonempty query array."
 }
@@ -311,8 +343,8 @@ if ($queries -isnot [array] -or $queries.Count -eq 0) {
 $issues = @(Test-QuerySet -Queries $queries)
 if ($issues.Count -gt 0) {
     Write-Host 'Query set problems:' -ForegroundColor Yellow
-    $issues | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
-    if ($issues | Where-Object { $_ -match 'duplicate|empty|invalid|not a boolean|has no' }) {
+    $issues | ForEach-Object { Write-Host "  - $($_.Severity): $($_.Message)" -ForegroundColor Yellow }
+    if ($issues | Where-Object Severity -eq 'Error') {
         throw 'Query set is structurally invalid; fix the errors above.'
     }
 }
@@ -507,8 +539,8 @@ switch ($Mode) {
                 $out = Join-Path $WorkDir "$($q.id).rep$rep.out.txt"
                 if (-not (Test-Path -LiteralPath $out -PathType Leaf)) { $missing++; continue }
                 $seen++
-                $text = [string](Get-Content -LiteralPath $out -Raw -Encoding utf8)
-                $m = [regex]::Match($text.Trim(), '\ASELECTED:[ \t]+(?<sel>[a-z0-9]+(?:-[a-z0-9]+)*)\z')
+                $text = Get-EvalText -LiteralPath $out -MaxBytes $MaxInputBytes
+                $m = [regex]::Match($text.Trim(), '\A(?i:SELECTED):[ \t]*(?<sel>[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)\z')
                 if (-not $m.Success) {
                     $invalid++
                     Write-Warning "Invalid reply for '$($q.id)' repetition $rep; expected one SELECTED line."
