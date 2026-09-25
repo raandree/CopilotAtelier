@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-10
+last-verified: 2026-09-25
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,39 +9,40 @@ source: current task evidence
 
 ## Current focus
 
-Fixed Windows OneDrive false detection on `ai/fix-onedrive-detection`.
-The generic `OneDrive` variable and an existing folder were present despite
-unset account-specific variables and account keys without `UserFolder` values.
-Windows automatic selection now requires `OneDriveConsumer` or
-`OneDriveCommercial`; explicit targets and macOS/Linux discovery are unchanged.
+Implemented and pushed all recorded review follow-ups on
+`ai/eval-gate-integrity`; [PR #25](https://github.com/raandree/CopilotAtelier/pull/25)
+is open to `main`, not merged. Implementation commit `fc12ef3` passed both
+[push CI](https://github.com/raandree/CopilotAtelier/actions/runs/36121027315) and
+[PR CI](https://github.com/raandree/CopilotAtelier/actions/runs/36121068837).
+The original independent approval covers `7a186c5..2b45419`, not these fixes.
 
-- Both regressions failed before the fix; all seven path tests now pass.
-  Full Windows `build,test`: 1,779 passed, zero failed, 116 skipped, 90.67%
-  coverage. AST and PSScriptAnalyzer 1.25.0 are clean; Markdown renders with
-  clean editor diagnostics. `uv` conformance remains unavailable.
-- The read-only machine probe selects the local profile's `CopilotAtelier`.
-  Setup was not rerun; installed files, Discovery links, and old targets were
-  not moved or changed. An earlier deployment remains addressable by TargetPath.
-- The first build hit a transient generated-file sharing violation; an
-  exclusive-read probe succeeded and the unchanged build passed on retry.
-  The full gate retained the known simulated-backend warning. Independent
-  review is off; recommend it for shared deployment-target selection.
+- F1/F2: single-line reply case/spacing compatibility restored; query severity
+  is structured, with a diagnostic-rewording regression.
+- P1/N2: sample IDs repaired; schema checks no longer exempt the sample. Added
+  Prepare, unrelated-file, hidden-sample, and byte-boundary coverage.
+- N1/N3: shared bounded reads cover definitions and evidence (1 MiB by default,
+  explicit override up to 100 MiB); regex timeouts expose a stable diagnostic.
+- F3: read-only CI admission defers duplicate topic pushes only to an open PR
+  for the same repository/head SHA; event-scoped concurrency cancels only
+  superseded topic/PR runs. Main and version-tag runs cannot be cancelled.
+- F4/P2: duplicate release headings fail; changelog-only pushes run validation
+  without republishing from main. Existing v5 rollover content is unchanged.
+  No open PR existed at pre-flight; the old generated branch is not deleted.
+- Eval regressions: 12 red, then 176/0/38 with prior execution tests. CI tests:
+  18 red, then 43/0/0; an isolated duplicate-header mutation failed its guard.
+  Final affected suites: 220/0/38. Full Windows build/test: 1,917/0/65 at
+  90.67% coverage. Markdown lint/render, AST/JSON and Memory Bank health pass;
+  analyzer warnings are unchanged. Both implementation runs passed admission,
+  packaging, and all three platforms; deployment was correctly skipped.
+  The docs-only close-out push also exercises exact-head PR deduplication.
 
 ## Previous CI repair
 
-GitHub Actions repair `0367ce3` is committed and pushed on `main`, as explicitly
-requested. Run [#76](https://github.com/raandree/CopilotAtelier/actions/runs/34163989373)
-completed successfully at 2026-09-07 21:54 UTC: packaging, Linux, Windows,
-macOS, and deployment all passed. The full development cycle and independent
-review stayed off; no paid evaluations were run.
-
-- Retain hidden adapter metadata in the scoped `output/` upload; canonicalize
-  temporary fixture roots without changing production containment. Clear
-  inherited `NODE_TEST_CONTEXT` and require a nonzero nested test count.
-- Workflow regression 5/0; Node 165/0; clean-checkout `build,test` 1,777/0/116,
-  90.72% coverage; final record/workflow checks 12/0. The uploaded ownership
-  manifest and generated-file hash were verified. Details remain in git and
-  `CHANGELOG.md`; simulated-backend and setup-uv warnings were non-fatal.
+Earlier repair `0367ce3` passed [CI run 34163989373](https://github.com/raandree/CopilotAtelier/actions/runs/34163989373)
+on 2026-09-07. Retain hidden adapter metadata, canonical temporary roots, and
+nested Node test-count checks with `NODE_TEST_CONTEXT` cleared. The detailed
+1,777/0/116 clean-checkout result and ownership evidence remain in git,
+`progress.md`, and `CHANGELOG.md`; this older run does not validate new work.
 
 ## Previous plan-review work
 
@@ -169,6 +170,7 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-The OneDrive fix is ready for a user-controlled Setup rerun. Do not remove or
-migrate the earlier target automatically. Prior Sampler Skill behavior remains
-unmeasured: preserve the recorded zero-load result and its evidence in git.
+Await a user-controlled merge decision for PR #25, checking its latest head's
+CI first. No merge, release, or installed-Customization deployment was requested
+or performed. Grader tests still do not measure native discovery, model quality,
+or runtime containment.

@@ -34,7 +34,10 @@
 
     -Mode Grade (no credential needed)
         Reads the replies, extracts the selected skill name, and reports the
-        trigger rate per query and the pass rate per split.
+        trigger rate per query and the pass rate per split. Every requested
+        repetition must contain exactly one SELECTED line. Missing or invalid
+        replies fail the query, not count as negative selections. Exit codes:
+        0 all queries pass, 1 a gate or input fails, 2 no replies exist.
 
     The train/validation split exists to catch overfitting. Iterate the
     description against train queries only; validation queries are scored but
@@ -110,6 +113,10 @@
 .PARAMETER MaxBudgetUSD
     Execute mode only. Hard ceiling passed to each call.
 
+.PARAMETER MaxInputBytes
+    Per-file limit for query definitions and Grade replies. Defaults to 1 MiB;
+    accepts up to 100 MiB. Does not change catalogue or model-output generation.
+
 .PARAMETER Force
     Execute mode only. Re-answer prompts whose reply file already exists.
 
@@ -145,6 +152,7 @@ param(
     [string] $QueryFile,
 
     [Parameter(Mandatory)]
+    [ValidatePattern('\A[a-z0-9]+(?:-[a-z0-9]+)*\z')]
     [string] $TargetSkill,
 
     [string] $SkillRoot,
@@ -171,10 +179,14 @@ param(
 
     [double] $MaxBudgetUSD = 2.0,
 
+    [ValidateRange(1, 104857600)]
+    [int] $MaxInputBytes = 1MB,
+
     [switch] $Force
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Get-EvalText.ps1')
 
 function Get-SkillCatalogue {
     [CmdletBinding()]
@@ -211,16 +223,39 @@ function Test-QuerySet {
     [CmdletBinding()]
     param([Parameter(Mandatory)][object[]] $Queries)
 
-    $problems = [System.Collections.Generic.List[string]]::new()
+    $problems = [System.Collections.Generic.List[object]]::new()
 
     $dupes = $Queries | Group-Object id | Where-Object Count -gt 1
-    foreach ($d in $dupes) { $problems.Add("duplicate id: $($d.Name)") }
+    foreach ($d in $dupes) {
+        $problems.Add([pscustomobject]@{ Severity = 'Error'; Message = "duplicate id: $($d.Name)" })
+    }
 
     foreach ($q in $Queries) {
-        if ([string]::IsNullOrWhiteSpace($q.id))    { $problems.Add('a query has no id') }
-        if ([string]::IsNullOrWhiteSpace($q.query)) { $problems.Add("query '$($q.id)' has empty text") }
-        if ($q.split -notin 'train', 'validation')  { $problems.Add("query '$($q.id)' has invalid split '$($q.split)'") }
-        if ($q.should_trigger -isnot [bool])        { $problems.Add("query '$($q.id)' should_trigger is not a boolean") }
+        if ($q -isnot [pscustomobject]) {
+            $problems.Add([pscustomobject]@{ Severity = 'Error'; Message = 'invalid query object' })
+            continue
+        }
+        if ($q.id -isnot [string] -or $q.id -cnotmatch '\A[A-Za-z0-9][A-Za-z0-9_-]{0,127}\z') {
+            $problems.Add([pscustomobject]@{
+                Severity = 'Error'
+                Message = 'a query has an invalid id; use 1-128 letters, digits, underscores or hyphens'
+            })
+        }
+        if ($q.query -isnot [string] -or [string]::IsNullOrWhiteSpace($q.query)) {
+            $problems.Add([pscustomobject]@{
+                Severity = 'Error'; Message = "query '$($q.id)' has empty or invalid text"
+            })
+        }
+        if ($q.split -isnot [string] -or $q.split -notin 'train', 'validation') {
+            $problems.Add([pscustomobject]@{
+                Severity = 'Error'; Message = "query '$($q.id)' has invalid split '$($q.split)'"
+            })
+        }
+        if ($q.should_trigger -isnot [bool]) {
+            $problems.Add([pscustomobject]@{
+                Severity = 'Error'; Message = "query '$($q.id)' should_trigger is not a boolean"
+            })
+        }
     }
 
     # Upstream guidance: 8-10 positives and 8-10 near-miss negatives. Fewer
@@ -229,16 +264,24 @@ function Test-QuerySet {
     # positives alone.
     $pos = @($Queries | Where-Object { $_.should_trigger }).Count
     $neg = @($Queries | Where-Object { -not $_.should_trigger }).Count
-    if ($pos -lt 8) { $problems.Add("only $pos positive queries; guidance says 8-10") }
-    if ($neg -lt 8) { $problems.Add("only $neg negative queries; guidance says 8-10") }
+    if ($pos -lt 8) {
+        $problems.Add([pscustomobject]@{ Severity = 'Warning'; Message = "only $pos positive queries; guidance says 8-10" })
+    }
+    if ($neg -lt 8) {
+        $problems.Add([pscustomobject]@{ Severity = 'Warning'; Message = "only $neg negative queries; guidance says 8-10" })
+    }
 
     foreach ($split in 'train', 'validation') {
         $inSplit = @($Queries | Where-Object { $_.split -eq $split })
         if (@($inSplit | Where-Object { $_.should_trigger }).Count -lt 1) {
-            $problems.Add("split '$split' has no positive queries")
+            $problems.Add([pscustomobject]@{
+                Severity = 'Error'; Message = "split '$split' has no positive queries"
+            })
         }
         if (@($inSplit | Where-Object { -not $_.should_trigger }).Count -lt 1) {
-            $problems.Add("split '$split' has no negative queries")
+            $problems.Add([pscustomobject]@{
+                Severity = 'Error'; Message = "split '$split' has no negative queries"
+            })
         }
     }
 
@@ -292,14 +335,16 @@ $($q.query)
     }
 }
 
-$queries = @(Get-Content -LiteralPath $QueryFile -Raw -Encoding utf8 | ConvertFrom-Json)
-if (-not $queries) { throw "Query file '$QueryFile' is empty." }
+$queries = Get-EvalText -LiteralPath $QueryFile -MaxBytes $MaxInputBytes | ConvertFrom-Json -NoEnumerate
+if ($queries -isnot [array] -or $queries.Count -eq 0) {
+    throw "Query file '$QueryFile' must contain a nonempty query array."
+}
 
 $issues = @(Test-QuerySet -Queries $queries)
 if ($issues.Count -gt 0) {
     Write-Host 'Query set problems:' -ForegroundColor Yellow
-    $issues | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
-    if ($issues | Where-Object { $_ -match 'duplicate|empty|invalid|not a boolean' }) {
+    $issues | ForEach-Object { Write-Host "  - $($_.Severity): $($_.Message)" -ForegroundColor Yellow }
+    if ($issues | Where-Object Severity -eq 'Error') {
         throw 'Query set is structurally invalid; fix the errors above.'
     }
 }
@@ -485,38 +530,51 @@ switch ($Mode) {
 
     'Grade' {
         $missing = 0
-        $rows = foreach ($q in $queries) {
+        $invalid = 0
+        $rows = @(foreach ($q in $queries) {
             $hits = 0
             $seen = 0
+            $valid = 0
             foreach ($rep in 1..$Repetitions) {
                 $out = Join-Path $WorkDir "$($q.id).rep$rep.out.txt"
                 if (-not (Test-Path -LiteralPath $out -PathType Leaf)) { $missing++; continue }
                 $seen++
-                $text = [string](Get-Content -LiteralPath $out -Raw -Encoding utf8)
-                $m = [regex]::Match($text, '(?im)^\s*SELECTED:\s*(?<sel>[a-z0-9._-]+)\s*$')
-                if ($m.Success -and $m.Groups['sel'].Value -eq $TargetSkill) { $hits++ }
+                $text = Get-EvalText -LiteralPath $out -MaxBytes $MaxInputBytes
+                $m = [regex]::Match($text.Trim(), '\A(?i:SELECTED):[ \t]*(?<sel>[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)\z')
+                if (-not $m.Success) {
+                    $invalid++
+                    Write-Warning "Invalid reply for '$($q.id)' repetition $rep; expected one SELECTED line."
+                    continue
+                }
+                $valid++
+                if ($m.Groups['sel'].Value -eq $TargetSkill) { $hits++ }
             }
 
-            $rate = if ($seen -gt 0) { $hits / $seen } else { [double]::NaN }
-            $triggered = ($seen -gt 0 -and $rate -ge $TriggerThreshold)
+            $complete = $valid -eq $Repetitions
+            $rate = if ($complete) { $hits / $Repetitions } else { $null }
+            $triggered = ($complete -and $rate -ge $TriggerThreshold)
 
             [pscustomobject]@{
                 Id       = $q.id
                 Split    = $q.split
                 Expected = [bool]$q.should_trigger
                 Runs     = $seen
+                Invalid  = $seen - $valid
+                Complete = $complete
                 Hits     = $hits
-                Rate     = if ($seen -gt 0) { [math]::Round($rate, 2) } else { $null }
-                Correct  = ($seen -gt 0 -and $triggered -eq [bool]$q.should_trigger)
+                Rate     = if ($complete) { [math]::Round($rate, 2) } else { $null }
+                Correct  = ($complete -and $triggered -eq [bool]$q.should_trigger)
             }
-        }
+        })
 
         if ($missing -gt 0) {
-            Write-Warning "$missing reply file(s) missing; those repetitions were not scored."
+            Write-Warning "$missing reply file(s) missing; affected queries fail the gate."
+        }
+        if ($invalid -gt 0) {
+            Write-Warning "$invalid invalid reply file(s); affected queries fail the gate."
         }
 
-        $scored = @($rows | Where-Object { $_.Runs -gt 0 })
-        if (-not $scored) {
+        if (-not ($rows | Where-Object { $_.Runs -gt 0 })) {
             Write-Host 'No replies found. Run -Mode Prepare or -Mode Execute, then grade.' -ForegroundColor Yellow
             exit 2
         }
@@ -524,18 +582,25 @@ switch ($Mode) {
         $rows | Sort-Object Split, Id | Format-Table -AutoSize
 
         foreach ($split in 'train', 'validation') {
-            $s = @($scored | Where-Object { $_.Split -eq $split })
-            if (-not $s) { continue }
+            $s = @($rows | Where-Object { $_.Split -eq $split })
             $ok = @($s | Where-Object Correct).Count
-            $fp = @($s | Where-Object { -not $_.Correct -and -not $_.Expected }).Count
-            $fn = @($s | Where-Object { -not $_.Correct -and $_.Expected }).Count
-            '{0,-11} pass {1,2}/{2,-2} ({3,5:P0})  false-positive {4}  false-negative {5}' -f `
-                $split, $ok, $s.Count, ($ok / $s.Count), $fp, $fn
+            $fp = @($s | Where-Object { $_.Complete -and -not $_.Correct -and -not $_.Expected }).Count
+            $fn = @($s | Where-Object { $_.Complete -and -not $_.Correct -and $_.Expected }).Count
+            $incomplete = @($s | Where-Object { -not $_.Complete }).Count
+            ('{0,-11} pass {1,2}/{2,-2} ({3,5:P0})  false-positive {4}  false-negative {5}  incomplete {6}' -f
+                $split, $ok, $s.Count, ($ok / $s.Count), $fp, $fn, $incomplete)
         }
 
         Write-Host ''
         Write-Host 'Iterate on train only. If train climbs while validation does not,' -ForegroundColor Cyan
         Write-Host 'the description is overfitted - generalise to the concept instead of' -ForegroundColor Cyan
         Write-Host 'adding keywords from failed queries.' -ForegroundColor Cyan
+        $failed = @($rows | Where-Object { -not $_.Correct })
+        if ($failed.Count -gt 0) {
+            Write-Information "FAIL: $($failed.Count) trigger query(s) failed the gate: $($failed.Id -join ', ')" -InformationAction Continue
+            exit 1
+        }
+        Write-Information 'PASS: all trigger queries met their gate.' -InformationAction Continue
+        exit 0
     }
 }

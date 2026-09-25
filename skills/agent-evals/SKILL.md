@@ -16,9 +16,9 @@ description: >-
   eval questions (use mcp-builder Phase 4), unit-testing PowerShell code (use
   pester-patterns), security review of an agent (use agent-security-review).
 compatibility: >-
-  The bundled harnesses need PowerShell 7. run-trigger-evals.ps1 also needs the
-  powershell-yaml module, and its -Mode Execute needs ShellPilot plus a paid
-  model backend; -Mode Prepare and -Mode Grade need neither. Its default
+  The bundled harnesses need PowerShell 7. Trigger Prepare and Execute also
+  need powershell-yaml; Execute needs ShellPilot plus a paid model backend.
+  Grade needs neither powershell-yaml nor a backend. The default
   -Dispatch Batch needs 0.4.0-preview0005 for Invoke-ShpBatch, -Dispatch
   Sequential runs on 0.4.0, and -Temperature needs preview0004 - a version test
   cannot decide that, because preview0003 reports 0.4.0 and rejects it.
@@ -99,7 +99,11 @@ Agents are non-deterministic, so a single run is noise. Sample each case **k** t
 - **pass@k** — the case passes if **at least one** of the k samples is correct. Measures *capability / best case*: can it ever do this? Use for capability sets.
 - **pass^k** ("pass-hat-k") — the case passes only if **all k** samples are correct. Measures *reliability / worst case*: can it do this every time? Use for regression sets and production-readiness gates.
 
-A skill at pass@5 = 100% but pass^5 = 40% *can* do the task but only 2-in-5 times — fine for an exploratory helper, unacceptable for an unattended pipeline. Report both.
+Across a suite, observed pass@5 = 100% and pass^5 = 40% mean every case
+succeeded at least once, but only 40% of cases succeeded on all five trials.
+They do not imply a 40% per-trial success rate. These are finite-sample
+observations, not a guarantee about future runs. Report both and the case and
+trial counts.
 
 ## Graders
 
@@ -144,19 +148,63 @@ Full field tables, grading principles, aggregation rules, and the iteration loop
 
 ## Harness prerequisites
 
-Both bundled scripts need **PowerShell 7**. [`scripts/run-trigger-evals.ps1`](scripts/run-trigger-evals.ps1) also needs **`powershell-yaml`** (`Install-Module powershell-yaml -Scope CurrentUser`) to read the skill catalogue, and its `-Mode Execute` needs **ShellPilot** plus a model backend that bills real money — 69 judge calls against `claude-haiku-4.5` cost 0.76 USD. It dispatches through `Invoke-ShpBatch` by default, which ran that sweep in 26 s against 104 s sequentially at `-ThrottleLimit 4` for the same cost; `-Dispatch Sequential` keeps the older one-call-at-a-time path for reproducing an earlier run. `-Mode Prepare` and `-Mode Grade` need neither backend nor module, so an author with no backend can still generate the judge prompts, answer them in any fresh chat, and grade the replies.
+Both bundled scripts need PowerShell 7. Trigger `Prepare` and `Execute` read
+the catalogue through `powershell-yaml`; `Execute` also needs ShellPilot and a
+paid model backend. `Grade` needs neither dependency. Batch dispatch uses
+`Invoke-ShpBatch`; `-Dispatch Sequential` retains the one-call-at-a-time path.
+Without a backend, prepare prompts, answer each in a fresh context, then grade.
+Use a new working directory whenever the query set, catalogue, model, or
+Customization revision changes: existing replies are not provenance-checked.
 
 Point `-WorkDir` **outside the repository**. `Skills/` is the published module payload, so scratch written under a skill folder is copied into the built module; the build prunes it and `.gitignore` catches it, but neither is a reason to aim there.
 
 ## Fallback harness
 
-When Waza is unavailable, generating samples and grading them are two separate steps. **Generate** by running the agent/skill/prompt **k** times on each case's prompt and saving each run to `<OutputsDir>/<case-id>/sample-<n>.txt` — this step is manual or wired to whatever runner you have, which is exactly the gap Waza closes. **Grade** with the bundled runner, which computes pass@k and pass^k per case and per set and exits non-zero when a gate fails:
+When Waza is unavailable, generating samples and grading them are two separate steps. **Generate** by running the agent/skill/prompt **k** times on each case's prompt and saving each run to `<OutputsDir>/<case-id>/sample-<n>.txt` — this step is manual or wired to whatever runner you have, which is exactly the gap Waza closes. **Grade** with the bundled runner, which computes observed pass@k and pass^k per case and exits non-zero when a gate fails:
 
 ```powershell
 pwsh Skills/agent-evals/scripts/run-evals.ps1 -EvalFile evals.json -OutputsDir out -K 5
 ```
 
 Read [`scripts/run-evals.ps1`](scripts/run-evals.ps1) for the grading and gate logic (deterministic graders; capability gated on pass@k, regression on pass^k).
+
+### Bundled grading contracts
+
+- Both harnesses validate identifiers before using them in paths: 1-128 ASCII
+  letters, digits, underscores, or hyphens, starting with a letter or digit.
+  IDs must be unique ignoring case, including on case-sensitive filesystems.
+- The offline harness requires a nonempty `cases` array, a valid `set`, and
+  nonempty string `prompt` and `expect` fields. An omitted `match` defaults to
+  `contains`; a supplied mode must be `exact`, `contains`, or `regex`.
+- Both harnesses bound definition and evidence-file reads with `-MaxInputBytes`
+  (default 1 MiB per file, maximum override 100 MiB). Oversized inputs fail with
+  `EvalInputTooLarge` before decoding or matching. This is a per-file limit,
+  not a total run budget or filesystem sandbox.
+- `contains` is a literal, case-insensitive substring, not a wildcard.
+  `exact` remains trimmed and case-insensitive. Regex syntax is validated
+  before scoring; each match has a one-second backtracking budget. Timeouts
+  fail with the stable `EvalRegexTimeout` diagnostic, independent of locale.
+- Supply exactly `sample-1.txt` through `sample-K.txt` for each case. Missing,
+  additional, or misnumbered sample files fail both gates, including capability
+  cases with one successful sample. Unrelated non-sample files are ignored.
+- Trigger query files must be nonempty arrays with Boolean labels and both
+  positive and negative cases in each of `train` and `validation`. Every
+  requested repetition needs one `SELECTED: <skill-name>` or `SELECTED: none`
+  line. Capitalization and optional horizontal whitespace after the colon are
+  accepted; a verdict split across lines is not. Empty, explanatory, or
+  contradictory replies are invalid, not correct
+  negatives. Incomplete queries stay in the denominator, separately from
+  valid false positives and false negatives.
+- Query validation returns explicit Error/Warning severity; diagnostic wording
+  does not decide the gate. The sample query set is schema-checked like real
+  sets, but does not claim to measure a shipped Skill.
+- Offline exit codes are `0` for all gates passing and `1` otherwise. Trigger
+  Grade uses `0` for all queries passing, `1` for failed/incomplete queries or
+  invalid inputs, and `2` when no replies exist.
+
+These checks grade supplied evidence. They do not prove independent model
+runs, catalogue membership of a returned name, native-client Skill discovery,
+artifact provenance, or prompt-injection containment.
 
 ## Wiring into this repo
 
@@ -170,5 +218,6 @@ Read [`scripts/run-evals.ps1`](scripts/run-evals.ps1) for the grading and gate l
 - VS Code — Evaluate and improve customization files: <https://code.visualstudio.com/docs/agent-customization/overview>
 - Waza evaluation framework: <https://github.com/microsoft/waza>
 - Anthropic — Building evals / eval-driven development (Agent Skills best practices): <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>
+- Anthropic (2026-01-09) — Demystifying evals for AI agents, including balanced sets, grader checks, and repeated-trial metrics: <https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents>
 - OpenAI — Evals and LLM-as-a-judge guidance: <https://platform.openai.com/docs/guides/evals>
 - Agent Skills (open standard) — Evaluating skill output quality: <https://agentskills.io/skill-creation/evaluating-skills.md>

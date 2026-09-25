@@ -86,6 +86,14 @@ Describe 'Agent plugin manifest' -Tag 'Unit' {
         $script:manifest.version | Should -Be $released.Matches[0].Groups['version'].Value
     }
 
+    It 'Should declare each released version only once' {
+        $versions = Get-Content -LiteralPath $script:changelogPath |
+            Select-String -Pattern '^## \[(?<version>\d+\.\d+\.\d+)\]' |
+            ForEach-Object { $_.Matches[0].Groups['version'].Value }
+        $duplicates = @($versions | Group-Object | Where-Object Count -gt 1)
+        $duplicates | Should -BeNullOrEmpty -Because 'a second rollover must not duplicate a release section'
+    }
+
     It 'Should carry a plain major.minor.patch version with no pre-release identifier' {
         <#
             Settled on 2026-08-25 so it is not renegotiated. main always sits on a

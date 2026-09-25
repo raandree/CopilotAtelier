@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-10
+last-verified: 2026-09-25
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -9,11 +9,41 @@ source: CHANGELOG.md and git history
 
 ## Project status
 
-Copilot Atelier is published to the PowerShell Gallery and released at `v4.0.0`
-(2026-08-26), whose changelog section landed on `main` in #22. Incremental work
+Copilot Atelier's latest GitHub release is `v5.0.0`, published 2026-09-10,
+verified through the release API on 2026-09-24. Incremental work
 is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-09-25**: Implemented F1-F4, N1-N3, P1/P2 review follow-ups: compatible
+  trigger replies, structured severity, bounded reads, stable timeout errors,
+  valid sample IDs, missing edge-case coverage, CI deduplication/cancellation,
+  non-publishing changelog validation, and unique release headings. Eval red
+  12 then 176/0/38; CI red 18 then 43/0/0; duplicate-header mutation rejected.
+  Final focused 220/0/38; full Windows build/test 1,917/0/65 at 90.67% coverage.
+  Pushed `fc12ef3` and opened PR #25. Push run `36121027315` and PR run
+  `36121068837` passed admission, packaging, and every platform. No deployment
+  or merge; the docs-only close-out push also verifies PR deduplication live.
+
+- **2026-09-24**: Independent review of `7a186c5..2b45419` approved the eval/CI
+  batch with no Blocker, Major, or exploitable vulnerability. Four Minor
+  observations concern reply-format compatibility, message-derived severity,
+  duplicate CI cost, and future rollover coordination; the sample-query ID gap
+  was verified as pre-existing. No implementation changes or remote mutations.
+  The prior exact-head run `36043691291` is green; review records stay local.
+
+- **2026-09-24**: Research-backed evaluation gate hardening on
+  `ai/eval-gate-integrity`: strict case/ID validation, literal substring
+  matching, exact sample counts, bounded regex execution, and trigger failures
+  that cannot disappear into correct negatives or smaller denominators.
+  Original scripts failed 28 of 45 corrected CLI regressions. Full Windows gate
+  1,875/0/67 at 90.67% coverage preceded final self-review follow-ups; rebuilt
+  affected gate 634/0/59 passed afterward. Topic pushes run the unchanged
+  three-platform CI matrix without enabling deployment. No live
+  model quality, trigger discovery, or containment improvement is claimed.
+  First-push CI run `36040997940` caught the overdue v5 release rollover after
+  the tag-at-HEAD exemption lapsed. Restored its verified history and static
+  plugin version; repair gate 40/0/0. No remote merge or weakened gate.
 
 - **2026-09-10**: Fixed Windows OneDrive false detection from a generic variable
   or pre-created folder, preserving account-specific selection, explicit
@@ -60,43 +90,17 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   with observable readiness and proved discrimination under a slow schedule.
   The original independent review covers `3d115a3`; no re-review is claimed.
 
-- **2026-09-07 09:44 UTC**: Seven-task integration at `3d115a3`: Windows gate
-  1,773/0/116, 90.72% coverage; Node 180, Edge 40, focused Pester 42. Earlier
-  Linux evidence predates these corrections; no push or paid evaluation.
-
-- **2026-09-07**: Corrected `tools/plan-review` in two uncommitted rounds:
-  per-launch cookies and bound-address authorities, strict byte-bounded state
-  reads/writes that preserve refused content, ownership-aware locks, source
-  rechecks inside and after mutation, immutable asset snapshots, visible stale
-  drafts, guarded asynchronous selection, CommonMark fences, and globally
-  unique section keys. `CHANGELOG.md` retains the defects and regression details.
-  Round 1's Node 178 was a miscount; the suite held 163 before round 2.
-
-- **2026-09-07**: Committed tasks 01-06 on `main` as six feature commits
-  (`c0c7166` through `288a4ad`) plus records at `555c260`. Added global
-  `node_modules/` exclusion and committed task 07 in `3b04d46` with
-  regression guards. Windows full gate: 1,810 passed, 90.72% coverage; Linux
-  Unit/QA: 1,707 passed, 90.42%. Node: 133 per OS; browser: 30; zero failures.
-  Existing warnings remain; no push, real-profile deployment, or paid evaluation.
-
-- **2026-09-07**: Added optional `tools/plan-review` outside the module payload.
-  Revision-bound browser feedback never authorizes implementation; chat sign-off
-  remains authoritative. The guide and threat model retain security boundaries.
+- **2026-09-07**: Integrated the seven-task series and the optional
+  `tools/plan-review` surface, outside the module payload. Browser feedback
+  stays revision-bound and cannot authorize implementation. Earlier per-task
+  measurements and correction rounds remain in git and `CHANGELOG.md`; the
+  later integrated and cross-platform results above supersede them.
 
 - **2026-09-07**: Added read-only `Get-CopilotAtelierClientAdapter` (task 06 of
-  the sequential series) and corrected it in one round. The VS Code profiles
-  stay the only source; only frontmatter is rewritten, through an allow-list
-  where an unmapped identifier is an error and a strict YAML subset that rejects
-  an unknown or duplicate field instead of dropping it. An `execute/` prefix is
-  a namespace, not execution authority: only `execute/runInTerminal` reaches the
-  execute alias. A restriction that cannot be expressed removes what it guards,
-  so `review: on` and `cycle: full` are declared unsupported inside the composed
-  file behind a marker carrying the byte-identical shared body's SHA-256.
-  Neither client is runtime verified. The build task owns
-  `output/clientAdapters/` through a hashed manifest: every path component is
-  guarded, the whole operation is validated before the first delete, and an
-  edited generated file, an unowned collision, and a names-only `schema 1`
-  manifest are all refused. Red 46/103, then 103/103; round 2 121/121.
+  the series): strict capability mappings and hash-owned output preserve the
+  authoritative VS Code body and reject inexpressible grants. Final regression
+  121/121; neither client is runtime verified. Full contracts remain in git and
+  `CHANGELOG.md`.
 
 - **2026-09-07**: Added the `changed-file-validation` Skill (task 05 of the
   sequential series): opt-in, bounded, manual collection with snapshot-bound
@@ -104,10 +108,8 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   Markdown structure checks never replace markdownlint. Red 23 of 72 then
   12 of 85, 85/0/0. Full contracts remain in `CHANGELOG.md` and git.
 
-- **2026-09-07**: Added read-only `Get-CopilotAtelierSkillHealth` (task 04) with
-  validated provenance and reconciled grading (red 29 then 81/0); shipped the
-  reviewed learning inbox (`09416a4`, 62/0) with guarded, hash-approved,
-  append-only promotion. Full contracts remain in `CHANGELOG.md` and git.
+- **2026-09-07**: Added Skill health (81/0) and the reviewed learning inbox (62/0,
+  `09416a4`); provenance and hash-approved append-only contracts remain in git and `CHANGELOG.md`.
 
 ## Stable capabilities
 

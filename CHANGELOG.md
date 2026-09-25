@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve unambiguous trigger replies with mixed capitalization or no space after the colon; keep multiline or contradictory replies invalid. Classify query errors structurally and repair the schema-checked sample query IDs.
+- Bound evaluation definitions, samples, and replies to 1 MiB per file by default (`-MaxInputBytes` can opt into larger inputs), and provide stable timeout diagnostics. See [grading contracts](skills/agent-evals/SKILL.md#bundled-grading-contracts).
+- Harden the bundled evaluation gates against false success: validate case definitions and path-safe IDs, match `contains` literally, require complete numbered samples, bound regex matching, reject malformed trigger replies, and return failing exit codes without dropping incomplete queries from split totals. See [grading contracts](skills/agent-evals/SKILL.md#bundled-grading-contracts).
+- Restore the published [v5.0.0 release history](https://github.com/raandree/CopilotAtelier/releases/tag/v5.0.0) and align the static plugin manifest with that release, so post-release builds and plugin update discovery use the recorded version.
+
+## [5.0.0] - 2026-09-10
+
 ### Removed
 
 - **The `.github/hooks` smoke-test probe, which had been failing on every turn since it was committed** (2026-09-02). `stop-probe.json` and `Test-HookLoaded.ps1` were scratch: a `Stop` hook that appended one line to `%TEMP%\workspace-hook-probe.log` to prove the workspace hook location loads at all. They answered that question on 2026-08-10 and the answer is written into [`com.github.copilot/hooks/README.md`](com.github.copilot/hooks/README.md) and the changelog entry below — the files themselves had no further job.
@@ -808,7 +817,8 @@ Auto-applied coding standards for PowerShell, Markdown, YAML, C#, Changelog, Ver
 - Feature flags configured: `chat.includeApplyingInstructions`, `chat.includeReferencedInstructions`, `github.copilot.chat.agent.thinkingTool`, `github.copilot.chat.search.semanticTextResults`, `github.copilot.chat.agent.maxRequests=500`.
 - Default model set to Claude Opus 4.6 for GitLens AI and Copilot inline completions. *(Superseded in 1.1.0 — Opus 4.6 Fast was retired by GitHub on 2026-04-10; the new default is Opus 4.7.)*
 
-[Unreleased]: https://github.com/raandree/CopilotAtelier/compare/v4.0.0...HEAD
+[Unreleased]: https://github.com/raandree/CopilotAtelier/compare/v5.0.0...HEAD
+[5.0.0]: https://github.com/raandree/CopilotAtelier/compare/v4.0.0...v5.0.0
 [4.0.0]: https://github.com/raandree/CopilotAtelier/compare/v3.1.0...v4.0.0
 [3.1.0]: https://github.com/raandree/CopilotAtelier/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/raandree/CopilotAtelier/compare/v2.0.0...v3.0.0
