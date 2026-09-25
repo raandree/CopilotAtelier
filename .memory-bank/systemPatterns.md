@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-24
+last-verified: 2026-09-25
 owner: software-engineer
 source: .memory-bank/decisions and source/
 ---
@@ -43,8 +43,9 @@ when the task needs it; the repository layout lives in `techContext.md`.
 ## Live relationships
 
 - A grader must reject invalid or incomplete evidence before scoring quality.
-    Preserve every scheduled case in the denominator; literal matchers must not
-    interpret wildcard syntax. Grader regressions do not prove model behavior.
+    Preserve scheduled cases in denominators; substring matching is literal.
+    Bound input bytes as well as regex time, and carry severity as data rather
+    than inferring it from prose. Grader tests do not prove model behavior.
 - Agent conformance needs schema, executable behavior, and containment. Tool
     lists prove schema only. Enforce no-egress across terminals, delegates,
     handoffs, MCP, and hooks; prose cannot sandbox native Windows execution.
@@ -83,9 +84,10 @@ when the task needs it; the repository layout lives in `techContext.md`.
     unconditional rules; Instructions carry judgement calls. Hook commands
     resolve exact trusted roots and avoid pre-parse `$` substitution.
 - CI preserves hidden ownership metadata and canonical temporary paths. Nested
-    Node runners clear `NODE_TEST_CONTEXT` and prove tests ran. External checks
-    fail on bad fixtures or missing tools; baselines only shrink. Check release
-    provenance after committing past the deliberate tag-at-HEAD exemption.
+    Node runners clear `NODE_TEST_CONTEXT` and prove tests ran; external checks fail closed and baselines shrink.
+    Deduplicate only an exact-head PR, never a stale one. Cancel topic/PR runs,
+    not releases. Changelog-only validation cannot publish; release headings
+    are unique and checked after the tag-at-HEAD exemption lapses.
 - Incident transfers keep version-scoped diagnostics in the owning Skill and
     final outcomes out of eval input. Structural checks are not agent behavior;
     completed requests with zero Skill loads cannot prove body improvements.
@@ -93,5 +95,4 @@ when the task needs it; the repository layout lives in `techContext.md`.
 - A Skill cannot grant tools or override a Custom agent. Conflicting disciplines
     need capability-bounded personas. Auto-sending handoff cycles can run
     unattended; reject them with a graph test.
-- Role-record migration is copy-only; sources stay. Routing has deterministic
-    and label-free evals; `PreCompact` anchors recovery. Avoid cross-type links.
+- Role-record migration is copy-only. Routing has deterministic and label-free evals; `PreCompact` anchors recovery. Avoid cross-type links.

@@ -777,9 +777,16 @@ The version comes from [GitVersion](https://gitversion.net/) via
 `output/module/CopilotAtelier/<version>/`.
 [CI](.github/workflows/ci.yml) packages once on `ubuntu-latest` and tests the
 artifact on Linux, macOS, and Windows with PowerShell 7. Pushes to `ai/**`
-topic branches run these same checks before a pull request; deployment stays
-restricted to the upstream repository's `main` and version tags. Verify the
-run's head SHA against the pushed commit, not an older green run. Deployment
+topic branches run these checks before a pull request. Once an open PR targets
+`main` at the same repository and exact head SHA, its workflow handles
+validation and the duplicate push matrix is skipped. Failed PR lookups fail
+visibly; stale or unrelated PRs do not suppress a push. Superseded topic/PR
+runs cancel within their own event/ref group, never `main` or version-tag runs.
+Changelog-only commits now run validation too, but a changelog-only push to
+`main` cannot republish a release. Deployment otherwise stays restricted to the
+upstream repository's `main` and version tags. Verify the run's head SHA (and
+the PR head when applicable), not an older green run or a skipped duplicate.
+The release-history gate rejects duplicate version headings. Deployment
 needs the `GitHubToken` and `GalleryApiToken` repository secrets.
 
 > [!NOTE]

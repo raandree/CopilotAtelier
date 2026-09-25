@@ -176,19 +176,28 @@ Read [`scripts/run-evals.ps1`](scripts/run-evals.ps1) for the grading and gate l
 - The offline harness requires a nonempty `cases` array, a valid `set`, and
   nonempty string `prompt` and `expect` fields. An omitted `match` defaults to
   `contains`; a supplied mode must be `exact`, `contains`, or `regex`.
+- Both harnesses bound definition and evidence-file reads with `-MaxInputBytes`
+  (default 1 MiB per file, maximum override 100 MiB). Oversized inputs fail with
+  `EvalInputTooLarge` before decoding or matching. This is a per-file limit,
+  not a total run budget or filesystem sandbox.
 - `contains` is a literal, case-insensitive substring, not a wildcard.
   `exact` remains trimmed and case-insensitive. Regex syntax is validated
-  before scoring; each match has a one-second backtracking budget so one
-  output cannot stall the whole gate. A timeout is an explicit error.
+  before scoring; each match has a one-second backtracking budget. Timeouts
+  fail with the stable `EvalRegexTimeout` diagnostic, independent of locale.
 - Supply exactly `sample-1.txt` through `sample-K.txt` for each case. Missing,
   additional, or misnumbered sample files fail both gates, including capability
   cases with one successful sample. Unrelated non-sample files are ignored.
 - Trigger query files must be nonempty arrays with Boolean labels and both
   positive and negative cases in each of `train` and `validation`. Every
   requested repetition needs one `SELECTED: <skill-name>` or `SELECTED: none`
-  line. Empty, explanatory, or contradictory replies are invalid, not correct
+  line. Capitalization and optional horizontal whitespace after the colon are
+  accepted; a verdict split across lines is not. Empty, explanatory, or
+  contradictory replies are invalid, not correct
   negatives. Incomplete queries stay in the denominator, separately from
   valid false positives and false negatives.
+- Query validation returns explicit Error/Warning severity; diagnostic wording
+  does not decide the gate. The sample query set is schema-checked like real
+  sets, but does not claim to measure a shipped Skill.
 - Offline exit codes are `0` for all gates passing and `1` otherwise. Trigger
   Grade uses `0` for all queries passing, `1` for failed/incomplete queries or
   invalid inputs, and `2` when no replies exist.

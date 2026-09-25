@@ -28,6 +28,10 @@
     Expected samples per case. Missing, additional, or misnumbered sample files
     fail either gate. pass^k additionally requires all K samples to pass.
 
+.PARAMETER MaxInputBytes
+    Per-file limit for the eval definition and each sample. Defaults to 1 MiB;
+    accepts up to 100 MiB for intentionally larger artifacts.
+
 .EXAMPLE
     ./run-evals.ps1 -EvalFile evals.json -OutputsDir out -K 5
 #>
@@ -43,10 +47,14 @@ param(
 
     # Default 5: enough samples to expose non-determinism without heavy cost.
     [ValidateRange(1, 100)]
-    [int] $K = 5
+    [int] $K = 5,
+
+    [ValidateRange(1, 104857600)]
+    [int] $MaxInputBytes = 1MB
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Get-EvalText.ps1')
 
 function Test-EvalMatch {
     [CmdletBinding()]
@@ -67,14 +75,20 @@ function Test-EvalMatch {
         'contains' { return $Output.IndexOf($Expect, [StringComparison]::OrdinalIgnoreCase) -ge 0 }
         'regex'    {
             # Bound backtracking so one sampled reply cannot stall the entire gate.
-            return [regex]::IsMatch($Output, $Expect, [Text.RegularExpressions.RegexOptions]::IgnoreCase,
-                [TimeSpan]::FromSeconds(1))
+            try {
+                return [regex]::IsMatch($Output, $Expect, [Text.RegularExpressions.RegexOptions]::IgnoreCase,
+                    [TimeSpan]::FromSeconds(1))
+            }
+            catch [Text.RegularExpressions.RegexMatchTimeoutException] {
+                throw [TimeoutException]::new('EvalRegexTimeout: The match exceeded its one-second budget.',
+                    $_.Exception)
+            }
         }
     }
 }
 
 try {
-    $eval = Get-Content -LiteralPath $EvalFile -Raw -Encoding utf8 | ConvertFrom-Json -NoEnumerate
+    $eval = Get-EvalText -LiteralPath $EvalFile -MaxBytes $MaxInputBytes | ConvertFrom-Json -NoEnumerate
 }
 catch {
     throw "Failed to parse eval file '$EvalFile': $($_.Exception.Message)"
@@ -140,7 +154,7 @@ $rows = @(foreach ($case in $eval.cases) {
     $complete = $missing.Count -eq 0 -and $unexpected.Count -eq 0
     $passes = @(
         $samples | Where-Object { $_.Name -cin $expectedNames } | Where-Object {
-            $text = [string](Get-Content -LiteralPath $_.FullName -Raw -Encoding utf8)
+            $text = Get-EvalText -LiteralPath $_.FullName -MaxBytes $MaxInputBytes
             Test-EvalMatch -Output $text -Expect $case.expect -Match $matchMode
         }
     ).Count
