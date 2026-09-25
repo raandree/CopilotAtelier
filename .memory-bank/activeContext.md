@@ -9,8 +9,11 @@ source: current task evidence
 
 ## Current focus
 
-Implemented all recorded review follow-ups on `ai/eval-gate-integrity` for an
-authorized push and PR to `main`. Do not merge or publish.
+Implemented and pushed all recorded review follow-ups on
+`ai/eval-gate-integrity`; [PR #25](https://github.com/raandree/CopilotAtelier/pull/25)
+is open to `main`, not merged. Implementation commit `fc12ef3` passed both
+[push CI](https://github.com/raandree/CopilotAtelier/actions/runs/36121027315) and
+[PR CI](https://github.com/raandree/CopilotAtelier/actions/runs/36121068837).
 The original independent approval covers `7a186c5..2b45419`, not these fixes.
 
 - F1/F2: single-line reply case/spacing compatibility restored; query severity
@@ -29,7 +32,9 @@ The original independent approval covers `7a186c5..2b45419`, not these fixes.
   18 red, then 43/0/0; an isolated duplicate-header mutation failed its guard.
   Final affected suites: 220/0/38. Full Windows build/test: 1,917/0/65 at
   90.67% coverage. Markdown lint/render, AST/JSON and Memory Bank health pass;
-  analyzer warnings are unchanged. Exact-head GitHub checks gate publication.
+  analyzer warnings are unchanged. Both implementation runs passed admission,
+  packaging, and all three platforms; deployment was correctly skipped.
+  The docs-only close-out push also exercises exact-head PR deduplication.
 
 ## Previous CI repair
 
@@ -165,7 +170,7 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Verify the authorized topic push and PR on GitHub for the final head SHA.
-Keep PR and publication decisions separate; the
-default-branch release workflow remains guarded. Grader tests still do not
-measure native discovery, model quality, or runtime containment.
+Await a user-controlled merge decision for PR #25, checking its latest head's
+CI first. No merge, release, or installed-Customization deployment was requested
+or performed. Grader tests still do not measure native discovery, model quality,
+or runtime containment.

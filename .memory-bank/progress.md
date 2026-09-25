@@ -21,7 +21,9 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   non-publishing changelog validation, and unique release headings. Eval red
   12 then 176/0/38; CI red 18 then 43/0/0; duplicate-header mutation rejected.
   Final focused 220/0/38; full Windows build/test 1,917/0/65 at 90.67% coverage.
-  Exact-head remote CI is required for the authorized push/PR; no merge.
+  Pushed `fc12ef3` and opened PR #25. Push run `36121027315` and PR run
+  `36121068837` passed admission, packaging, and every platform. No deployment
+  or merge; the docs-only close-out push also verifies PR deduplication live.
 
 - **2026-09-24**: Independent review of `7a186c5..2b45419` approved the eval/CI
   batch with no Blocker, Major, or exploitable vulnerability. Four Minor
@@ -106,9 +108,8 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   Markdown structure checks never replace markdownlint. Red 23 of 72 then
   12 of 85, 85/0/0. Full contracts remain in `CHANGELOG.md` and git.
 
-- **2026-09-07**: Added Skill health reporting (81/0) and the reviewed learning
-  inbox (`09416a4`, 62/0). Provenance and hash-approved, append-only promotion
-  contracts remain in `CHANGELOG.md` and git.
+- **2026-09-07**: Added Skill health (81/0) and the reviewed learning inbox (62/0,
+  `09416a4`); provenance and hash-approved append-only contracts remain in git and `CHANGELOG.md`.
 
 ## Stable capabilities
 
