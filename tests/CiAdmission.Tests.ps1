@@ -128,6 +128,23 @@ Describe 'CI admission decisions' -Tag 'Unit' {
         $result.publish | Should -BeExactly 'true'
     }
 
+    It 'Validates release rollover pushes but never republishes them: <Case>' -ForEach @(
+        @{ Case = 'plugin manifest'; Paths = @('plugin.json') }
+        @{ Case = 'changelog and plugin manifest'; Paths = @('CHANGELOG.md', 'plugin.json') }
+    ) {
+        $env:GITHUB_REF = 'refs/heads/main'
+        $script:changedPaths = $Paths
+        $result = Invoke-CiAdmission
+        $result.run_ci | Should -BeExactly 'true'
+        $result.publish | Should -BeExactly 'false' -Because 'the plugin manifest does not ship in the Customization module'
+    }
+
+    It 'Preserves publication for main code changes alongside the plugin manifest' {
+        $env:GITHUB_REF = 'refs/heads/main'
+        $script:changedPaths = @('plugin.json', 'source/Public/Get-Example.ps1')
+        (Invoke-CiAdmission).publish | Should -BeExactly 'true'
+    }
+
     It 'Fails visibly when changed paths cannot be determined' {
         $env:GITHUB_REF = 'refs/heads/main'
         $script:gitExitCode = 1

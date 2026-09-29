@@ -9,39 +9,28 @@ source: current task evidence
 
 ## Current focus
 
-On 2026-09-29 `ai/eval-gate-integrity` was rebased onto `main` `16a81d3`
-([PR #26](https://github.com/raandree/CopilotAtelier/pull/26), the automated
-v5.0.0 changelog rollover) and not pushed; [PR #25](https://github.com/raandree/CopilotAtelier/pull/25)
-shows the old head until a user-authorized `--force-with-lease` push. SHAs
-`c02d25e`, `2b45419`, `172c96b`, `fc12ef3`, `ab68c93` became `54ff3f1`,
-`076203e`, `e5aa230`, `ff10713`, `e8961fa`. Only `2b45419` conflicted: both
-sides added the `[5.0.0]` heading, so one heading follows the branch's
-`[Unreleased]` fixes, and the final newline the rollover stripped is restored
-(MD047). The tree of `e8961fa` equals `ab68c93`; the other commits are
-patch-identical. Manifest, CI-admission, and workflow suites: 43/0/0;
-markdownlint clean. `main` alone fails the manifest-version guard (`[5.0.0]`
-heading, `plugin.json` 4.0.0): the rollover PR does not bump the manifest.
+[CI run 36549550887](https://github.com/raandree/CopilotAtelier/actions/runs/36549550887)
+is PR #26's check: the automated v5.0.0 rollover failed only the manifest
+version guard on all three platforms (`plugin.json` 4.0.0 under `[5.0.0]`).
+`main` is already green: #25 merged as `314c795` with the manifest bump, and
+push run `36553689149` passed and published `v6.0.0-preview0001`.
 
-Pre-rebase `fc12ef3` passed [push CI](https://github.com/raandree/CopilotAtelier/actions/runs/36121027315)
-and [PR CI](https://github.com/raandree/CopilotAtelier/actions/runs/36121068837).
-The independent approval covers `7a186c5..2b45419`, not these follow-ups.
+`ai/rollover-plugin-manifest` (local, not pushed) fixes the cause for the next
+full release. `Update_PluginManifest_Version` runs `-Before
+Create_ChangeLog_GitHub_PR`, rewrites only the manifest version for the full
+release tag at `origin/main`, and sets `rebase.autoStash`, without which
+Sampler's rebase pull refuses the modified tree. `GitHubFilesToAdd` commits
+`plugin.json`; CI admission validates changelog- or manifest-only main pushes
+without republishing. Red 8 of 29; two mutation runs caught their guards;
+focused 65/0/0; the real build lists the task inside the rollover task.
 
-- F1/F2: single-line reply case/spacing compatibility restored; query severity
-  is structured, with a diagnostic-rewording regression.
-- P1/N2: sample IDs repaired; schema checks no longer exempt the sample. Added
-  Prepare, unrelated-file, hidden-sample, and byte-boundary coverage.
-- N1/N3: shared bounded reads cover definitions and evidence (1 MiB by default,
-  explicit override up to 100 MiB); regex timeouts expose a stable diagnostic.
-- F3: read-only CI admission defers duplicate topic pushes only to an open PR
-  for the same repository/head SHA; event-scoped concurrency cancels only
-  superseded topic/PR runs. Main and version-tag runs cannot be cancelled.
-- F4/P2: duplicate release headings fail; changelog-only pushes run validation
-  without republishing from main. The generated rollover later merged as #26.
-- Evidence: eval 12 red then 176/0/38; CI 18 red then 43/0/0, and a
-  duplicate-header mutation failed its guard. Affected 220/0/38; full Windows
-  1,917/0/65 at 90.67% coverage; lint, AST/JSON, and Memory Bank health pass.
-  Both runs passed admission, packaging, and all three platforms; deployment
-  was correctly skipped.
+GitVersion's case-insensitive `major-version-bump-message` matched "Major" in
+the #25 review-record text, so `main` now versions 6.0.0; tightening the
+pattern or accepting 6.0.0 is a pending user decision.
+
+PR #25 carried the eval-gate hardening and review follow-ups (F1-F4, N1-N3,
+P1/P2); the independent approval covers `7a186c5..2b45419`, not the
+follow-ups. Details remain in `progress.md` and git.
 
 ## Previous plan-review work
 
@@ -169,7 +158,8 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-The user decides whether to force-push the rebased branch with lease to update
-PR #25; check the new head's CI before any merge. No push, merge, release, or
-installed-Customization deployment was requested or performed. Grader tests
-still do not measure native discovery, model quality, or runtime containment.
+The user decides whether to push `ai/rollover-plugin-manifest` and open a PR;
+its CI must pass before merging, and the next full release is the first live
+proof of the rollover change. No push, merge, release, or installed-Customization
+deployment was requested or performed. Grader tests still do not measure native
+discovery, model quality, or runtime containment.

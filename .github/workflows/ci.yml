@@ -102,7 +102,8 @@ jobs:
                   if ($env:BEFORE_SHA -ne ('0' * 40)) {
                       $paths = @(& git diff --name-only $env:BEFORE_SHA $env:GITHUB_SHA --)
                       if ($LASTEXITCODE -ne 0) { throw 'Cannot determine changed paths; publication is refused.' }
-                      $publish = @($paths | Where-Object { $_ -cne 'CHANGELOG.md' }).Count -gt 0
+                      # A release rollover changes only these records; neither ships in the Customization module.
+                      $publish = @($paths | Where-Object { $_ -cnotin @('CHANGELOG.md', 'plugin.json') }).Count -gt 0
                   }
               }
           }

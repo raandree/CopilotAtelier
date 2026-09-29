@@ -9,11 +9,20 @@ source: CHANGELOG.md and git history
 
 ## Project status
 
-Copilot Atelier's latest GitHub release is `v5.0.0`, published 2026-09-10,
-verified through the release API on 2026-09-24. Incremental work
-is tracked under `[Unreleased]` in `CHANGELOG.md`.
+Copilot Atelier's latest full GitHub release is `v5.0.0`, published 2026-09-10;
+`main` published pre-release `v6.0.0-preview0001` on 2026-09-29 (release API,
+verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
+`CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-09-29**: Diagnosed CI run `36549550887` (PR #26 rollover: `plugin.json`
+  4.0.0 under `[5.0.0]` on all platforms); `main` was already green after #25
+  (`314c795`, run `36553689149`). Fixed the cause on `ai/rollover-plugin-manifest`:
+  `Update_PluginManifest_Version` runs before `Create_ChangeLog_GitHub_PR`,
+  `GitHubFilesToAdd` commits the manifest, and admission never republishes
+  changelog- or manifest-only pushes. Red 8 of 29; mutations caught 4 and 1;
+  focused 65/0/0. Not pushed.
 
 - **2026-09-29**: Rebased `ai/eval-gate-integrity` onto `main` `16a81d3` (#26,
   the automated v5.0.0 changelog rollover). Only `2b45419` conflicted; the
@@ -77,36 +86,22 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   `34163989373` passed packaging, all three test jobs, and deployment at 21:54
   UTC. The uploaded ownership manifest and generated-file hash were verified.
 
-- **2026-09-07**: Closed the CONDITIONAL review's Major on `f933946`. The
-  heading verifier was wired but unproven by the gate CI runs, because the
-  behavioural evidence needs `markdown-it`; `tests/PlanReview.Tests.ps1` now
-  asserts the import, the instantiation, and every `server.mjs` read call site,
-  proven by a mutation that failed exactly that test and was restored
-  byte-identical. The hook is mandatory rather than `null`-defaulted, and an
-  over-deep request body is refused as `too-deep` instead of leaving its
-  deepest keys unwalked. Windows gate 1,775 passed, zero failed, 116 skipped at
-  90.72% coverage; Node 255, Edge 42, focused Pester 44.
+- **2026-09-07**: Closed the CONDITIONAL review's Major on `f933946`:
+  `tests/PlanReview.Tests.ps1` now proves the heading verifier's import,
+  instantiation, and every `server.mjs` read call site (mutation-checked); the
+  hook is mandatory and an over-deep body is refused as `too-deep`. Windows
+  gate 1,775/0/116 at 90.72%; Node 255, Edge 42, focused Pester 44.
 
 - **2026-09-07**: Integrated saved PR-01 through PR-09 corrections with the
-  existing plan-review hardening. Parser-verified headings refuse ambiguous
-  anchors before comment or verdict writes, including queued mutations; CLI,
-  empty-revision actions, and mutation-gate coverage are corrected. Preserved
-  per-launch sessions, bounded state, ownership locks, snapshots, and drafts.
-  Windows full gate 1,774/0/116 at 90.72% coverage; Node 248/0 on Windows and
-  Linux; Edge 42; focused Pester 43. Replaced a scheduling-based lock regression
-  with observable readiness and proved discrimination under a slow schedule.
-  The original independent review covers `3d115a3`; no re-review is claimed.
+  plan-review hardening: parser-verified headings refuse ambiguous anchors
+  before any write. Windows 1,774/0/116 at 90.72%; Node 248/0 on Windows and
+  Linux; Edge 42. The original independent review covers `3d115a3` only.
 
 - **2026-09-07**: Integrated the seven-task series and the optional
-  `tools/plan-review` surface, outside the module payload. Browser feedback
-  stays revision-bound and cannot authorize implementation. Earlier per-task
-  measurements and correction rounds remain in git and `CHANGELOG.md`; the
-  later integrated and cross-platform results above supersede them.
-
-- **2026-09-07**: Shipped tasks 03-06 of the series: reviewed learning inbox
-  (62/0, `09416a4`), Skill health (81/0), `changed-file-validation` (85/0/0),
-  and read-only `Get-CopilotAtelierClientAdapter` (121/121; neither client is
-  runtime verified). Full contracts remain in git and `CHANGELOG.md`.
+  `tools/plan-review` surface outside the module payload, including tasks
+  03-06: learning inbox (62/0, `09416a4`), Skill health (81/0),
+  `changed-file-validation` (85/0/0), and `Get-CopilotAtelierClientAdapter`
+  (121/121). Full contracts remain in git and `CHANGELOG.md`.
 
 ## Stable capabilities
 
@@ -133,8 +128,10 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Bump `plugin.json` with each release rollover: the generated rollover PR
-  (#26) leaves it behind, so `main` fails the manifest-version guard until then.
+- Merge `ai/rollover-plugin-manifest`, then confirm the next full release's
+  generated rollover PR carries `plugin.json` and passes CI.
+- Decide on GitVersion's `major-version-bump-message`: it matches "major"
+  anywhere, so review prose in #25 moved `main` to 6.0.0.
 - Split research delegation into a read-only code explorer and a public-source
   researcher instead of granting the full `research-analyst` tool surface, and
   review the twelve-agent browser allow-list role by role, adding explicit

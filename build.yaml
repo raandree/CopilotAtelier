@@ -128,8 +128,12 @@ Resolve-Dependency:
 ####################################################
 
 GitHubConfig:
+  # Update_PluginManifest_Version sets plugin.json to the released version
+  # before Create_ChangeLog_GitHub_PR commits these files, so the rollover pull
+  # request passes the manifest version check in tests/PluginManifest.Tests.ps1.
   GitHubFilesToAdd:
     - CHANGELOG.md
+    - plugin.json
   GitHubConfigUserName: raandree
   GitHubConfigUserEmail: raandree@users.noreply.github.com
   UpdateChangelogOnPrerelease: false

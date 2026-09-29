@@ -74,9 +74,10 @@ Describe 'Agent plugin manifest' -Tag 'Unit' {
     It 'Should carry the version of the most recent released changelog section' {
         <#
             VS Code and the GitHub Copilot CLI detect a plugin update from this
-            field, and nothing in the build maintains it - GitVersion only sets
-            the PowerShell module version. Without this assertion the manifest
-            silently keeps announcing whichever release it was last edited for.
+            field, and GitVersion only sets the PowerShell module version. The
+            release rollover sets it through Update_PluginManifest_Version;
+            without this assertion any other path would leave the manifest
+            announcing whichever release it was last edited for.
         #>
         $released = Get-Content -LiteralPath $script:changelogPath |
             Select-String -Pattern '^## \[(?<version>\d+\.\d+\.\d+)\]' |
