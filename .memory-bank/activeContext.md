@@ -167,9 +167,10 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-The user opens a fresh Copilot SDK chat with no workspace and confirms that
-`web_fetch` works and the `SessionStart` context arrives. Both commits are
-redeployed to `C:\Users\install\CopilotAtelier`. A machine that carries the
-hand-patched deployed `hooks.json` needs `Setup-CopilotSettings.ps1 -Repair`,
-because the deployment plan refuses to overwrite a modified Owned file. No push
-was requested or performed.
+Six self-contained prompts in `%USERPROFILE%\Desktop\CopilotAtelier-hook-followups`
+on the development machine carry the remaining work, in order: the fresh Copilot
+SDK chat check, an independent security review, push with pull request and CI,
+a `-Repair` deploy on the hand-patched machine (the plan refuses to overwrite a
+modified Owned file), how each host spawns hooks and whether the push override
+reaches them, and the block reason the SDK host drops. Both commits are
+redeployed to `C:\Users\install\CopilotAtelier`. No push was performed.

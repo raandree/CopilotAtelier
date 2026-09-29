@@ -128,9 +128,11 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 - Confirm that the next full release's generated rollover PR carries
   `plugin.json` and passes CI.
-- Find out whether VS Code runs hook commands inside an outer PowerShell
-  `-Command`: that would report a `PreToolUse` block (exit 2) as 1, which VS
-  Code treats as a warning. The launcher cannot prevent it; only the host can.
+- Hook follow-ups, with prompts on the development machine's Desktop: check
+  whether VS Code wraps hook commands in PowerShell `-Command`, which would turn
+  a block (exit 2) into a warning; check whether `COPILOT_ATELIER_ALLOW_REMOTE`
+  set in an agent terminal reaches the hook, which the host starts with its own
+  environment; and surface the block reason the SDK host drops.
 - Decide on GitVersion's `major-version-bump-message`: it matches "major"
   anywhere, so review prose in #25 moved `main` to 6.0.0.
 - Split research delegation into a read-only code explorer and a public-source
