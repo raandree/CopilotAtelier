@@ -22,7 +22,9 @@ release tag at `origin/main`, and sets `rebase.autoStash`, without which
 Sampler's rebase pull refuses the modified tree. `GitHubFilesToAdd` commits
 `plugin.json`; CI admission validates changelog- or manifest-only main pushes
 without republishing. Red 8 of 29; two mutation runs caught their guards;
-focused 65/0/0; the real build lists the task inside the rollover task.
+focused 65/0/0; the real build lists the task inside the rollover task. Full
+Windows build/test at `6367e68`: 1,931/0/65, 90.67% coverage, only the known
+simulated-backend warning.
 
 GitVersion's case-insensitive `major-version-bump-message` matched "Major" in
 the #25 review-record text, so `main` now versions 6.0.0; tightening the

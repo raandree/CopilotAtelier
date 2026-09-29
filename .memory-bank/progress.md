@@ -22,7 +22,7 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
   `Update_PluginManifest_Version` runs before `Create_ChangeLog_GitHub_PR`,
   `GitHubFilesToAdd` commits the manifest, and admission never republishes
   changelog- or manifest-only pushes. Red 8 of 29; mutations caught 4 and 1;
-  focused 65/0/0. Not pushed.
+  focused 65/0/0; full Windows build/test 1,931/0/65 at 90.67%. Not pushed.
 
 - **2026-09-29**: Rebased `ai/eval-gate-integrity` onto `main` `16a81d3` (#26,
   the automated v5.0.0 changelog rollover). Only `2b45419` conflicted; the
