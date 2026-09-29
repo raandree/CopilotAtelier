@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-25
+last-verified: 2026-09-29
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,12 +9,22 @@ source: current task evidence
 
 ## Current focus
 
-Implemented and pushed all recorded review follow-ups on
-`ai/eval-gate-integrity`; [PR #25](https://github.com/raandree/CopilotAtelier/pull/25)
-is open to `main`, not merged. Implementation commit `fc12ef3` passed both
-[push CI](https://github.com/raandree/CopilotAtelier/actions/runs/36121027315) and
-[PR CI](https://github.com/raandree/CopilotAtelier/actions/runs/36121068837).
-The original independent approval covers `7a186c5..2b45419`, not these fixes.
+On 2026-09-29 `ai/eval-gate-integrity` was rebased onto `main` `16a81d3`
+([PR #26](https://github.com/raandree/CopilotAtelier/pull/26), the automated
+v5.0.0 changelog rollover) and not pushed; [PR #25](https://github.com/raandree/CopilotAtelier/pull/25)
+shows the old head until a user-authorized `--force-with-lease` push. SHAs
+`c02d25e`, `2b45419`, `172c96b`, `fc12ef3`, `ab68c93` became `54ff3f1`,
+`076203e`, `e5aa230`, `ff10713`, `e8961fa`. Only `2b45419` conflicted: both
+sides added the `[5.0.0]` heading, so one heading follows the branch's
+`[Unreleased]` fixes, and the final newline the rollover stripped is restored
+(MD047). The tree of `e8961fa` equals `ab68c93`; the other commits are
+patch-identical. Manifest, CI-admission, and workflow suites: 43/0/0;
+markdownlint clean. `main` alone fails the manifest-version guard (`[5.0.0]`
+heading, `plugin.json` 4.0.0): the rollover PR does not bump the manifest.
+
+Pre-rebase `fc12ef3` passed [push CI](https://github.com/raandree/CopilotAtelier/actions/runs/36121027315)
+and [PR CI](https://github.com/raandree/CopilotAtelier/actions/runs/36121068837).
+The independent approval covers `7a186c5..2b45419`, not these follow-ups.
 
 - F1/F2: single-line reply case/spacing compatibility restored; query severity
   is structured, with a diagnostic-rewording regression.
@@ -26,23 +36,12 @@ The original independent approval covers `7a186c5..2b45419`, not these fixes.
   for the same repository/head SHA; event-scoped concurrency cancels only
   superseded topic/PR runs. Main and version-tag runs cannot be cancelled.
 - F4/P2: duplicate release headings fail; changelog-only pushes run validation
-  without republishing from main. Existing v5 rollover content is unchanged.
-  No open PR existed at pre-flight; the old generated branch is not deleted.
-- Eval regressions: 12 red, then 176/0/38 with prior execution tests. CI tests:
-  18 red, then 43/0/0; an isolated duplicate-header mutation failed its guard.
-  Final affected suites: 220/0/38. Full Windows build/test: 1,917/0/65 at
-  90.67% coverage. Markdown lint/render, AST/JSON and Memory Bank health pass;
-  analyzer warnings are unchanged. Both implementation runs passed admission,
-  packaging, and all three platforms; deployment was correctly skipped.
-  The docs-only close-out push also exercises exact-head PR deduplication.
-
-## Previous CI repair
-
-Earlier repair `0367ce3` passed [CI run 34163989373](https://github.com/raandree/CopilotAtelier/actions/runs/34163989373)
-on 2026-09-07. Retain hidden adapter metadata, canonical temporary roots, and
-nested Node test-count checks with `NODE_TEST_CONTEXT` cleared. The detailed
-1,777/0/116 clean-checkout result and ownership evidence remain in git,
-`progress.md`, and `CHANGELOG.md`; this older run does not validate new work.
+  without republishing from main. The generated rollover later merged as #26.
+- Evidence: eval 12 red then 176/0/38; CI 18 red then 43/0/0, and a
+  duplicate-header mutation failed its guard. Affected 220/0/38; full Windows
+  1,917/0/65 at 90.67% coverage; lint, AST/JSON, and Memory Bank health pass.
+  Both runs passed admission, packaging, and all three platforms; deployment
+  was correctly skipped.
 
 ## Previous plan-review work
 
@@ -170,7 +169,7 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Await a user-controlled merge decision for PR #25, checking its latest head's
-CI first. No merge, release, or installed-Customization deployment was requested
-or performed. Grader tests still do not measure native discovery, model quality,
-or runtime containment.
+The user decides whether to force-push the rebased branch with lease to update
+PR #25; check the new head's CI before any merge. No push, merge, release, or
+installed-Customization deployment was requested or performed. Grader tests
+still do not measure native discovery, model quality, or runtime containment.

@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-25
+last-verified: 2026-09-29
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,6 +14,13 @@ verified through the release API on 2026-09-24. Incremental work
 is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-09-29**: Rebased `ai/eval-gate-integrity` onto `main` `16a81d3` (#26,
+  the automated v5.0.0 changelog rollover). Only `2b45419` conflicted; the
+  resolution keeps one `[5.0.0]` heading below the branch's `[Unreleased]`
+  fixes and restores the MD047 final newline the rollover stripped. `e8961fa`
+  is tree-identical to `ab68c93`; range-diff shows the other four commits
+  patch-identical. Focused suites 43/0/0; markdownlint clean. Not pushed.
 
 - **2026-09-25**: Implemented F1-F4, N1-N3, P1/P2 review follow-ups: compatible
   trigger replies, structured severity, bounded reads, stable timeout errors,
@@ -96,20 +103,10 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
   measurements and correction rounds remain in git and `CHANGELOG.md`; the
   later integrated and cross-platform results above supersede them.
 
-- **2026-09-07**: Added read-only `Get-CopilotAtelierClientAdapter` (task 06 of
-  the series): strict capability mappings and hash-owned output preserve the
-  authoritative VS Code body and reject inexpressible grants. Final regression
-  121/121; neither client is runtime verified. Full contracts remain in git and
-  `CHANGELOG.md`.
-
-- **2026-09-07**: Added the `changed-file-validation` Skill (task 05 of the
-  sequential series): opt-in, bounded, manual collection with snapshot-bound
-  receipts and plan identity. Owned workers bound PowerShell checks; partial
-  Markdown structure checks never replace markdownlint. Red 23 of 72 then
-  12 of 85, 85/0/0. Full contracts remain in `CHANGELOG.md` and git.
-
-- **2026-09-07**: Added Skill health (81/0) and the reviewed learning inbox (62/0,
-  `09416a4`); provenance and hash-approved append-only contracts remain in git and `CHANGELOG.md`.
+- **2026-09-07**: Shipped tasks 03-06 of the series: reviewed learning inbox
+  (62/0, `09416a4`), Skill health (81/0), `changed-file-validation` (85/0/0),
+  and read-only `Get-CopilotAtelierClientAdapter` (121/121; neither client is
+  runtime verified). Full contracts remain in git and `CHANGELOG.md`.
 
 ## Stable capabilities
 
@@ -136,6 +133,8 @@ is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
+- Bump `plugin.json` with each release rollover: the generated rollover PR
+  (#26) leaves it behind, so `main` fails the manifest-version guard until then.
 - Split research delegation into a read-only code explorer and a public-source
   researcher instead of granting the full `research-analyst` tool surface, and
   review the twelve-agent browser allow-list role by role, adding explicit
