@@ -42,7 +42,7 @@ consumes them and needs explicit approval first.
 | ID | Case | Expected |
 |---|---|---|
 | C1 | Start the CLI against the scratch `COPILOT_HOME` and list agents with `/agent` | `software-engineer` is listed, loaded from the scratch directory, with no parse warning |
-| C2 | Inspect the loaded profile's effective tools | Exactly `edit`, `execute`, `read`, `search`, `todo`, `web`; no delegation tool; no VS Code identifier retained |
+| C2 | Inspect the loaded profile's effective tools | Exactly `ask_user`, `edit`, `execute`, `glob`, `grep`, `read`, `todo`, `web_fetch`; no delegation tool; no VS Code identifier retained; neither the `web` nor the `search` alias, which enable no tool (github/copilot-cli#4594) |
 | C3 | Read the composed file itself | A client-limitation section precedes the shared body, between the begin and end markers, naming `review: on` and `cycle: full` as unavailable; the SHA-256 in the end marker matches the body that follows it |
 
 ## Behavioral cases — model requests required, unexecuted

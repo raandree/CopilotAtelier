@@ -3,7 +3,7 @@ description: 'Inventory unmet repository specifications and issues, then coordin
 name: spec-completion-controller
 model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
 argument-hint: 'repository=<path>; duration=8; scope=all; containment-profile=<path>; containment-profile-sha256=<64-hex>; issue-snapshot=<optional path>; live-mode=off|read-only|disposable; live-profile=<path when enabled>'
-tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'edit/rename', 'execute/runInTerminal', 'execute/getTerminalOutput', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/testFailure', 'todo', 'thinking']
+tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'grep', 'glob', 'search/findTestFiles', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'edit/rename', 'execute/runInTerminal', 'execute/getTerminalOutput', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/testFailure', 'todo', 'thinking']
 agents: ['spec-work-implementer', 'spec-completion-reviewer']
 disable-model-invocation: true
 user-invocable: false

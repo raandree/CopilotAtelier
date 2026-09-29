@@ -9,32 +9,24 @@ source: current task evidence
 
 ## Current focus
 
-`ai/fix-hook-launcher-home` (local, not pushed) fixes the hook launchers at
-their source. The Copilot SDK host has no `windows` key: it copies `command`
-into its `powershell` field and runs it on Windows too, where `HOME` is unset,
-so the old `command` resolved nothing. `PreToolUse` then denied every tool call
-as `hook errored` and `SessionStart` never injected its context.
+`ai/agent-runtime-tool-names` (local, from `main` `0b4cf8e`, not pushed) makes
+every Custom agent keep its tools in VS Code 1.139.1 agent-host sessions. The
+agent host hands `tools:` to the Copilot runtime as a strict allow-list, which
+drops the VS Code names it cannot resolve (github/copilot-cli#4594), so a
+selected agent lost `web_fetch`, `grep`, `glob`, `ask_user`, the browser tools,
+and the session tools. Decision 0026 records the fix: every VS Code name keeps a
+runtime name next to it, the twelve open agents get a web, search, question,
+and session-tool baseline, and the four contained agents gain only `grep`,
+`glob`, and (Contoso) `ask_user`. Browser tools are named `vscodeBrowser/<tool>`
+because VS Code 1.139.1 deprecates the `browser` tool set. `web_search` is left
+out: no no-agent session here offers it. The CLI contract now maps `web/fetch`
+to `web_fetch` and the search family to `grep` plus `glob`.
 
-Both launchers now differ only in the interpreter, run with `-NoProfile
--NonInteractive -ExecutionPolicy Bypass`, and try `PLUGIN_ROOT`, `HOME`,
-`USERPROFILE`, then `[Environment]::GetFolderPath('UserProfile')`, which ignores
-`%USERPROFILE%` on Windows (verified on pwsh 7.6 and Windows PowerShell 5.1).
-Failures name the script and the underlying error without a `$`.
-`tests/HookLauncher.Tests.ps1` runs stubs through `cmd.exe`, `sh`, and an outer
-`pwsh` or `powershell -Command`: red 93 of 237 against the old launchers (125 of
-284 once the outer `powershell` mode was added), green on the focused set.
-
-An outer PowerShell `-Command` flattens every non-zero exit to `1`; no launcher
-text can prevent it, and the SDK host still denies `preToolUse` on `1`. The
-GitHub hooks reference documents that PascalCase events receive the VS Code
-snake_case payload (`tool_input`) and that `timeout` aliases `timeoutSec`, so
-`Block-RemoteMutation` needs no second payload parser. Part 2 makes its
-unreadable-payload path exit `0` with the warning on stderr, because the SDK
-host denies on `1`. Decision 0016 carries the verified host contract table.
-
-The fresh-chat end-to-end check is the user's: the SDK host reads hooks at
-session start, and neither this session nor its subagents reloaded them after
-the redeploy (a harmless probe that only prints push text ran undenied).
+`tests/AgentRuntimeToolNames.Tests.ps1` was red 28 then green, and the offline
+per-agent probe (`agent-probe.mjs` in session `bed592a8`) passed all sixteen
+agents. Redeploy with `./Setup-CopilotSettings.ps1` from this clone, then the
+user's live check: agent-host chat, `software-engineer` selected,
+`#web/fetch heise.de` must call `web_fetch`, not `Invoke-WebRequest`.
 
 ## Previous plan-review work
 
@@ -53,6 +45,11 @@ is claimed; `review: on` remains recommended for those earlier changes.
 
 ## Previous focuses
 
+- **Hook launchers (`0ed6c0e`, `225c190`, on `main`).** The Copilot SDK host
+  runs `command` on Windows, where `HOME` is unset; launchers now try
+  `PLUGIN_ROOT`, `HOME`, `USERPROFILE`, then the OS profile folder, and
+  `Block-RemoteMutation` exits `0` on an unreadable payload because the host
+  denies on `1`. Decision 0016 carries the host contract table.
 - **Plugin manifest rollover (`6367e68`, on `main`).** `Update_PluginManifest_Version`
   rewrites `plugin.json` before `Create_ChangeLog_GitHub_PR`, so a rollover no
   longer fails its own manifest guard (CI run 36549550887). GitVersion's
@@ -126,11 +123,13 @@ Earlier route-selection and trigger-query sets remain unmeasured.
 
 - **High:** `software-engineer-contoso` claims no egress while retaining an
   unrestricted terminal and mandating a generic `security-reviewer` delegate
-  with web, GitHub, MCP, and terminal tools. Eleven older agents likewise
-  combine workspace and private-data access, untrusted web content, arbitrary
-  execution, and broad MCP access. Prose is not enforced containment, especially
-  on native Windows without terminal sandboxing; replace copied omnibus tool
-  lists with role-specific least-privilege surfaces.
+  with web, GitHub, MCP, and terminal tools. In agent-host sessions the host
+  drops `agents:`, so its delegation can reach any agent, and open agents can
+  read its session through `get_session_context` (decision 0026). Eleven older
+  agents likewise combine workspace and private-data access, untrusted web
+  content, arbitrary execution, and broad MCP access. Prose is not enforced
+  containment, especially on native Windows without terminal sandboxing;
+  replace copied omnibus tool lists with role-specific least-privilege surfaces.
 - **Major:** `career-coach` (35,672 chars), `research-analyst` (43,376),
   `security-reviewer` (43,772), and `technical-writer` (35,018) exceed GitHub's
   30,000-character Custom agent prompt limit. The new test prevents growth; the
@@ -166,6 +165,10 @@ measured on one project only; and the `skill-creator` description edit remains
 unproven — train reached 100 % while validation fell.
 
 ## Next step
+
+Redeploy this branch with `./Setup-CopilotSettings.ps1` from the clone, open a
+new agent-host chat with `software-engineer` selected, and confirm that
+`#web/fetch heise.de` calls `web_fetch`. Then decide on push and pull request.
 
 Six self-contained prompts in `%USERPROFILE%\Desktop\CopilotAtelier-hook-followups`
 on the development machine carry the remaining work, in order: the fresh Copilot

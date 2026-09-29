@@ -9,8 +9,8 @@ function Get-CopilotAtelierClientAdapter
             Custom agent files are discovered by more than one Copilot client,
             but discovery is not parity. The profiles in this library are
             authored in the VS Code shape, and the Copilot CLI contract differs:
-            one model string instead of a priority array, a small set of tool
-            aliases instead of product-qualified tool identifiers, and no
+            one model string instead of a priority array, a small set of runtime
+            tool names instead of product-qualified tool identifiers, and no
             subagent allow-list, handoff, or argument hint.
 
             This command makes that difference explicit and inspectable. For

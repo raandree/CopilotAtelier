@@ -38,8 +38,8 @@ Describe 'Software Engineer Custom agent' {
     }
 
     It 'preserves the complete tool and handoff surface' {
-        $script:agentTools | Should -HaveCount 45
-        $script:agentTools | Select-Object -Unique | Should -HaveCount 45
+        $script:agentTools | Should -HaveCount 66
+        $script:agentTools | Select-Object -Unique | Should -HaveCount 66
         $script:agentTools | Should -Contain 'agent'
         $script:agentTools | Should -Contain 'edit/createFile'
         $script:agentTools | Should -Contain 'execute/runInTerminal'

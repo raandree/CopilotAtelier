@@ -16,122 +16,122 @@ BeforeAll {
 
     $script:agentBaseline = @{
         'career-coach.agent.md' = @{
-            Tools = 29
-            ToolHash = '7709037C89608EDA'
+            Tools = 50
+            ToolHash = '3440F38366DC1833'
             Handoffs = 2
             HandoffHash = 'DA7D3D7F53FF5A51'
             MemoryHeading = "## Memory Bank $emDash Persistent Career Knowledge"
             MemoryHash = '37DFF29E24CA16EE'
         }
         'devops-training-writer.agent.md' = @{
-            Tools = 29
-            ToolHash = '7709037C89608EDA'
+            Tools = 50
+            ToolHash = '3440F38366DC1833'
             Handoffs = 2
             HandoffHash = '73DBF38F584D2787'
             MemoryHeading = '## 9. Memory Bank'
             MemoryHash = 'B63CB8897007F641'
         }
         'legal-researcher.agent.md' = @{
-            Tools = 28
-            ToolHash = '01CFC24F80C83931'
+            Tools = 49
+            ToolHash = 'EDB73051588BC480'
             Handoffs = 0
             HandoffHash = 'E3B0C44298FC1C14'
             MemoryHeading = "## Memory Bank $emDash Persistent Case Knowledge"
             MemoryHash = '565FAC20310D327A'
         }
         'qc-inspector.agent.md' = @{
-            Tools = 28
-            ToolHash = '01CFC24F80C83931'
+            Tools = 49
+            ToolHash = 'EDB73051588BC480'
             Handoffs = 0
             HandoffHash = 'E3B0C44298FC1C14'
             MemoryHeading = '## Memory Bank'
             MemoryHash = '9C41851E9999FEDC'
         }
         'research-analyst.agent.md' = @{
-            Tools = 38
-            ToolHash = '5BAD44F0F74658C3'
+            Tools = 59
+            ToolHash = 'E31DA13C08F06954'
             Handoffs = 2
             HandoffHash = 'DA7D3D7F53FF5A51'
             MemoryHeading = "## Memory Bank $emDash Investigation Persistence"
             MemoryHash = 'CAD590ADFA11950D'
         }
         'security-reviewer.agent.md' = @{
-            Tools = 39
-            ToolHash = '3493B5C9133D7806'
+            Tools = 60
+            ToolHash = 'B7EFB3EACAE4B18E'
             Handoffs = 2
             HandoffHash = '38AF6E22FA343FDC'
             MemoryHeading = '## Memory Bank'
             MemoryHash = 'E5550363574EE4B8'
         }
         'spec-completion-controller.agent.md' = @{
-            Tools = 20
-            ToolHash = 'EF09F030D6CEF983'
+            Tools = 22
+            ToolHash = 'CE2AC052FAE8AEAA'
             Handoffs = 0
             HandoffHash = 'E3B0C44298FC1C14'
         }
         'spec-completion-reviewer.agent.md' = @{
-            Tools = 12
-            ToolHash = '4CBF236DE6878235'
+            Tools = 14
+            ToolHash = 'D7FF2D1F27C73D85'
             Handoffs = 0
             HandoffHash = 'E3B0C44298FC1C14'
         }
         'spec-work-implementer.agent.md' = @{
-            Tools = 18
-            ToolHash = 'AFE53DC71B9C96E5'
+            Tools = 20
+            ToolHash = '8E1E10F694EFA950'
             Handoffs = 0
             HandoffHash = 'E3B0C44298FC1C14'
         }
         'software-architect.agent.md' = @{
-            Tools = 31
-            ToolHash = '476054FE96B3EC62'
+            Tools = 52
+            ToolHash = '466FEECCE39F07D2'
             Handoffs = 2
             HandoffHash = '38056BC6D4229B1F'
             MemoryHeading = '## Memory Bank role extension'
             MemoryHash = '4BC6A3CD90073617'
         }
         'software-engineer-contoso.agent.md' = @{
-            Tools = 36
-            ToolHash = 'D2FD38A75B7ABA0F'
+            Tools = 39
+            ToolHash = '7BDBE183987DCD74'
             Handoffs = 2
             HandoffHash = 'C6946126C55E0879'
             MemoryHeading = '## Memory Bank role extension'
             MemoryHash = '19321727F2B80876'
         }
         'software-engineer.agent.md' = @{
-            Tools = 45
-            ToolHash = '4209631DF6007CB5'
+            Tools = 66
+            ToolHash = 'BED7807D0F3DADE2'
             Handoffs = 3
             HandoffHash = 'AE1CD385148A6BF2'
             MemoryHeading = '## Memory Bank role extension'
             MemoryHash = '289672647A3DF691'
         }
         'tax-researcher.agent.md' = @{
-            Tools = 28
-            ToolHash = '01CFC24F80C83931'
+            Tools = 49
+            ToolHash = 'EDB73051588BC480'
             Handoffs = 0
             HandoffHash = 'E3B0C44298FC1C14'
             MemoryHeading = "## Memory Bank $emDash Persistent Case Knowledge"
             MemoryHash = '089F1CE8E75D70F7'
         }
         'technical-writer.agent.md' = @{
-            Tools = 37
-            ToolHash = 'ADCF45376C90D4FF'
+            Tools = 58
+            ToolHash = 'D6AF0D6A59E644B0'
             Handoffs = 1
             HandoffHash = '8A78BAB66F6A0D49'
             MemoryHeading = '## Memory Bank'
             MemoryHash = '90EBC5F69900F153'
         }
         'training-writer.agent.md' = @{
-            Tools = 29
-            ToolHash = '7709037C89608EDA'
+            Tools = 50
+            ToolHash = '3440F38366DC1833'
             Handoffs = 1
             HandoffHash = '42173AE92365EB75'
             MemoryHeading = '## 11. Memory Bank'
             MemoryHash = 'DFE92372EF752612'
         }
         'troubleshooter.agent.md' = @{
-            Tools = 41
-            ToolHash = '1CD7320986CFE42A'
+            Tools = 62
+            ToolHash = 'DCC48401BF5CE8F7'
             Handoffs = 2
             HandoffHash = '38AF6E22FA343FDC'
             MemoryHeading = '## Memory Bank'

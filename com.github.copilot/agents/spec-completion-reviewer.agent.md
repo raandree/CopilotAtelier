@@ -3,7 +3,7 @@ description: 'Independently review one specification work item or completion mat
 name: spec-completion-reviewer
 model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
 argument-hint: 'Immutable brief, review token, commit or diff, evidence paths, and review mode'
-tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/usages', 'read/readFile', 'read/problems', 'read/testFailure', 'todo', 'thinking']
+tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'grep', 'glob', 'search/findTestFiles', 'search/usages', 'read/readFile', 'read/problems', 'read/testFailure', 'todo', 'thinking']
 agents: []
 disable-model-invocation: true
 user-invocable: false

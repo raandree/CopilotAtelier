@@ -14,8 +14,8 @@ function Get-CopilotAtelierClientContract
 
             This function is the single source of truth for that difference. It
             declares, per client, which frontmatter fields are emitted, which
-            are unsupported and why, how a source tool identifier maps onto a
-            documented client tool alias, which workflow modes the client cannot
+            are unsupported and why, how a source tool identifier maps onto one
+            or more client tool names, which workflow modes the client cannot
             run, and what verification state the claim rests on. Nothing else in
             the module may invent a mapping: an identifier that is absent from
             ToolMap is an error rather than a silently dropped capability.
@@ -26,7 +26,8 @@ function Get-CopilotAtelierClientContract
             execute/ is a namespace and not proof of execution authority -
             reading an existing terminal buffer is not permission to start a
             command. Every other mapping has to stay inside the capability class
-            of its source identifier. And a field that expresses a restriction
+            of its source identifier, and CapabilityClass lists the client tool
+            names each class contains. And a field that expresses a restriction
             rather than a capability names the tool it guards in WithholdTool,
             so a client that cannot express the restriction loses the capability
             instead of inheriting it unrestricted.
@@ -59,9 +60,18 @@ function Get-CopilotAtelierClientContract
         the VS Code "Custom agents" documentation on 2026-09-07. A value of
         $null means the identifier has no documented client equivalent and is
         reported as unsupported rather than approximated.
+
+        The reference documents web and search as aliases, but the runtime this
+        client shares with VS Code agent-host sessions resolves neither to a
+        tool (github/copilot-cli#4594). An offline probe of the runtime bundled
+        with VS Code 1.139.1 on 2026-09-29 confirmed that web_fetch, grep, glob,
+        and ask_user each enable their tool, so those exact names replace the
+        dead aliases. The todo alias resolves to nothing as well; it stays
+        because the runtime always offers the sql tool that holds the todo list.
     #>
     $copilotCliToolMap = [ordered] @{
         'agent'                       = 'agent'
+        'ask_user'                    = 'ask_user'
         'browser'                     = $null
         'codeInterpreter'             = $null
         'edit/createDirectory'        = 'edit'
@@ -75,6 +85,8 @@ function Get-CopilotAtelierClientContract
         'execute/runNotebookCell'     = $null
         'execute/runTask'             = $null
         'github'                      = $null
+        'glob'                        = 'glob'
+        'grep'                        = 'grep'
         'read/getNotebookSummary'     = $null
         'read/problems'               = $null
         'read/readFile'               = 'read'
@@ -84,14 +96,14 @@ function Get-CopilotAtelierClientContract
         'read/testFailure'            = $null
         'read/viewImage'              = $null
         'runTests'                    = $null
-        'search'                      = 'search'
+        'search'                      = @('grep', 'glob')
         'search/changes'              = $null
         'search/codebase'             = $null
-        'search/fileSearch'           = 'search'
+        'search/fileSearch'           = @('grep', 'glob')
         'search/findTestFiles'        = $null
-        'search/listDirectory'        = 'search'
+        'search/listDirectory'        = @('grep', 'glob')
         'search/searchResults'        = $null
-        'search/textSearch'           = 'search'
+        'search/textSearch'           = @('grep', 'glob')
         'search/usages'               = $null
         'thinking'                    = $null
         'todo'                        = 'todo'
@@ -103,9 +115,44 @@ function Get-CopilotAtelierClientContract
         'vscode/newWorkspace'         = $null
         'vscode/runCommand'           = $null
         'vscode/vscodeAPI'            = $null
-        'web/fetch'                   = 'web'
+        'web/fetch'                   = 'web_fetch'
         'web/githubRepo'              = $null
         'web/githubTextSearch'        = $null
+        'web_fetch'                   = 'web_fetch'
+    }
+
+    <#
+        Tools that exist only in VS Code agent-host sessions. The profiles name
+        them so that the agent-host runtime keeps them; this client has neither
+        the integrated browser nor an agent-host session, so every one of them
+        is an explicit unsupported entry.
+    #>
+    $agentHostBrowserTool = @(
+        'vscodeBrowser/openBrowserPage'
+        'vscodeBrowser/readPage'
+        'vscodeBrowser/screenshotPage'
+        'vscodeBrowser/navigatePage'
+        'vscodeBrowser/clickElement'
+        'vscodeBrowser/typeInPage'
+        'vscodeBrowser/hoverElement'
+        'vscodeBrowser/dragElement'
+        'vscodeBrowser/handleDialog'
+        'vscodeBrowser/runPlaywrightCode'
+    )
+
+    $agentHostSessionTool = @(
+        'set_workspace'
+        'list_sessions'
+        'get_current_session'
+        'get_session_context'
+        'add_artifact_or_reference'
+        'list_artifacts_and_references'
+        'remove_artifact_or_reference'
+    )
+
+    foreach ($identifier in $agentHostBrowserTool + $agentHostSessionTool)
+    {
+        $copilotCliToolMap[$identifier] = $null
     }
 
     <#
@@ -118,17 +165,21 @@ function Get-CopilotAtelierClientContract
 
     <#
         A mapping may only stay inside the capability class of its source
-        identifier. The class is the segment before the slash, or the whole
-        identifier when it has none.
+        identifier, and each class lists the client tool names that belong to
+        it. The class of a source identifier is the segment before the slash.
+        An identifier without one counts toward the class that lists it, which
+        is how an exact runtime name such as grep belongs to search; any other
+        identifier without a slash names its class itself.
     #>
     $copilotCliCapabilityClass = [ordered] @{
-        'agent'   = 'agent'
-        'edit'    = 'edit'
-        'execute' = 'execute'
-        'read'    = 'read'
-        'search'  = 'search'
-        'todo'    = 'todo'
-        'web'     = 'web'
+        'agent'    = @('agent')
+        'ask_user' = @('ask_user')
+        'edit'     = @('edit')
+        'execute'  = @('execute')
+        'read'     = @('read')
+        'search'   = @('grep', 'glob')
+        'todo'     = @('todo')
+        'web'      = @('web_fetch')
     }
 
     <#
@@ -143,6 +194,17 @@ function Get-CopilotAtelierClientContract
         'execute/runNotebookCell'   = 'The client has no notebook host, and notebook execution is not interchangeable with shell execution.'
         'runTests'                  = 'Mapping a test runner onto the shell-execution alias would grant a terminal to a profile that never declared one.'
         'useMcp'                    = 'There is no way to reproduce a bounded MCP surface on this client, and an unbounded one would be a privilege increase.'
+        'vscode/askQuestions'       = 'The VS Code question tool has no alias in the client contract. Its runtime counterpart, ask_user, is declared by the profile as its own entry and maps to itself.'
+    }
+
+    foreach ($identifier in $agentHostBrowserTool)
+    {
+        $copilotCliToolUnsupportedReason[$identifier] = 'A VS Code agent-host tool that drives the integrated browser. The client has no integrated browser, and a fetch or shell tool is a different capability, so the tool is reported unsupported rather than approximated.'
+    }
+
+    foreach ($identifier in $agentHostSessionTool)
+    {
+        $copilotCliToolUnsupportedReason[$identifier] = 'A VS Code agent-host session tool. The client has no agent-host session for it to act on, so the tool is reported unsupported.'
     }
 
     $copilotCliUnsupportedField = [ordered] @{

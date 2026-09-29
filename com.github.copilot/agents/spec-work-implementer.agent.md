@@ -3,7 +3,7 @@ description: 'Implement one immutable specification work item test-first in an i
 name: spec-work-implementer
 model: ['Claude Sonnet 5 (copilot)', 'Claude Opus 4.8 (copilot)']
 argument-hint: 'Immutable brief path, isolated worktree path, report path, and command budget'
-tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'search/findTestFiles', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'edit/rename', 'execute/runInTerminal', 'execute/getTerminalOutput', 'read/readFile', 'read/problems', 'read/testFailure', 'todo', 'thinking']
+tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'grep', 'glob', 'search/findTestFiles', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'edit/rename', 'execute/runInTerminal', 'execute/getTerminalOutput', 'read/readFile', 'read/problems', 'read/testFailure', 'todo', 'thinking']
 agents: []
 disable-model-invocation: true
 user-invocable: false

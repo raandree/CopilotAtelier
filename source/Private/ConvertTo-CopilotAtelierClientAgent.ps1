@@ -46,8 +46,11 @@ function ConvertTo-CopilotAtelierClientAgent
             The client to compose for.
 
         .PARAMETER RequiredCapability
-            Client tool aliases the composed variant must end up with. Anything
-            missing raises a terminating error naming it.
+            Capability classes the composed variant must end up with, such as
+            read or search. A class counts only when every client tool name it
+            lists in the contract is emitted; a name that is not a declared
+            class must itself be emitted. Anything missing raises a terminating
+            error naming it.
 
         .PARAMETER RequiredWorkflow
             Workflow modes the composed variant must be able to run, such as
@@ -200,18 +203,21 @@ function ConvertTo-CopilotAtelierClientAgent
             throw "The tool identifier '$identifier' in '$Path' has no entry in the '$Client' tool mapping. Add an explicit mapping or an explicit unsupported entry; an unmapped identifier is never assumed safe to drop."
         }
 
-        $mapped = $clientContract.ToolMap[$identifier]
+        $mapped = @($clientContract.ToolMap[$identifier] | Where-Object -FilterScript { $_ })
 
-        if ($mapped)
+        if ($mapped.Count -gt 0)
         {
-            if ($mapped -eq 'execute' -and $identifier -notin $clientContract.ExecutionSourceTool)
+            foreach ($name in $mapped)
             {
-                throw "The tool identifier '$identifier' would reach the '$Client' shell-execution alias without being a declared execution tool. Correct the contract instead of widening the grant."
-            }
+                if ($name -eq 'execute' -and $identifier -notin $clientContract.ExecutionSourceTool)
+                {
+                    throw "The tool identifier '$identifier' would reach the '$Client' shell-execution alias without being a declared execution tool. Correct the contract instead of widening the grant."
+                }
 
-            if (-not $alias.Contains($mapped))
-            {
-                $alias.Add($mapped)
+                if (-not $alias.Contains($name))
+                {
+                    $alias.Add($name)
+                }
             }
 
             continue
@@ -255,9 +261,26 @@ function ConvertTo-CopilotAtelierClientAgent
 
     $emittedTool = @($alias | Sort-Object)
 
+    # A required capability names a class, and it counts only when every client
+    # tool name of that class is emitted, so file-name search alone does not
+    # pass for search. A name outside the declared classes is checked literally.
     $missingCapability = @(
-        $RequiredCapability |
-            Where-Object -FilterScript { $_ -notin $emittedTool }
+        foreach ($capability in $RequiredCapability)
+        {
+            $member = if ($clientContract.CapabilityClass.Contains($capability))
+            {
+                @($clientContract.CapabilityClass[$capability])
+            }
+            else
+            {
+                @($capability)
+            }
+
+            if (@($member | Where-Object -FilterScript { $_ -notin $emittedTool }).Count -gt 0)
+            {
+                $capability
+            }
+        }
     )
 
     if ($missingCapability)

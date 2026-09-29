@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Custom agents lost web fetch, search, questions, the browser, and the session tools in VS Code agent-host (Copilot SDK) sessions, because the runtime drops every VS Code tool name it cannot resolve ([github/copilot-cli#4594](https://github.com/github/copilot-cli/issues/4594)). Every agent now declares the runtime name next to each VS Code name, and the agents that are not contained get a common web, search, question, and session-tool baseline. Contained agents gain only `grep`, `glob`, and `ask_user` for tools they already had.
+- The Copilot CLI variant of `software-engineer` mapped web and search to the `web` and `search` aliases, which enable no tool. It now emits `web_fetch`, `grep`, and `glob`.
 - `Block-RemoteMutation` now allows the tool call with a warning when the hook payload is not valid JSON, as its message always said. It exited 1, which the Copilot SDK host treats as a denial, so a payload schema change would have blocked every tool call.
 - Hook launchers failed on Windows when `HOME` was unset, which blocked every tool call in Copilot SDK sessions and dropped the SessionStart context.
 - Preserve unambiguous trigger replies with mixed capitalization or no space after the colon; keep multiline or contradictory replies invalid. Classify query errors structurally and repair the schema-checked sample query IDs.

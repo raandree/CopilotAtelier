@@ -117,10 +117,14 @@ Describe 'Client capability contract' -Tag 'Unit' {
         }
     }
 
-    It 'Should declare the documented Copilot CLI model shape and tool vocabulary' {
+    It 'Should declare the documented model shape and the runtime tool vocabulary' {
         <#
             The Copilot CLI and cloud agent reference documents one model string,
-            not the VS Code priority array, and a closed set of tool aliases.
+            not the VS Code priority array. Its web and search aliases are
+            documented too, but the runtime resolves neither to a tool
+            (github/copilot-cli#4594), so the vocabulary is the exact names the
+            offline probe saw enable a tool, plus todo, which enables nothing but
+            costs nothing because the runtime always offers its sql tool.
         #>
         $contract = InModuleScope CopilotAtelier { Get-CopilotAtelierClientContract }
         $cli = $contract.Client['copilot-cli']
@@ -133,7 +137,75 @@ Describe 'Client capability contract' -Tag 'Unit' {
         foreach ($name in $alias)
         {
             $name |
-                Should -BeIn @('agent', 'edit', 'execute', 'read', 'search', 'todo', 'web') -Because 'only documented aliases may be emitted'
+                Should -BeIn @('agent', 'ask_user', 'edit', 'execute', 'glob', 'grep', 'read', 'todo', 'web_fetch') -Because 'only probe-verified runtime names and the todo alias may be emitted'
+        }
+    }
+
+    It 'Should map the web and search identifiers to exact runtime names instead of dead aliases' {
+        $contract = InModuleScope CopilotAtelier { Get-CopilotAtelierClientContract }
+        $cli = $contract.Client['copilot-cli']
+
+        foreach ($source in $cli.ToolMap.Keys)
+        {
+            @($cli.ToolMap[$source]) |
+                Should -Not -Contain 'web' -Because "'$source' would reach an alias that enables no runtime tool"
+            @($cli.ToolMap[$source]) |
+                Should -Not -Contain 'search' -Because "'$source' would reach an alias that enables no runtime tool"
+        }
+
+        $cli.ToolMap['web/fetch'] | Should -Be 'web_fetch'
+        $cli.ToolMap['web_fetch'] | Should -Be 'web_fetch'
+
+        foreach ($source in @('search', 'search/fileSearch', 'search/listDirectory', 'search/textSearch'))
+        {
+            @($cli.ToolMap[$source]) |
+                Should -Be @('grep', 'glob') -Because "the documented search alias stands for both, and '$source' keeps both"
+        }
+
+        $cli.ToolMap['grep'] | Should -Be 'grep'
+        $cli.ToolMap['glob'] | Should -Be 'glob'
+        $cli.ToolMap['ask_user'] | Should -Be 'ask_user'
+    }
+
+    It 'Should report every agent-host-only tool as unsupported with a reason' {
+        <#
+            The browser tools and the session tools exist only in VS Code
+            agent-host sessions. The client has neither an integrated browser
+            nor an agent-host session, so each is an explicit unsupported entry
+            rather than a name the composition would reject or approximate.
+        #>
+        $contract = InModuleScope CopilotAtelier { Get-CopilotAtelierClientContract }
+        $cli = $contract.Client['copilot-cli']
+
+        $agentHostTool = @(
+            'openBrowserPage'
+            'readPage'
+            'screenshotPage'
+            'navigatePage'
+            'clickElement'
+            'typeInPage'
+            'hoverElement'
+            'dragElement'
+            'handleDialog'
+            'runPlaywrightCode'
+        ) | ForEach-Object -Process { "vscodeBrowser/$_" }
+
+        $agentHostTool += @(
+            'set_workspace'
+            'list_sessions'
+            'get_current_session'
+            'get_session_context'
+            'add_artifact_or_reference'
+            'list_artifacts_and_references'
+            'remove_artifact_or_reference'
+        )
+
+        foreach ($identifier in $agentHostTool)
+        {
+            $cli.ToolMap.Contains($identifier) | Should -BeTrue -Because "'$identifier' needs an explicit entry"
+            $cli.ToolMap[$identifier] | Should -BeNullOrEmpty -Because "'$identifier' has no counterpart on this client"
+            $cli.ToolUnsupportedReason[$identifier] |
+                Should -Match '(?i)agent-host' -Because "'$identifier' is reported with the reason it is missing"
         }
     }
 
@@ -149,7 +221,7 @@ Describe 'Client capability contract' -Tag 'Unit' {
 
         foreach ($source in $cli.ToolMap.Keys)
         {
-            if ($cli.ToolMap[$source] -eq 'execute')
+            if ('execute' -in @($cli.ToolMap[$source]))
             {
                 $source |
                     Should -BeIn $cli.ExecutionSourceTool -Because "'$source' must not be widened to shell execution"
@@ -174,16 +246,27 @@ Describe 'Client capability contract' -Tag 'Unit' {
 
         foreach ($source in $cli.ToolMap.Keys)
         {
-            $mapped = $cli.ToolMap[$source]
+            $mapped = @($cli.ToolMap[$source] | Where-Object -FilterScript { $_ })
 
-            if (-not $mapped)
+            if ($mapped.Count -eq 0)
             {
                 continue
             }
 
+            # An exact runtime name has no prefix, so it counts toward the
+            # class that lists it rather than forming a class of its own.
+            $owner = @(
+                $cli.CapabilityClass.Keys |
+                    Where-Object -FilterScript { $source -in @($cli.CapabilityClass[$_]) }
+            )
+
             $class = if ($source -match '^(?<prefix>[a-z]+)/')
             {
                 $Matches.prefix
+            }
+            elseif ($owner.Count -eq 1)
+            {
+                $owner[0]
             }
             else
             {
@@ -191,10 +274,27 @@ Describe 'Client capability contract' -Tag 'Unit' {
             }
 
             $cli.CapabilityClass.Contains($class) |
-                Should -BeTrue -Because "'$source' maps to '$mapped' without a declared capability class"
-            $mapped |
-                Should -Be $cli.CapabilityClass[$class] -Because "'$source' may only map inside its own capability class"
+                Should -BeTrue -Because "'$source' maps to '$($mapped -join ', ')' without a declared capability class"
+
+            foreach ($name in $mapped)
+            {
+                $name |
+                    Should -BeIn @($cli.CapabilityClass[$class]) -Because "'$source' may only map inside its own capability class"
+            }
         }
+    }
+
+    It 'Should count each exact runtime name toward exactly one capability class' {
+        $contract = InModuleScope CopilotAtelier { Get-CopilotAtelierClientContract }
+        $cli = $contract.Client['copilot-cli']
+
+        $member = @(foreach ($class in $cli.CapabilityClass.Keys) { $cli.CapabilityClass[$class] })
+
+        @($member | Group-Object | Where-Object -FilterScript { $_.Count -gt 1 }).Name |
+            Should -BeNullOrEmpty -Because 'a runtime name that belonged to two classes could satisfy either one'
+
+        @($cli.CapabilityClass['search']) | Should -Be @('grep', 'glob')
+        @($cli.CapabilityClass['web']) | Should -Be @('web_fetch')
     }
 
     It 'Should declare the workflow modes the client cannot run' {
@@ -251,7 +351,79 @@ Describe 'Copilot CLI variant composition' -Tag 'Unit' {
 
         $result.Tool | Should -Not -Contain 'execute'
         $result.Tool | Should -Contain 'read'
-        $result.Tool | Should -Contain 'search'
+        $result.Tool | Should -Contain 'grep'
+        $result.Tool | Should -Contain 'glob'
+        $result.Tool | Should -Not -Contain 'search' -Because 'the search alias enables no runtime tool'
+    }
+
+    It 'Should map web/fetch to the exact runtime fetch tool' {
+        $path = script:New-AgentFixture -Name 'fixture-web' -Tool @('read/readFile', 'web/fetch')
+
+        $result = InModuleScope CopilotAtelier -Parameters @{ Path = $path } {
+            param ($Path)
+            ConvertTo-CopilotAtelierClientAgent -Path $Path -Client 'copilot-cli'
+        }
+
+        @($result.Tool) | Should -Be @('read', 'web_fetch')
+    }
+
+    It 'Should keep the exact runtime names a profile declares next to its VS Code names' {
+        $path = script:New-AgentFixture -Name 'fixture-runtime-names' -Tool @('vscode/askQuestions', 'ask_user', 'grep', 'glob', 'web_fetch')
+
+        $result = InModuleScope CopilotAtelier -Parameters @{ Path = $path } {
+            param ($Path)
+            ConvertTo-CopilotAtelierClientAgent -Path $Path -Client 'copilot-cli'
+        }
+
+        @($result.Tool) | Should -Be @('ask_user', 'glob', 'grep', 'web_fetch')
+        @($result.UnsupportedCapability | Where-Object -FilterScript { $_.Capability -eq 'vscode/askQuestions' }).Reason |
+            Should -Match 'ask_user' -Because 'the unsupported VS Code name points at its runtime counterpart'
+    }
+
+    It 'Should report agent-host-only tools instead of emitting them' {
+        $path = script:New-AgentFixture -Name 'fixture-agent-host' -Tool @('read/readFile', 'vscodeBrowser/openBrowserPage', 'set_workspace')
+
+        $result = InModuleScope CopilotAtelier -Parameters @{ Path = $path } {
+            param ($Path)
+            ConvertTo-CopilotAtelierClientAgent -Path $Path -Client 'copilot-cli'
+        }
+
+        @($result.Tool) | Should -Be @('read')
+
+        foreach ($identifier in @('vscodeBrowser/openBrowserPage', 'set_workspace'))
+        {
+            $reported = @($result.UnsupportedCapability | Where-Object -FilterScript { $_.Capability -eq $identifier })
+
+            $reported | Should -Not -BeNullOrEmpty -Because $identifier
+            $reported[0].Reason | Should -Match '(?i)agent-host' -Because $identifier
+        }
+    }
+
+    It 'Should count exact runtime names toward a required capability class' {
+        $path = script:New-AgentFixture -Name 'fixture-required-class' -Tool @('read/readFile', 'search/textSearch')
+
+        $result = InModuleScope CopilotAtelier -Parameters @{ Path = $path } {
+            param ($Path)
+            ConvertTo-CopilotAtelierClientAgent -Path $Path -Client 'copilot-cli' -RequiredCapability @('read', 'search')
+        }
+
+        @($result.Tool) | Should -Be @('glob', 'grep', 'read')
+    }
+
+    It 'Should refuse a required capability class that is only partly emitted' {
+        <#
+            File-name search without content search is not the search the
+            shared body depends on, so one runtime name of the class is not
+            enough to pass the gate.
+        #>
+        $path = script:New-AgentFixture -Name 'fixture-partial-class' -Tool @('read/readFile', 'glob')
+
+        {
+            InModuleScope CopilotAtelier -Parameters @{ Path = $path } {
+                param ($Path)
+                ConvertTo-CopilotAtelierClientAgent -Path $Path -Client 'copilot-cli' -RequiredCapability @('read', 'search')
+            }
+        } | Should -Throw -ExpectedMessage '*search*'
     }
 
     It 'Should not grant shell execution to a profile that may only read terminal output' {

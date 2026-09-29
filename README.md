@@ -924,7 +924,13 @@ instead of a priority array, a closed set of tool aliases instead of
 product-qualified tool identifiers, and no subagent allow-list, handoff, or
 argument hint. An unrecognized tool name is *ignored* by that client, so a
 profile that loads there can quietly lose the capabilities its own body depends
-on. The scope here is VS Code Copilot Chat and the Copilot CLI; no other client
+on. Two of the documented aliases, `web` and `search`, resolve to no tool at all
+([github/copilot-cli#4594](https://github.com/github/copilot-cli/issues/4594)),
+so the mapping emits the exact runtime names `web_fetch`, `grep`, and `glob`
+instead. The same runtime serves VS Code agent-host sessions, which is why every
+profile also declares those runtime names next to its VS Code names; see
+[Tool names in agent-host sessions](com.github.copilot/agents/README.md#tool-names-in-agent-host-sessions).
+The scope here is VS Code Copilot Chat and the Copilot CLI; no other client
 was checked, and none is claimed.
 
 `Get-CopilotAtelierClientAdapter` makes that difference inspectable. It reads

@@ -16,6 +16,17 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Recent milestones
 
+- **2026-09-29**: Restored Custom agent tools in VS Code agent-host sessions on
+  `ai/agent-runtime-tool-names` (decision 0026). The runtime drops VS Code tool
+  names it cannot resolve, so every agent now pairs them with `web_fetch`,
+  `grep`, `glob`, `ask_user`, and `vscodeBrowser/*`; the twelve open agents add
+  seven session tools and the four contained ones gain only search and question
+  names. The CLI contract emits `web_fetch`, `grep`, and `glob` instead of the
+  dead `web` and `search` aliases. New test red 28 then green; offline probe 16
+  of 16 agents; full Windows build/test 2,286/0/121 at 90.74%. The security
+  review's parser Major was fixed (red 7 then green); its `agents:` and
+  cross-session findings are recorded in 0026 for the user. Not pushed.
+
 - **2026-09-29**: Part 2 of the hook fix. The GitHub hooks reference verifies the
   SDK host's contract: PascalCase events get the VS Code `tool_input` payload,
   `timeout` aliases `timeoutSec`, a timeout fails open, and any other non-zero
@@ -87,20 +98,6 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
   617/0/108. Five ShellPilot requests per arm made zero Skill loads, so body
   effects and native discovery remain unmeasured. No commit or remote mutation.
 
-- **2026-09-07**: Repaired CI run `34147860492`: retain hidden adapter metadata
-  in build artifacts and canonicalize plan-review temporary fixtures. Workflow
-  regression 4/1 then 5/0; linked-temp regression red then green; Node 165/0.
-  Clean-checkout gate 1,777/0/116 at 90.72%; final record/workflow checks 12/0.
-  Committed and pushed `0367ce3` on `main` as requested. GitHub Actions run
-  `34163989373` passed packaging, all three test jobs, and deployment at 21:54
-  UTC. The uploaded ownership manifest and generated-file hash were verified.
-
-- **2026-09-07**: Integrated the seven-task series, the optional
-  `tools/plan-review` surface, and the PR-01 to PR-09 corrections, then closed
-  the CONDITIONAL review's Major on `f933946`: the heading verifier is mandatory
-  and mutation-checked. Windows gate 1,775/0/116 at 90.72%; Node 255, Edge 42.
-  Full contracts remain in git and `CHANGELOG.md`.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -126,6 +123,9 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Open work
 
+- Confirm live in a fresh agent-host chat that `software-engineer` calls
+  `web_fetch` for `#web/fetch`; drop the paired runtime names once
+  github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
 - Confirm that the next full release's generated rollover PR carries
   `plugin.json` and passes CI.
 - Hook follow-ups, with prompts on the development machine's Desktop: check

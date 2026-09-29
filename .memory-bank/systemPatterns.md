@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-25
+last-verified: 2026-09-29
 owner: software-engineer
 source: .memory-bank/decisions and source/
 ---
@@ -39,6 +39,7 @@ when the task needs it; the repository layout lives in `techContext.md`.
 | 23 | [Adopt Agent Plugins 1.0 without moving Instructions and Prompts](decisions/0023-adopt-agent-plugins-1-0.md) | Accepted | 2026-08-26 |
 | 24 | [Measure the session clock in a hook, not in the model](decisions/0024-measure-the-session-clock-in-a-hook.md) | Accepted | 2026-09-02 |
 | 25 | [Package specification completion as capability-isolated agents](decisions/0025-package-specification-completion-as-capability-isolated-agents.md) | Accepted | 2026-09-02 |
+| 26 | [Declare runtime tool names next to VS Code names](decisions/0026-declare-runtime-tool-names-next-to-vs-code-names.md) | Accepted | 2026-09-29 |
 
 ## Live relationships
 
@@ -47,8 +48,9 @@ when the task needs it; the repository layout lives in `techContext.md`.
     Bound input bytes as well as regex time, and carry severity as data rather
     than inferring it from prose. Grader tests do not prove model behavior.
 - Agent conformance needs schema, executable behavior, and containment. Tool
-    lists prove schema only. Enforce no-egress across terminals, delegates,
-    handoffs, MCP, and hooks; prose cannot sandbox native Windows execution.
+    lists prove schema only, and agent-host runtimes drop unresolved VS Code
+    names (0026). Enforce no-egress across terminals, delegates, handoffs, MCP,
+    and hooks; prose cannot sandbox native Windows execution.
 - Sensitive-data work separates read-only intake, local transformation, public
     research, and explicitly shared authenticated actions. Tools are capability,
     not authorization; `agents` grants delegation, not body inheritance. Share
@@ -68,8 +70,7 @@ when the task needs it; the repository layout lives in `techContext.md`.
     Discovery siblings. Preserve unowned matches, require recorded paths and
     hashes before removal, and keep source and deployment trees separate.
     Windows OneDrive selection needs account-specific metadata, not a generic variable or folder; TargetPath overrides it.
-- Profile narrowing validates Selection without granting ownership. Omit it for
-    full installs; reread inherited state inside the existing target lock.
+    Profile narrowing validates Selection without granting ownership; omit it for full installs and reread inherited state inside the target lock.
 - A selected artifact is an untrusted observation, never policy: keep candidates
     off automatically loaded surfaces, apply one content rule at intake and at
     promotion, gate an append-only write on an approved preview hash, and bind
@@ -78,9 +79,8 @@ when the task needs it; the repository layout lives in `techContext.md`.
     Reconcile observed hashes, not assumed completion. Guard every ancestor
     below the selected root; trusted aliases sit above it. Placeholders are not
     links, and hashes do not provide a transaction or sandbox.
-- Remove verified Discovery links non-recursively, including dangling Unix
-    links. Construct literal POSIX filename fixtures with .NET path APIs, not
-    the PowerShell provider's separator-normalizing `Join-Path`.
+- Remove verified Discovery links non-recursively, dangling Unix links too.
+    Make POSIX filename fixtures with .NET path APIs; `Join-Path` normalizes.
 - Hooks enforce unconditional rules; Instructions carry judgement calls. VS Code honors a hook's `windows` launcher, but the Copilot SDK host
     runs `command` on Windows too: every launcher branch must work on every OS it can reach, Windows never depends on `HOME`, and launchers resolve exact trusted roots without `$`.
 - CI preserves hidden ownership metadata and canonical temporary paths. Nested

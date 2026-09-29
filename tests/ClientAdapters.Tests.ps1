@@ -66,17 +66,21 @@ Describe 'Copilot CLI variant of the representative profile' -Tag 'Unit' {
         $script:variant.Body | Should -Not -BeNullOrEmpty
     }
 
-    It 'Should emit only documented client tool aliases' {
+    It 'Should emit only verified runtime tool names' {
         foreach ($name in $script:variant.Tool)
         {
             $name |
-                Should -BeIn @('agent', 'edit', 'execute', 'read', 'search', 'todo', 'web') -Because "'$name' must be a documented alias"
+                Should -BeIn @('agent', 'ask_user', 'edit', 'execute', 'glob', 'grep', 'read', 'todo', 'web_fetch') -Because "'$name' must be a probe-verified runtime name or the todo alias"
         }
 
         $script:variant.Tool | Should -Contain 'execute'
         $script:variant.Tool | Should -Contain 'read'
         $script:variant.Tool | Should -Contain 'edit'
-        $script:variant.Tool | Should -Contain 'search'
+        $script:variant.Tool | Should -Contain 'grep'
+        $script:variant.Tool | Should -Contain 'glob'
+        $script:variant.Tool | Should -Contain 'web_fetch'
+        $script:variant.Tool | Should -Not -Contain 'search' -Because 'the search alias enables no runtime tool (github/copilot-cli#4594)'
+        $script:variant.Tool | Should -Not -Contain 'web' -Because 'the web alias enables no runtime tool (github/copilot-cli#4594)'
     }
 
     It 'Should withhold delegation instead of inheriting it unrestricted' {
@@ -87,9 +91,16 @@ Describe 'Copilot CLI variant of the representative profile' -Tag 'Unit' {
     It 'Should keep every capability the shared body declares mandatory' {
         $script:variant.RequiredCapability | Should -Not -BeNullOrEmpty
 
+        $capabilityClass = $script:contract.Client['copilot-cli'].CapabilityClass
+
         foreach ($capability in $script:variant.RequiredCapability)
         {
-            $script:variant.Tool | Should -Contain $capability
+            $capabilityClass.Contains($capability) | Should -BeTrue -Because "'$capability' is a declared capability class"
+
+            foreach ($name in @($capabilityClass[$capability]))
+            {
+                $script:variant.Tool | Should -Contain $name -Because "the '$capability' capability needs '$name'"
+            }
         }
     }
 
@@ -101,6 +112,8 @@ Describe 'Copilot CLI variant of the representative profile' -Tag 'Unit' {
         @{ Capability = 'useMcp' }
         @{ Capability = 'runTests' }
         @{ Capability = 'execute/getTerminalOutput' }
+        @{ Capability = 'vscodeBrowser/openBrowserPage' }
+        @{ Capability = 'set_workspace' }
     ) {
         $reported = @($script:variant.UnsupportedCapability | Where-Object -FilterScript { $_.Capability -eq $Capability })
 
