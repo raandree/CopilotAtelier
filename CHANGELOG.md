@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `Block-RemoteMutation` now allows the tool call with a warning when the hook payload is not valid JSON, as its message always said. It exited 1, which the Copilot SDK host treats as a denial, so a payload schema change would have blocked every tool call.
 - Hook launchers failed on Windows when `HOME` was unset, which blocked every tool call in Copilot SDK sessions and dropped the SessionStart context.
 - Preserve unambiguous trigger replies with mixed capitalization or no space after the colon; keep multiline or contradictory replies invalid. Classify query errors structurally and repair the schema-checked sample query IDs.
 - Bound evaluation definitions, samples, and replies to 1 MiB per file by default (`-MaxInputBytes` can opt into larger inputs), and provide stable timeout diagnostics. See [grading contracts](skills/agent-evals/SKILL.md#bundled-grading-contracts).

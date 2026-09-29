@@ -203,11 +203,17 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
         $result.Output | Should -Match 'COPILOT_ATELIER_ALLOW_REMOTE'
     }
 
-    It 'warns without blocking when the payload is unreadable' {
+    It 'allows the tool call with a warning when the payload is unreadable' {
+        <#
+            The Copilot SDK host fails closed on every non-zero preToolUse exit
+            other than a timeout, so exit 1 would deny every tool call after a
+            payload schema change. Exit 0 allows the call in every host, and the
+            warning stays on standard error.
+        #>
         $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload 'not json at all'
 
-        $result.ExitCode | Should -Be 1 -Because $result.Output
-        $result.ExitCode | Should -Not -Be 2 -Because 'a schema change must not brick every tool call'
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $result.Output | Should -Match 'hook payload is not valid JSON; allowing the tool call'
     }
 
     It 'allows an empty payload' {

@@ -64,7 +64,10 @@ message, or `--grep` value that merely contains the word does not trip it. A
 tool with no command-bearing field exits `0` immediately, so editing a document
 that mentions `git push` is never blocked. The reason goes to standard error and
 the script exits with `2`, which VS Code treats as a blocking error and shows to
-the model.
+the model. A payload that is not valid JSON is allowed with a warning on
+standard error and exit `0`: the Copilot SDK host denies a `preToolUse` call on
+every other non-zero exit, so a payload schema change would otherwise block
+every tool call.
 
 ### Authorizing a remote mutation
 
@@ -238,8 +241,13 @@ which survives because Instructions are re-sent with every request.
   it also carries no backtick, inner double quote, or `%`. Keep it that way, or
   the hook silently stops guarding anything.
 - **Timeout.** These hooks declare 20 seconds. The configuration gate accepts
-  explicit limits from 1 through 30 seconds. Investigate slow filesystem access
+  explicit limits from 1 through 30 seconds. The Copilot SDK host reads
+  `timeout` as an alias of its own `timeoutSec` and, unlike every other failure,
+  lets a timed-out `preToolUse` hook through. Investigate slow filesystem access
   before changing the limit; do not replace a bounded hook with an unlimited one.
+- **A redeployed hook does not take effect.** The Copilot SDK host reads hook
+  configuration when a session starts; a chat that was already open, and the
+  subagents it starts, keep what they loaded. Start a new chat.
 - **Deployment drift.** Run `(Test-CopilotAtelier).Checks` to inspect missing
   scripts, changed files, and Discovery targets. This is read-only and never
   executes a hook as a health check.

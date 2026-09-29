@@ -26,7 +26,9 @@
     payload directly so they do not depend on redirected input.
 .NOTES
     Exit codes follow the VS Code hook contract: 0 allows, 2 blocks, and any
-    other value is a non-blocking warning.
+    other value is a non-blocking warning. The Copilot SDK host instead denies
+    a preToolUse call on every non-zero exit, so this script uses only 0 and 2:
+    an unreadable payload is allowed with a warning on standard error.
 #>
 
 [CmdletBinding()]
@@ -118,8 +120,10 @@ if ([string]::IsNullOrWhiteSpace($InputJson)) {
 try {
     $payload = $InputJson | ConvertFrom-Json -ErrorAction Stop
 } catch {
+    # Exit 0, not 1: the Copilot SDK host denies a preToolUse call on any other
+    # non-zero exit, so a payload schema change would block every tool call.
     [Console]::Error.WriteLine('Block-RemoteMutation: hook payload is not valid JSON; allowing the tool call.')
-    exit 1
+    exit 0
 }
 
 $commandText = Get-CommandText -InputObject $payload.tool_input

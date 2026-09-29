@@ -27,7 +27,14 @@ Failures name the script and the underlying error without a `$`.
 An outer PowerShell `-Command` flattens every non-zero exit to `1`; no launcher
 text can prevent it, and the SDK host still denies `preToolUse` on `1`. The
 GitHub hooks reference documents that PascalCase events receive the VS Code
-snake_case payload (`tool_input`) and that `timeout` aliases `timeoutSec`.
+snake_case payload (`tool_input`) and that `timeout` aliases `timeoutSec`, so
+`Block-RemoteMutation` needs no second payload parser. Part 2 makes its
+unreadable-payload path exit `0` with the warning on stderr, because the SDK
+host denies on `1`. Decision 0016 carries the verified host contract table.
+
+The fresh-chat end-to-end check is the user's: the SDK host reads hooks at
+session start, and neither this session nor its subagents reloaded them after
+the redeploy (a harmless probe that only prints push text ran undenied).
 
 ## Previous plan-review work
 
@@ -160,9 +167,9 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Redeploy with `Setup-CopilotSettings.ps1`, compare the deployed `hooks.json`
-with the source, and verify end to end in a fresh Copilot SDK chat with no
-workspace: `web_fetch` works and the `SessionStart` context arrives. A machine
-that carries the hand-patched deployed `hooks.json` needs `-Repair`, because
-the deployment plan refuses to overwrite a modified Owned file. No push was
-requested or performed.
+The user opens a fresh Copilot SDK chat with no workspace and confirms that
+`web_fetch` works and the `SessionStart` context arrives. Both commits are
+redeployed to `C:\Users\install\CopilotAtelier`. A machine that carries the
+hand-patched deployed `hooks.json` needs `Setup-CopilotSettings.ps1 -Repair`,
+because the deployment plan refuses to overwrite a modified Owned file. No push
+was requested or performed.

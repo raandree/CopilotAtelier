@@ -16,6 +16,12 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Recent milestones
 
+- **2026-09-29**: Part 2 of the hook fix. The GitHub hooks reference verifies the
+  SDK host's contract: PascalCase events get the VS Code `tool_input` payload,
+  `timeout` aliases `timeoutSec`, a timeout fails open, and any other non-zero
+  `preToolUse` exit denies. `Block-RemoteMutation` therefore allows an unreadable
+  payload with exit 0 (red 3, then focused 428/0/56). Redeployed; this session
+  and its subagents did not reload hooks, so the fresh-chat check is the user's.
 - **2026-09-29**: Fixed the hook launchers on `ai/fix-hook-launcher-home`. The
   Copilot SDK host copies `command` into its `powershell` field on Windows, where
   `HOME` is unset, so every `PreToolUse` call was denied as `hook errored` and
@@ -76,15 +82,10 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
   clean; README and changelog updated. Live path resolution now stays local;
   no real-profile deployment, migration, or remote mutation was performed.
 
-- **2026-09-08**: Transferred wiki timeout and partial-publication recovery
-  lessons into the two existing Sampler Skills, with one real regression case,
-  sanitized fixtures, and grader-only success evidence. Pester 5.7.1 structural
-  and Memory Bank gates: 617/0/108; nine Markdown documents render, 30 local
-  links resolve, and prompt, CI fences, and evaluated hashes are verified.
-  `uv` conformance is unavailable. Five ShellPilot requests
-  per prior/changed arm completed with zero Skill loads in either arm; body
-  effects and native discovery remain unmeasured. Descriptions unchanged; no
-  commit or remote mutation. Raw traces and snapshots remain external scratch.
+- **2026-09-08**: Moved the wiki timeout and partial-publication recovery lessons
+  into the two existing Sampler Skills with one real regression case; gates
+  617/0/108. Five ShellPilot requests per arm made zero Skill loads, so body
+  effects and native discovery remain unmeasured. No commit or remote mutation.
 
 - **2026-09-07**: Repaired CI run `34147860492`: retain hidden adapter metadata
   in build artifacts and canonicalize plan-review temporary fixtures. Workflow

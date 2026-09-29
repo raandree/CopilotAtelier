@@ -703,8 +703,10 @@ Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration
     It '<Expectation> through the <Branch> launcher spawned by cmd.exe with HOME unset' -ForEach @(
         @{ Branch = 'command'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
         @{ Branch = 'command'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
+        @{ Branch = 'command'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
         @{ Branch = 'windows'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
         @{ Branch = 'windows'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
+        @{ Branch = 'windows'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
     ) {
         # The real guard, staged the way Install-CopilotAtelier deploys it.
         $caseRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
@@ -714,11 +716,15 @@ Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration
         $null = New-Item -ItemType Directory -Path $deployedScripts, $workingDirectory -Force
         Copy-Item -LiteralPath (Join-Path -Path $script:hookScriptRoot -ChildPath 'Block-RemoteMutation.ps1') -Destination $deployedScripts
 
-        $payload = [ordered]@{
-            hook_event_name = 'PreToolUse'
-            tool_name = 'run_in_terminal'
-            tool_input = [ordered]@{ command = $Command }
-        } | ConvertTo-Json -Depth 5 -Compress
+        $payload = if ($RawPayload) {
+            $RawPayload
+        } else {
+            [ordered]@{
+                hook_event_name = 'PreToolUse'
+                tool_name = 'run_in_terminal'
+                tool_input = [ordered]@{ command = $Command }
+            } | ConvertTo-Json -Depth 5 -Compress
+        }
 
         $result = Invoke-HookLauncher `
             -Launcher (Get-HookLauncher -EventName 'PreToolUse' -Branch $Branch) `
