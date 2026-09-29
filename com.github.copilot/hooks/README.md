@@ -8,11 +8,39 @@ Setup deploys this folder to the Canonical target and links it to
 `~/.copilot/hooks`. Hook discovery and event behavior are client-specific;
 verify loading in the client being used rather than assuming cross-client parity.
 
+## Launchers
+
+Every entry in `hooks.json` carries two launchers. VS Code runs `windows` on
+Windows and `command` elsewhere. The Copilot SDK host has no `windows` key: its
+own format knows `bash`, `powershell`, `exec`, and a cross-platform `command`
+that it copies into `powershell` on Windows
+([hooks configuration reference](https://docs.github.com/en/copilot/reference/hooks-configuration)).
+It therefore runs `command` on every platform, Windows included. Both launchers
+are identical apart from the interpreter — `pwsh` or `powershell` — and neither
+may depend on `HOME`, which Windows does not define.
+
+Each launcher runs the first of these scripts that exists:
+
+1. `<PLUGIN_ROOT>/com.github.copilot/hooks/scripts/<Script>.ps1`
+2. `<HOME>/.copilot/hooks/scripts/<Script>.ps1`
+3. `<USERPROFILE>/.copilot/hooks/scripts/<Script>.ps1`
+4. `.copilot/hooks/scripts/<Script>.ps1` under the profile folder the operating
+   system reports, for a host that passes a stripped environment
+
+An unset root becomes an unresolvable `*` and a relative root is anchored at the
+filesystem root, so no candidate ever resolves against the working directory.
+The launcher passes the script's exit code through unchanged; a host that wraps
+it in PowerShell can still flatten that code, as Troubleshooting explains. When
+no candidate exists or the script cannot start, the launcher names the script
+and the underlying error on standard error and exits `2` for `PreToolUse`, which
+blocks, and `1` for the lifecycle events, which warns. `command` needs `pwsh` on
+`PATH`.
+
 ## Contents
 
 | File | Event | Purpose |
 |---|---|---|
-| [`hooks.json`](hooks.json) | — | Hook configuration loaded by VS Code |
+| [`hooks.json`](hooks.json) | — | Hook configuration loaded by VS Code and the Copilot SDK host |
 | [`scripts/Block-RemoteMutation.ps1`](scripts/Block-RemoteMutation.ps1) | `PreToolUse` | Blocks remote-mutating and irreversible commands |
 | [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank, injects the UTC timestamp, starts the session clock |
 | [`scripts/Write-SessionClose.ps1`](scripts/Write-SessionClose.ps1) | `Stop` | Advances the session clock's turn counter |
@@ -177,22 +205,38 @@ which survives because Instructions are re-sent with every request.
   `".github/hooks": true` alongside the existing entry, or place the hook in
   `~/.copilot/hooks`. Verified by observing a `Stop` hook that executed only
   after the file moved to the deployed folder.
-- **Command not found.** A hook command resolves one of two literal paths: the
-  `PLUGIN_ROOT` path supplied by a plugin host or the exact
-  `~/.copilot/hooks/scripts` module path. It never scans an agent-plugin
-  wildcard. If neither script exists, resolution writes a diagnostic. A missing
-  `PreToolUse` guard exits `2` and blocks; missing lifecycle scripts exit `1` so
-  they warn without trapping the agent loop. If you deploy the scripts
-  elsewhere, replace the resolver in `hooks.json` with one absolute path.
+- **Command not found.** A hook command tries the four literal locations listed
+  under [Launchers](#launchers) and never scans an agent-plugin wildcard. When
+  none exists it writes `CopilotAtelier hook <Script>.ps1 failed: could not
+  resolve the script …`; when the script itself fails, the same prefix carries
+  the underlying error instead. A missing `PreToolUse` guard exits `2` and
+  blocks; missing lifecycle scripts exit `1` so they warn without trapping the
+  agent loop. If you deploy the scripts elsewhere, replace the resolver in
+  `hooks.json` with one absolute path.
+- **Every tool call is denied with `(hook errored)` in a Copilot SDK session.**
+  The SDK host runs `command`, so that branch has to resolve on Windows without
+  `HOME` and needs `pwsh` on `PATH`. Launchers from releases before this fix
+  looked only at `PLUGIN_ROOT` and `HOME` there and failed closed on every call.
+  Redeploy, then start a new session.
+- **A `PreToolUse` block reaches the host as exit `1`.** A host that runs the
+  launcher inside an outer PowerShell `-Command` — as the Copilot SDK host does
+  on Windows — reports only whether its last command succeeded, so exit `2`
+  arrives as `1`. The SDK host fails closed on every non-zero `preToolUse` exit,
+  so the call is still denied, but as `Denied by preToolUse hook (hook errored)`
+  without the reason. No launcher text can prevent the flattening: a trailing
+  bare `exit` turns it into `0`, which would allow the call. Only the host can
+  keep the code, by ending its wrapper with `exit $LASTEXITCODE`.
 - **The hook dies with a PowerShell parser error.** VS Code hands the command to
   a PowerShell shell, which expands the double-quoted `-Command` argument before
   the child process parses it. A `$` token is therefore consumed by the outer
   shell and reaches the child as an empty string — `$b = if ($env:PLUGIN_ROOT)`
   arrives as `= if ()` and fails with `An expression was expected after '('`.
   Every shipped command is written without a single `$`: paths come from
-  `[Environment]::GetEnvironmentVariable(...)` and the blocking exit code from
-  `Get-Variable -Name LASTEXITCODE -ValueOnly`. Keep it that way, or the hook
-  silently stops guarding anything.
+  `[Environment]::GetEnvironmentVariable(...)`, the blocking exit code from
+  `Get-Variable -Name LASTEXITCODE -ValueOnly`, and the reported error from
+  `Get-Variable -Name _ -ValueOnly`. `cmd.exe` and `sh` parse the same text, so
+  it also carries no backtick, inner double quote, or `%`. Keep it that way, or
+  the hook silently stops guarding anything.
 - **Timeout.** These hooks declare 20 seconds. The configuration gate accepts
   explicit limits from 1 through 30 seconds. Investigate slow filesystem access
   before changing the limit; do not replace a bounded hook with an unlimited one.

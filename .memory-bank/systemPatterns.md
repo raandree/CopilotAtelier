@@ -80,9 +80,9 @@ when the task needs it; the repository layout lives in `techContext.md`.
     links, and hashes do not provide a transaction or sandbox.
 - Remove verified Discovery links non-recursively, including dangling Unix
     links. Construct literal POSIX filename fixtures with .NET path APIs, not
-    the PowerShell provider's separator-normalizing `Join-Path`. Hooks enforce
-    unconditional rules; Instructions carry judgement calls. Hook commands
-    resolve exact trusted roots and avoid pre-parse `$` substitution.
+    the PowerShell provider's separator-normalizing `Join-Path`.
+- Hooks enforce unconditional rules; Instructions carry judgement calls. VS Code honors a hook's `windows` launcher, but the Copilot SDK host
+    runs `command` on Windows too: every launcher branch must work on every OS it can reach, Windows never depends on `HOME`, and launchers resolve exact trusted roots without `$`.
 - CI preserves hidden ownership metadata and canonical temporary paths. Nested
     Node runners clear `NODE_TEST_CONTEXT` and prove tests ran; external checks fail closed and baselines shrink.
     Deduplicate only an exact-head PR, never a stale one. Cancel topic/PR runs,

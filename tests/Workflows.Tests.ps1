@@ -113,6 +113,25 @@ Describe 'GitHub Actions workflows' -Tag 'Unit' {
             Should -BeTrue -Because 'downstream tests require the hidden client-adapter ownership manifest'
     }
 
+    It 'Should run the complete suite on a Windows runner' {
+        <#
+            The hook launchers once failed only on Windows, where HOME is unset,
+            and only in the branch VS Code never runs there. A POSIX leg, or a
+            leg filtered by tag, cannot reach that failure or the Windows-only
+            launcher cases in tests/HookLauncher.Tests.ps1.
+        #>
+        $workflow = ConvertFrom-Yaml -Yaml (
+            Get-Content -LiteralPath (Join-Path -Path $script:workflowPath -ChildPath 'ci.yml') -Raw
+        )
+
+        $windowsLeg = @(
+            $workflow.jobs.test.strategy.matrix.include |
+                Where-Object -FilterScript { $_.os -like 'windows-*' -and $_.arguments -notmatch '-Pester\w+' }
+        )
+
+        $windowsLeg | Should -Not -BeNullOrEmpty -Because 'one Windows leg must run every test without a tag filter'
+    }
+
     It 'Should verify the release secrets before publishing' {
         <#
             Publish_Release_To_GitHub skips itself when GitHubToken is empty while

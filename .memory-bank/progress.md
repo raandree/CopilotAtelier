@@ -16,6 +16,14 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Recent milestones
 
+- **2026-09-29**: Fixed the hook launchers on `ai/fix-hook-launcher-home`. The
+  Copilot SDK host copies `command` into its `powershell` field on Windows, where
+  `HOME` is unset, so every `PreToolUse` call was denied as `hook errored` and
+  `SessionStart` never injected context (this machine's 2026-09-24 session log
+  records exactly that). Launchers now try `PLUGIN_ROOT`, `HOME`, `USERPROFILE`,
+  then the OS profile folder, bypass the execution policy, and report the
+  underlying error. New `tests/HookLauncher.Tests.ps1`: red 125 of 284 against
+  the old launchers; full Windows build/test 2,155/0/121 at 90.67% coverage.
 - **2026-09-29**: Diagnosed CI run `36549550887` (PR #26 rollover: `plugin.json`
   4.0.0 under `[5.0.0]` on all platforms); `main` was already green after #25
   (`314c795`, run `36553689149`). Fixed the cause on `ai/rollover-plugin-manifest`:
@@ -86,22 +94,11 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
   `34163989373` passed packaging, all three test jobs, and deployment at 21:54
   UTC. The uploaded ownership manifest and generated-file hash were verified.
 
-- **2026-09-07**: Closed the CONDITIONAL review's Major on `f933946`:
-  `tests/PlanReview.Tests.ps1` now proves the heading verifier's import,
-  instantiation, and every `server.mjs` read call site (mutation-checked); the
-  hook is mandatory and an over-deep body is refused as `too-deep`. Windows
-  gate 1,775/0/116 at 90.72%; Node 255, Edge 42, focused Pester 44.
-
-- **2026-09-07**: Integrated saved PR-01 through PR-09 corrections with the
-  plan-review hardening: parser-verified headings refuse ambiguous anchors
-  before any write. Windows 1,774/0/116 at 90.72%; Node 248/0 on Windows and
-  Linux; Edge 42. The original independent review covers `3d115a3` only.
-
-- **2026-09-07**: Integrated the seven-task series and the optional
-  `tools/plan-review` surface outside the module payload, including tasks
-  03-06: learning inbox (62/0, `09416a4`), Skill health (81/0),
-  `changed-file-validation` (85/0/0), and `Get-CopilotAtelierClientAdapter`
-  (121/121). Full contracts remain in git and `CHANGELOG.md`.
+- **2026-09-07**: Integrated the seven-task series, the optional
+  `tools/plan-review` surface, and the PR-01 to PR-09 corrections, then closed
+  the CONDITIONAL review's Major on `f933946`: the heading verifier is mandatory
+  and mutation-checked. Windows gate 1,775/0/116 at 90.72%; Node 255, Edge 42.
+  Full contracts remain in git and `CHANGELOG.md`.
 
 ## Stable capabilities
 
@@ -128,8 +125,11 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Open work
 
-- Merge `ai/rollover-plugin-manifest`, then confirm the next full release's
-  generated rollover PR carries `plugin.json` and passes CI.
+- Confirm that the next full release's generated rollover PR carries
+  `plugin.json` and passes CI.
+- Find out whether VS Code runs hook commands inside an outer PowerShell
+  `-Command`: that would report a `PreToolUse` block (exit 2) as 1, which VS
+  Code treats as a warning. The launcher cannot prevent it; only the host can.
 - Decide on GitVersion's `major-version-bump-message`: it matches "major"
   anywhere, so review prose in #25 moved `main` to 6.0.0.
 - Split research delegation into a read-only code explorer and a public-source

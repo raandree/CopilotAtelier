@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Hook launchers failed on Windows when `HOME` was unset, which blocked every tool call in Copilot SDK sessions and dropped the SessionStart context.
 - Preserve unambiguous trigger replies with mixed capitalization or no space after the colon; keep multiline or contradictory replies invalid. Classify query errors structurally and repair the schema-checked sample query IDs.
 - Bound evaluation definitions, samples, and replies to 1 MiB per file by default (`-MaxInputBytes` can opt into larger inputs), and provide stable timeout diagnostics. See [grading contracts](skills/agent-evals/SKILL.md#bundled-grading-contracts).
 - Harden the bundled evaluation gates against false success: validate case definitions and path-safe IDs, match `contains` literally, require complete numbered samples, bound regex matching, reject malformed trigger replies, and return failing exit codes without dropping incomplete queries from split totals. See [grading contracts](skills/agent-evals/SKILL.md#bundled-grading-contracts).

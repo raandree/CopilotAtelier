@@ -9,30 +9,25 @@ source: current task evidence
 
 ## Current focus
 
-[CI run 36549550887](https://github.com/raandree/CopilotAtelier/actions/runs/36549550887)
-is PR #26's check: the automated v5.0.0 rollover failed only the manifest
-version guard on all three platforms (`plugin.json` 4.0.0 under `[5.0.0]`).
-`main` is already green: #25 merged as `314c795` with the manifest bump, and
-push run `36553689149` passed and published `v6.0.0-preview0001`.
+`ai/fix-hook-launcher-home` (local, not pushed) fixes the hook launchers at
+their source. The Copilot SDK host has no `windows` key: it copies `command`
+into its `powershell` field and runs it on Windows too, where `HOME` is unset,
+so the old `command` resolved nothing. `PreToolUse` then denied every tool call
+as `hook errored` and `SessionStart` never injected its context.
 
-`ai/rollover-plugin-manifest` (local, not pushed) fixes the cause for the next
-full release. `Update_PluginManifest_Version` runs `-Before
-Create_ChangeLog_GitHub_PR`, rewrites only the manifest version for the full
-release tag at `origin/main`, and sets `rebase.autoStash`, without which
-Sampler's rebase pull refuses the modified tree. `GitHubFilesToAdd` commits
-`plugin.json`; CI admission validates changelog- or manifest-only main pushes
-without republishing. Red 8 of 29; two mutation runs caught their guards;
-focused 65/0/0; the real build lists the task inside the rollover task. Full
-Windows build/test at `6367e68`: 1,931/0/65, 90.67% coverage, only the known
-simulated-backend warning.
+Both launchers now differ only in the interpreter, run with `-NoProfile
+-NonInteractive -ExecutionPolicy Bypass`, and try `PLUGIN_ROOT`, `HOME`,
+`USERPROFILE`, then `[Environment]::GetFolderPath('UserProfile')`, which ignores
+`%USERPROFILE%` on Windows (verified on pwsh 7.6 and Windows PowerShell 5.1).
+Failures name the script and the underlying error without a `$`.
+`tests/HookLauncher.Tests.ps1` runs stubs through `cmd.exe`, `sh`, and an outer
+`pwsh` or `powershell -Command`: red 93 of 237 against the old launchers (125 of
+284 once the outer `powershell` mode was added), green on the focused set.
 
-GitVersion's case-insensitive `major-version-bump-message` matched "Major" in
-the #25 review-record text, so `main` now versions 6.0.0; tightening the
-pattern or accepting 6.0.0 is a pending user decision.
-
-PR #25 carried the eval-gate hardening and review follow-ups (F1-F4, N1-N3,
-P1/P2); the independent approval covers `7a186c5..2b45419`, not the
-follow-ups. Details remain in `progress.md` and git.
+An outer PowerShell `-Command` flattens every non-zero exit to `1`; no launcher
+text can prevent it, and the SDK host still denies `preToolUse` on `1`. The
+GitHub hooks reference documents that PascalCase events receive the VS Code
+snake_case payload (`tool_input`) and that `timeout` aliases `timeoutSec`.
 
 ## Previous plan-review work
 
@@ -51,6 +46,11 @@ is claimed; `review: on` remains recommended for those earlier changes.
 
 ## Previous focuses
 
+- **Plugin manifest rollover (`6367e68`, on `main`).** `Update_PluginManifest_Version`
+  rewrites `plugin.json` before `Create_ChangeLog_GitHub_PR`, so a rollover no
+  longer fails its own manifest guard (CI run 36549550887). GitVersion's
+  case-insensitive `major-version-bump-message` matched "Major" in #25's review
+  text, so `main` versions 6.0.0; tightening it is a pending user decision.
 - **Client-specific adapters (task 06, `288a4ad`).** VS Code profiles remain the
   source; the adapter rewrites strictly parsed frontmatter through explicit
   capability mappings, rejects unsupported grants, and preserves the body bytes.
@@ -160,8 +160,9 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-The user decides whether to push `ai/rollover-plugin-manifest` and open a PR;
-its CI must pass before merging, and the next full release is the first live
-proof of the rollover change. No push, merge, release, or installed-Customization
-deployment was requested or performed. Grader tests still do not measure native
-discovery, model quality, or runtime containment.
+Redeploy with `Setup-CopilotSettings.ps1`, compare the deployed `hooks.json`
+with the source, and verify end to end in a fresh Copilot SDK chat with no
+workspace: `web_fetch` works and the `SessionStart` context arrives. A machine
+that carries the hand-patched deployed `hooks.json` needs `-Repair`, because
+the deployment plan refuses to overwrite a modified Owned file. No push was
+requested or performed.

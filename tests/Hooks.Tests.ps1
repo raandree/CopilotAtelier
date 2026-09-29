@@ -878,6 +878,10 @@ Describe 'Hook configuration' -Tag 'Unit' {
             $processInfo.RedirectStandardInput = $true
             $processInfo.RedirectStandardOutput = $true
             $processInfo.RedirectStandardError = $true
+
+            # HOME outranks USERPROFILE in the launcher, so an inherited HOME
+            # would reach past the staged home into a real deployment.
+            $processInfo.EnvironmentVariables.Remove('HOME')
             $processInfo.EnvironmentVariables[$script:homeVariableName] = $HomePath
 
             if ([string]::IsNullOrWhiteSpace($PluginRoot)) {
@@ -940,17 +944,6 @@ Describe 'Hook configuration' -Tag 'Unit' {
             $resolved = Join-Path $script:hookScriptRoot $scriptName
             Test-Path -LiteralPath $resolved -PathType Leaf |
                 Should -BeTrue -Because "$command must resolve to a shipped script"
-        }
-    }
-
-    It 'declares a Windows override and a POSIX default for every hook' {
-        foreach ($hookEvent in $script:hookConfig.hooks.PSObject.Properties) {
-            foreach ($hook in $hookEvent.Value) {
-                $hook.type | Should -Be 'command'
-                $hook.command | Should -Match "GetEnvironmentVariable\('HOME'\)"
-                $hook.windows | Should -Match "GetEnvironmentVariable\('USERPROFILE'\)"
-                $hook.timeout | Should -BeGreaterThan 0
-            }
         }
     }
 
@@ -1061,34 +1054,5 @@ Describe 'Hook configuration' -Tag 'Unit' {
             -PluginRoot $pluginRoot
 
         $result.ExitCode | Should -Be 2 -Because $result.Output
-    }
-
-    It 'blocks when no configured hook script exists' {
-        $hook = $script:hookConfig.hooks.PreToolUse[0]
-        $fakeHome = Join-Path $TestDrive 'missing-hook-home'
-        New-Item -ItemType Directory -Path $fakeHome -Force | Out-Null
-
-        $command = if ($script:isWindowsPlatform) { $hook.windows } else { $hook.command }
-        $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git status --short'
-        $result = script:Invoke-HookCommandLine -CommandLine $command -HomePath $fakeHome -Payload $payload
-
-        $result.ExitCode | Should -Be 2 -Because $result.Output
-        $result.Output | Should -Match 'could not resolve'
-    }
-
-    It 'warns when the <EventName> script does not resolve' -ForEach @(
-        @{ EventName = 'SessionStart' }
-        @{ EventName = 'Stop' }
-        @{ EventName = 'PreCompact' }
-    ) {
-        $hook = $script:hookConfig.hooks.$EventName[0]
-        $fakeHome = Join-Path $TestDrive "missing-$EventName-home"
-        New-Item -ItemType Directory -Path $fakeHome -Force | Out-Null
-
-        $command = if ($script:isWindowsPlatform) { $hook.windows } else { $hook.command }
-        $result = script:Invoke-HookCommandLine -CommandLine $command -HomePath $fakeHome -Payload '{}'
-
-        $result.ExitCode | Should -Be 1 -Because $result.Output
-        $result.Output | Should -Match 'could not resolve'
     }
 }
