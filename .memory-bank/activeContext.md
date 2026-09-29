@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-10
+last-verified: 2026-09-29
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,39 +9,39 @@ source: current task evidence
 
 ## Current focus
 
-Fixed Windows OneDrive false detection on `ai/fix-onedrive-detection`.
-The generic `OneDrive` variable and an existing folder were present despite
-unset account-specific variables and account keys without `UserFolder` values.
-Windows automatic selection now requires `OneDriveConsumer` or
-`OneDriveCommercial`; explicit targets and macOS/Linux discovery are unchanged.
+On 2026-09-29 `ai/eval-gate-integrity` was rebased onto `main` `16a81d3`
+([PR #26](https://github.com/raandree/CopilotAtelier/pull/26), the automated
+v5.0.0 changelog rollover) and not pushed; [PR #25](https://github.com/raandree/CopilotAtelier/pull/25)
+shows the old head until a user-authorized `--force-with-lease` push. SHAs
+`c02d25e`, `2b45419`, `172c96b`, `fc12ef3`, `ab68c93` became `54ff3f1`,
+`076203e`, `e5aa230`, `ff10713`, `e8961fa`. Only `2b45419` conflicted: both
+sides added the `[5.0.0]` heading, so one heading follows the branch's
+`[Unreleased]` fixes, and the final newline the rollover stripped is restored
+(MD047). The tree of `e8961fa` equals `ab68c93`; the other commits are
+patch-identical. Manifest, CI-admission, and workflow suites: 43/0/0;
+markdownlint clean. `main` alone fails the manifest-version guard (`[5.0.0]`
+heading, `plugin.json` 4.0.0): the rollover PR does not bump the manifest.
 
-- Both regressions failed before the fix; all seven path tests now pass.
-  Full Windows `build,test`: 1,779 passed, zero failed, 116 skipped, 90.67%
-  coverage. AST and PSScriptAnalyzer 1.25.0 are clean; Markdown renders with
-  clean editor diagnostics. `uv` conformance remains unavailable.
-- The read-only machine probe selects the local profile's `CopilotAtelier`.
-  Setup was not rerun; installed files, Discovery links, and old targets were
-  not moved or changed. An earlier deployment remains addressable by TargetPath.
-- The first build hit a transient generated-file sharing violation; an
-  exclusive-read probe succeeded and the unchanged build passed on retry.
-  The full gate retained the known simulated-backend warning. Independent
-  review is off; recommend it for shared deployment-target selection.
+Pre-rebase `fc12ef3` passed [push CI](https://github.com/raandree/CopilotAtelier/actions/runs/36121027315)
+and [PR CI](https://github.com/raandree/CopilotAtelier/actions/runs/36121068837).
+The independent approval covers `7a186c5..2b45419`, not these follow-ups.
 
-## Previous CI repair
-
-GitHub Actions repair `0367ce3` is committed and pushed on `main`, as explicitly
-requested. Run [#76](https://github.com/raandree/CopilotAtelier/actions/runs/34163989373)
-completed successfully at 2026-09-07 21:54 UTC: packaging, Linux, Windows,
-macOS, and deployment all passed. The full development cycle and independent
-review stayed off; no paid evaluations were run.
-
-- Retain hidden adapter metadata in the scoped `output/` upload; canonicalize
-  temporary fixture roots without changing production containment. Clear
-  inherited `NODE_TEST_CONTEXT` and require a nonzero nested test count.
-- Workflow regression 5/0; Node 165/0; clean-checkout `build,test` 1,777/0/116,
-  90.72% coverage; final record/workflow checks 12/0. The uploaded ownership
-  manifest and generated-file hash were verified. Details remain in git and
-  `CHANGELOG.md`; simulated-backend and setup-uv warnings were non-fatal.
+- F1/F2: single-line reply case/spacing compatibility restored; query severity
+  is structured, with a diagnostic-rewording regression.
+- P1/N2: sample IDs repaired; schema checks no longer exempt the sample. Added
+  Prepare, unrelated-file, hidden-sample, and byte-boundary coverage.
+- N1/N3: shared bounded reads cover definitions and evidence (1 MiB by default,
+  explicit override up to 100 MiB); regex timeouts expose a stable diagnostic.
+- F3: read-only CI admission defers duplicate topic pushes only to an open PR
+  for the same repository/head SHA; event-scoped concurrency cancels only
+  superseded topic/PR runs. Main and version-tag runs cannot be cancelled.
+- F4/P2: duplicate release headings fail; changelog-only pushes run validation
+  without republishing from main. The generated rollover later merged as #26.
+- Evidence: eval 12 red then 176/0/38; CI 18 red then 43/0/0, and a
+  duplicate-header mutation failed its guard. Affected 220/0/38; full Windows
+  1,917/0/65 at 90.67% coverage; lint, AST/JSON, and Memory Bank health pass.
+  Both runs passed admission, packaging, and all three platforms; deployment
+  was correctly skipped.
 
 ## Previous plan-review work
 
@@ -169,6 +169,7 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-The OneDrive fix is ready for a user-controlled Setup rerun. Do not remove or
-migrate the earlier target automatically. Prior Sampler Skill behavior remains
-unmeasured: preserve the recorded zero-load result and its evidence in git.
+The user decides whether to force-push the rebased branch with lease to update
+PR #25; check the new head's CI before any merge. No push, merge, release, or
+installed-Customization deployment was requested or performed. Grader tests
+still do not measure native discovery, model quality, or runtime containment.
