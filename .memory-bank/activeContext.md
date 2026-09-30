@@ -11,18 +11,22 @@ source: current task evidence
 
 Contributor calibration (Decision 0027) on `ai/contributor-calibration`, not
 pushed. Phase 1 is implemented: the always-on `contributor-calibration`
-Instruction, the `/simpler` and `/deeper` Prompts, `not sure, you pick` in
-`grill-me`, `software-architect`, and `gilb-requirements-engineering`, the
-`memory-bank` safeguard, and the Knowledge area and Familiarity level Glossary
-terms. `tests/ContributorCalibration.Tests.ps1` went red 19 then green 19.
+Instruction with question and answer rules, the `/simpler` and `/deeper`
+Prompts, `not sure, you pick` in `grill-me`, `software-architect`, and
+`gilb-requirements-engineering`, the `memory-bank` safeguard, and the Knowledge
+area and Familiarity level Glossary terms.
+`tests/ContributorCalibration.Tests.ps1` went red 19 then green 19; the answer
+rules went red 2 then green.
 
 Phase 2 goes to `software-architect` for a Design Concept through a forward
 Session handoff in `.memory-bank/session/` (local, gitignored), within the
 constraints in 0027. Open: where hooks run under Remote-SSH, WSL, and Dev
 Containers. A private behavior eval (17 real-chat cases, outside the repository)
-measured Phase 1: decision questions 0% to 100%, explanation content 83.3% to
-90.0%. Gaps: no example for abstract findings, no method for derived results;
-replies sometimes switch language, in both arms.
+measures Phase 1. The answer rules close its two gaps: read by hand, 8 of 8 and
+7 of 8 replies give the method and the example. The frozen regex grader
+under-counts both, so the next round needs an LLM judge or a grader v4. Watch:
+the exact `not sure, you pick` fell from 16 of 16 to 12 of 16 in two cases,
+delegation still offered; replies switch language in both arms.
 
 The full `build,test` run fails one gate unrelated to this work: v6.0.0 is
 tagged on `a592832`, this branch has moved past the tag, and the automated
@@ -163,9 +167,9 @@ unproven — train reached 100 % while validation fell.
 Contributor calibration: the user merges the `updateChangelogAfterv6.0.0` pull
 request, rebases this branch (keeping the new Added and Changed entries under
 `[Unreleased]`), and starts a `software-architect` chat with the Phase 2
-handoff. Then close the two eval gaps in the Instruction and rerun the eval with
-`Invoke-CalibrationEval.ps1` from the private eval folder; grow it past 20 real
-cases as new ones appear.
+handoff. The next eval round, with `Invoke-CalibrationEval.ps1` from the private
+eval folder, replaces the two semantic regex checks, decides whether
+`not sure, you pick` must appear verbatim, and grows past 20 real cases.
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
 `#web/fetch` check and the six prompts in

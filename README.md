@@ -187,7 +187,10 @@ say otherwise, and nothing about you is stored: a level lasts for the session.
 Every technical question comes with a recommended answer. In `new` and
 `familiar` areas it also says why, what changes with another choice, and whether
 that can be undone. "Not sure, you pick" takes the recommendation and records it
-as an assumption for an expert to check. A level changes wording and depth only;
+as an assumption for an expert to check. In `new` and `familiar` areas an answer
+also illustrates an abstract finding, such as a statistic or a rule, with one
+concrete example. At every level, a calculated or reconstructed result says
+which sources it came from and how. A level changes wording and depth only;
 warnings, tests, and reviews stay the same. `/simpler` and `/deeper` are VS Code
 Prompts; in other clients, ask in words.
 

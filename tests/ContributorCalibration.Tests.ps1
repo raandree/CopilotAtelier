@@ -63,6 +63,15 @@ Describe 'Contributor calibration Instruction' -Tag 'Unit' {
         $script:instruction | Should -Match '(?i)always show the precise term'
     }
 
+    It 'illustrates an abstract finding with one concrete example at new and familiar' {
+        $script:instruction | Should -Match '(?i)at `new` and `familiar`, illustrate an abstract finding'
+        $script:instruction | Should -Match '(?i)one concrete example'
+    }
+
+    It 'names the sources and the method of a reported derived result' {
+        $script:instruction | Should -Match '(?i)calculated, reconstructed, or estimated result, name its sources and method'
+    }
+
     It 'keeps familiarity levels out of every repository file' {
         $script:instruction | Should -Match '(?i)never write a familiarity level'
     }

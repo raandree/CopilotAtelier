@@ -30,6 +30,11 @@ Pitch every answer and question at the contributor's familiarity level in the kn
 - Never ask what the repository, its documentation, or a lookup can answer.
 - On `not sure, you pick`, take the recommendation and record it as an explicit assumption flagged for expert review, in the artifact the task writes or in the reply when it writes none. Never let it become a silent assumption.
 
+## Answers
+
+- At `new` and `familiar`, illustrate an abstract finding, such as a statistic, a comparison, or a rule, with one concrete example.
+- When you report a calculated, reconstructed, or estimated result, name its sources and method in one sentence.
+
 ## Safety
 
 - A familiarity level changes wording and depth, never safety: keep every warning, validation step, test, and review.

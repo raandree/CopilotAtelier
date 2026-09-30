@@ -16,6 +16,15 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Recent milestones
 
+- **2026-09-30**: Added answer rules to contributor calibration: at `new` and
+  `familiar` an abstract finding gets one concrete example, and a calculated
+  result names its sources and method. Red 2 then green. The private eval,
+  rerun with a frozen grader, scores 52.1% to 87.5% over 16 paired cases; read
+  by hand, the rules appear in 8 of 8 and 7 of 8 replies, against 2 of 3 and at
+  most 1 of 3 before. The exact `not sure, you pick` fell to 12 of 16 in two
+  cases, delegation always offered. About 2.63 USD. Full Windows `build,test`
+  2,311 passed, 1 failed (the v6.0.0 gate) at 90.74%. Not pushed.
+
 - **2026-09-30**: Built a private behavior eval for contributor calibration from
   17 approved real-chat cases, kept outside the repository. `claude-opus-5`, K=3,
   paired cases: content 83.3% to 90.0%, decision contract 0% to 100%, all 55.6%
@@ -80,13 +89,6 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
   `36121068837` passed admission, packaging, and every platform. No deployment
   or merge; the docs-only close-out push also verifies PR deduplication live.
 
-- **2026-09-24**: Independent review of `7a186c5..2b45419` approved the eval/CI
-  batch with no Blocker, Major, or exploitable vulnerability. Four Minor
-  observations concern reply-format compatibility, message-derived severity,
-  duplicate CI cost, and future rollover coordination; the sample-query ID gap
-  was verified as pre-existing. No implementation changes or remote mutations.
-  The prior exact-head run `36043691291` is green; review records stay local.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -113,9 +115,9 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 ## Open work
 
 - Contributor calibration: the Phase 2 Design Concept with `software-architect`
-  (Session handoff); close the two eval gaps (a concrete example for abstract
-  findings, how a derived result was obtained), rerun the eval, and grow it past
-  20 real cases.
+  (Session handoff). In the private eval, replace the two semantic regex checks
+  with an LLM judge or a grader v4, decide whether `not sure, you pick` must
+  appear verbatim and rerun the contract cases, and grow it past 20 real cases.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.

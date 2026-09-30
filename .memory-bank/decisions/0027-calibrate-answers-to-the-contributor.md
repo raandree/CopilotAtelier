@@ -31,6 +31,9 @@ Phase 1 ships the always-on `contributor-calibration` Instruction and the
   explicit assumption flagged for expert review.
 - The level decides whether a question leads with the plain-language
   recommendation or with the precise term; the precise term always appears.
+- At `new` and `familiar`, an answer illustrates an abstract finding with one
+  concrete example. At every level, a calculated, reconstructed, or estimated
+  result names its sources and method in one sentence.
 - Levels are session-scoped and never written to any repository file.
 - A level changes wording and depth, never warnings, validation, tests, or
   review. `new` areas get more expert-check guidance.
@@ -65,15 +68,21 @@ agreed constraints:
 - Structural tests prove the wording. A private behavior eval built from 17
   real-chat cases (`claude-opus-5`, K=3) raised the paired pass rate from 55.6%
   to 93.3%: decision questions from 0% to 100%, explanation content only from
-  83.3% to 90.0%. Two gaps remain: no concrete example for an abstract finding,
-  and no statement of how a derived result was obtained.
+  83.3% to 90.0%. Its two gaps, no example for an abstract finding and no
+  method for a derived result, led to the answer rules. Read by hand with fixed
+  criteria, those appear in 8 of 8 and 7 of 8 replies, against 2 of 3 and at
+  most 1 of 3 before; the frozen regex grader counts only 7 of 8 and 5 of 8.
+- The exact `not sure, you pick` wording fell from 16 of 16 to 12 of 16 in two
+  decision cases after the answer rules arrived, a borderline drop (one-sided
+  Fisher p = 0.05). Every such reply still offered to decide; the next eval
+  round watches it.
 
 ## Confirmation
 
 `tests/ContributorCalibration.Tests.ps1` asserts the Instruction's scope, size,
-levels, question rules, session-only levels, and safety rule, the two Prompts,
-the delegated-answer handling in `grill-me`, `software-architect`, and
-`gilb-requirements-engineering`, the `memory-bank` safeguard, and both Glossary
-terms. The behavior eval stays outside the repository because its cases come
-from the contributor's private chats; its grader self-check must pass 17 of 17
-before a paid run.
+levels, question and answer rules, session-only levels, and safety rule, the
+two Prompts, the delegated-answer handling in `grill-me`, `software-architect`,
+and `gilb-requirements-engineering`, the `memory-bank` safeguard, and both
+Glossary terms. The behavior eval stays outside the repository because its cases
+come from the contributor's private chats; its grader self-check must pass
+17 of 17 before a paid run, and the grader is frozen before a confirmatory run.

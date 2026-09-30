@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add contributor calibration: every agent pitches answers and questions at your familiarity with each knowledge area (`new`, `familiar`, or `expert`; `familiar` until you say otherwise), offers a recommended answer and a `not sure, you pick` option with every technical question, and records a delegated answer as an assumption for expert review. A level changes wording and depth, never warnings, tests, or reviews, and is never written to a repository. See [How Much Explanation You Want](README.md#how-much-explanation-you-want).
+- Add contributor calibration: every agent pitches answers and questions at your familiarity with each knowledge area (`new`, `familiar`, or `expert`; `familiar` until you say otherwise), offers a recommended answer and a `not sure, you pick` option with every technical question, records a delegated answer as an assumption for expert review, illustrates an abstract finding with a concrete example in `new` and `familiar` areas, and names the sources and method behind any calculated or reconstructed result. A level changes wording and depth, never warnings, tests, or reviews, and is never written to a repository. See [How Much Explanation You Want](README.md#how-much-explanation-you-want).
 - Add the `/simpler` and `/deeper` Prompts, which re-explain the last answer one familiarity level simpler or deeper and keep that level for its knowledge area for the rest of the session.
 
 ### Changed
