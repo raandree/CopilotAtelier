@@ -62,8 +62,11 @@ agreed constraints:
 - Until Phase 2, a contributor restates levels in each session.
 - Prompts run only in the VS Code extension host; in other clients the same
   request in words reaches the Instruction.
-- Structural tests prove the wording, not the behavior. The behavior eval on
-  the contributor's real chats is pending.
+- Structural tests prove the wording. A private behavior eval built from 17
+  real-chat cases (`claude-opus-5`, K=3) raised the paired pass rate from 55.6%
+  to 93.3%: decision questions from 0% to 100%, explanation content only from
+  83.3% to 90.0%. Two gaps remain: no concrete example for an abstract finding,
+  and no statement of how a derived result was obtained.
 
 ## Confirmation
 
@@ -71,4 +74,6 @@ agreed constraints:
 levels, question rules, session-only levels, and safety rule, the two Prompts,
 the delegated-answer handling in `grill-me`, `software-architect`, and
 `gilb-requirements-engineering`, the `memory-bank` safeguard, and both Glossary
-terms.
+terms. The behavior eval stays outside the repository because its cases come
+from the contributor's private chats; its grader self-check must pass 17 of 17
+before a paid run.

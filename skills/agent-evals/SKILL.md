@@ -158,6 +158,16 @@ Customization revision changes: existing replies are not provenance-checked.
 
 Point `-WorkDir` **outside the repository**. `Skills/` is the published module payload, so scratch written under a skill folder is copied into the built module; the build prunes it and `.gitignore` catches it, but neither is a reason to aim there.
 
+**The Copilot backend's content filter blocks some harmless prompts.** A blocked
+call returns `FinishReason` `content_filter` with no content, and it is still
+billed. A chat transcript embedded in the user message trips it far more often
+than the same situation sent as system context, with the contributor's line as
+the user message. Measured 2026-09-30 on `claude-opus-5`: 5 of 17 baseline
+prompts were blocked with an embedded transcript, 1 of 10 with the situation as
+system context. Log `FinishReason` per call, retry missing samples in a later
+round, and compare arms only on cases complete in both, because the filter can
+hit one arm and spare the other.
+
 ## Fallback harness
 
 When Waza is unavailable, generating samples and grading them are two separate steps. **Generate** by running the agent/skill/prompt **k** times on each case's prompt and saving each run to `<OutputsDir>/<case-id>/sample-<n>.txt` — this step is manual or wired to whatever runner you have, which is exactly the gap Waza closes. **Grade** with the bundled runner, which computes observed pass@k and pass^k per case and exits non-zero when a gate fails:

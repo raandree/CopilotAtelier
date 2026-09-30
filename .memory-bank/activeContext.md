@@ -19,8 +19,10 @@ terms. `tests/ContributorCalibration.Tests.ps1` went red 19 then green 19.
 Phase 2 goes to `software-architect` for a Design Concept through a forward
 Session handoff in `.memory-bank/session/` (local, gitignored), within the
 constraints in 0027. Open: where hooks run under Remote-SSH, WSL, and Dev
-Containers. Phase 1 behavior stays unmeasured until the user supplies 20 to 50
-real chats in which they got lost.
+Containers. A private behavior eval (17 real-chat cases, outside the repository)
+measured Phase 1: decision questions 0% to 100%, explanation content 83.3% to
+90.0%. Gaps: no example for abstract findings, no method for derived results;
+replies sometimes switch language, in both arms.
 
 The full `build,test` run fails one gate unrelated to this work: v6.0.0 is
 tagged on `a592832`, this branch has moved past the tag, and the automated
@@ -161,10 +163,9 @@ unproven — train reached 100 % while validation fell.
 Contributor calibration: the user merges the `updateChangelogAfterv6.0.0` pull
 request, rebases this branch (keeping the new Added and Changed entries under
 `[Unreleased]`), and starts a `software-architect` chat with the Phase 2
-handoff. Twelve eval seed cases are approved and kept outside the repository:
-6 from this machine and 6 from RAANDREE3, one of them anonymized. The broadened
-search found nothing new here; the user reruns it on RAANDREE3. The eval is
-built at 20 or more real cases.
+handoff. Then close the two eval gaps in the Instruction and rerun the eval with
+`Invoke-CalibrationEval.ps1` from the private eval folder; grow it past 20 real
+cases as new ones appear.
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
 `#web/fetch` check and the six prompts in

@@ -16,6 +16,11 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Recent milestones
 
+- **2026-09-30**: Built a private behavior eval for contributor calibration from
+  17 approved real-chat cases, kept outside the repository. `claude-opus-5`, K=3,
+  paired cases: content 83.3% to 90.0%, decision contract 0% to 100%, all 55.6%
+  to 93.3%; wrong-language replies 12 to 5. About 3.20 USD in model calls.
+
 - **2026-09-30**: Shipped contributor calibration Phase 1 on
   `ai/contributor-calibration` (decision 0027): the always-on
   `contributor-calibration` Instruction, `/simpler` and `/deeper`, and
@@ -82,19 +87,6 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
   was verified as pre-existing. No implementation changes or remote mutations.
   The prior exact-head run `36043691291` is green; review records stay local.
 
-- **2026-09-24**: Research-backed evaluation gate hardening on
-  `ai/eval-gate-integrity`: strict case/ID validation, literal substring
-  matching, exact sample counts, bounded regex execution, and trigger failures
-  that cannot disappear into correct negatives or smaller denominators.
-  Original scripts failed 28 of 45 corrected CLI regressions. Full Windows gate
-  1,875/0/67 at 90.67% coverage preceded final self-review follow-ups; rebuilt
-  affected gate 634/0/59 passed afterward. Topic pushes run the unchanged
-  three-platform CI matrix without enabling deployment. No live
-  model quality, trigger discovery, or containment improvement is claimed.
-  First-push CI run `36040997940` caught the overdue v5 release rollover after
-  the tag-at-HEAD exemption lapsed. Restored its verified history and static
-  plugin version; repair gate 40/0/0. No remote merge or weakened gate.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -121,8 +113,9 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 ## Open work
 
 - Contributor calibration: the Phase 2 Design Concept with `software-architect`
-  (Session handoff), and a Phase 1 behavior eval on 20 to 50 real chats; 12 seed
-  cases are approved (6 per machine), and a broadened rerun on RAANDREE3 is pending.
+  (Session handoff); close the two eval gaps (a concrete example for abstract
+  findings, how a derived result was obtained), rerun the eval, and grow it past
+  20 real cases.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
