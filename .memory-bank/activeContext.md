@@ -160,9 +160,10 @@ unproven — train reached 100 % while validation fell.
 
 Contributor calibration: the user merges the `updateChangelogAfterv6.0.0` pull
 request, rebases this branch (keeping the new Added and Changed entries under
-`[Unreleased]`), starts a `software-architect` chat with the Phase 2 handoff,
-and supplies real chats, or permits a session-history search, for the Phase 1
-behavior eval.
+`[Unreleased]`), and starts a `software-architect` chat with the Phase 2
+handoff. The local history search on 2026-09-30 found 9 candidates in about
+750 prompts, 6 of them usable; the eval waits for the user's approval and for
+at least 20 real cases.
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
 `#web/fetch` check and the six prompts in
