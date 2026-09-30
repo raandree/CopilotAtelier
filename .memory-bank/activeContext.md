@@ -161,9 +161,10 @@ unproven — train reached 100 % while validation fell.
 Contributor calibration: the user merges the `updateChangelogAfterv6.0.0` pull
 request, rebases this branch (keeping the new Added and Changed entries under
 `[Unreleased]`), and starts a `software-architect` chat with the Phase 2
-handoff. The user approved 6 of 9 candidates from this machine's history as eval
-seed cases, kept outside the repository, and runs the fixed search script on
-other machines; the eval is built at 20 or more real cases.
+handoff. Twelve eval seed cases are approved and kept outside the repository:
+6 from this machine and 6 from RAANDREE3, one of them anonymized. The broadened
+search found nothing new here; the user reruns it on RAANDREE3. The eval is
+built at 20 or more real cases.
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
 `#web/fetch` check and the six prompts in
