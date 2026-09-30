@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-09-30
+
 ### Fixed
 
 - Custom agents lost web fetch, search, questions, the browser, and the session tools in VS Code agent-host (Copilot SDK) sessions, because the runtime drops every VS Code tool name it cannot resolve ([github/copilot-cli#4594](https://github.com/github/copilot-cli/issues/4594)). Every agent now declares the runtime name next to each VS Code name, and the agents that are not contained get a common web, search, question, and session-tool baseline. Contained agents gain only `grep`, `glob`, and `ask_user` for tools they already had.
