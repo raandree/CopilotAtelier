@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-06
+last-verified: 2026-09-30
 owner: shared
 source: project domain decisions
 ---
@@ -44,3 +44,5 @@ API fields, and quoted historical text retain their exact spelling.
 | Session handoff | A cross-session continuation document stored under `.memory-bank/session/`. | context dump, continuation note |
 | Acceptance criteria | Task-specific behavior or outcomes required for a change to satisfy its request. | task Definition of Done, feature completion list |
 | Definition of Done | The project-wide quality bar that every change must satisfy in addition to its Acceptance criteria. | global acceptance criteria, project completion checklist |
+| Knowledge area | A field of knowledge a project involves, such as Kerberos, DSC, or German tenancy law; the scope a Familiarity level applies to. | skill area, expertise domain |
+| Familiarity level | How much explanation a contributor wants in one Knowledge area: `new`, `familiar`, or `expert`. A preference, not a grade, and never stored in a repository. | skill level, proficiency level, expertise rating |

@@ -9,26 +9,22 @@ source: current task evidence
 
 ## Current focus
 
-Contributor calibration, agreed in chat on 2026-09-30, not implemented: answers
-and questions are pitched above contributors who are new to the project's field.
+Contributor calibration (Decision 0027) on `ai/contributor-calibration`, not
+pushed. Phase 1 is implemented: the always-on `contributor-calibration`
+Instruction, the `/simpler` and `/deeper` Prompts, `not sure, you pick` in
+`grill-me`, `software-architect`, and `gilb-requirements-engineering`, the
+`memory-bank` safeguard, and the Knowledge area and Familiarity level Glossary
+terms. `tests/ContributorCalibration.Tests.ps1` went red 19 then green 19.
 
-- Technical questions carry a recommended answer and a "not sure, you pick"
-  option, logged as an assumption for expert review; kept after opt-out.
-- Style follows familiarity per knowledge area: new leads with the
-  recommendation in plain words plus the precise term; familiar asks precisely
-  with a one-line meaning; expert asks bare; no profile means familiar.
-- Knowledge areas live in the Memory Bank; personal levels never enter a
-  project repository. The SessionStart hook resolves git identity as a lookup
-  key, not proof. Interview offered, never forced; corrections and `/simpler`
-  `/deeper` update levels; opt-out is sticky, reversible, and deletable.
-- Levels change wording and depth, never safety gates; artifacts stay written
-  for the team. Phase 1 ships without personal data, measured on real chats;
-  Phase 2 adds the profile, hook, interview, and cross-machine transport.
+Phase 2 goes to `software-architect` for a Design Concept through a forward
+Session handoff in `.memory-bank/session/` (local, gitignored), within the
+constraints in 0027. Open: where hooks run under Remote-SSH, WSL, and Dev
+Containers. Phase 1 behavior stays unmeasured until the user supplies 20 to 50
+real chats in which they got lost.
 
-Open: the proposed transport (profile in the synced CopilotAtelier folder
-outside managed subfolders, one-file import on VMs, familiar fallback, per-area
-dates so the newer rating wins), hooks under Remote-SSH, and whether Phase 2
-gets a Design Concept first.
+The full `build,test` run fails one gate unrelated to this work: v6.0.0 is
+tagged on `a592832`, this branch has moved past the tag, and the automated
+rollover `origin/updateChangelogAfterv6.0.0` is not yet merged into `main`.
 
 ## Previous focuses
 
@@ -162,9 +158,11 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Contributor calibration: the user confirms the transport and whether Phase 2
-gets a Design Concept; then write the Decision record, trimming
-`systemPatterns.md` in the same edit, and implement Phase 1 test-first.
+Contributor calibration: the user merges the `updateChangelogAfterv6.0.0` pull
+request, rebases this branch (keeping the new Added and Changed entries under
+`[Unreleased]`), starts a `software-architect` chat with the Phase 2 handoff,
+and supplies real chats, or permits a session-history search, for the Phase 1
+behavior eval.
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
 `#web/fetch` check and the six prompts in

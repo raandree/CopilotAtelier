@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add contributor calibration: every agent pitches answers and questions at your familiarity with each knowledge area (`new`, `familiar`, or `expert`; `familiar` until you say otherwise), offers a recommended answer and a `not sure, you pick` option with every technical question, and records a delegated answer as an assumption for expert review. A level changes wording and depth, never warnings, tests, or reviews, and is never written to a repository. See [How Much Explanation You Want](README.md#how-much-explanation-you-want).
+- Add the `/simpler` and `/deeper` Prompts, which re-explain the last answer one familiarity level simpler or deeper and keep that level for its knowledge area for the rest of the session.
+
+### Changed
+
+- Let `grill-me`, `software-architect`, and `gilb-requirements-engineering` accept `not sure, you pick`: the recommended answer, or for a numeric target a level derived from `Past`, `Record`, or a verified benchmark, is recorded as an assumption flagged for expert review instead of blocking the interview.
+
 ### Fixed
 
 - Custom agents lost web fetch, search, questions, the browser, and the session tools in VS Code agent-host (Copilot SDK) sessions, because the runtime drops every VS Code tool name it cannot resolve ([github/copilot-cli#4594](https://github.com/github/copilot-cli/issues/4594)). Every agent now declares the runtime name next to each VS Code name, and the agents that are not contained get a common web, search, question, and session-tool baseline. Contained agents gain only `grep`, `glob`, and `ask_user` for tools they already had.

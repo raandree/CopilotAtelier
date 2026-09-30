@@ -130,6 +130,12 @@ letting it pass as fact — an explicit gap is cheap, a fabricated benchmark is
 not. Where a claimed benchmark cites an external document, verify it with
 `citation-integrity` before it enters the specification.
 
+When the user cannot state a level, propose one derived from `Past`, `Record`,
+or a verified benchmark as the recommended answer, with a `not sure, you pick`
+option. A delegated level keeps its `Source` and adds the line
+`Assumption: proposed by the agent, flagged for expert review` until the
+requirement's `Authority` confirms it.
+
 ### 5. Emit the requirement in the required shape
 
 Every scalar requirement produced by this skill has these slots, in this order.

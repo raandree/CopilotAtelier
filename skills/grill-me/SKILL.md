@@ -55,13 +55,15 @@ Every category below MUST be covered. Skipping a category is a process violation
 9. **Rollback & reversibility** — Feature flag? Blue/green? Migration reversible? Data loss possible on rollback? "Undo" semantics for the user?
 10. **Observability** — What logs? What metrics? What traces? What dashboards? What alerts? What is the success indicator a human can see in 30 seconds?
 11. **Out-of-scope / non-goals** — What is explicitly NOT being built? What temptation to scope-creep should we name now and refuse?
-12. **Open questions the user cannot answer yet** — Force the user to list them rather than letting the agent silently assume. These become explicit `TBD` items in the Design Concept.
+12. **Open questions the user cannot answer yet** — Force the user to list them rather than letting the agent silently assume. These become explicit `TBD` items in the Design Concept. A question the user delegates with `not sure, you pick` is not a `TBD`; see step 3.
 
 ### 3. One question (or one tight cluster) at a time
 
 Never dump 40 questions in a single message. A "tight cluster" is 2–4 questions that genuinely belong together (e.g. P50/P95/P99 latency budget). Wait for the answer. Adjust the next question based on what was learned. The interview should feel like a conversation, not a form.
 
 When a category is exhausted, announce the move: *"Moving from Inputs & outputs to Failure modes."*
+
+Give every question a recommended answer and a `not sure, you pick` option, pitched at the user's familiarity with the knowledge area involved (the `contributor-calibration` Instruction). A delegated question takes the recommended answer and enters the Design Concept's Open questions as an explicit assumption flagged for expert review, never a silent assumption.
 
 #### Rendering: prefer the interactive question UI
 

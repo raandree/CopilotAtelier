@@ -294,6 +294,8 @@ never load the directory wholesale or duplicate repository source.
 - Never store passwords, tokens, private keys, or unredacted secrets.
 - Keep sensitive legal, tax, career, security, and personal data scoped to the
   repository and follow the active agent's retention rules.
+- Never record a contributor's familiarity levels; they are personal data and
+  stay out of every repository.
 - Keep curated Memory Bank knowledge version-controlled. Local ephemera such as `promptHistory.md` and session handoff files may be excluded by repository policy; initialization must not alter existing ignore rules.
 - Initialization is not permission to rewrite stale content. Report conflicts
   and handle curation as a separate, evidence-backed change.

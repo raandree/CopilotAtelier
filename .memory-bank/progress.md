@@ -16,6 +16,15 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Recent milestones
 
+- **2026-09-30**: Shipped contributor calibration Phase 1 on
+  `ai/contributor-calibration` (decision 0027): the always-on
+  `contributor-calibration` Instruction, `/simpler` and `/deeper`, and
+  `not sure, you pick` in `grill-me`, `software-architect`, and
+  `gilb-requirements-engineering`. New test red 19 then green 19; full Windows
+  `build,test` 2,309 passed, 1 failed at 90.74%. The failure is the v6.0.0
+  changelog gate, which fails past the tag until `updateChangelogAfterv6.0.0`
+  merges. Behavior unmeasured. Not pushed.
+
 - **2026-09-29**: Restored Custom agent tools in VS Code agent-host sessions on
   `ai/agent-runtime-tool-names` (decision 0026). The runtime drops VS Code tool
   names it cannot resolve, so every agent now pairs them with `web_fetch`,
@@ -86,13 +95,6 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
   the tag-at-HEAD exemption lapsed. Restored its verified history and static
   plugin version; repair gate 40/0/0. No remote merge or weakened gate.
 
-- **2026-09-10**: Fixed Windows OneDrive false detection from a generic variable
-  or pre-created folder, preserving account-specific selection, explicit
-  targets, and macOS/Linux defaults. Both regressions red then green; focused
-  7/0; full Windows `build,test` 1,779/0/116 at 90.67% coverage. AST/analyzer
-  clean; README and changelog updated. Live path resolution now stays local;
-  no real-profile deployment, migration, or remote mutation was performed.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -118,13 +120,13 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Open work
 
-- Contributor calibration (see `activeContext.md`): confirm the cross-machine
-  profile transport, write the Decision record, then build Phase 1 test-first.
+- Contributor calibration: the Phase 2 Design Concept with `software-architect`
+  (Session handoff), and a Phase 1 behavior eval on 20 to 50 real chats.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
-- Confirm that the next full release's generated rollover PR carries
-  `plugin.json` and passes CI.
+- Merge `updateChangelogAfterv6.0.0`, which carries `plugin.json` (checked
+  locally 2026-09-30); until then every commit past v6.0.0 fails that gate.
 - Hook follow-ups, with prompts on the development machine's Desktop: check
   whether VS Code wraps hook commands in PowerShell `-Command`, which would turn
   a block (exit 2) into a warning; check whether `COPILOT_ATELIER_ALLOW_REMOTE`
