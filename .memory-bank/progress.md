@@ -121,8 +121,8 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 ## Open work
 
 - Contributor calibration: the Phase 2 Design Concept with `software-architect`
-  (Session handoff), and a Phase 1 behavior eval on 20 to 50 real chats; a local
-  history search on 2026-09-30 found 6 usable cases, pending user approval.
+  (Session handoff), and a Phase 1 behavior eval on 20 to 50 real chats; 6 cases
+  from this machine's history are approved as seeds, more come from other machines.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
