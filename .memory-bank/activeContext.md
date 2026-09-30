@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-29
+last-verified: 2026-09-30
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,42 +9,38 @@ source: current task evidence
 
 ## Current focus
 
-`ai/agent-runtime-tool-names` (local, from `main` `0b4cf8e`, not pushed) makes
-every Custom agent keep its tools in VS Code 1.139.1 agent-host sessions. The
-agent host hands `tools:` to the Copilot runtime as a strict allow-list, which
-drops the VS Code names it cannot resolve (github/copilot-cli#4594), so a
-selected agent lost `web_fetch`, `grep`, `glob`, `ask_user`, the browser tools,
-and the session tools. Decision 0026 records the fix: every VS Code name keeps a
-runtime name next to it, the twelve open agents get a web, search, question,
-and session-tool baseline, and the four contained agents gain only `grep`,
-`glob`, and (Contoso) `ask_user`. Browser tools are named `vscodeBrowser/<tool>`
-because VS Code 1.139.1 deprecates the `browser` tool set. `web_search` is left
-out: no no-agent session here offers it. The CLI contract now maps `web/fetch`
-to `web_fetch` and the search family to `grep` plus `glob`.
+Contributor calibration, agreed in chat on 2026-09-30, not implemented: answers
+and questions are pitched above contributors who are new to the project's field.
 
-`tests/AgentRuntimeToolNames.Tests.ps1` was red 28 then green, and the offline
-per-agent probe (`agent-probe.mjs` in session `bed592a8`) passed all sixteen
-agents. Redeploy with `./Setup-CopilotSettings.ps1` from this clone, then the
-user's live check: agent-host chat, `software-engineer` selected,
-`#web/fetch heise.de` must call `web_fetch`, not `Invoke-WebRequest`.
+- Technical questions carry a recommended answer and a "not sure, you pick"
+  option, logged as an assumption for expert review; kept after opt-out.
+- Style follows familiarity per knowledge area: new leads with the
+  recommendation in plain words plus the precise term; familiar asks precisely
+  with a one-line meaning; expert asks bare; no profile means familiar.
+- Knowledge areas live in the Memory Bank; personal levels never enter a
+  project repository. The SessionStart hook resolves git identity as a lookup
+  key, not proof. Interview offered, never forced; corrections and `/simpler`
+  `/deeper` update levels; opt-out is sticky, reversible, and deletable.
+- Levels change wording and depth, never safety gates; artifacts stay written
+  for the team. Phase 1 ships without personal data, measured on real chats;
+  Phase 2 adds the profile, hook, interview, and cross-machine transport.
 
-## Previous plan-review work
-
-PR-01 through PR-09 and the CONDITIONAL review's heading-verifier coverage gap
-are resolved in the integrated tree. The verifier is mandatory and every server
-read is checked by the dependency-free gate; excessive JSON nesting is refused.
-Per-launch sessions, bounded state, ownership locks, parser-verified anchors,
-source rechecks, immutable assets, and revision-scoped drafts remain intact.
-The guide, threat model, and `assessment-log.md` retain the full contracts and
-original findings. Browser feedback never grants chat sign-off authority.
-
-Earlier local evidence: Windows gate 1,775/0/116 at 90.72% coverage; Node 255;
-Edge 42. This did not prove the failing cross-platform artifact transfer.
-No fresh independent review of the combined HTTP and persistence corrections
-is claimed; `review: on` remains recommended for those earlier changes.
+Open: the proposed transport (profile in the synced CopilotAtelier folder
+outside managed subfolders, one-file import on VMs, familiar fallback, per-area
+dates so the newer rating wins), hooks under Remote-SSH, and whether Phase 2
+gets a Design Concept first.
 
 ## Previous focuses
 
+- **Runtime tool names (`a592832`, on `main`).** Every Custom agent pairs its
+  VS Code tool names with runtime names, so agent-host sessions keep `web_fetch`,
+  `grep`, `glob`, `ask_user`, browser, and session tools (Decision 0026,
+  github/copilot-cli#4594). Red 28 then green; offline probe 16 of 16 agents.
+- **Plan-review findings PR-01 to PR-09.** Resolved in the integrated tree with
+  a mandatory heading verifier; the guide, threat model, and `assessment-log.md`
+  keep the contracts. Browser feedback never grants chat sign-off. The
+  cross-platform artifact transfer stayed unproven, and `review: on` remains
+  recommended for the combined HTTP and persistence corrections.
 - **Hook launchers (`0ed6c0e`, `225c190`, on `main`).** The Copilot SDK host
   runs `command` on Windows, where `HOME` is unset; launchers now try
   `PLUGIN_ROOT`, `HOME`, `USERPROFILE`, then the OS profile folder, and
@@ -166,14 +162,13 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Redeploy this branch with `./Setup-CopilotSettings.ps1` from the clone, open a
-new agent-host chat with `software-engineer` selected, and confirm that
-`#web/fetch heise.de` calls `web_fetch`. Then decide on push and pull request.
+Contributor calibration: the user confirms the transport and whether Phase 2
+gets a Design Concept; then write the Decision record, trimming
+`systemPatterns.md` in the same edit, and implement Phase 1 test-first.
 
-Six self-contained prompts in `%USERPROFILE%\Desktop\CopilotAtelier-hook-followups`
-on the development machine carry the remaining work, in order: the fresh Copilot
-SDK chat check, an independent security review, push with pull request and CI,
-a `-Repair` deploy on the hand-patched machine (the plan refuses to overwrite a
-modified Owned file), how each host spawns hooks and whether the push override
-reaches them, and the block reason the SDK host drops. Both commits are
-redeployed to `C:\Users\install\CopilotAtelier`. No push was performed.
+Still open from earlier work (Open work in `progress.md`): the live agent-host
+`#web/fetch` check and the six prompts in
+`%USERPROFILE%\Desktop\CopilotAtelier-hook-followups` — Copilot SDK chat check,
+independent security review, pull request and CI, a `-Repair` deploy on the
+hand-patched machine, how each host spawns hooks, and the dropped block reason.
+`a592832` is already on `origin/main`.

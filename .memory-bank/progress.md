@@ -93,11 +93,6 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
   clean; README and changelog updated. Live path resolution now stays local;
   no real-profile deployment, migration, or remote mutation was performed.
 
-- **2026-09-08**: Moved the wiki timeout and partial-publication recovery lessons
-  into the two existing Sampler Skills with one real regression case; gates
-  617/0/108. Five ShellPilot requests per arm made zero Skill loads, so body
-  effects and native discovery remain unmeasured. No commit or remote mutation.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -123,6 +118,8 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Open work
 
+- Contributor calibration (see `activeContext.md`): confirm the cross-machine
+  profile transport, write the Decision record, then build Phase 1 test-first.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
