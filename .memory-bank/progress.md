@@ -119,6 +119,9 @@ under `[Unreleased]` in `CHANGELOG.md`.
 - `LongRunningJobMonitor.Tests.ps1:229` reads the heartbeat state file as soon
   as it exists, but `Set-Content` creates it before writing; it failed once in a
   full build on 2026-10-01 and passed twice alone. Poll for the field instead.
+- `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
+  workspace, so a subagent or parallel chat there shadows the parent's clock
+  (2026-10-01: a 06:29 start). Inject the reader with this session's `-Path`.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
