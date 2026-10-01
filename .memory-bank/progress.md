@@ -15,6 +15,11 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-01**: First live denial since the launcher fix: a harmless push
+  probe in an SDK chat was blocked. The guard matched and exited 2, the host
+  logged `Hook command failed with code 1` with the reason on stderr, and the
+  model saw only `(hook errored)`, so prompt 06 still applies.
+
 - **2026-10-01**: Audited the six hook follow-up prompts on the Desktop: none
   was run, and the fix reached `main` by fast-forward without a pull request or
   the prompt-02 review. CI run 36601011621 passed ubuntu, macos, and windows,
@@ -125,10 +130,10 @@ under `[Unreleased]` in `CHANGELOG.md`.
 - Hook follow-ups, with prompts on the development machine's Desktop (amended
   2026-10-01; 03 retired): add a top-level `additionalContext` so SDK chats get
   the `SessionStart` context (01); review the shipped fix independently (02);
-  run the `-Repair` deploy on the hand-patched machine from `main` (04); prove
-  the SDK guard denies, check whether VS Code turns a block (exit 2) into a
-  warning, and whether `COPILOT_ATELIER_ALLOW_REMOTE` set in an agent terminal
-  reaches the hook (05); and surface the block reason the SDK host drops (06).
+  run the `-Repair` deploy on the hand-patched machine from `main` (04); check
+  whether VS Code turns a block (exit 2) into a warning, and whether
+  `COPILOT_ATELIER_ALLOW_REMOTE` set in an agent terminal reaches the hook
+  (05); and surface the block reason the SDK host drops (06).
 - Decide on GitVersion's `major-version-bump-message`: it matches "major"
   anywhere, so review prose in #25 moved `main` to 6.0.0.
 - Split research delegation into a read-only code explorer and a public-source
