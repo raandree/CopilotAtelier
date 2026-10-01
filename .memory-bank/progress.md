@@ -79,14 +79,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   `preToolUse` exit denies. `Block-RemoteMutation` therefore allows an unreadable
   payload with exit 0 (red 3, then focused 428/0/56). Redeployed; this session
   and its subagents did not reload hooks, so the fresh-chat check is the user's.
-- **2026-09-29**: Fixed the hook launchers on `ai/fix-hook-launcher-home`. The
-  Copilot SDK host copies `command` into its `powershell` field on Windows, where
-  `HOME` is unset, so every `PreToolUse` call was denied as `hook errored` and
-  `SessionStart` never injected context (this machine's 2026-09-24 session log
-  records exactly that). Launchers now try `PLUGIN_ROOT`, `HOME`, `USERPROFILE`,
-  then the OS profile folder, bypass the execution policy, and report the
-  underlying error. New `tests/HookLauncher.Tests.ps1`: red 125 of 284 against
-  the old launchers; full Windows build/test 2,155/0/121 at 90.67% coverage.
 
 ## Stable capabilities
 
