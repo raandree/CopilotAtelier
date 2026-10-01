@@ -88,7 +88,9 @@ Consequences for the shipped hooks:
 - `Add-SessionContext` writes its context under both keys in one object. Until
   2026-10-01 it wrote only `hookSpecificOutput`, so no SDK session received
   it: seven sessions logged a successful `sessionStart` hook, and none carried
-  the context.
+  the context. VS Code's built-in Copilot extension reads only
+  `hookSpecificOutput.additionalContext` in its `SessionStart` handler, so the
+  top-level copy cannot double the context in Local chats.
 
 ## Confirmation
 
