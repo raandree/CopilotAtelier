@@ -16,14 +16,14 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Recent milestones
 
-- **2026-10-01**: Audited the six hook follow-up prompts on the Desktop. No chat
-  on this machine received one, `01-result.md` is absent, and no hook file
-  changed after `225c190`. `ai/fix-hook-launcher-home` was fast-forwarded into
-  `main` without a pull request or the prompt-02 review; CI run 36601011621
-  passed ubuntu, macos, and windows, `Unit`-tagged `HookLauncher` cases
-  included, which meets prompt 03's goal. Eight SDK sessions since the redeploy
-  logged 1,113 `preToolUse` runs and no failed hook, but in the seven that ran
-  `SessionStart` the hook succeeded and its context reached no session.
+- **2026-10-01**: Audited the six hook follow-up prompts on the Desktop: none
+  was run, and the fix reached `main` by fast-forward without a pull request or
+  the prompt-02 review. CI run 36601011621 passed ubuntu, macos, and windows,
+  so prompt 03 was retired. Eight SDK sessions since the redeploy logged 1,113
+  `preToolUse` runs and no failed hook, yet none received the `SessionStart`
+  context: the GitHub hooks reference consumes only a top-level
+  `additionalContext`, and `Add-SessionContext.ps1` nests it under
+  `hookSpecificOutput`, the VS Code Local shape. Prompt 01 now targets that.
 
 - **2026-09-30**: Added answer rules to contributor calibration: at `new` and
   `familiar` an abstract finding gets one concrete example, and a calculated
@@ -122,14 +122,13 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
 - Merge `updateChangelogAfterv6.0.0`, which carries `plugin.json` (checked
   locally 2026-09-30); until then every commit past v6.0.0 fails that gate.
-- Hook follow-ups, with prompts on the development machine's Desktop (none run
-  by 2026-10-01; 03 is met by CI run 36601011621): the fresh SDK chat check,
-  where no session has yet received the `SessionStart` context (01); review the
-  shipped fix independently (02); the `-Repair` deploy on the hand-patched
-  machine, from `main` (04); whether VS Code wraps hook commands in PowerShell
-  `-Command`, turning a block (exit 2) into a warning, and whether
-  `COPILOT_ATELIER_ALLOW_REMOTE` set in an agent terminal reaches the hook
-  (05); and surface the block reason the SDK host drops (06).
+- Hook follow-ups, with prompts on the development machine's Desktop (amended
+  2026-10-01; 03 retired): add a top-level `additionalContext` so SDK chats get
+  the `SessionStart` context (01); review the shipped fix independently (02);
+  run the `-Repair` deploy on the hand-patched machine from `main` (04); prove
+  the SDK guard denies, check whether VS Code turns a block (exit 2) into a
+  warning, and whether `COPILOT_ATELIER_ALLOW_REMOTE` set in an agent terminal
+  reaches the hook (05); and surface the block reason the SDK host drops (06).
 - Decide on GitVersion's `major-version-bump-message`: it matches "major"
   anywhere, so review prose in #25 moved `main` to 6.0.0.
 - Split research delegation into a read-only code explorer and a public-source

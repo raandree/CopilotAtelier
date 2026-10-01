@@ -172,8 +172,7 @@ eval folder, replaces the two semantic regex checks, decides whether
 `not sure, you pick` must appear verbatim, and grows past 20 real cases.
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
-`#web/fetch` check and five of the six prompts in
-`%USERPROFILE%\Desktop\CopilotAtelier-hook-followups`, none run by 2026-10-01:
-SDK chat check (no session has received the `SessionStart` context), security
-review, `-Repair` deploy, host spawn, and block reason. CI run 36601011621 on
-`main` meets prompt 03's goal. `a592832` is already on `origin/main`.
+`#web/fetch` check and the five amended prompts in
+`%USERPROFILE%\Desktop\CopilotAtelier-hook-followups` (README has the order):
+SDK `SessionStart` context, security review, `-Repair` deploy, host spawn, and
+block reason. `a592832` is already on `origin/main`.
