@@ -93,6 +93,12 @@ absolute path of `Get-SessionElapsed.ps1`. The agent cannot resolve that path
 itself — the script sits under `~/.copilot` when deployed and under the plugin
 root when installed as a plugin, which is the probe `hooks.json` already carries.
 
+The context goes into one JSON object twice, under the key each host reads: a
+top-level `additionalContext` for the Copilot SDK host and Copilot CLI, and
+`hookSpecificOutput.additionalContext` for the VS Code Local harness. Each host
+ignores the other's key, so dropping either one silently removes the context
+from that host's sessions.
+
 ### Session context budget
 
 Injected context defaults to a 4096-character limit. Set
@@ -221,6 +227,12 @@ which survives because Instructions are re-sent with every request.
   `HOME` and needs `pwsh` on `PATH`. Launchers from releases before this fix
   looked only at `PLUGIN_ROOT` and `HOME` there and failed closed on every call.
   Redeploy, then start a new session.
+- **A Copilot SDK session never receives the SessionStart context.** The
+  session's `events.jsonl` shows the `sessionStart` hook ending with
+  `success: true`, yet no `Session started at` text reaches the model. The SDK
+  host reads only a top-level `additionalContext` and ignores
+  `hookSpecificOutput`, the only key the VS Code Local harness reads. Releases
+  before this fix wrote only the nested key. Redeploy, then start a new session.
 - **A `PreToolUse` block reaches the host as exit `1`.** A host that runs the
   launcher inside an outer PowerShell `-Command` — as the Copilot SDK host does
   on Windows — reports only whether its last command succeeded, so exit `2`

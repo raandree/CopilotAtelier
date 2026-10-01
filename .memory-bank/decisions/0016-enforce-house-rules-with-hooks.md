@@ -70,6 +70,7 @@ and this machine's SDK session logs:
 | Other non-zero | non-blocking warning | `preToolUse` denies as `hook errored`; other events log and continue |
 | Timeout | `timeout`, default 30 s | `timeoutSec`, with `timeout` as its alias; a timeout fails open |
 | Reload | not verified | read at session start; an open chat and its subagents keep the old set |
+| `SessionStart` output | `hookSpecificOutput.additionalContext` | top-level `additionalContext` only; `hookSpecificOutput` is ignored |
 
 Consequences for the shipped hooks:
 
@@ -84,6 +85,10 @@ Consequences for the shipped hooks:
   `hook errored` instead of the reason.
 - Every launcher branch must resolve on every OS it can reach, without `HOME` on
   Windows. `tests/HookLauncher.Tests.ps1` enforces that.
+- `Add-SessionContext` writes its context under both keys in one object. Until
+  2026-10-01 it wrote only `hookSpecificOutput`, so no SDK session received
+  it: seven sessions logged a successful `sessionStart` hook, and none carried
+  the context.
 
 ## Confirmation
 

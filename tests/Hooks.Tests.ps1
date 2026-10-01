@@ -291,6 +291,24 @@ Describe 'Add-SessionContext' -Tag 'Unit' {
         $parsed.hookSpecificOutput.additionalContext | Should -Match 'PRE-FLIGHT'
     }
 
+    It 'gives the Copilot SDK host the same context as a top-level additionalContext' {
+        <#
+            The GitHub hooks reference consumes only a top-level additionalContext
+            for sessionStart and never reads hookSpecificOutput, the shape the
+            VS Code Local harness reads. One object has to serve both hosts, or
+            no Copilot SDK chat receives the Memory Bank probe and clock path.
+        #>
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $parsed = (script:Invoke-SessionStart -Payload $payload).Output | ConvertFrom-Json
+
+        $parsed.additionalContext | Should -Match '^Session started at '
+        $parsed.additionalContext | Should -BeExactly $parsed.hookSpecificOutput.additionalContext
+    }
+
     It 'falls back to the current directory when the payload omits cwd' {
         $payload = '{"hook_event_name":"SessionStart"}'
 
