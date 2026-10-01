@@ -90,7 +90,11 @@ Consequences for the shipped hooks:
   it: seven sessions logged a successful `sessionStart` hook, and none carried
   the context. VS Code's built-in Copilot extension reads only
   `hookSpecificOutput.additionalContext` in its `SessionStart` handler, so the
-  top-level copy cannot double the context in Local chats.
+  top-level copy cannot double the context in Local chats. A probe session on
+  2026-10-01 confirmed the SDK side: the host joined every hook's top-level
+  `additionalContext` in order, separated by blank lines, for both event
+  casings, and dropped nested and plain-text output. The `sessionStart`
+  `hook.end` event in `events.jsonl` records what it injected.
 
 ## Confirmation
 

@@ -233,6 +233,8 @@ which survives because Instructions are re-sent with every request.
   host reads only a top-level `additionalContext` and ignores
   `hookSpecificOutput`, the only key the VS Code Local harness reads. Releases
   before this fix wrote only the nested key. Redeploy, then start a new session.
+  That `hook.end` event's `output.additionalContext` shows exactly what the host
+  injected, and the field is absent when nothing was.
 - **A `PreToolUse` block reaches the host as exit `1`.** A host that runs the
   launcher inside an outer PowerShell `-Command` — as the Copilot SDK host does
   on Windows — reports only whether its last command succeeded, so exit `2`
