@@ -9,10 +9,9 @@ source: CHANGELOG.md and git history
 
 ## Project status
 
-Copilot Atelier's latest full GitHub release is `v5.0.0`, published 2026-09-10;
-`main` published pre-release `v6.0.0-preview0001` on 2026-09-29 (release API,
-verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
-`CHANGELOG.md`.
+Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
+from `a592832` (release API, verified 2026-10-01). Incremental work is tracked
+under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
@@ -120,8 +119,9 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
-- Merge `updateChangelogAfterv6.0.0`, which carries `plugin.json` (checked
-  locally 2026-09-30); until then every commit past v6.0.0 fails that gate.
+- Open and merge a pull request for `updateChangelogAfterv6.0.0`, which carries
+  `plugin.json` (checked locally 2026-09-30). None exists (checked 2026-10-01);
+  until it merges, every commit past v6.0.0 fails the release-provenance test.
 - Hook follow-ups, with prompts on the development machine's Desktop (amended
   2026-10-01; 03 retired): add a top-level `additionalContext` so SDK chats get
   the `SessionStart` context (01); review the shipped fix independently (02);

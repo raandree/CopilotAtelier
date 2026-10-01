@@ -164,12 +164,13 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Contributor calibration: the user merges the `updateChangelogAfterv6.0.0` pull
-request, rebases this branch (keeping the new Added and Changed entries under
-`[Unreleased]`), and starts a `software-architect` chat with the Phase 2
-handoff. The next eval round, with `Invoke-CalibrationEval.ps1` from the private
-eval folder, replaces the two semantic regex checks, decides whether
-`not sure, you pick` must appear verbatim, and grows past 20 real cases.
+Contributor calibration: the user opens and merges a pull request for
+`updateChangelogAfterv6.0.0` (none exists, checked 2026-10-01), rebases this
+branch (keeping the new Added and Changed entries under `[Unreleased]`), and
+starts a `software-architect` chat with the Phase 2 handoff. The next eval
+round, with `Invoke-CalibrationEval.ps1` from the private eval folder, replaces
+the two semantic regex checks, decides whether `not sure, you pick` must appear
+verbatim, and grows past 20 real cases.
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
 `#web/fetch` check and the five amended prompts in
