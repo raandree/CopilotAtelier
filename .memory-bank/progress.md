@@ -16,6 +16,15 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Recent milestones
 
+- **2026-10-01**: Audited the six hook follow-up prompts on the Desktop. No chat
+  on this machine received one, `01-result.md` is absent, and no hook file
+  changed after `225c190`. `ai/fix-hook-launcher-home` was fast-forwarded into
+  `main` without a pull request or the prompt-02 review; CI run 36601011621
+  passed ubuntu, macos, and windows, `Unit`-tagged `HookLauncher` cases
+  included, which meets prompt 03's goal. Eight SDK sessions since the redeploy
+  logged 1,113 `preToolUse` runs and no failed hook, but in the seven that ran
+  `SessionStart` the hook succeeded and its context reached no session.
+
 - **2026-09-30**: Added answer rules to contributor calibration: at `new` and
   `familiar` an abstract finding gets one concrete example, and a calculated
   result names its sources and method. Red 2 then green. The private eval,
@@ -79,16 +88,6 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
   is tree-identical to `ab68c93`; range-diff shows the other four commits
   patch-identical. Focused suites 43/0/0; markdownlint clean. Not pushed.
 
-- **2026-09-25**: Implemented F1-F4, N1-N3, P1/P2 review follow-ups: compatible
-  trigger replies, structured severity, bounded reads, stable timeout errors,
-  valid sample IDs, missing edge-case coverage, CI deduplication/cancellation,
-  non-publishing changelog validation, and unique release headings. Eval red
-  12 then 176/0/38; CI red 18 then 43/0/0; duplicate-header mutation rejected.
-  Final focused 220/0/38; full Windows build/test 1,917/0/65 at 90.67% coverage.
-  Pushed `fc12ef3` and opened PR #25. Push run `36121027315` and PR run
-  `36121068837` passed admission, packaging, and every platform. No deployment
-  or merge; the docs-only close-out push also verifies PR deduplication live.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -123,11 +122,14 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
 - Merge `updateChangelogAfterv6.0.0`, which carries `plugin.json` (checked
   locally 2026-09-30); until then every commit past v6.0.0 fails that gate.
-- Hook follow-ups, with prompts on the development machine's Desktop: check
-  whether VS Code wraps hook commands in PowerShell `-Command`, which would turn
-  a block (exit 2) into a warning; check whether `COPILOT_ATELIER_ALLOW_REMOTE`
-  set in an agent terminal reaches the hook, which the host starts with its own
-  environment; and surface the block reason the SDK host drops.
+- Hook follow-ups, with prompts on the development machine's Desktop (none run
+  by 2026-10-01; 03 is met by CI run 36601011621): the fresh SDK chat check,
+  where no session has yet received the `SessionStart` context (01); review the
+  shipped fix independently (02); the `-Repair` deploy on the hand-patched
+  machine, from `main` (04); whether VS Code wraps hook commands in PowerShell
+  `-Command`, turning a block (exit 2) into a warning, and whether
+  `COPILOT_ATELIER_ALLOW_REMOTE` set in an agent terminal reaches the hook
+  (05); and surface the block reason the SDK host drops (06).
 - Decide on GitVersion's `major-version-bump-message`: it matches "major"
   anywhere, so review prose in #25 moved `main` to 6.0.0.
 - Split research delegation into a read-only code explorer and a public-source
