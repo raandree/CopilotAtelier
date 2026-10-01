@@ -15,6 +15,14 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-01**: Fixed the missing SessionStart context on
+  `ai/sdk-session-context` (`7bc21c6`, docs `3c4dc35` and later). The Copilot
+  SDK host reads only a top-level `additionalContext`; the hook wrote only
+  `hookSpecificOutput`, which VS Code's built-in Copilot extension reads for
+  Local chats. It now writes both. Test red then green; full gate 2,287 passed,
+  1 failed (the v6.0.0 gate). A probe chat received the fixed context once and
+  no nested or plain-text marker. Not deployed, not pushed.
+
 - **2026-10-01**: Closed the independent review of contributor calibration:
   4 Major (delegation bounds, provenance, two redaction gaps), then a passing
   fix round; every Minor and Nit fixed test-first or ruled on, F-03 parked
@@ -73,13 +81,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   review's parser Major was fixed (red 7 then green); its `agents:` and
   cross-session findings are recorded in 0026 for the user. Not pushed.
 
-- **2026-09-29**: Part 2 of the hook fix. The GitHub hooks reference verifies the
-  SDK host's contract: PascalCase events get the VS Code `tool_input` payload,
-  `timeout` aliases `timeoutSec`, a timeout fails open, and any other non-zero
-  `preToolUse` exit denies. `Block-RemoteMutation` therefore allows an unreadable
-  payload with exit 0 (red 3, then focused 428/0/56). Redeployed; this session
-  and its subagents did not reload hooks, so the fresh-chat check is the user's.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -121,12 +122,15 @@ under `[Unreleased]` in `CHANGELOG.md`.
   `plugin.json` (checked locally 2026-09-30). None exists (checked 2026-10-01);
   until it merges, every commit past v6.0.0 fails the release-provenance test.
 - Hook follow-ups, with prompts on the development machine's Desktop (amended
-  2026-10-01; 03 retired): add a top-level `additionalContext` so SDK chats get
-  the `SessionStart` context (01); review the shipped fix independently (02);
+  2026-10-01; 03 retired): deploy and merge the verified SessionStart fix on
+  `ai/sdk-session-context` (01); review the shipped fix independently (02);
   run the `-Repair` deploy on the hand-patched machine from `main` (04); check
   whether VS Code turns a block (exit 2) into a warning, and whether
   `COPILOT_ATELIER_ALLOW_REMOTE` set in an agent terminal reaches the hook
   (05); and surface the block reason the SDK host drops (06).
+- Copilot SDK chats load every Instruction twice, once as `C:\Users\…` and once
+  as `c:\Users\…` (seen in two chats on 2026-10-01). Find which two sources
+  disagree on drive-letter case; no `chat.instructionsFilesLocations` is set.
 - Decide on GitVersion's `major-version-bump-message`: it matches "major"
   anywhere, so review prose in #25 moved `main` to 6.0.0.
 - Split research delegation into a read-only code explorer and a public-source

@@ -173,6 +173,6 @@ starts a `software-architect` chat with the Phase 2 handoff. The eval grows past
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
 `#web/fetch` check and the five amended prompts in
-`%USERPROFILE%\Desktop\CopilotAtelier-hook-followups` (README has the order):
-SDK `SessionStart` context, security review, `-Repair` deploy, host spawn, and
-block reason. `a592832` is already on `origin/main`.
+`%USERPROFILE%\Desktop\CopilotAtelier-hook-followups` (README has the order).
+The SessionStart fix (01) is verified on `ai/sdk-session-context`, not yet
+deployed or merged. `a592832` is already on `origin/main`.
