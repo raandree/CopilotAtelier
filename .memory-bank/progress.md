@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-29
+last-verified: 2026-10-01
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,6 +14,16 @@ from `a592832` (release API, verified 2026-10-01). Incremental work is tracked
 under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-10-01**: Closed the independent review of contributor calibration:
+  4 Major (delegation bounds, provenance, two redaction gaps), then a passing
+  fix round; every Minor and Nit fixed test-first or ruled on, F-03 parked
+  (private self-check red 15, then 46 of 46). The private eval gained a pinned
+  `gpt-5.5` judge (38 of 40 against human labels): full run 100% against 52.1%
+  without, shipped wording 39 of 39 on the 8 cases it could affect. German
+  replies are a drifting `claude-opus-5` quirk. About 7.36 USD in model calls.
+  Full Windows `build,test` 2,317 passed, 2 failed at 90.74%: the v6.0.0 gate
+  and a race in `LongRunningJobMonitor.Tests.ps1:229`, green in isolation.
 
 - **2026-10-01**: First live denial since the launcher fix: a harmless push
   probe in an SDK chat was blocked. The guard matched and exited 2, the host
@@ -77,20 +87,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   then the OS profile folder, bypass the execution policy, and report the
   underlying error. New `tests/HookLauncher.Tests.ps1`: red 125 of 284 against
   the old launchers; full Windows build/test 2,155/0/121 at 90.67% coverage.
-- **2026-09-29**: Diagnosed CI run `36549550887` (PR #26 rollover: `plugin.json`
-  4.0.0 under `[5.0.0]` on all platforms); `main` was already green after #25
-  (`314c795`, run `36553689149`). Fixed the cause on `ai/rollover-plugin-manifest`:
-  `Update_PluginManifest_Version` runs before `Create_ChangeLog_GitHub_PR`,
-  `GitHubFilesToAdd` commits the manifest, and admission never republishes
-  changelog- or manifest-only pushes. Red 8 of 29; mutations caught 4 and 1;
-  focused 65/0/0; full Windows build/test 1,931/0/65 at 90.67%. Not pushed.
-
-- **2026-09-29**: Rebased `ai/eval-gate-integrity` onto `main` `16a81d3` (#26,
-  the automated v5.0.0 changelog rollover). Only `2b45419` conflicted; the
-  resolution keeps one `[5.0.0]` heading below the branch's `[Unreleased]`
-  fixes and restores the MD047 final newline the rollover stripped. `e8961fa`
-  is tree-identical to `ab68c93`; range-diff shows the other four commits
-  patch-identical. Focused suites 43/0/0; markdownlint clean. Not pushed.
 
 ## Stable capabilities
 
@@ -118,9 +114,11 @@ under `[Unreleased]` in `CHANGELOG.md`.
 ## Open work
 
 - Contributor calibration: the Phase 2 Design Concept with `software-architect`
-  (Session handoff). In the private eval, replace the two semantic regex checks
-  with an LLM judge or a grader v4, decide whether `not sure, you pick` must
-  appear verbatim and rerun the contract cases, and grow it past 20 real cases.
+  (Session handoff), and growing the private eval past 20 real cases with a
+  `-Since 2026-09-30` search on RAANDREE3.
+- `LongRunningJobMonitor.Tests.ps1:229` reads the heartbeat state file as soon
+  as it exists, but `Set-Content` creates it before writing; it failed once in a
+  full build on 2026-10-01 and passed twice alone. Poll for the field instead.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.

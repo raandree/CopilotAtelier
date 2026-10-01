@@ -101,7 +101,8 @@ Concept rather than argued about.
 2. **Interrogate.** Apply `grill-me` at the chosen depth. Ask one question or
    one tight cluster at a time through `#tool:vscode/askQuestions`, adapt the
    next question to the last answer, and announce each category transition.
-   Give each question a recommended answer and a `not sure, you pick` option.
+   Ask each question the way the `contributor-calibration` Instruction
+   specifies.
 3. **Quantify.** Apply `gilb-requirements-engineering` the moment an
    unquantified quality word survives the interview. "Fast", "robust",
    "scalable", and "user-friendly" become a Scale, a Meter, and a number, or

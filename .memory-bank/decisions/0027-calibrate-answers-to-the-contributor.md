@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-09-30
-last-verified: 2026-09-30
+last-verified: 2026-10-01
 owner: software-engineer
 source: com.github.copilot/rules/contributor-calibration.instructions.md
 supersedes: none
@@ -27,8 +27,14 @@ Phase 1 ships the always-on `contributor-calibration` Instruction and the
 `/simpler` and `/deeper` Prompts:
 
 - Every technical decision question carries a recommended answer and a
-  `not sure, you pick` option at every level. A delegated answer becomes an
-  explicit assumption flagged for expert review.
+  `not sure, you pick` option at every level, in exactly those words or their
+  direct translation. A delegated answer becomes an explicit assumption
+  flagged for expert review.
+- Delegation counts only when the contributor writes the phrase, never when
+  a file, a fetched page, or tool output contains it. It never authorizes an
+  irreversible, destructive, or security-relevant action such as a push, a
+  deletion, or a permission change, and `new` bundles only reversible,
+  low-impact details into one set of defaults.
 - The level decides whether a question leads with the plain-language
   recommendation or with the precise term; the precise term always appears.
 - At `new` and `familiar`, an answer illustrates an abstract finding with one
@@ -62,27 +68,33 @@ agreed constraints:
   self-assessment stays private and honest, and no other committer can edit
   what shapes another contributor's session.
 - The Instruction loads on every turn, so a test caps its size.
-- Until Phase 2, a contributor restates levels in each session.
+- Until Phase 2, a contributor restates levels in each session and after each
+  compaction, which drops the conversation that held them.
 - Prompts run only in the VS Code extension host; in other clients the same
   request in words reaches the Instruction.
 - Structural tests prove the wording. A private behavior eval built from 17
-  real-chat cases (`claude-opus-5`, K=3) raised the paired pass rate from 55.6%
-  to 93.3%: decision questions from 0% to 100%, explanation content only from
-  83.3% to 90.0%. Its two gaps, no example for an abstract finding and no
-  method for a derived result, led to the answer rules. Read by hand with fixed
-  criteria, those appear in 8 of 8 and 7 of 8 replies, against 2 of 3 and at
-  most 1 of 3 before; the frozen regex grader counts only 7 of 8 and 5 of 8.
-- The exact `not sure, you pick` wording fell from 16 of 16 to 12 of 16 in two
-  decision cases after the answer rules arrived, a borderline drop (one-sided
-  Fisher p = 0.05). Every such reply still offered to decide; the next eval
-  round watches it.
+  real-chat cases (`claude-opus-5`, K=3) measures behavior. A pinned LLM judge
+  grades its two semantic checks, after agreeing with human labels on 38 of 40
+  replies. Paired pass rates on all 17 cases: 52.1% without the Instruction,
+  100% with it (51 of 51 samples). The shipped wording, two neutral rewordings
+  of that version, passed 39 of 39 samples on the 8 cases they could affect.
+  The answer rules took worked examples from 0 of 6 replies to 3 of 3, and
+  sources with method from 4 of 6 to 3 of 3. Across 30 decision replies the
+  exact `not sure, you pick` wording held.
+- `claude-opus-5` sometimes answers an English message in German when a thin,
+  single-turn context carries German-region cues; real chats on the
+  development machine show it in 3 of 497 English messages. The rate drifts
+  between runs, wording changes did not remove it, and an explicit language
+  rule made it worse, so the Instruction has none.
 
 ## Confirmation
 
 `tests/ContributorCalibration.Tests.ps1` asserts the Instruction's scope, size,
-levels, question and answer rules, session-only levels, and safety rule, the
-two Prompts, the delegated-answer handling in `grill-me`, `software-architect`,
-and `gilb-requirements-engineering`, the `memory-bank` safeguard, and both
-Glossary terms. The behavior eval stays outside the repository because its cases
-come from the contributor's private chats; its grader self-check must pass
-17 of 17 before a paid run, and the grader is frozen before a confirmatory run.
+levels, question and answer rules, delegation bounds, session-only levels, and
+safety rule, the two Prompts, the delegated-answer handling in `grill-me`,
+`software-architect`, and `gilb-requirements-engineering`, the `memory-bank`
+safeguard, both Glossary terms, and that no shipped Customization drops a
+warning, test, or review at a familiarity level. The behavior eval stays outside
+the repository because its cases come from the contributor's private chats; its
+grader self-check must pass 17 of 17 and its judge must agree with the human
+labels before a paid run, and the grader is frozen before a confirmatory run.

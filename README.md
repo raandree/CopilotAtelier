@@ -175,7 +175,8 @@ incomplete. Nothing is pushed.
 
 Every agent pitches answers and questions at your familiarity with the knowledge
 area involved: `new`, `familiar`, or `expert`. It assumes `familiar` until you
-say otherwise, and nothing about you is stored: a level lasts for the session.
+say otherwise. No familiarity level is written to a repository; a level lasts
+for the session, so state it again after a long conversation is compacted.
 
 | You want | Type this |
 |---|---|
@@ -187,12 +188,15 @@ say otherwise, and nothing about you is stored: a level lasts for the session.
 Every technical question comes with a recommended answer. In `new` and
 `familiar` areas it also says why, what changes with another choice, and whether
 that can be undone. "Not sure, you pick" takes the recommendation and records it
-as an assumption for an expert to check. In `new` and `familiar` areas an answer
-also illustrates an abstract finding, such as a statistic or a rule, with one
-concrete example. At every level, a calculated or reconstructed result says
-which sources it came from and how. A level changes wording and depth only;
-warnings, tests, and reviews stay the same. `/simpler` and `/deeper` are VS Code
-Prompts; in other clients, ask in words.
+as an assumption for an expert to check. It counts only when you write it
+yourself, and it never authorizes an irreversible, destructive, or
+security-relevant action such as a push, a deletion, or a permission change;
+for those the agent asks you for an explicit answer. In `new` and `familiar`
+areas an answer also illustrates an abstract finding, such as a statistic or a
+rule, with one concrete example. At every level, a calculated or reconstructed
+result says which sources it came from and how. A level changes wording and
+depth only; warnings, tests, and reviews stay the same. `/simpler` and `/deeper`
+are VS Code Prompts; in other clients, ask in words.
 
 ## Available Skills
 
