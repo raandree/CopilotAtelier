@@ -79,6 +79,92 @@ Describe 'Start-JobHeartbeat' -Tag 'Unit' {
             $raw | Should -Not -Match 'Probe(Text|Base64|ScriptBlock)'
             $raw | Should -Not -Match 'GetTargetState'
         }
+
+        It 'Should never expose a partially written state file to a concurrent reader' {
+            # Regression guard: the state was written in place, which truncates
+            # the file first, so a reader polling it could parse an empty or
+            # cut-off file. The Cancellation test hit exactly that.
+            $definition = [System.Management.Automation.Language.Parser]::ParseFile(
+                $script:scriptPath, [ref]$null, [ref]$null
+            ).Find({
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                    $node.Name -eq 'Save-HeartbeatState'
+            }, $true)
+            . ([scriptblock]::Create($definition.Extent.Text))
+
+            $directory = Join-Path $script:tempRoot 'concurrent-reader'
+            New-Item -ItemType Directory -Path $directory -Force | Out-Null
+            $statePath = Join-Path $directory 'state.json'
+
+            # A large payload widens the window in which a write in progress is visible.
+            $state = [pscustomobject]@{ JobName = 'race'; Padding = 'x' * 1MB }
+            Save-HeartbeatState -Path $statePath -State $state
+
+            $signal = [hashtable]::Synchronized(@{ Started = $false; Done = $false })
+            $reader = [powershell]::Create().AddScript({
+                param($Path, $Signal)
+
+                $reads = 0
+                $torn = 0
+                $refused = 0
+                $Signal.Started = $true
+                while (-not $Signal.Done)
+                {
+                    try
+                    {
+                        $text = [IO.File]::ReadAllText($Path)
+                        $reads++
+                        if (-not $text.TrimEnd().EndsWith('}'))
+                        {
+                            $torn++
+                        }
+                    }
+                    catch [System.IO.IOException], [System.UnauthorizedAccessException]
+                    {
+                        # A sharing conflict is a refused read, not a torn one.
+                        $refused++
+                    }
+                }
+
+                [pscustomobject]@{ Reads = $reads; Torn = $torn; Refused = $refused }
+            }).AddArgument($statePath).AddArgument($signal)
+
+            $handle = $reader.BeginInvoke()
+            $failedWrites = 0
+            try
+            {
+                $deadline = (Get-Date).AddSeconds(10)
+                while (-not $signal.Started -and (Get-Date) -lt $deadline)
+                {
+                    Start-Sleep -Milliseconds 10
+                }
+
+                foreach ($write in 1..25)
+                {
+                    try
+                    {
+                        Save-HeartbeatState -Path $statePath -State $state -ErrorAction Stop
+                    }
+                    catch
+                    {
+                        # On Windows an in-place write is also refused while a reader holds the file.
+                        $failedWrites++
+                    }
+                }
+            }
+            finally
+            {
+                $signal.Done = $true
+                $result = $reader.EndInvoke($handle) | Select-Object -Last 1
+                $reader.Dispose()
+            }
+
+            $result.Reads | Should -BeGreaterThan 0
+            $result.Torn | Should -Be 0 -Because 'a reader must see the old or the new state, never a fragment'
+            $failedWrites | Should -Be 0 -Because 'a reader holding the file open must not make the write fail'
+            Get-ChildItem -LiteralPath $directory -Filter '*.tmp' | Should -BeNullOrEmpty
+        }
     }
 
     Context 'Measured elapsed time' {

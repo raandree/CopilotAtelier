@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Deliver the SessionStart context to Copilot SDK (agent host) and Copilot CLI sessions. `Add-SessionContext` wrote it only under `hookSpecificOutput`, which those hosts ignore; it now also writes the top-level `additionalContext` they read.
+- Keep the `long-running-job-monitor` heartbeat state readable while it is rewritten. `Start-JobHeartbeat.ps1` wrote the state file in place, so `-Stop`, `-TouchStatus`, or a wake read at the same moment could find it empty or cut off and fail; it now renames a complete file over it, also on Windows PowerShell 5.1.
 
 ## [6.0.0] - 2026-09-30
 

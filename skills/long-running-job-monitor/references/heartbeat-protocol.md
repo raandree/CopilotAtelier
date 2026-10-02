@@ -71,6 +71,11 @@ context at the next tick. Re-supply the probe when resuming.
 Because the state survives the session, a new session resumes monitoring by
 reading the file rather than by reconstructing the job from conversation.
 
+Every write replaces the whole file in one rename, so a reader that runs while
+the armed tick writes, such as `-Stop` or `-TouchStatus`, sees the previous or
+the next state, never an empty or partial file. While a reader holds the file
+open on Windows, the writer retries for up to five seconds.
+
 ## Backoff ladder
 
 Multipliers `1, 1, 2, 3, 6`, then `6`. At the default base that is 10, 10, 20,
