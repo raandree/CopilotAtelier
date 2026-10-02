@@ -129,22 +129,25 @@ Describe 'Release versioning' -Tag 'QA' {
             Should -Be 1 -Because "'$BranchName' matched: $($matchingBranch -join ', ')"
     }
 
-    Context 'Version increment from a commit message' {
+    Context 'Bump pattern selected by a commit message' {
         BeforeAll {
             <#
                 GitVersion 5 compiles each pattern with IgnoreCase and matches it
                 against the whole commit message, body included, trying major,
-                minor, patch, and no-bump in that order. A message that matches
-                none of them takes the branch's default increment.
+                minor, patch, and no-bump in that order. This models which pattern
+                a message selects, not the version GitVersion then computes: it
+                still raises every increment to at least the branch's default, so
+                a message that selects no pattern, or the no-bump one, gets a
+                patch on main.
             #>
-            $script:incrementPattern = [ordered] @{
-                Major = $script:gitVersionConfiguration['major-version-bump-message']
-                Minor = $script:gitVersionConfiguration['minor-version-bump-message']
-                Patch = $script:gitVersionConfiguration['patch-version-bump-message']
-                None  = $script:gitVersionConfiguration['no-bump-message']
+            $script:bumpPattern = [ordered] @{
+                Major  = $script:gitVersionConfiguration['major-version-bump-message']
+                Minor  = $script:gitVersionConfiguration['minor-version-bump-message']
+                Patch  = $script:gitVersionConfiguration['patch-version-bump-message']
+                NoBump = $script:gitVersionConfiguration['no-bump-message']
             }
 
-            function Get-MessageIncrement
+            function Get-MatchedBumpPattern
             {
                 param
                 (
@@ -153,25 +156,25 @@ Describe 'Release versioning' -Tag 'QA' {
                     $Message
                 )
 
-                foreach ($increment in $script:incrementPattern.Keys)
+                foreach ($patternName in $script:bumpPattern.Keys)
                 {
                     $isMatch = [System.Text.RegularExpressions.Regex]::IsMatch(
                         $Message,
-                        $script:incrementPattern[$increment],
+                        $script:bumpPattern[$patternName],
                         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
                     )
 
                     if ($isMatch)
                     {
-                        return $increment
+                        return $patternName
                     }
                 }
 
-                'BranchDefault'
+                'NoMatch'
             }
         }
 
-        It 'Should take <Expected> from <Name>' -ForEach @(
+        It 'Should select <Expected> for <Name>' -ForEach @(
             @{ Name = 'a breaking marker after the type'; Message = 'feat!: drop Windows PowerShell 5.1'; Expected = 'Major' }
             @{ Name = 'a breaking marker after the scope'; Message = 'fix(hooks)!: rename the launcher parameter'; Expected = 'Major' }
             @{ Name = 'a BREAKING CHANGE footer'; Message = "feat: rename the profile key`n`nBREAKING CHANGE: the old key is ignored."; Expected = 'Major' }
@@ -179,23 +182,23 @@ Describe 'Release versioning' -Tag 'QA' {
             @{ Name = 'a feat subject'; Message = 'feat(skills): calibrate answers to the contributor'; Expected = 'Minor' }
             @{ Name = 'a fix subject'; Message = 'fix(long-running-job-monitor): write heartbeat state in one rename'; Expected = 'Patch' }
             @{ Name = 'a perf subject'; Message = 'perf: cache the parsed manifest'; Expected = 'Patch' }
-            @{ Name = 'an explicit +semver:skip'; Message = 'Updating ChangeLog since v6.0.0 +semver:skip'; Expected = 'None' }
-            @{ Name = 'a docs subject'; Message = 'docs: prefix every path with the repository root'; Expected = 'BranchDefault' }
+            @{ Name = 'an explicit +semver:skip'; Message = 'Updating ChangeLog since v6.0.0 +semver:skip'; Expected = 'NoBump' }
+            @{ Name = 'a docs subject'; Message = 'docs: prefix every path with the repository root'; Expected = 'NoMatch' }
         ) {
-            Get-MessageIncrement -Message $Message | Should -Be $Expected
+            Get-MatchedBumpPattern -Message $Message | Should -Be $Expected
         }
 
-        It 'Should not raise the version for <Name>' -ForEach @(
+        It 'Should not select a pattern above the subject type for <Name>' -ForEach @(
             # Regression guard: the review text of #25 versioned main 6.0.0, and
             # the first three bodies are taken from real commits.
             @{ Name = '"Major" in review prose'; Message = "fix: bound delegated answers in contributor calibration`n`nThe second review found four Major issues."; Expected = 'Patch' }
             @{ Name = '"non-breaking" in a body'; Message = "fix: keep the profile key`n`nThe rename stays non-breaking."; Expected = 'Patch' }
             @{ Name = 'a body that starts with Add-'; Message = "fix(hooks): give the Copilot SDK host the SessionStart context`n`nAdd-SessionContext wrote its context only under hookSpecificOutput."; Expected = 'Patch' }
-            @{ Name = 'a lowercase breaking change line'; Message = "docs: explain the migration`n`nbreaking change: none expected"; Expected = 'BranchDefault' }
-            @{ Name = 'BREAKING CHANGE inside a sentence'; Message = "docs: explain the footer`n`nWrite BREAKING CHANGE: at the start of a footer line."; Expected = 'BranchDefault' }
-            @{ Name = 'a feat line in a merge commit body'; Message = "Merge pull request #26 from raandree/ai/contributor-calibration`n`nfeat: calibrate answers"; Expected = 'BranchDefault' }
+            @{ Name = 'a lowercase breaking change line'; Message = "docs: explain the migration`n`nbreaking change: none expected"; Expected = 'NoMatch' }
+            @{ Name = 'BREAKING CHANGE inside a sentence'; Message = "docs: explain the footer`n`nWrite BREAKING CHANGE: at the start of a footer line."; Expected = 'NoMatch' }
+            @{ Name = 'a feat line in a merge commit body'; Message = "Merge pull request #26 from raandree/ai/contributor-calibration`n`nfeat: calibrate answers"; Expected = 'NoMatch' }
         ) {
-            Get-MessageIncrement -Message $Message | Should -Be $Expected
+            Get-MatchedBumpPattern -Message $Message | Should -Be $Expected
         }
     }
 }

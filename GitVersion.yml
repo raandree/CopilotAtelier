@@ -2,12 +2,13 @@ mode: ContinuousDelivery
 # Fallback base for a history that carries no version tag. Release tags now
 # supersede it, so tag every release as v<version> and builds anchor on the tag.
 next-version: 1.1.0
-# Only the Conventional Commit type in the subject line, a BREAKING CHANGE
-# footer, or an explicit +semver: override raises the version. GitVersion
-# matches these case-insensitively against the whole message, body included,
-# so the Sampler defaults turned prose into releases: "major" in the review text
-# of #25 made 6.0.0. \A anchors a pattern to the start of the subject; only the
-# footer group matches at any line start, and only in capitals.
+# Only the Conventional Commit type in the subject line, a line that starts with
+# BREAKING CHANGE, or a literal +semver: override raises the version above the
+# branch's default increment. GitVersion matches these case-insensitively
+# against the whole message, body included, so the Sampler defaults turned prose
+# into releases: "major" in the review text of #25 made 6.0.0. \A anchors a
+# pattern to the start of the subject; only the BREAKING CHANGE group matches at
+# any line start, and only in capitals, so a body that quotes such a line counts.
 major-version-bump-message: '\+semver:\s?(breaking|major)|\A\w+(\([^)]*\))?!:|(?m-i:^BREAKING[ -]CHANGE:)'
 minor-version-bump-message: '\+semver:\s?(feature|minor)|\Afeat(\([^)]*\))?:'
 patch-version-bump-message: '\+semver:\s?(fix|patch)|\A(fix|perf)(\([^)]*\))?:'
