@@ -638,13 +638,33 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             # --no-verify from another, so ordinary batches were blocked. Only
             # the raw text path, which errs toward blocking, still joins across
             # entries. Finding SEC-32: a per-object join ending in an option
-            # must not reach across into the next entry.
+            # must not reach across into the next entry. The command-first
+            # spelling of that case still blocks through the document-order
+            # join, which has to join fields with spaces to read a split
+            # command; that pre-existing curiosity is accepted.
             $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"steps":[' + $Steps + ']}}'
 
             $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
 
             $result.HasExited | Should -BeTrue -Because "it ran $($result.Seconds) s"
             $result.ExitCode | Should -Be 0 -Because $result.Output
+        }
+
+        It 'walks a batch beside a long list of plain values instead of joining it across entries' {
+            # Re-check finding SEC-33: every element of a plain list counted
+            # toward the walk's 20,000-value cap, so a file list sent this
+            # ordinary payload to the raw text path, whose joins across entries
+            # read "docker git push myimage status". Plain values never hold a
+            # command field, so only objects and fields count now.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"files":[' +
+                ((1..25000 | ForEach-Object { '"src/file' + $_ + '.ps1"' }) -join ',') +
+                '],"steps":[{"command":"docker","args":["push","myimage"]},{"command":"git","args":["status"]}]}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $result.Output | Should -Not -Match 'too many values'
         }
     }
 }

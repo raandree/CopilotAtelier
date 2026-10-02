@@ -24,10 +24,11 @@
     arrays.
 
     The command-bearing fields are walked up to 64 levels deep and 20,000
-    values, in payloads up to 1 MB. When the walk cannot cover the payload,
-    because it is nested deeper, larger, holds more values, or is not valid
-    JSON, the raw payload text is also scanned, with its JSON escapes decoded
-    and without its JSON punctuation, before the call is allowed. That errs
+    fields and nested objects, in payloads up to 1 MB; plain values in arrays
+    do not count. When the walk cannot cover the payload, because it is nested
+    deeper, larger, holds more fields or objects, or is not valid JSON, the
+    raw payload text is also scanned, with its JSON escapes decoded and
+    without its JSON punctuation, before the call is allowed. That errs
     toward blocking: there, a payload that only mentions a blocked command is
     blocked. The whole decision has a time limit, five seconds by default, of
     which the walk may use half. A payload not inspected within it is blocked,
@@ -130,10 +131,11 @@ $notInspectedInTime = 'this command could not be inspected within the time limit
 
 # Parsing and the field walk cannot be interrupted, and 300,000 small objects
 # kept the walk busy past the hook timeout. So only a payload up to 1 MB is
-# parsed, and the walk stops after 20,000 values or half the time limit; what
-# it did not cover is scanned as raw text, which the time limit does bound. A
-# payload over 4 MB is blocked unscanned: no model writes a tool call that
-# large, and even the linear passes over it take seconds. Those passes run
+# parsed, and the walk stops after 20,000 fields and nested objects, or half
+# the time limit; plain values in arrays cost only time. What it did not cover
+# is scanned as raw text, which the time limit does bound. A payload over 4 MB
+# is blocked unscanned: no model writes a tool call that large, and even the
+# linear passes over it take seconds. Those passes run
 # between the field join and the pattern scan and do not read the clock, so a
 # decision can overrun the limit by about 1.5 seconds (6.3 seconds measured at
 # worst). Reading the payload is linear as well: 96 MB took 15.9 seconds, so
@@ -207,14 +209,23 @@ function Add-CommandPart {
         }
 
         foreach ($child in @($value)) {
-            $script:visitCount++
-            if ($script:visitCount -gt $script:maximumVisitCount -or $script:decisionClock.Elapsed -gt $script:walkTimeLimit) {
+            # Plain values, such as a long file list, can never hold a command
+            # field and cost little, so only the clock bounds them; only an
+            # object, which costs a recursion, counts toward the cap.
+            if ($script:decisionClock.Elapsed -gt $script:walkTimeLimit) {
                 $script:isWalkComplete = $false
                 $script:walkStopReason = 'has too many values to walk in time'
                 break
             }
 
             if ($child -is [psobject] -and $child.PSObject.Properties.Name.Count -gt 0 -and $child -isnot [string] -and $child -isnot [ValueType]) {
+                $script:visitCount++
+                if ($script:visitCount -gt $script:maximumVisitCount) {
+                    $script:isWalkComplete = $false
+                    $script:walkStopReason = 'has too many values to walk in time'
+                    break
+                }
+
                 Add-CommandPart -InputObject $child -Depth ($Depth + 1)
             }
         }

@@ -102,13 +102,15 @@ the model. On exit `2` the Copilot SDK host ignores standard error and merges on
 JSON object from standard output into the deny, so the guard also prints the
 reason there: top-level `permissionDecision` and `permissionDecisionReason` for
 that host, and the same pair under `hookSpecificOutput` for VS Code. The
-command-bearing fields are walked up to 64 levels deep and 20,000 values, in a
-payload of up to 1 MB. Their values are joined in document order and, within
+command-bearing fields are walked up to 64 levels deep and 20,000 fields and
+nested objects, in a payload of up to 1 MB; plain values in arrays, such as a
+file list, do not count. Their values are joined in document order and, within
 each object, executables before arguments. So
 `{"args":["push"],"command":"git"}`, the order a serializer that sorts its keys
 writes, still reads as `git push`, while one entry's executable never pairs
 with another entry's arguments. When the walk cannot cover a payload,
-because it is nested deeper, larger, holds more values, or is not valid JSON,
+because it is nested deeper, larger, holds more fields or objects, or is not
+valid JSON,
 its raw text is also scanned: as written, with JSON escapes decoded, and
 without the JSON punctuation, so an argument array such as `["git","push"]`
 reads as the command it is. The command-bearing fields are also pulled out of
