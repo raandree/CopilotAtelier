@@ -560,6 +560,55 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             $result.ExitCode | Should -Be 0 -Because $result.Output
             $result.Output | Should -Match 'too large to walk field by field'
         }
+
+        It 'blocks a push whose arguments come before the command when <Case>' -ForEach @(
+            @{ Case = 'the payload is walked'; Shape = 'walked' }
+            @{ Case = 'the payload is too large to walk'; Shape = 'large' }
+            @{ Case = 'another command field sits between them'; Shape = 'between' }
+            @{ Case = 'several entries put their arguments first'; Shape = 'entries' }
+        ) {
+            # Re-check finding SEC-26: the walk and the raw join both read the
+            # fields in document order, so {"args":["push"],"command":"git"},
+            # the order a serializer that sorts its keys writes, read as
+            # "push git". The fields are now also joined executable first and in
+            # reverse order.
+            $split = '"args":["push","origin","main"],"command":"git"'
+            $payload = switch ($Shape) {
+                'walked' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $split + '}}'
+                }
+                'large' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                        ((, '{"x":"a"}') * 120000 -join ',') + '],' + $split + '}}'
+                }
+                'between' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
+                        '{"args":["push","origin","main"],"script":"echo ready","command":"git"}}'
+                }
+                'entries' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"steps":[{' + $split +
+                        '},{"args":["status"],"command":"npm"}]}}'
+                }
+            }
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Output | Should -Match 'pushes to a git remote'
+        }
+
+        It 'allows ordinary commands split across several entries' {
+            # The extra joins must not pair one entry's executable with another
+            # entry's arguments into a blocked command.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"steps":[' +
+                '{"command":"git","args":["status"]},{"command":"echo","args":["push"]},' +
+                '{"args":["log"],"command":"git"},{"args":["--hard"],"command":"echo"}]}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+        }
     }
 }
 

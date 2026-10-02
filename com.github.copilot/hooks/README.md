@@ -103,8 +103,11 @@ JSON object from standard output into the deny, so the guard also prints the
 reason there: top-level `permissionDecision` and `permissionDecisionReason` for
 that host, and the same pair under `hookSpecificOutput` for VS Code. The
 command-bearing fields are walked up to 64 levels deep and 20,000 values, in a
-payload of up to 1 MB. When the walk cannot cover a payload, because it is
-nested deeper, larger, holds more values, or is not valid JSON,
+payload of up to 1 MB, and their values are joined three ways: as written,
+executables before arguments, and in reverse. So
+`{"args":["push"],"command":"git"}`, the order a serializer that sorts its keys
+writes, still reads as `git push`. When the walk cannot cover a payload,
+because it is nested deeper, larger, holds more values, or is not valid JSON,
 its raw text is also scanned: as written, with JSON escapes decoded, and
 without the JSON punctuation, so an argument array such as `["git","push"]`
 reads as the command it is. The command-bearing fields are also pulled out of
@@ -123,7 +126,11 @@ of it. Parsing and walking cannot be interrupted, and some patterns slow down
 quadratically on one long line of `git` words, so a payload the guard has not
 inspected within the limit is blocked rather than left to the timeout, which
 would let it through. A payload over 4 MB is blocked without being scanned; no
-model writes a tool call that large.
+model writes a tool call that large. A payload over 1 MB that names git on most
+lines, such as a large document about git, can still run out of time and be
+blocked: JSON escaping puts its whole text on one raw line, where some patterns
+slow down quadratically. Write such a file in parts, or run the command
+yourself.
 
 ### Authorizing a remote mutation
 

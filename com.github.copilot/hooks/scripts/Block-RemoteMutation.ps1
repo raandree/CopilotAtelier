@@ -17,7 +17,11 @@
     This is a best-effort guardrail, not a containment boundary. It matches
     patterns in a command string, so an obfuscated or indirectly invoked push
     can evade it. It removes the accidental path; branch protection and a
-    server-side policy remain the real enforcement.
+    server-side policy remain the real enforcement. Known evasions include a
+    variable or alias standing in for the subcommand (git $verb, or git -c
+    alias.p=push p), a field name spelled with JSON escapes whose value hides
+    the program behind an escaped quote, and arguments nested in arrays of
+    arrays.
 
     The command-bearing fields are walked up to 64 levels deep and 20,000
     values, in payloads up to 1 MB. When the walk cannot cover the payload,
@@ -107,8 +111,12 @@ $blockedOperation = [ordered]@{
 # lacks a shell keyword, and every miss would fail open.
 $commandField = @('command', 'commandLine', 'cmd', 'script', 'args', 'arguments')
 
-# The same fields in raw JSON text: a string value, or a flat array of values.
-$rawFieldPattern = '"(?:' + (($commandField | ForEach-Object { [regex]::Escape($_) }) -join '|') +
+# Of those, the fields that name what runs; the others carry its arguments.
+$executableField = @('command', 'commandLine', 'cmd', 'script')
+
+# The same fields in raw JSON text: the field name, then a string value or a
+# flat array of values.
+$rawFieldPattern = '"(' + (($commandField | ForEach-Object { [regex]::Escape($_) }) -join '|') +
     ')"\s*:\s*(?:"((?:[^"\\]|\\.)*)"|\[([^\[\]]*)\])'
 
 # Some patterns scan to the end of the line from every git word, which grows
@@ -125,7 +133,11 @@ $notInspectedInTime = 'this command could not be inspected within the time limit
 # parsed, and the walk stops after 20,000 values or half the time limit; what
 # it did not cover is scanned as raw text, which the time limit does bound. A
 # payload over 4 MB is blocked unscanned: no model writes a tool call that
-# large, and even the linear passes over it take seconds.
+# large, and even the linear passes over it take seconds. Those passes run
+# between the field join and the pattern scan and do not read the clock, so a
+# decision can overrun the limit by about 1.5 seconds (6.3 seconds measured at
+# worst). Reading the payload is linear as well: 96 MB took 15.9 seconds, so
+# outlasting the hook timeout would take about 120 MB.
 $maximumParseLength = 1MB
 $maximumPayloadLength = 4MB
 $maximumVisitCount = 20000
@@ -139,9 +151,14 @@ $maximumDepth = 64
 $isWalkComplete = $true
 $walkStopReason = $null
 
-function Get-CommandText {
+# The walk collects the command-bearing values here in document order, and
+# again by kind, so they can be joined in more than one order.
+$commandPart = [System.Collections.Generic.List[string]]::new()
+$executablePart = [System.Collections.Generic.List[string]]::new()
+$argumentPart = [System.Collections.Generic.List[string]]::new()
+
+function Add-CommandPart {
     [CmdletBinding()]
-    [OutputType([string])]
     param(
         [Parameter()]
         [AllowNull()]
@@ -152,16 +169,14 @@ function Get-CommandText {
     )
 
     if ($null -eq $InputObject -or $InputObject -is [string]) {
-        return ''
+        return
     }
 
     if ($Depth -gt $script:maximumDepth) {
         $script:isWalkComplete = $false
         $script:walkStopReason = "is nested deeper than $script:maximumDepth levels"
-        return ''
+        return
     }
-
-    $collected = [System.Collections.Generic.List[string]]::new()
 
     foreach ($property in $InputObject.PSObject.Properties) {
         $script:visitCount++
@@ -174,10 +189,14 @@ function Get-CommandText {
         $value = $property.Value
 
         if ($property.Name -in $script:commandField) {
-            if ($value -is [string]) {
-                $collected.Add($value)
-            } elseif ($value -is [array]) {
-                $collected.Add((@($value) -join ' '))
+            $text = if ($value -is [string]) { $value } elseif ($value -is [array]) { @($value) -join ' ' } else { $null }
+            if (-not [string]::IsNullOrWhiteSpace($text)) {
+                $script:commandPart.Add($text)
+                if ($property.Name -in $script:executableField) {
+                    $script:executablePart.Add($text)
+                } else {
+                    $script:argumentPart.Add($text)
+                }
             }
         }
 
@@ -190,15 +209,45 @@ function Get-CommandText {
             }
 
             if ($child -is [psobject] -and $child.PSObject.Properties.Name.Count -gt 0 -and $child -isnot [string] -and $child -isnot [ValueType]) {
-                $nested = Get-CommandText -InputObject $child -Depth ($Depth + 1)
-                if (-not [string]::IsNullOrWhiteSpace($nested)) {
-                    $collected.Add($nested)
-                }
+                Add-CommandPart -InputObject $child -Depth ($Depth + 1)
             }
         }
     }
+}
 
-    return ($collected -join ' ')
+function Join-CommandPart {
+    <#
+        Joins command-bearing values three ways, because a tool may write the
+        executable and its arguments in either order, for example with its keys
+        sorted: as written, executables before arguments, and in reverse.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]]$Part,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]]$ExecutablePart,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]]$ArgumentPart
+    )
+
+    if ($Part.Count -eq 0) {
+        return
+    }
+
+    $Part -join ' '
+    if ($Part.Count -gt 1) {
+        ([string[]]$ExecutablePart.ToArray() + [string[]]$ArgumentPart.ToArray()) -join ' '
+        $reversed = $Part.ToArray()
+        [array]::Reverse($reversed)
+        $reversed -join ' '
+    }
 }
 
 function Block-ToolCall {
@@ -241,12 +290,13 @@ function Block-ToolCall {
     exit 2
 }
 
-function Join-RawCommandField {
+function Get-RawCommandText {
     <#
-        Joins the command-bearing fields found in raw JSON text the way the walk
-        joins them, so a command split across fields, such as
-        {"command":"git","args":["push"]}, reads as one command line. It shares
-        the decision's time limit and blocks the call when that runs out.
+        Pulls the command-bearing fields out of raw JSON text and joins them the
+        way the walk does, so a command split across fields, such as
+        {"command":"git","args":["push"]}, reads as one command line there too.
+        It shares the decision's time limit and blocks the call when that runs
+        out.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -260,6 +310,8 @@ function Join-RawCommandField {
     )
 
     $part = [System.Collections.Generic.List[string]]::new()
+    $executable = [System.Collections.Generic.List[string]]::new()
+    $argument = [System.Collections.Generic.List[string]]::new()
     try {
         $timeLeft = $script:timeLimit - $script:decisionClock.Elapsed
         if ($timeLeft -le [TimeSpan]::Zero) {
@@ -280,7 +332,8 @@ function Join-RawCommandField {
                 Block-ToolCall -Because $script:notInspectedInTime
             }
 
-            $value = if ($match.Groups[1].Success) { $match.Groups[1].Value } else { $match.Groups[2].Value }
+            $isString = $match.Groups[2].Success
+            $value = if ($isString) { $match.Groups[2].Value } else { $match.Groups[3].Value }
             if ($DecodeValue -and $value.Contains('\')) {
                 try {
                     $value = [regex]::Unescape($value)
@@ -289,18 +342,26 @@ function Join-RawCommandField {
                 }
             }
 
-            if (-not $match.Groups[1].Success) {
+            if (-not $isString) {
                 $value = $value -replace '["\[\],]', ' '
             }
 
-            $part.Add($value)
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                $part.Add($value)
+                if ($match.Groups[1].Value -in $script:executableField) {
+                    $executable.Add($value)
+                } else {
+                    $argument.Add($value)
+                }
+            }
+
             $match = $match.NextMatch()
         }
     } catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
         Block-ToolCall -Because $script:notInspectedInTime
     }
 
-    return ($part -join ' ')
+    Join-CommandPart -Part $part -ExecutablePart $executable -ArgumentPart $argument
 }
 
 if ([string]::IsNullOrEmpty($InputJson)) {
@@ -326,23 +387,21 @@ $isPayloadReadable = $true
 if ($InputJson.Length -gt $maximumParseLength) {
     $isWalkComplete = $false
     $walkStopReason = 'is too large to walk field by field'
-    $commandText = ''
 } else {
     try {
         $payload = $InputJson | ConvertFrom-Json -ErrorAction Stop
-        $commandText = Get-CommandText -InputObject $payload.tool_input
+        Add-CommandPart -InputObject $payload.tool_input
     } catch {
         # Windows PowerShell rejects JSON nested past 100 levels and PowerShell 7
         # past 1024, so an unreadable payload is not necessarily a harmless one.
         $isPayloadReadable = $false
         $isWalkComplete = $false
-        $commandText = ''
     }
 }
 
 $scanText = [System.Collections.Generic.List[string]]::new()
-if (-not [string]::IsNullOrWhiteSpace($commandText)) {
-    $scanText.Add($commandText)
+foreach ($text in @(Join-CommandPart -Part $commandPart -ExecutablePart $executablePart -ArgumentPart $argumentPart)) {
+    $scanText.Add($text)
 }
 
 if (-not $isWalkComplete) {
@@ -366,9 +425,13 @@ if (-not $isWalkComplete) {
     # text and joined, as written with each value decoded and, for a key spelled
     # with escapes, from the decoded text. They are short, so they go first.
     $fieldText = [System.Collections.Generic.List[string]]::new()
-    $fieldText.Add((Join-RawCommandField -Text $InputJson -DecodeValue))
+    foreach ($text in @(Get-RawCommandText -Text $InputJson -DecodeValue)) {
+        $fieldText.Add($text)
+    }
     if ($rawText.Count -gt 1) {
-        $fieldText.Add((Join-RawCommandField -Text $rawText[1]))
+        foreach ($text in @(Get-RawCommandText -Text $rawText[1])) {
+            $fieldText.Add($text)
+        }
     }
 
     # An argument array reads as ["git","push"] in raw JSON. Without the JSON
@@ -377,11 +440,7 @@ if (-not $isWalkComplete) {
         $rawText.Add(($text -replace '["\[\],]', ' '))
     }
 
-    foreach ($text in $fieldText) {
-        if (-not [string]::IsNullOrWhiteSpace($text)) {
-            $scanText.Add($text)
-        }
-    }
+    $scanText.AddRange($fieldText)
     $scanText.AddRange($rawText)
 }
 
