@@ -16,13 +16,14 @@ under `[Unreleased]` in `CHANGELOG.md`.
 ## Recent milestones
 
 - **2026-10-02**: Live checks after the deploy (VS Code 1.140.0, SDK
-  1.0.15-preview.4). A1, B1, and B2 passed: the SessionStart context arrives
+  1.0.15-preview.4). A1 and B1 to B3 passed: the SessionStart context arrives
   once in a Copilot SDK chat (top-level `additionalContext`) and a Local chat
   (`hookSpecificOutput`), both clocks are measured, and Local blocks the probe
-  with the full reason. A2 did not: the SDK denies it through the new
-  `powershell` launcher, but the model reads only `hook exited with code 2`
-  (in two chats), though the guard, spawned as that host spawns it, writes the
-  reason to standard error and as JSON to standard output.
+  with the full reason, also with the override set in the agent's terminal.
+  A2 did not: the SDK denies it through the new `powershell` launcher, but the
+  model reads only `hook exited with code 2` (in two chats), though the guard,
+  spawned as that host spawns it, writes the reason to standard error and as
+  JSON to standard output.
 
 - **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
   `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
@@ -109,7 +110,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   the API key question answered on 2026-08-25.
 - Live checks the agent cannot run, all after the 2026-10-02 deploy and in new
   chats:
-  - prompt 05's override test (B3);
   - prompt 06's SDK reason (A2 above): the hook's comments and tests assume a
     stdout merge on exit 2 that the runtime does not do; find an output it
     reads (a JSON deny on exit 0 would fail open if unparsed), verify it live;
