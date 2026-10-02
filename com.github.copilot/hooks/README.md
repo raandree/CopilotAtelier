@@ -16,8 +16,9 @@ own format knows `bash`, `powershell`, `exec`, and a cross-platform `command`
 that it copies into `powershell` on Windows
 ([hooks configuration reference](https://docs.github.com/en/copilot/reference/hooks-configuration)).
 It therefore runs `command` on every platform, Windows included. Both launchers
-are identical apart from the interpreter — `pwsh` or `powershell` — and neither
-may depend on `HOME`, which Windows does not define.
+start their script the same way apart from the interpreter — `pwsh` or
+`powershell` — and neither may depend on `HOME`, which Windows does not define.
+The `windows` launcher also ends with one statement of its own, explained below.
 
 Each launcher runs the first of these scripts that exists:
 
@@ -29,12 +30,29 @@ Each launcher runs the first of these scripts that exists:
 
 An unset root becomes an unresolvable `*` and a relative root is anchored at the
 filesystem root, so no candidate ever resolves against the working directory.
-The launcher passes the script's exit code through unchanged; a host that wraps
-it in PowerShell can still flatten that code, as Troubleshooting explains. When
-no candidate exists or the script cannot start, the launcher names the script
-and the underlying error on standard error and exits `2` for `PreToolUse`, which
-blocks, and `1` for the lifecycle events, which warns. `command` needs `pwsh` on
-`PATH`.
+When no candidate exists or the script cannot start, the launcher names the
+script and the underlying error on standard error and exits `2` for
+`PreToolUse`, which blocks, and `1` for the lifecycle events, which warns.
+`command` needs `pwsh` on `PATH`.
+
+The launcher passes the script's exit code through unchanged, but on Windows
+both hosts run it inside an outer PowerShell, which reports any failed native
+command as `1`:
+
+| Host | Spawn on Windows | Source |
+|---|---|---|
+| VS Code Local harness | `powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -Command <windows>` | `HookExecutor` in VS Code's built-in `extensions/copilot/dist/extension.js` |
+| Copilot SDK host | `pwsh.exe -nop -nol -c <command>`, started by `copilot-runtime.exe` | process capture, 2026-10-02 |
+
+VS Code blocks only on `2` and treats every other non-zero exit as a warning, so
+the `windows` launcher ends with
+`; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]`
+(`+ 1` for the lifecycle events). The outer PowerShell runs it and exits with the
+inner code, or with the launcher's own failure code when the inner interpreter
+never started. Under `cmd.exe` the statement only reaches the inner `-Command`
+after a `try` block that always exits. `command` cannot carry it, because `sh`
+runs `command` on Linux and macOS and rejects the statement. In the SDK host a
+block therefore still arrives as `1`, which denies the call as `hook errored`.
 
 ## Contents
 
@@ -235,14 +253,18 @@ which survives because Instructions are re-sent with every request.
   before this fix wrote only the nested key. Redeploy, then start a new session.
   That `hook.end` event's `output.additionalContext` shows exactly what the host
   injected, and the field is absent when nothing was.
-- **A `PreToolUse` block reaches the host as exit `1`.** A host that runs the
-  launcher inside an outer PowerShell `-Command` — as the Copilot SDK host does
-  on Windows — reports only whether its last command succeeded, so exit `2`
-  arrives as `1`. The SDK host fails closed on every non-zero `preToolUse` exit,
-  so the call is still denied, but as `Denied by preToolUse hook (hook errored)`
-  without the reason. No launcher text can prevent the flattening: a trailing
-  bare `exit` turns it into `0`, which would allow the call. Only the host can
-  keep the code, by ending its wrapper with `exit $LASTEXITCODE`.
+- **A `PreToolUse` block reaches the host as exit `1`.** On Windows both hosts
+  run the launcher inside an outer PowerShell `-Command` (see Launchers). That
+  outer PowerShell reports only whether its last command succeeded, so exit `2`
+  arrives as `1`.
+  - The Copilot SDK host fails closed on every non-zero `preToolUse` exit. The
+    call is still denied, but as `Denied by preToolUse hook (hook errored)`
+    without the reason.
+  - VS Code blocks only on `2`, so in Local chats on Windows the guard only
+    warned until 2026-10-02. The `windows` launcher now ends with an `exit` that
+    hands the inner code on.
+  - A bare trailing `exit` would not work: it exits `0` and would allow the call.
+  - `command` cannot carry the statement, because `sh` runs it too.
 - **The hook dies with a PowerShell parser error.** VS Code hands the command to
   a PowerShell shell, which expands the double-quoted `-Command` argument before
   the child process parses it. A `$` token is therefore consumed by the outer

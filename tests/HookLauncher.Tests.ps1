@@ -43,30 +43,38 @@ BeforeDiscovery {
     # The spawn modes a host uses: Node's `shell: true` on Windows and on POSIX,
     # and a PowerShell that runs the launcher through -Command. The Copilot SDK
     # host takes the last route on Windows: it copies `command` into its
-    # `powershell` field.
+    # `powershell` field. `vscode` is the exact spawn of VS Code's Local harness
+    # on Windows, which runs only the `windows` launcher.
     $script:spawnCase = @(
         foreach ($name in $hookConfig.hooks.PSObject.Properties.Name) {
             foreach ($branch in 'command', 'windows') {
-                foreach ($mode in 'cmd', 'sh', 'pwsh', 'powershell') {
+                foreach ($mode in 'cmd', 'sh', 'pwsh', 'powershell', 'vscode') {
+                    if ($mode -eq 'vscode' -and $branch -ne 'windows') {
+                        continue
+                    }
+
                     $skipReason = ''
                     if ($branch -eq 'windows' -and -not $script:isWindowsPlatform) {
                         $skipReason = 'powershell.exe exists only on Windows'
-                    } elseif ($mode -in 'cmd', 'powershell' -and -not $script:isWindowsPlatform) {
-                        $skipReason = "$mode.exe exists only on Windows"
+                    } elseif ($mode -in 'cmd', 'powershell', 'vscode' -and -not $script:isWindowsPlatform) {
+                        $skipReason = "$mode spawns exist only on Windows"
                     } elseif ($mode -eq 'sh' -and $script:isWindowsPlatform) {
                         $skipReason = '/bin/sh is not part of Windows'
                     } elseif (($branch -eq 'command' -or $mode -eq 'pwsh') -and -not $pwshAvailable) {
                         $skipReason = 'pwsh is not on PATH'
                     }
 
+                    # PreToolUse fails closed with 2 and the lifecycle events warn
+                    # with 1. An outer PowerShell -Command reports only whether its
+                    # last command succeeded, so it surfaces both as 1, unless the
+                    # launcher passes the inner exit code on, as `windows` does.
+                    $passesExitCodeOn = $mode -in 'cmd', 'sh' -or $branch -eq 'windows'
+
                     @{
                         Event = $name
                         Branch = $branch
                         Mode = $mode
-                        # PreToolUse fails closed with 2, the lifecycle events warn
-                        # with 1, and an outer PowerShell -Command reports only
-                        # whether its last command succeeded, so it surfaces both as 1.
-                        ObservedFailureCode = if ($name -eq 'PreToolUse' -and $mode -in 'cmd', 'sh') { 2 } else { 1 }
+                        ObservedFailureCode = if ($name -eq 'PreToolUse' -and $passesExitCodeOn) { 2 } else { 1 }
                         SkipReason = $skipReason
                     }
                 }
@@ -89,7 +97,26 @@ BeforeAll {
 
     # The whole script is one double-quoted -Command argument, so cmd.exe, sh,
     # and an outer PowerShell each hand it to the interpreter as a single word.
-    $script:launcherShape = '\A(?<interpreter>pwsh|powershell) (?<options>.+?) -Command "(?<script>[^"]+)"\z'
+    # Only the windows launcher continues after it, with Get-ExitPassThrough.
+    $script:launcherShape = '\A(?<interpreter>pwsh|powershell) (?<options>.+?) -Command "(?<script>[^"]+)"(?<suffix>.*)\z'
+
+    <#
+        The statement the windows launcher ends with. VS Code runs that launcher
+        as the -Command text of an outer Windows PowerShell, which reports only
+        whether its last command succeeded, so the launcher hands the inner exit
+        code on itself. A missing code means the inner interpreter never ran and
+        falls back to the launcher's own failure code. Under cmd.exe the text
+        only reaches the inner -Command after a try block that always exits.
+    #>
+    function Get-ExitPassThrough {
+        param(
+            [Parameter(Mandatory)]
+            [ValidateSet(1, 2)]
+            [int]$FailureCode
+        )
+
+        ' ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + {0})[0]' -f $FailureCode
+    }
 
     function Get-HookLauncher {
         param(
@@ -122,8 +149,8 @@ BeforeAll {
         The exit code the spawning host can see. cmd.exe and sh pass the
         launcher's code through unchanged. An outer PowerShell -Command converts
         every non-zero native exit code to 1 (about_Pwsh, -Command), which no
-        launcher text can prevent: a host that wraps hooks that way has to end
-        its wrapper with `exit $LASTEXITCODE` to see a PreToolUse block as 2.
+        text inside the quoted -Command argument can prevent; the windows
+        launcher therefore ends with a statement the outer PowerShell runs.
     #>
     function Get-ObservedExitCode {
         param(
@@ -131,10 +158,13 @@ BeforeAll {
             [string]$Mode,
 
             [Parameter(Mandatory)]
+            [string]$Branch,
+
+            [Parameter(Mandatory)]
             [int]$ExitCode
         )
 
-        if ($Mode -in 'pwsh', 'powershell') {
+        if ($Mode -in 'pwsh', 'powershell', 'vscode' -and $Branch -ne 'windows') {
             [int]($ExitCode -ne 0)
         } else {
             $ExitCode
@@ -263,7 +293,7 @@ BeforeAll {
             [string]$Launcher,
 
             [Parameter(Mandatory)]
-            [ValidateSet('cmd', 'sh', 'pwsh', 'powershell')]
+            [ValidateSet('cmd', 'sh', 'pwsh', 'powershell', 'vscode')]
             [string]$Mode,
 
             [Parameter(Mandatory)]
@@ -294,6 +324,12 @@ BeforeAll {
             'powershell' {
                 $filePath = 'powershell'
                 $argumentLine = '-NoProfile -NonInteractive -Command ' + (ConvertTo-ProcessArgument -Value $Launcher)
+            }
+            'vscode' {
+                # HookExecutor in VS Code's built-in extensions/copilot/dist/extension.js
+                # on Windows with ComSpec set to cmd.exe, arguments verbatim.
+                $filePath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\WindowsPowerShell\v1.0\powershell.exe'
+                $argumentLine = '-ExecutionPolicy Bypass -NoProfile -NoLogo -Command ' + (ConvertTo-ProcessArgument -Value $Launcher)
             }
         }
 
@@ -504,6 +540,9 @@ Describe 'Hook launcher contract' -Tag 'Unit' {
         $commandText | Should -Not -Match '`' -Because 'sh substitutes backticks and PowerShell reads them as escapes'
         $commandText | Should -Not -Match '"' -Because 'an inner double quote ends the single argument early'
         $commandText | Should -Not -Match '%' -Because 'cmd.exe expands %NAME% even inside double quotes'
+
+        $suffix = [regex]::Match($launcher, $script:launcherShape).Groups['suffix'].Value
+        $suffix | Should -Not -Match '[$`"%]' -Because 'the text after the argument reaches the same shells unquoted'
     }
 
     It 'starts the <Branch> launcher of <Event> without a profile, without prompts, and past the execution policy' -ForEach $script:launcherCase {
@@ -514,10 +553,15 @@ Describe 'Hook launcher contract' -Tag 'Unit' {
             Should -BeExactly '-NoProfile -NonInteractive -ExecutionPolicy Bypass'
     }
 
-    It 'derives the windows launcher of <Event> from command by swapping only the interpreter' -ForEach $script:eventCase {
+    It 'derives the windows launcher of <Event> from command by swapping the interpreter and passing the exit code on' -ForEach $script:eventCase {
         foreach ($entry in @($script:hookConfig.hooks.$Event)) {
             $entry.command | Should -Match '\Apwsh '
-            $entry.windows | Should -BeExactly ('powershell' + $entry.command.Substring('pwsh'.Length))
+            [regex]::Match($entry.command, $script:launcherShape).Groups['suffix'].Value |
+                Should -BeExactly '' -Because 'sh runs command on Linux and macOS and rejects a PowerShell statement after it'
+
+            $failureCode = [int][regex]::Match($entry.command, 'exit (?<code>\d) \}"\z').Groups['code'].Value
+            $entry.windows |
+                Should -BeExactly ('powershell' + $entry.command.Substring('pwsh'.Length) + (Get-ExitPassThrough -FailureCode $failureCode))
         }
     }
 
@@ -545,7 +589,7 @@ Describe 'Hook launcher behavior' -Tag 'Unit' {
                 }
 
                 $result.ExitCode |
-                    Should -Be (Get-ObservedExitCode -Mode $Mode -ExitCode $exitCode) -Because "the stub exited $exitCode. $($result.StandardError)"
+                    Should -Be (Get-ObservedExitCode -Mode $Mode -Branch $Branch -ExitCode $exitCode) -Because "the stub exited $exitCode. $($result.StandardError)"
                 (Get-StubRecord -Sandbox $sandbox).Candidate | Should -BeExactly 'USERPROFILE'
             }
         }
@@ -700,13 +744,17 @@ Describe 'Hook launcher user profile fallback' -Tag 'Unit' {
 }
 
 Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration' -Skip:(-not $script:isWindowsPlatform) {
-    It '<Expectation> through the <Branch> launcher spawned by cmd.exe with HOME unset' -ForEach @(
-        @{ Branch = 'command'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
-        @{ Branch = 'command'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
-        @{ Branch = 'command'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
-        @{ Branch = 'windows'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
-        @{ Branch = 'windows'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
-        @{ Branch = 'windows'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
+    It '<Expectation> through the <Branch> launcher spawned by <Mode> with HOME unset' -ForEach @(
+        @{ Branch = 'command'; Mode = 'cmd'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
+        @{ Branch = 'command'; Mode = 'cmd'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
+        @{ Branch = 'command'; Mode = 'cmd'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
+        @{ Branch = 'windows'; Mode = 'cmd'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
+        @{ Branch = 'windows'; Mode = 'cmd'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
+        @{ Branch = 'windows'; Mode = 'cmd'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
+        # VS Code treats only exit 2 as a block and any other failure as a warning.
+        @{ Branch = 'windows'; Mode = 'vscode'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
+        @{ Branch = 'windows'; Mode = 'vscode'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
+        @{ Branch = 'windows'; Mode = 'vscode'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
     ) {
         # The real guard, staged the way Install-CopilotAtelier deploys it.
         $caseRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
@@ -728,7 +776,7 @@ Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration
 
         $result = Invoke-HookLauncher `
             -Launcher (Get-HookLauncher -EventName 'PreToolUse' -Branch $Branch) `
-            -Mode 'cmd' `
+            -Mode $Mode `
             -WorkingDirectory $workingDirectory `
             -Environment @{ USERPROFILE = $userProfile } `
             -Payload $payload
