@@ -102,17 +102,47 @@ the model. On exit `2` the Copilot SDK host ignores standard error and merges on
 JSON object from standard output into the deny, so the guard also prints the
 reason there: top-level `permissionDecision` and `permissionDecisionReason` for
 that host, and the same pair under `hookSpecificOutput` for VS Code. The
-command-bearing fields are walked up to 64 levels deep. When the
-walk cannot cover a payload, because it is nested deeper or is not valid JSON,
-its raw text is also scanned three ways: as written, with JSON escapes decoded,
-and without the JSON punctuation, so an argument array such as
-`["git","push"]` reads as the command it is. A blocked command found there
-blocks the call. That path errs toward blocking: a payload that only mentions a
-blocked command, such as a document in an unreadable payload, is blocked too.
+command-bearing fields are walked up to 64 levels deep and 20,000 fields and
+nested objects, in a payload of up to 1 MB; plain values in arrays, such as a
+file list, do not count. Their values are joined in document order and, within
+each object, executables before arguments. So
+`{"args":["push"],"command":"git"}`, the order a serializer that sorts its keys
+writes, still reads as `git push`, while one entry's executable never pairs
+with another entry's arguments. When the walk cannot cover a payload,
+because it is nested deeper, larger, holds more fields or objects, or is not
+valid JSON,
+its raw text is also scanned: as written, with JSON escapes decoded, and
+without the JSON punctuation, so an argument array such as `["git","push"]`
+reads as the command it is. The command-bearing fields are also pulled out of
+it and joined the way the walk joins them, so a command split across fields,
+such as `{"command":"git","args":["push"]}`, reads as one line too. There they
+are also joined across the whole payload, executables first and in reverse,
+because a brace in raw text cannot show reliably where an object ends; like the
+rest of this path, that errs toward blocking and can pair one entry's
+executable with another entry's arguments. A blocked
+command found there blocks the call. That path errs toward blocking: a payload
+that only mentions a blocked command, such as a document in an unreadable
+payload, is blocked too. A text with neither `git` nor `gh` in it is skipped,
+because every pattern needs one of them.
 Otherwise a payload that is not valid JSON is
 allowed with a warning on standard error and exit `0`: the Copilot SDK host
 denies a `preToolUse` call on every other non-zero exit, so a payload schema
-change would otherwise block every tool call.
+change would otherwise block every tool call. The whole decision has a time
+limit of five seconds, a quarter of the hook timeout, and the walk may use half
+of it. Parsing and walking cannot be interrupted, and some patterns slow down
+quadratically on one long line of `git` words, so a payload the guard has not
+inspected within the limit is blocked rather than left to the timeout, which
+would let it through. A payload over 4 MB is blocked without being scanned; no
+model writes a tool call that large. A payload over 1 MB that names git on most
+lines, such as a large document about git, can still run out of time and be
+blocked: JSON escaping puts its whole text on one raw line, where some patterns
+slow down quadratically. Under PowerShell 7, which the Copilot SDK host runs
+on Windows, a batch of more than about 16,000 command entries, such as
+`{"command":"ls","args":["x"]}`, also runs out of time: 32,000 of them
+(0.9 MB) are blocked after 5.4 seconds, while Windows PowerShell, which VS Code
+runs, allows 64,000 in 2.5 seconds. So the same oversized tool call can pass in
+one host and be blocked in the other. Write such a file in parts, or run the
+command yourself.
 
 ### Authorizing a remote mutation
 
@@ -127,7 +157,9 @@ the variable inside the blocked command cannot work either, because the hook
 judges the command before it runs.
 
 So the user runs an authorized push in their own terminal. The agent hands over
-the exact command and does not retry it.
+the exact command and does not retry it. A value persisted in the user
+environment, for example with `setx`, is different: every host started
+afterwards inherits it and runs with the guard off, so never persist it.
 
 `COPILOT_ATELIER_ALLOW_REMOTE=1` still allows a blocked command when it is set
 in the hook's own environment, for example in the environment VS Code itself
@@ -322,6 +354,9 @@ which survives because Instructions are re-sent with every request.
   `timeout` as an alias of its own `timeoutSec` and, unlike every other failure,
   lets a timed-out `preToolUse` hook through. Investigate slow filesystem access
   before changing the limit; do not replace a bounded hook with an unlimited one.
+  The `PreToolUse` guard limits its own decision to about five seconds and
+  blocks what it cannot inspect in that time, so a slow payload cannot ride the
+  timeout.
 - **A redeployed hook does not take effect.** The Copilot SDK host reads hook
   configuration when a session starts; a chat that was already open, and the
   subagents it starts, keep what they loaded. Start a new chat.

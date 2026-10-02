@@ -343,6 +343,330 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             $result.ExitCode | Should -Be 2 -Because $result.Output
         }
     }
+
+    Context 'when inspecting a payload would outlast the hook timeout' {
+        <#
+            Regression guard for re-review finding SEC-17: the patterns scale
+            quadratically with the git words on one line, so 64 KB of them took
+            21.5 seconds, past the 20-second hook timeout, and a timeout fails
+            open. The whole decision now has a time limit, and a payload not
+            inspected within it is blocked. Its re-check found the parse and the
+            field walk unbounded (SEC-20 to SEC-22); they are bounded by size,
+            by the number of values, and by half the time limit. The next one
+            found the raw text scan blind to a command split across fields and
+            too slow under PowerShell 7 for a large benign write (SEC-23 to
+            SEC-25).
+        #>
+        BeforeAll {
+            function script:Invoke-HookWithin {
+                param(
+                    [Parameter(Mandatory)]
+                    [string]$ScriptPath,
+
+                    [Parameter(Mandatory)]
+                    [string]$Payload,
+
+                    [Parameter(Mandatory)]
+                    [int]$TimeoutSecond,
+
+                    [Parameter()]
+                    [string[]]$ArgumentList = @()
+                )
+
+                $startInfo = [Diagnostics.ProcessStartInfo]::new($script:powerShellPath)
+                foreach ($argument in @('-NoProfile', '-NonInteractive', '-File', $ScriptPath) + $ArgumentList) {
+                    $startInfo.ArgumentList.Add($argument)
+                }
+                $startInfo.UseShellExecute = $false
+                $startInfo.RedirectStandardInput = $true
+                $startInfo.RedirectStandardOutput = $true
+                $startInfo.RedirectStandardError = $true
+
+                $stopwatch = [Diagnostics.Stopwatch]::StartNew()
+                $process = [Diagnostics.Process]::Start($startInfo)
+                try {
+                    $outputTask = $process.StandardOutput.ReadToEndAsync()
+                    $errorTask = $process.StandardError.ReadToEndAsync()
+                    $process.StandardInput.Write($Payload)
+                    $process.StandardInput.Close()
+
+                    $hasExited = $process.WaitForExit($TimeoutSecond * 1000)
+                    if (-not $hasExited) {
+                        $process.Kill($true)
+                        $process.WaitForExit()
+                    }
+
+                    [pscustomobject]@{
+                        HasExited = $hasExited
+                        ExitCode = if ($hasExited) { $process.ExitCode } else { $null }
+                        Seconds = [Math]::Round($stopwatch.Elapsed.TotalSeconds, 1)
+                        Output = $outputTask.Result + $errorTask.Result
+                    }
+                } finally {
+                    $process.Dispose()
+                }
+            }
+        }
+
+        It 'blocks a deeply nested payload it cannot inspect in time' {
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
+                ('{"a":' * 70) + '{"note":"' + ('git status ' * 50000) + '"}' + ('}' * 70) + '}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Output | Should -Match 'could not be inspected'
+        }
+
+        It 'blocks a readable command it cannot inspect in time' {
+            $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command ('git status ' * 50000)
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Output | Should -Match 'could not be inspected'
+        }
+
+        It 'blocks a payload whose matches only add up to more than the time limit' {
+            # No single match here takes a second, so only a limit on the whole
+            # decision stops it: uncapped, four patterns over four raw texts ran
+            # 5.8 seconds. The payload holds no blocked command, so exit 2 can
+            # only come from the time limit.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
+                ('{"a":' * 70) + '{"note":"' + ('git reset git clean gh api ' * 900) + '"}' + ('}' * 70) + '}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15 -ArgumentList '-TimeLimitSecond', '0.5'
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because "it ran $($result.Seconds) s: $($result.Output)"
+            $result.Output | Should -Match 'could not be inspected'
+        }
+
+        It 'blocks a push in a payload with too many values to walk before the hook timeout' {
+            # Re-check finding SEC-20: parsing and the field walk cannot be
+            # interrupted, and 300,000 small objects kept the guard walking past
+            # the 20-second hook timeout, so the push beside them went through.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                ((, '{"x":"a"}') * 300000 -join ',') + '],"command":"git push origin main"}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            # A slow runner may reach the time limit before the push matches;
+            # either way the call is blocked in time.
+            $result.Output | Should -Match 'pushes to a git remote|could not be inspected'
+        }
+
+        It 'allows a benign payload too large to walk once its raw text is scanned' {
+            # Finding SEC-21: walking 120,000 objects used up the time limit, so
+            # an ordinary command was blocked as not inspected in time. The walk
+            # is now skipped whatever the limit; the generous limit only keeps a
+            # slow runner's raw text scan from running out of time.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                ((, '{"x":"a"}') * 120000 -join ',') + '],"command":"git status --short"}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15 -ArgumentList '-TimeLimitSecond', '10'
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $result.Output | Should -Match 'too large to walk field by field'
+        }
+
+        It 'stops walking a payload with more values than it may visit and scans its raw text' {
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                ((, '{"x":0}') * 25000 -join ',') + '],"command":"git status --short"}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $result.Output | Should -Match 'too many values to walk in time'
+        }
+
+        It 'blocks a push that the stopped walk never reached' {
+            # The command field comes after the values that stop the walk, so
+            # only the raw text scan can find it.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                ((, '{"x":0}') * 25000 -join ',') + '],"command":"git push origin main"}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Output | Should -Match 'pushes to a git remote'
+        }
+
+        It 'blocks a push even with an invalid time limit of <TimeLimit>' -ForEach @(
+            @{ TimeLimit = '0' }
+            @{ TimeLimit = '100' }
+            @{ TimeLimit = 'abc' }
+        ) {
+            # Findings SEC-22 and SEC-25: a rejected parameter exits 1, which
+            # VS Code treats as a warning, so the guard clamps the value and
+            # falls back to the default for one that is not a number.
+            $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
+
+            $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload -ExtraArgument '-TimeLimitSecond', $TimeLimit
+
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+        }
+
+        It 'blocks a push split across command fields when <Case>' -ForEach @(
+            @{ Case = 'the payload is too large to walk'; Padding = 'large'; Between = '' }
+            @{ Case = 'the walk runs out of values'; Padding = 'values'; Between = '' }
+            @{ Case = 'the fields are nested past the walk'; Padding = 'deep'; Between = '' }
+            @{ Case = 'another field sits between the parts'; Padding = 'large'; Between = ',"cwd":"/repo"' }
+        ) {
+            # Re-check finding SEC-23: the walk joins every command-bearing field,
+            # so {"command":"git","args":["push"]} reads as one command line. The
+            # raw text scan kept the field names between the parts, so whenever
+            # the walk was cut short, the split push went through.
+            $split = '"command":"git"' + $Between + ',"args":["push","origin","main"]'
+            $payload = switch ($Padding) {
+                'large' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                        ((, '{"x":"a"}') * 120000 -join ',') + '],' + $split + '}}'
+                }
+                'values' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                        ((, '{"x":0}') * 25000 -join ',') + '],' + $split + '}}'
+                }
+                'deep' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
+                        ('{"a":' * 70) + '{' + $split + '}' + ('}' * 70) + '}'
+                }
+            }
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Output | Should -Match 'pushes to a git remote'
+        }
+
+        It 'allows a large benign write with no git or gh text in time' {
+            # Re-check finding SEC-24: under pwsh every pattern scan of a 3 MB
+            # text took about 210 ms, so a benign write over 2.3 MB ran out of
+            # time and was blocked. A text without git or gh matches no pattern.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"create_file","tool_input":{"filePath":"notes.txt","content":"' +
+                ('lorem ipsum dolor sit amet, ' * 110000) + '"}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $result.Output | Should -Match 'too large to walk field by field'
+        }
+
+        It 'blocks a push whose arguments come before the command when <Case>' -ForEach @(
+            @{ Case = 'the payload is walked'; Shape = 'walked' }
+            @{ Case = 'the payload is too large to walk'; Shape = 'large' }
+            @{ Case = 'another command field sits between them'; Shape = 'between' }
+            @{ Case = 'several entries put their arguments first'; Shape = 'entries' }
+            @{ Case = 'a nested value sits between them in a payload too large to walk'; Shape = 'nested-large' }
+            @{ Case = 'a brace in a string sits between them in a payload too large to walk'; Shape = 'string-brace-large' }
+            @{ Case = 'a nested value sits between them past the visit cap'; Shape = 'nested-values' }
+        ) {
+            # Re-check finding SEC-26: the walk and the raw join both read the
+            # fields in document order, so {"args":["push"],"command":"git"},
+            # the order a serializer that sorts its keys writes, read as
+            # "push git". Each object's fields are now also joined executables
+            # first. Finding SEC-31: on the raw text path a brace between the
+            # fields split them into different objects, so the raw text path
+            # now also joins the fields across the whole payload.
+            $split = '"args":["push","origin","main"],"command":"git"'
+            $nestedSplit = '"args":["push","origin","main"],"x":{},"command":"git"'
+            $stringBraceSplit = '"args":["push","origin","main"],"note":"fix {bug}","command":"git"'
+            $largePadding = '"items":[' + ((, '{"x":"a"}') * 120000 -join ',') + '],'
+            $valuePadding = '"items":[' + ((, '{"x":0}') * 60000 -join ',') + '],'
+            $payload = switch ($Shape) {
+                'walked' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $split + '}}'
+                }
+                'large' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $largePadding + $split + '}}'
+                }
+                'between' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
+                        '{"args":["push","origin","main"],"script":"echo ready","command":"git"}}'
+                }
+                'entries' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"steps":[{' + $split +
+                        '},{"args":["status"],"command":"npm"}]}}'
+                }
+                'nested-large' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $largePadding + $nestedSplit + '}}'
+                }
+                'string-brace-large' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $largePadding + $stringBraceSplit + '}}'
+                }
+                'nested-values' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $valuePadding + $nestedSplit + '}}'
+                }
+            }
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Output | Should -Match 'pushes to a git remote'
+        }
+
+        It 'allows ordinary commands split across several entries' {
+            # The extra joins must not pair one entry's executable with another
+            # entry's arguments into a blocked command.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"steps":[' +
+                '{"command":"git","args":["status"]},{"command":"echo","args":["push"]},' +
+                '{"args":["log"],"command":"git"},{"args":["--hard"],"command":"echo"}]}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+        }
+
+        It 'allows a batch that only looks blocked when joined across entries: <Case>' -ForEach @(
+            @{ Case = 'docker push beside git status'; Steps = '{"command":"docker","args":["push","myimage"]},{"command":"git","args":["status","--short"]}' }
+            @{ Case = 'make clean -f beside git status'; Steps = '{"command":"make","args":["clean","-f","Makefile"]},{"command":"git","args":["status"]}' }
+            @{ Case = 'npm --no-verify beside git log'; Steps = '{"command":"npm","args":["test","--no-verify"]},{"command":"git","args":["log","-1"]}' }
+            @{ Case = 'git -c before an entry that runs push'; Steps = '{"args":["-c"],"command":"git"},{"args":["x"],"command":"push"}' }
+        ) {
+            # Re-check finding SEC-29: executables-first and reversed joins over
+            # the whole payload paired git from one entry with push, -f, or
+            # --no-verify from another, so ordinary batches were blocked. Only
+            # the raw text path, which errs toward blocking, still joins across
+            # entries. Finding SEC-32: a per-object join ending in an option
+            # must not reach across into the next entry. The command-first
+            # spelling of that case still blocks through the document-order
+            # join, which has to join fields with spaces to read a split
+            # command; that pre-existing curiosity is accepted.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"steps":[' + $Steps + ']}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+        }
+
+        It 'walks a batch beside a long list of plain values instead of joining it across entries' {
+            # Re-check finding SEC-33: every element of a plain list counted
+            # toward the walk's 20,000-value cap, so a file list sent this
+            # ordinary payload to the raw text path, whose joins across entries
+            # read "docker git push myimage status". Plain values never hold a
+            # command field, so only objects and fields count now.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"files":[' +
+                ((1..25000 | ForEach-Object { '"src/file' + $_ + '.ps1"' }) -join ',') +
+                '],"steps":[{"command":"docker","args":["push","myimage"]},{"command":"git","args":["status"]}]}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $result.Output | Should -Not -Match 'too many values'
+        }
+    }
 }
 
 Describe 'Add-SessionContext' -Tag 'Unit' {

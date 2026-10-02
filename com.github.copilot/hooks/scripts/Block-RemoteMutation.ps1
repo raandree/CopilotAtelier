@@ -17,21 +17,40 @@
     This is a best-effort guardrail, not a containment boundary. It matches
     patterns in a command string, so an obfuscated or indirectly invoked push
     can evade it. It removes the accidental path; branch protection and a
-    server-side policy remain the real enforcement.
+    server-side policy remain the real enforcement. Known evasions include a
+    variable or alias standing in for the subcommand (git $verb, or git -c
+    alias.p=push p), a field name spelled with JSON escapes whose value hides
+    the program behind an escaped quote, and arguments nested in arrays of
+    arrays.
 
-    The command-bearing fields are walked up to 64 levels deep. When the walk
-    cannot cover the payload, because it is nested deeper or is not valid JSON,
-    the raw payload text is also scanned, with its JSON escapes decoded and
-    without its JSON punctuation, before the call is allowed. That errs toward
-    blocking: there, a payload that only mentions a blocked command is blocked.
+    The command-bearing fields are walked up to 64 levels deep and 20,000
+    fields and nested objects, in payloads up to 1 MB; plain values in arrays
+    do not count. When the walk cannot cover the payload, because it is nested
+    deeper, larger, holds more fields or objects, or is not valid JSON, the
+    raw payload text is also scanned, with its JSON escapes decoded and
+    without its JSON punctuation, before the call is allowed. That errs
+    toward blocking: there, a payload that only mentions a blocked command is
+    blocked. The whole decision has a time limit, five seconds by default, of
+    which the walk may use half. A payload not inspected within it is blocked,
+    and so is one larger than 4 MB, so no payload outlasts the hook timeout,
+    which fails open.
 
     COPILOT_ATELIER_ALLOW_REMOTE=1 in the hook's own environment allows a
     blocked command and records the override on standard error. An agent
-    cannot set it: each host starts the hook with its own environment, not the
-    agent terminal's, so an authorized push runs in the user's own terminal.
+    cannot set it for the running host: each host starts the hook with its own
+    environment, not the agent terminal's, so an authorized push runs in the
+    user's own terminal. A value persisted in the user environment, for example
+    with setx, reaches every host started later and turns the guard off there,
+    so never persist it.
 .PARAMETER InputJson
     Hook payload as JSON. Defaults to reading standard input. Tests pass the
     payload directly so they do not depend on redirected input.
+.PARAMETER TimeLimitSecond
+    Longest time, in seconds, the guard may take to decide, counted from its
+    start. Defaults to 5. A value outside 0.1 to 10 is clamped into that range,
+    and one that is not a number falls back to 5, rather than being rejected:
+    a rejected parameter would exit 1, which VS Code treats as a warning. The
+    hook never passes it; tests lower it.
 .NOTES
     Exit codes follow the VS Code hook contract: 0 allows, 2 blocks, and any
     other value is a non-blocking warning. The Copilot SDK host instead denies
@@ -45,8 +64,32 @@ param(
     [Parameter()]
     [AllowEmptyString()]
     [AllowNull()]
-    [string]$InputJson
+    [string]$InputJson,
+
+    [Parameter()]
+    [string]$TimeLimitSecond = '5'
 )
+
+# The time limit counts from here, so it also covers reading and parsing the payload.
+$decisionClock = [System.Diagnostics.Stopwatch]::StartNew()
+
+# Parse and clamp rather than validate: a rejected parameter exits 1, which
+# VS Code treats as a warning, so a bad value would let a blocked command through.
+$timeLimitValue = 0.0
+$isNumber = [double]::TryParse(
+    $TimeLimitSecond,
+    [System.Globalization.NumberStyles]::Float,
+    [System.Globalization.CultureInfo]::InvariantCulture,
+    [ref]$timeLimitValue
+)
+if (-not $isNumber) {
+    $timeLimitValue = 5
+}
+if (-not ($timeLimitValue -ge 0.1)) {
+    $timeLimitValue = 0.1
+} elseif ($timeLimitValue -gt 10) {
+    $timeLimitValue = 10
+}
 
 # First match wins; the most consequential rule is listed first. Each git rule
 # anchors on the subcommand position so a branch name, commit message, or
@@ -69,15 +112,58 @@ $blockedOperation = [ordered]@{
 # lacks a shell keyword, and every miss would fail open.
 $commandField = @('command', 'commandLine', 'cmd', 'script', 'args', 'arguments')
 
+# Of those, the fields that name what runs; the others carry its arguments.
+$executableField = @('command', 'commandLine', 'cmd', 'script')
+
+# The same fields in raw JSON text: the field name, then a string value or a
+# flat array of values.
+$rawFieldPattern = '"(' + (($commandField | ForEach-Object { [regex]::Escape($_) }) -join '|') +
+    ')"\s*:\s*(?:"((?:[^"\\]|\\.)*)"|\[([^\[\]]*)\])'
+
+# Some patterns scan to the end of the line from every git word, which grows
+# quadratically: 64 KB of git words took 21.5 seconds, past the 20-second hook
+# timeout, and a timeout fails open in the Copilot SDK host. Many matches that
+# each stay under a second add up the same way, so the limit covers the whole
+# decision: every match gets only the time left, and a payload not inspected in
+# time is blocked.
+$timeLimit = [TimeSpan]::FromSeconds($timeLimitValue)
+$notInspectedInTime = 'this command could not be inspected within the time limit'
+
+# Parsing and the field walk cannot be interrupted, and 300,000 small objects
+# kept the walk busy past the hook timeout. So only a payload up to 1 MB is
+# parsed, and the walk stops after 20,000 fields and nested objects, or half
+# the time limit; plain values in arrays cost only time. What it did not cover
+# is scanned as raw text, which the time limit does bound. A payload over 4 MB
+# is blocked unscanned: no model writes a tool call that large, and even the
+# linear passes over it take seconds. Those passes run
+# between the field join and the pattern scan and do not read the clock, so a
+# decision can overrun the limit by about 1.5 seconds (6.3 seconds measured at
+# worst). Reading the payload is linear as well: 96 MB took 15.9 seconds, so
+# outlasting the hook timeout would take about 120 MB.
+$maximumParseLength = 1MB
+$maximumPayloadLength = 4MB
+$maximumVisitCount = 20000
+$walkTimeLimit = [TimeSpan]::FromTicks([long]($timeLimit.Ticks / 2))
+$visitCount = 0
+
 # The field walk stops below this depth. Whatever it cannot reach, it reports,
 # and the raw payload text is scanned instead, so nesting cannot carry a
 # command past the guard.
 $maximumDepth = 64
 $isWalkComplete = $true
+$walkStopReason = $null
 
-function Get-CommandText {
+# The walk collects the command-bearing values here in document order, and
+# each object's executables-first join, so either order reads as a command.
+$commandPart = [System.Collections.Generic.List[string]]::new()
+$objectCommand = [System.Collections.Generic.List[string]]::new()
+
+# A brace between two fields in raw text means they may belong to different
+# objects, so the raw join starts a new object there.
+$braceCharacter = [char[]]'{}'
+
+function Add-CommandPart {
     [CmdletBinding()]
-    [OutputType([string])]
     param(
         [Parameter()]
         [AllowNull()]
@@ -88,110 +174,139 @@ function Get-CommandText {
     )
 
     if ($null -eq $InputObject -or $InputObject -is [string]) {
-        return ''
+        return
     }
 
     if ($Depth -gt $script:maximumDepth) {
         $script:isWalkComplete = $false
-        return ''
+        $script:walkStopReason = "is nested deeper than $script:maximumDepth levels"
+        return
     }
 
-    $collected = [System.Collections.Generic.List[string]]::new()
+    $executable = [System.Collections.Generic.List[string]]::new()
+    $argument = [System.Collections.Generic.List[string]]::new()
 
     foreach ($property in $InputObject.PSObject.Properties) {
+        $script:visitCount++
+        if ($script:visitCount -gt $script:maximumVisitCount -or $script:decisionClock.Elapsed -gt $script:walkTimeLimit) {
+            $script:isWalkComplete = $false
+            $script:walkStopReason = 'has too many values to walk in time'
+            break
+        }
+
         $value = $property.Value
 
         if ($property.Name -in $script:commandField) {
-            if ($value -is [string]) {
-                $collected.Add($value)
-            } elseif ($value -is [array]) {
-                $collected.Add((@($value) -join ' '))
+            $text = if ($value -is [string]) { $value } elseif ($value -is [array]) { @($value) -join ' ' } else { $null }
+            if (-not [string]::IsNullOrWhiteSpace($text)) {
+                $script:commandPart.Add($text)
+                if ($property.Name -in $script:executableField) {
+                    $executable.Add($text)
+                } else {
+                    $argument.Add($text)
+                }
             }
         }
 
         foreach ($child in @($value)) {
+            # Plain values, such as a long file list, can never hold a command
+            # field and cost little, so only the clock bounds them; only an
+            # object, which costs a recursion, counts toward the cap.
+            if ($script:decisionClock.Elapsed -gt $script:walkTimeLimit) {
+                $script:isWalkComplete = $false
+                $script:walkStopReason = 'has too many values to walk in time'
+                break
+            }
+
             if ($child -is [psobject] -and $child.PSObject.Properties.Name.Count -gt 0 -and $child -isnot [string] -and $child -isnot [ValueType]) {
-                $nested = Get-CommandText -InputObject $child -Depth ($Depth + 1)
-                if (-not [string]::IsNullOrWhiteSpace($nested)) {
-                    $collected.Add($nested)
+                $script:visitCount++
+                if ($script:visitCount -gt $script:maximumVisitCount) {
+                    $script:isWalkComplete = $false
+                    $script:walkStopReason = 'has too many values to walk in time'
+                    break
                 }
+
+                Add-CommandPart -InputObject $child -Depth ($Depth + 1)
             }
         }
     }
 
-    return ($collected -join ' ')
-}
-
-if ([string]::IsNullOrEmpty($InputJson)) {
-    # Decode explicitly: Windows PowerShell would otherwise use the console input
-    # encoding, which mangles non-ASCII payloads that pwsh reads as UTF-8.
-    $reader = [IO.StreamReader]::new([Console]::OpenStandardInput(), [Text.UTF8Encoding]::new($false))
-    try {
-        $InputJson = $reader.ReadToEnd()
-    } finally {
-        $reader.Dispose()
+    if ($executable.Count -gt 0 -and $argument.Count -gt 0) {
+        $script:objectCommand.Add((([string[]]$executable.ToArray() + [string[]]$argument.ToArray()) -join ' '))
     }
 }
 
-if ([string]::IsNullOrWhiteSpace($InputJson)) {
-    exit 0
-}
+function Join-CommandPart {
+    <#
+        Returns the texts to scan for the command-bearing values: all of them in
+        document order, and each object's executables before its arguments,
+        because a tool may write them in either order, for example with its
+        keys sorted. Each per-object join ends in a semicolon on its own line,
+        which no pattern crosses, so one entry's executable never pairs with
+        another entry's arguments. The raw text scan, which errs toward
+        blocking and cannot tell objects apart reliably, also passes the values
+        by kind; they are then joined across the whole payload as well,
+        executables first and in reverse. On a payload dense with git words,
+        each extra text adds about half again to the scan.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]]$Part,
 
-$isPayloadReadable = $true
-try {
-    $payload = $InputJson | ConvertFrom-Json -ErrorAction Stop
-    $commandText = Get-CommandText -InputObject $payload.tool_input
-} catch {
-    # Windows PowerShell rejects JSON nested past 100 levels and PowerShell 7
-    # past 1024, so an unreadable payload is not necessarily a harmless one.
-    $isPayloadReadable = $false
-    $isWalkComplete = $false
-    $commandText = ''
-}
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]]$ObjectCommand,
 
-if (-not $isWalkComplete) {
-    # Scan what the walk could not reach as raw text, also with its JSON escapes
-    # decoded, so neither nesting nor malformed JSON hides a blocked command.
-    $rawText = [System.Collections.Generic.List[string]]::new()
-    $rawText.Add($InputJson)
-    try {
-        $rawText.Add([regex]::Unescape($InputJson))
-    } catch [System.ArgumentException] {
-        Write-Verbose -Message 'The payload holds an escape Regex.Unescape rejects; it is scanned as written.'
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]]$ExecutablePart,
+
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]]$ArgumentPart
+    )
+
+    if ($Part.Count -gt 0) {
+        $Part -join ' '
     }
 
-    # An argument array reads as ["git","push"] in raw JSON. Without the JSON
-    # punctuation it reads as the command line the walk would have joined.
-    foreach ($text in @($rawText)) {
-        $rawText.Add(($text -replace '["\[\],]', ' '))
+    if ($ObjectCommand.Count -gt 0) {
+        ($ObjectCommand -join ";`n") + ';'
     }
 
-    $commandText = $commandText + ' ' + ($rawText -join ' ')
-}
-
-if ([string]::IsNullOrWhiteSpace($commandText)) {
-    exit 0
-}
-
-# Fold shell line continuations so a split command cannot hide the subcommand.
-$commandText = $commandText -replace '[`^\\]\r?\n\s*', ' '
-
-foreach ($operation in $blockedOperation.GetEnumerator()) {
-    if ($commandText -notmatch $operation.Value) {
-        continue
+    if ($ExecutablePart.Count -gt 0 -and $ArgumentPart.Count -gt 0) {
+        ([string[]]$ExecutablePart.ToArray() + [string[]]$ArgumentPart.ToArray()) -join ' '
+        $reversed = $Part.ToArray()
+        [array]::Reverse($reversed)
+        $reversed -join ' '
     }
+}
+
+function Block-ToolCall {
+    <#
+        Ends the script with exit 2 and the reason, or with exit 0 when the
+        override is set in the hook's own environment.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Because
+    )
 
     if ($env:COPILOT_ATELIER_ALLOW_REMOTE -eq '1') {
         [Console]::Error.WriteLine(
-            "Block-RemoteMutation: allowed by COPILOT_ATELIER_ALLOW_REMOTE - command $($operation.Key)."
+            "Block-RemoteMutation: allowed by COPILOT_ATELIER_ALLOW_REMOTE - $Because."
         )
         exit 0
     }
 
-    $reason = "Blocked by Copilot Atelier: this command $($operation.Key), which the house rules forbid " +
-        'without explicit per-turn authorization from the user. If the user asked for it in this turn, ' +
-        'hand them the exact command to run in their own terminal; an agent cannot lift this block. ' +
-        'Do not rewrite the command to evade this check.'
+    $reason = "Blocked by Copilot Atelier: $Because, and the house rules forbid remote-mutating " +
+        'or irreversible commands without explicit per-turn authorization from the user. If the user ' +
+        'asked for it in this turn, hand them the exact command to run in their own terminal; an agent ' +
+        'cannot lift this block. Do not rewrite the command to evade this check.'
 
     # VS Code reads the reason from standard error on exit 2. The Copilot SDK host
     # ignores standard error then and merges one JSON object from standard output
@@ -210,13 +325,258 @@ foreach ($operation in $blockedOperation.GetEnumerator()) {
     exit 2
 }
 
+function Get-RawCommandText {
+    <#
+        Pulls the command-bearing fields out of raw JSON text and joins them the
+        way the walk does, so a command split across fields, such as
+        {"command":"git","args":["push"]}, reads as one command line there too.
+        It shares the decision's time limit and blocks the call when that runs
+        out.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Text,
+
+        [Parameter()]
+        [switch]$DecodeValue
+    )
+
+    $part = [System.Collections.Generic.List[string]]::new()
+    $objectJoin = [System.Collections.Generic.List[string]]::new()
+    $executable = [System.Collections.Generic.List[string]]::new()
+    $argument = [System.Collections.Generic.List[string]]::new()
+    $executableAll = [System.Collections.Generic.List[string]]::new()
+    $argumentAll = [System.Collections.Generic.List[string]]::new()
+    try {
+        $timeLeft = $script:timeLimit - $script:decisionClock.Elapsed
+        if ($timeLeft -le [TimeSpan]::Zero) {
+            Block-ToolCall -Because $script:notInspectedInTime
+        }
+
+        $fieldPattern = [regex]::new(
+            $script:rawFieldPattern,
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase,
+            $timeLeft
+        )
+
+        # Match and NextMatch rather than enumerating Matches: a timeout raised
+        # inside foreach's enumeration would not reach the catch below as itself.
+        # The loop runs once per field and can meet a flood of them, so it keeps
+        # its lookups local. A per-object join needs an executable field, so a
+        # text without one also skips the per-field brace search.
+        $clock = $script:decisionClock
+        $limit = $script:timeLimit
+        $brace = $script:braceCharacter
+        $executableName = [System.Collections.Generic.HashSet[string]]::new(
+            [string[]]$script:executableField,
+            [System.StringComparer]::OrdinalIgnoreCase
+        )
+        $hasExecutable = $false
+        foreach ($name in $executableName) {
+            if ($Text.IndexOf('"' + $name + '"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                $hasExecutable = $true
+                break
+            }
+        }
+
+        $previousEnd = 0
+        $match = $fieldPattern.Match($Text)
+        while ($match.Success) {
+            if ($clock.Elapsed -gt $limit) {
+                Block-ToolCall -Because $script:notInspectedInTime
+            }
+
+            # A brace since the previous field starts another object.
+            if ($hasExecutable -and $Text.IndexOfAny($brace, $previousEnd, $match.Index - $previousEnd) -ge 0) {
+                if ($executable.Count -gt 0 -and $argument.Count -gt 0) {
+                    $objectJoin.Add((([string[]]$executable.ToArray() + [string[]]$argument.ToArray()) -join ' '))
+                }
+                $executable.Clear()
+                $argument.Clear()
+            }
+
+            $group = $match.Groups
+            $isString = $group[2].Success
+            $value = if ($isString) { $group[2].Value } else { $group[3].Value }
+            if ($DecodeValue -and $value.Contains('\')) {
+                try {
+                    $value = [regex]::Unescape($value)
+                } catch [System.ArgumentException] {
+                    Write-Verbose -Message 'A field holds an escape Regex.Unescape rejects; it is joined as written.'
+                }
+            }
+
+            if (-not $isString) {
+                $value = $value.Replace('"', ' ').Replace('[', ' ').Replace(']', ' ').Replace(',', ' ')
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                $part.Add($value)
+                if ($executableName.Contains($group[1].Value)) {
+                    $executable.Add($value)
+                    $executableAll.Add($value)
+                } else {
+                    $argument.Add($value)
+                    $argumentAll.Add($value)
+                }
+            }
+
+            $previousEnd = $match.Index + $match.Length
+            $match = $match.NextMatch()
+        }
+    } catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
+        Block-ToolCall -Because $script:notInspectedInTime
+    }
+
+    if ($executable.Count -gt 0 -and $argument.Count -gt 0) {
+        $objectJoin.Add((([string[]]$executable.ToArray() + [string[]]$argument.ToArray()) -join ' '))
+    }
+
+    # A brace between two fields only suggests a new object; a nested value or a
+    # brace in a string looks the same. So the fields are also joined across the
+    # whole payload, which errs toward blocking like the rest of this path.
+    Join-CommandPart -Part $part -ObjectCommand $objectJoin -ExecutablePart $executableAll -ArgumentPart $argumentAll
+}
+
+if ([string]::IsNullOrEmpty($InputJson)) {
+    # Decode explicitly: Windows PowerShell would otherwise use the console input
+    # encoding, which mangles non-ASCII payloads that pwsh reads as UTF-8.
+    $reader = [IO.StreamReader]::new([Console]::OpenStandardInput(), [Text.UTF8Encoding]::new($false))
+    try {
+        $InputJson = $reader.ReadToEnd()
+    } finally {
+        $reader.Dispose()
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($InputJson)) {
+    exit 0
+}
+
+if ($InputJson.Length -gt $maximumPayloadLength) {
+    Block-ToolCall -Because 'this tool call is too large to inspect'
+}
+
+$isPayloadReadable = $true
+if ($InputJson.Length -gt $maximumParseLength) {
+    $isWalkComplete = $false
+    $walkStopReason = 'is too large to walk field by field'
+} else {
+    try {
+        $payload = $InputJson | ConvertFrom-Json -ErrorAction Stop
+        Add-CommandPart -InputObject $payload.tool_input
+    } catch {
+        # Windows PowerShell rejects JSON nested past 100 levels and PowerShell 7
+        # past 1024, so an unreadable payload is not necessarily a harmless one.
+        $isPayloadReadable = $false
+        $isWalkComplete = $false
+    }
+}
+
+$scanText = [System.Collections.Generic.List[string]]::new()
+foreach ($text in @(Join-CommandPart -Part $commandPart -ObjectCommand $objectCommand)) {
+    $scanText.Add($text)
+}
+
+if (-not $isWalkComplete) {
+    # Scan what the walk could not reach as raw text, also with its JSON escapes
+    # decoded, so neither nesting nor malformed JSON hides a blocked command.
+    # Each text is scanned on its own: one joined text would only make the
+    # quadratic patterns slower.
+    $rawText = [System.Collections.Generic.List[string]]::new()
+    $rawText.Add($InputJson)
+    if ($InputJson.Contains('\')) {
+        try {
+            $rawText.Add([regex]::Unescape($InputJson))
+        } catch [System.ArgumentException] {
+            Write-Verbose -Message 'The payload holds an escape Regex.Unescape rejects; it is scanned as written.'
+        }
+    }
+
+    # The walk joins every command-bearing field it finds, which the raw text
+    # cannot: there, field names and other fields sit between the parts of a
+    # command split across fields. So the same fields are pulled out of the raw
+    # text and joined, as written with each value decoded and, for a key spelled
+    # with escapes, from the decoded text. They are short, so they go first.
+    $fieldText = [System.Collections.Generic.List[string]]::new()
+    foreach ($text in @(Get-RawCommandText -Text $InputJson -DecodeValue)) {
+        $fieldText.Add($text)
+    }
+    if ($rawText.Count -gt 1) {
+        foreach ($text in @(Get-RawCommandText -Text $rawText[1])) {
+            $fieldText.Add($text)
+        }
+    }
+
+    # An argument array reads as ["git","push"] in raw JSON. Without the JSON
+    # punctuation it reads as the command line the walk would have joined.
+    foreach ($text in @($rawText)) {
+        $rawText.Add(($text -replace '["\[\],]', ' '))
+    }
+
+    $scanText.AddRange($fieldText)
+    $scanText.AddRange($rawText)
+}
+
+if ($scanText.Count -eq 0) {
+    exit 0
+}
+
+# Fold shell line continuations so a split command cannot hide the subcommand.
+for ($index = 0; $index -lt $scanText.Count; $index++) {
+    $scanText[$index] = $scanText[$index] -replace '[`^\\]\r?\n\s*', ' '
+}
+
+# Every pattern needs a git or gh word. Searching for one costs a fraction of a
+# pattern scan, which under PowerShell 7 takes about 70 ms per MB, so a text
+# without either is not scanned at all.
+$scanText = @(
+    $scanText | Where-Object {
+        $_.IndexOf('git', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+        $_.IndexOf('gh', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    }
+)
+
+$blockedBecause = $null
+:operation foreach ($operation in $blockedOperation.GetEnumerator()) {
+    foreach ($text in $scanText) {
+        $timeLeft = $timeLimit - $decisionClock.Elapsed
+        if ($timeLeft -le [TimeSpan]::Zero) {
+            $blockedBecause = $notInspectedInTime
+            break operation
+        }
+
+        try {
+            $pattern = [regex]::new(
+                $operation.Value,
+                [System.Text.RegularExpressions.RegexOptions]::IgnoreCase,
+                $timeLeft
+            )
+            if ($pattern.IsMatch($text)) {
+                $blockedBecause = "this command $($operation.Key)"
+                break operation
+            }
+        } catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
+            $blockedBecause = $notInspectedInTime
+            break operation
+        }
+    }
+}
+
+if ($blockedBecause) {
+    Block-ToolCall -Because $blockedBecause
+}
+
 if (-not $isPayloadReadable) {
     # Exit 0, not 1: the Copilot SDK host denies a preToolUse call on any other
     # non-zero exit, so a payload schema change would block every tool call.
     [Console]::Error.WriteLine('Block-RemoteMutation: hook payload is not valid JSON; allowing the tool call.')
 } elseif (-not $isWalkComplete) {
     [Console]::Error.WriteLine(
-        "Block-RemoteMutation: hook payload is nested deeper than $maximumDepth levels and its raw text holds no blocked command; allowing the tool call."
+        "Block-RemoteMutation: hook payload $walkStopReason and its raw text holds no blocked command; allowing the tool call."
     )
 }
 
