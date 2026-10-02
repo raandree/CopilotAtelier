@@ -65,7 +65,7 @@ and this machine's SDK session logs:
 
 | Concern | VS Code | Copilot SDK host |
 |---|---|---|
-| Launcher | `windows` on Windows, else `command` | no `windows` key; `command` is copied into `powershell` on Windows |
+| Launcher | `windows` on Windows, else `command` | no `windows` key; `powershell` on Windows when present, else `command` |
 | `PreToolUse` payload | `tool_name`, `tool_input`, `tool_use_id`, snake_case common fields | same snake_case shape for a PascalCase event; `toolName` and a JSON-string `toolArgs` only for camelCase `preToolUse` |
 | Exit `2` | blocks, stderr goes to the model | denies |
 | Other non-zero | non-blocking warning | `preToolUse` denies as `hook errored`; other events log and continue |
@@ -73,7 +73,8 @@ and this machine's SDK session logs:
 | Reload | not verified | read at session start; an open chat and its subagents keep the old set |
 | `SessionStart` output | `hookSpecificOutput.additionalContext` | top-level `additionalContext` only; `hookSpecificOutput` is ignored |
 | Spawn on Windows | `powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -Command <windows>` (`HookExecutor`, built-in Copilot extension) | `pwsh.exe -nop -nol -c <command>`, started by `copilot-runtime.exe` |
-| Exit code on Windows | the outer PowerShell reports a failed native command as `1`; the `windows` launcher passes the inner code on since 2026-10-02 | the outer `pwsh` reports a block as `1`, so the call is denied as `hook errored` |
+| Exit code on Windows | the outer PowerShell reports a failed native command as `1`; the `windows` launcher passes the inner code on since 2026-10-02 | the outer `pwsh` reports a failed `command` as `1`, denied as `hook errored`; the `powershell` launcher passes the code on since 2026-10-02 (live check pending) |
+| `PreToolUse` reason on exit `2` | standard error | one JSON object on standard output, merged into the deny; standard error is ignored |
 | Hook environment | the extension host's environment plus the entry's `env` | the runtime's environment |
 | Override set in an agent terminal | never reaches the hook | never reaches the hook; every tool call runs in a new process |
 
@@ -132,6 +133,13 @@ Consequences:
 - The per-command override in the decision outcome cannot work. An authorized
   push runs in the user's own terminal, and the guard's message, `AGENTS.md`, and
   the hooks README say so.
+- The Copilot SDK host gets its own `powershell` launcher, which the reference
+  says it prefers on Windows: `command` plus the same statement. On a block the
+  guard also prints one JSON deny object on standard output, top-level for the
+  SDK host and under `hookSpecificOutput` for VS Code. Whether the SDK host runs
+  `powershell` exactly as it ran `command` still needs a live check in a new
+  chat; if it does not, a block still arrives non-zero and is denied as
+  `hook errored`.
 
 ## Confirmation
 

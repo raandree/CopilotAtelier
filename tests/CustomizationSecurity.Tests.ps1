@@ -34,6 +34,19 @@ BeforeAll {
                     $findings.Add('InterpolatedHookCommand')
                 }
             }
+            # The Copilot SDK host prefers `powershell` on Windows, so when it is
+            # present it is held to the same rules as the required launchers.
+            if ($Configuration.Contains('powershell'))
+            {
+                if ($Configuration.powershell -isnot [string] -or [string]::IsNullOrWhiteSpace($Configuration.powershell))
+                {
+                    $findings.Add('MissingHookCommand')
+                }
+                elseif ($Configuration.powershell -match '\$\{|\$[A-Za-z_]|%[A-Za-z_][A-Za-z0-9_]*%')
+                {
+                    $findings.Add('InterpolatedHookCommand')
+                }
+            }
             if ($Configuration.env -and $Configuration.env.Contains('COPILOT_ATELIER_ALLOW_REMOTE'))
             {
                 $findings.Add('PreauthorizedRemoteMutation')
@@ -250,6 +263,8 @@ Describe 'Customization security gate discrimination' -Tag 'Unit' {
         @{ Kind = 'Hook'; Code = 'UnboundedHookTimeout'; Configuration = @{ type = 'command'; timeout = '20'; command = 'pwsh -File hook.ps1'; windows = 'powershell -File hook.ps1' } }
         @{ Kind = 'Hook'; Code = 'MissingHookCommand'; Configuration = @{ type = 'command'; timeout = 20; command = 'pwsh -File hook.ps1' } }
         @{ Kind = 'Hook'; Code = 'InterpolatedHookCommand'; Configuration = @{ type = 'command'; timeout = 20; command = 'pwsh -Command "$env:USERPROFILE"'; windows = 'powershell -File hook.ps1' } }
+        @{ Kind = 'Hook'; Code = 'InterpolatedHookCommand'; Configuration = @{ type = 'command'; timeout = 20; command = 'pwsh -File hook.ps1'; windows = 'powershell -File hook.ps1'; powershell = 'pwsh -Command "$env:USERPROFILE"' } }
+        @{ Kind = 'Hook'; Code = 'MissingHookCommand'; Configuration = @{ type = 'command'; timeout = 20; command = 'pwsh -File hook.ps1'; windows = 'powershell -File hook.ps1'; powershell = ' ' } }
         @{ Kind = 'Hook'; Code = 'PreauthorizedRemoteMutation'; Configuration = @{ type = 'command'; timeout = 20; command = 'pwsh -File hook.ps1'; windows = 'powershell -File hook.ps1'; env = @{ COPILOT_ATELIER_ALLOW_REMOTE = '1' } } }
     ) {
         $knownAgents = @{ worker = @{ tools = @('read/readFile'); agents = @() } }

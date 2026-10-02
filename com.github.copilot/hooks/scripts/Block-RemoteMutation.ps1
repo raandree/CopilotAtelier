@@ -11,7 +11,8 @@
 
     On a match the reason is written to standard error and the script exits
     with 2, which VS Code treats as a blocking error and shows to the model.
-    Every other tool call exits 0.
+    The same reason goes to standard output as one JSON deny object, which the
+    Copilot SDK host reads on exit 2. Every other tool call exits 0.
 
     This is a best-effort guardrail, not a containment boundary. It matches
     patterns in a command string, so an obfuscated or indirectly invoked push
@@ -179,12 +180,25 @@ foreach ($operation in $blockedOperation.GetEnumerator()) {
         exit 0
     }
 
-    [Console]::Error.WriteLine(
-        "Blocked by Copilot Atelier: this command $($operation.Key), which the house rules forbid " +
+    $reason = "Blocked by Copilot Atelier: this command $($operation.Key), which the house rules forbid " +
         'without explicit per-turn authorization from the user. If the user asked for it in this turn, ' +
         'hand them the exact command to run in their own terminal; an agent cannot lift this block. ' +
         'Do not rewrite the command to evade this check.'
-    )
+
+    # VS Code reads the reason from standard error on exit 2. The Copilot SDK host
+    # ignores standard error then and merges one JSON object from standard output
+    # into the deny, so the same reason also goes there, in both hosts' shapes.
+    [Console]::Error.WriteLine($reason)
+    $decision = [ordered]@{
+        permissionDecision = 'deny'
+        permissionDecisionReason = $reason
+        hookSpecificOutput = [ordered]@{
+            hookEventName = 'PreToolUse'
+            permissionDecision = 'deny'
+            permissionDecisionReason = $reason
+        }
+    }
+    [Console]::Out.WriteLine(($decision | ConvertTo-Json -Depth 3 -Compress))
     exit 2
 }
 

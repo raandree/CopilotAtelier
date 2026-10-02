@@ -1,11 +1,13 @@
 <#
     Contract and behavior of the launcher commands in com.github.copilot/hooks/hooks.json.
 
-    Every hook entry carries two launchers. VS Code runs `windows` on Windows and
-    `command` everywhere else, but the Copilot SDK host ignores `windows` and runs
-    `command` on every platform. Both launchers therefore have to find and run
-    their script in every spawn mode a host uses, whatever subset of PLUGIN_ROOT,
-    HOME, and USERPROFILE the host passes on. Windows does not define HOME.
+    Every hook entry carries three launchers. VS Code runs `windows` on Windows
+    and `command` everywhere else; it ignores `powershell` while `windows` is
+    present. The Copilot SDK host ignores `windows`: it runs `powershell` on
+    Windows and `command` everywhere else. Every launcher therefore has to find
+    and run its script in every spawn mode a host uses, whatever subset of
+    PLUGIN_ROOT, HOME, and USERPROFILE the host passes on. Windows does not
+    define HOME.
 
     The behavioral cases never run a real hook script: SessionStart, Stop, and
     PreCompact write state. Each case swaps the script name in the launcher for a
@@ -27,11 +29,11 @@ BeforeDiscovery {
 
     $script:launcherCase = @(
         foreach ($name in $hookConfig.hooks.PSObject.Properties.Name) {
-            foreach ($branch in 'command', 'windows') {
+            foreach ($branch in 'command', 'windows', 'powershell') {
                 $skipReason = ''
                 if ($branch -eq 'windows' -and -not $script:isWindowsPlatform) {
                     $skipReason = 'powershell.exe exists only on Windows'
-                } elseif ($branch -eq 'command' -and -not $pwshAvailable) {
+                } elseif ($branch -in 'command', 'powershell' -and -not $pwshAvailable) {
                     $skipReason = 'pwsh is not on PATH'
                 }
 
@@ -41,34 +43,37 @@ BeforeDiscovery {
     )
 
     # The spawn modes a host uses: Node's `shell: true` on Windows and on POSIX,
-    # and a PowerShell that runs the launcher through -Command. The Copilot SDK
-    # host takes the last route on Windows: it copies `command` into its
-    # `powershell` field. `vscode` is the exact spawn of VS Code's Local harness
-    # on Windows, which runs only the `windows` launcher.
+    # and a PowerShell that runs the launcher through -Command. `vscode` is the
+    # exact spawn of VS Code's Local harness on Windows, which runs only the
+    # `windows` launcher, and `sdk` the one the Copilot SDK host's
+    # copilot-runtime.exe used on Windows in a process capture on 2026-10-02.
     $script:spawnCase = @(
         foreach ($name in $hookConfig.hooks.PSObject.Properties.Name) {
-            foreach ($branch in 'command', 'windows') {
-                foreach ($mode in 'cmd', 'sh', 'pwsh', 'powershell', 'vscode') {
-                    if ($mode -eq 'vscode' -and $branch -ne 'windows') {
+            foreach ($branch in 'command', 'windows', 'powershell') {
+                foreach ($mode in 'cmd', 'sh', 'pwsh', 'powershell', 'vscode', 'sdk') {
+                    if (($mode -eq 'vscode' -and $branch -ne 'windows') -or
+                        ($mode -eq 'sdk' -and $branch -ne 'powershell') -or
+                        ($branch -eq 'powershell' -and $mode -notin 'cmd', 'sdk')) {
                         continue
                     }
 
                     $skipReason = ''
                     if ($branch -eq 'windows' -and -not $script:isWindowsPlatform) {
                         $skipReason = 'powershell.exe exists only on Windows'
-                    } elseif ($mode -in 'cmd', 'powershell', 'vscode' -and -not $script:isWindowsPlatform) {
+                    } elseif ($mode -in 'cmd', 'powershell', 'vscode', 'sdk' -and -not $script:isWindowsPlatform) {
                         $skipReason = "$mode spawns exist only on Windows"
                     } elseif ($mode -eq 'sh' -and $script:isWindowsPlatform) {
                         $skipReason = '/bin/sh is not part of Windows'
-                    } elseif (($branch -eq 'command' -or $mode -eq 'pwsh') -and -not $pwshAvailable) {
+                    } elseif (($branch -in 'command', 'powershell' -or $mode -in 'pwsh', 'sdk') -and -not $pwshAvailable) {
                         $skipReason = 'pwsh is not on PATH'
                     }
 
                     # PreToolUse fails closed with 2 and the lifecycle events warn
                     # with 1. An outer PowerShell -Command reports only whether its
                     # last command succeeded, so it surfaces both as 1, unless the
-                    # launcher passes the inner exit code on, as `windows` does.
-                    $passesExitCodeOn = $mode -in 'cmd', 'sh' -or $branch -eq 'windows'
+                    # launcher passes the inner exit code on, as `windows` and
+                    # `powershell` do.
+                    $passesExitCodeOn = $mode -in 'cmd', 'sh' -or $branch -in 'windows', 'powershell'
 
                     @{
                         Event = $name
@@ -97,16 +102,18 @@ BeforeAll {
 
     # The whole script is one double-quoted -Command argument, so cmd.exe, sh,
     # and an outer PowerShell each hand it to the interpreter as a single word.
-    # Only the windows launcher continues after it, with Get-ExitPassThrough.
+    # Only the windows and powershell launchers continue after it, with
+    # Get-ExitPassThrough.
     $script:launcherShape = '\A(?<interpreter>pwsh|powershell) (?<options>.+?) -Command "(?<script>[^"]+)"(?<suffix>.*)\z'
 
     <#
-        The statement the windows launcher ends with. VS Code runs that launcher
-        as the -Command text of an outer Windows PowerShell, which reports only
-        whether its last command succeeded, so the launcher hands the inner exit
-        code on itself. A missing code means the inner interpreter never ran and
-        falls back to the launcher's own failure code. Under cmd.exe the text
-        only reaches the inner -Command after a try block that always exits.
+        The statement the windows and powershell launchers end with. VS Code runs
+        `windows`, and the Copilot SDK host `powershell`, as the -Command text of
+        an outer PowerShell, which reports only whether its last command
+        succeeded, so the launcher hands the inner exit code on itself. A
+        missing code means the inner interpreter never ran and falls back to the
+        launcher's own failure code. Under cmd.exe the text only reaches the
+        inner -Command after a try block that always exits.
     #>
     function Get-ExitPassThrough {
         param(
@@ -124,7 +131,7 @@ BeforeAll {
             [string]$EventName,
 
             [Parameter(Mandatory)]
-            [ValidateSet('command', 'windows')]
+            [ValidateSet('command', 'windows', 'powershell')]
             [string]$Branch
         )
 
@@ -164,7 +171,7 @@ BeforeAll {
             [int]$ExitCode
         )
 
-        if ($Mode -in 'pwsh', 'powershell', 'vscode' -and $Branch -ne 'windows') {
+        if ($Mode -in 'pwsh', 'powershell', 'vscode', 'sdk' -and $Branch -notin 'windows', 'powershell') {
             [int]($ExitCode -ne 0)
         } else {
             $ExitCode
@@ -293,7 +300,7 @@ BeforeAll {
             [string]$Launcher,
 
             [Parameter(Mandatory)]
-            [ValidateSet('cmd', 'sh', 'pwsh', 'powershell', 'vscode')]
+            [ValidateSet('cmd', 'sh', 'pwsh', 'powershell', 'vscode', 'sdk')]
             [string]$Mode,
 
             [Parameter(Mandatory)]
@@ -330,6 +337,12 @@ BeforeAll {
                 # on Windows with ComSpec set to cmd.exe, arguments verbatim.
                 $filePath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\WindowsPowerShell\v1.0\powershell.exe'
                 $argumentLine = '-ExecutionPolicy Bypass -NoProfile -NoLogo -Command ' + (ConvertTo-ProcessArgument -Value $Launcher)
+            }
+            'sdk' {
+                # copilot-runtime.exe of the Copilot SDK host on Windows, as a
+                # process capture showed on 2026-10-02.
+                $filePath = $script:pwshPath
+                $argumentLine = '-nop -nol -c ' + (ConvertTo-ProcessArgument -Value $Launcher)
             }
         }
 
@@ -490,16 +503,16 @@ BeforeAll {
 }
 
 Describe 'Hook launcher contract' -Tag 'Unit' {
-    It 'declares a type, both launchers, and a timeout for the <Event> hook' -ForEach $script:eventCase {
+    It 'declares a type, the three launchers, and a timeout for the <Event> hook' -ForEach $script:eventCase {
         $entries = @($script:hookConfig.hooks.$Event)
         $entries | Should -Not -BeNullOrEmpty
 
         foreach ($entry in $entries) {
             $entry.type | Should -BeExactly 'command'
-            $entry.command | Should -BeOfType [string]
-            $entry.command | Should -Not -BeNullOrEmpty
-            $entry.windows | Should -BeOfType [string]
-            $entry.windows | Should -Not -BeNullOrEmpty
+            foreach ($launcherKey in 'command', 'windows', 'powershell') {
+                $entry.$launcherKey | Should -BeOfType [string] -Because "$launcherKey is a launcher a host runs"
+                $entry.$launcherKey | Should -Not -BeNullOrEmpty -Because "$launcherKey is a launcher a host runs"
+            }
             ($entry.timeout -is [int] -or $entry.timeout -is [long]) | Should -BeTrue -Because 'the timeout is a whole number of seconds'
             $entry.timeout | Should -BeGreaterThan 0
         }
@@ -568,6 +581,18 @@ Describe 'Hook launcher contract' -Tag 'Unit' {
             $failureCode = [int][regex]::Match($entry.command, 'exit (?<code>\d) \}"\z').Groups['code'].Value
             $entry.windows |
                 Should -BeExactly ('powershell' + $entry.command.Substring('pwsh'.Length) + (Get-ExitPassThrough -FailureCode $failureCode))
+        }
+    }
+
+    It 'derives the powershell launcher of <Event> from command by passing the exit code on' -ForEach $script:eventCase {
+        <#
+            The Copilot SDK host prefers `powershell` on Windows and runs it as
+            the -c text of an outer pwsh, so only a passed-on exit code lets a
+            PreToolUse block arrive as 2 with its reason instead of `hook errored`.
+        #>
+        foreach ($entry in @($script:hookConfig.hooks.$Event)) {
+            $failureCode = [int][regex]::Match($entry.command, 'exit (?<code>\d) \}"\z').Groups['code'].Value
+            $entry.powershell | Should -BeExactly ($entry.command + (Get-ExitPassThrough -FailureCode $failureCode))
         }
     }
 
@@ -777,6 +802,10 @@ Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration
         @{ Branch = 'windows'; Mode = 'vscode'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
         @{ Branch = 'windows'; Mode = 'vscode'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
         @{ Branch = 'windows'; Mode = 'vscode'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
+        # The Copilot SDK host denies on any non-zero exit, but only exit 2 carries the reason.
+        @{ Branch = 'powershell'; Mode = 'sdk'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
+        @{ Branch = 'powershell'; Mode = 'sdk'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
+        @{ Branch = 'powershell'; Mode = 'sdk'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
     ) {
         # The real guard, staged the way Install-CopilotAtelier deploys it.
         $caseRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
@@ -804,6 +833,42 @@ Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration
             -Payload $payload
 
         $result.ExitCode | Should -Be $ExitCode -Because $result.StandardError
+    }
+
+    It 'hands the Copilot SDK host the block reason on standard output' {
+        <#
+            On exit 2 the SDK host ignores standard error and merges one JSON
+            object from standard output into the deny; its permissionDecisionReason
+            is what the model reads. Before 2026-10-02 the model saw only
+            "(hook errored)".
+        #>
+        $caseRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
+        $userProfile = Join-Path -Path $caseRoot -ChildPath 'userprofile'
+        $workingDirectory = Join-Path -Path $caseRoot -ChildPath 'cwd'
+        $deployedScripts = Join-Path -Path $userProfile -ChildPath $script:homeScriptDirectory
+        $null = New-Item -ItemType Directory -Path $deployedScripts, $workingDirectory -Force
+        Copy-Item -LiteralPath (Join-Path -Path $script:hookScriptRoot -ChildPath 'Block-RemoteMutation.ps1') -Destination $deployedScripts
+
+        $payload = [ordered]@{
+            hook_event_name = 'PreToolUse'
+            tool_name = 'powershell'
+            tool_input = [ordered]@{ command = 'git push origin main' }
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $result = Invoke-HookLauncher `
+            -Launcher (Get-HookLauncher -EventName 'PreToolUse' -Branch 'powershell') `
+            -Mode 'sdk' `
+            -WorkingDirectory $workingDirectory `
+            -Environment @{ USERPROFILE = $userProfile } `
+            -Payload $payload
+
+        $result.ExitCode | Should -Be 2 -Because $result.StandardError
+        $decision = $result.StandardOutput | ConvertFrom-Json
+        $decision.permissionDecision | Should -BeExactly 'deny'
+        $decision.permissionDecisionReason | Should -Match '\ABlocked by Copilot Atelier: this command pushes to a git remote'
+        $decision.hookSpecificOutput.hookEventName | Should -BeExactly 'PreToolUse'
+        $decision.hookSpecificOutput.permissionDecision | Should -BeExactly 'deny'
+        $decision.hookSpecificOutput.permissionDecisionReason | Should -BeExactly $decision.permissionDecisionReason
     }
 
     It 'never probes an unreachable HOME while USERPROFILE holds the guard through the <Branch> launcher spawned by <Mode>' -ForEach @(

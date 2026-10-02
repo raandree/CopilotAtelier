@@ -141,6 +141,36 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
         $result.Output | Should -Not -Match 'set COPILOT_ATELIER_ALLOW_REMOTE'
     }
 
+    It 'reports a block on standard output in the shape each host reads' {
+        <#
+            On exit 2 the Copilot SDK host ignores standard error and merges one
+            JSON object from standard output into the deny, reading the top-level
+            permissionDecisionReason. VS Code's Local harness reads standard
+            error on exit 2 and hookSpecificOutput otherwise, so one object
+            carries both shapes.
+        #>
+        $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
+        $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $json = [regex]::Match($result.Output, '\{"permissionDecision".*\}')
+        $json.Success | Should -BeTrue -Because $result.Output
+        $decision = $json.Value | ConvertFrom-Json
+        $decision.permissionDecision | Should -BeExactly 'deny'
+        $decision.permissionDecisionReason | Should -Match '\ABlocked by Copilot Atelier: this command pushes to a git remote'
+        $decision.hookSpecificOutput.hookEventName | Should -BeExactly 'PreToolUse'
+        $decision.hookSpecificOutput.permissionDecision | Should -BeExactly 'deny'
+        $decision.hookSpecificOutput.permissionDecisionReason | Should -BeExactly $decision.permissionDecisionReason
+    }
+
+    It 'writes nothing to standard output when it allows a command' {
+        $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git status --short'
+        $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $result.Output | Should -Not -Match 'permissionDecision'
+    }
+
     It 'allows a terminal command that <Reason>' -ForEach @(
         @{ Reason = 'reads git state'; Command = 'git status --short' }
         @{ Reason = 'commits locally'; Command = 'git commit -m "feat: add hooks"' }
@@ -1034,6 +1064,7 @@ Describe 'Hook configuration' -Tag 'Unit' {
             foreach ($hook in $hookEvent.Value) {
                 $hook.command
                 $hook.windows
+                $hook.powershell
             }
         }
 
