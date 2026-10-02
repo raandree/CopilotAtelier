@@ -23,6 +23,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Deliver the SessionStart context to Copilot SDK (agent host) and Copilot CLI sessions. `Add-SessionContext` wrote it only under `hookSpecificOutput`, which those hosts ignore; it now also writes the top-level `additionalContext` they read.
+- Keep the `long-running-job-monitor` heartbeat state readable while it is rewritten. `Start-JobHeartbeat.ps1` wrote the state file in place, so `-Stop`, `-TouchStatus`, or a wake read at the same moment could find it empty or cut off and fail; it now renames a complete file over it, also on Windows PowerShell 5.1.
+- Stop the wording of a commit message from choosing the release version. `GitVersion.yml` raised it on words such as "major", "breaking", or "add" anywhere in a message, which is how review text made 6.0.0 a major release; now only the Conventional Commit type in the subject line (`feat:`, `fix:`, `perf:`, `!`), a line that starts with `BREAKING CHANGE:`, or a literal `+semver:` override raises it above the branch's default increment.
+- Send an authorized push to the user's own terminal. The `PreToolUse` block message, `AGENTS.md`, and the hooks README told the agent to set `COPILOT_ATELIER_ALLOW_REMOTE=1` for the command, but each host starts the hook with its own environment, so a variable set in an agent terminal never reaches the guard.
+- Show the reason when the `PreToolUse` guard blocks a call in a Copilot SDK chat on Windows. That host ran the cross-platform `command` launcher inside an outer PowerShell that reported the block as 1, so the model saw only "hook errored". A new `powershell` launcher, which the SDK host prefers on Windows, passes exit 2 on, and the guard also prints the reason as one JSON object on standard output, which that host reads on exit 2.
+
+### Security
+
+- Block a push in VS Code Local chats on Windows. VS Code runs a hook's `windows` launcher as the `-Command` text of an outer Windows PowerShell, which reported the guard's exit code 2 as 1, and VS Code treats every exit other than 2 as a warning, so the `PreToolUse` guard only warned there. The launcher now ends with a statement that passes the inner exit code on. Found by the post-release review of the v6.0.0 hook launcher fix.
+- Look for the hook scripts under `USERPROFILE` before `HOME`. Since v6.0.0 the launchers tried `HOME` first, so a `HOME` that a tool such as Git for Windows pointed at a writable tree could run a planted script instead of the deployed guard, and a `HOME` on an unreachable network share delayed the guard past its 20-second timeout, which the Copilot SDK host treats as allow.
+- Scan the raw payload text whenever the `PreToolUse` guard cannot walk the payload field by field. A payload that was not valid JSON has been allowed since v6.0.0, and the walk stopped four levels deep, so a push nested more than four levels, or more than the 100 levels Windows PowerShell parses (1,024 in PowerShell 7), went through. The walk now reaches 64 levels, and whatever it cannot reach is scanned as raw text, with JSON escapes decoded and without JSON punctuation, so an argument array such as `["git","push"]` is caught as well, before the call is allowed.
+
+## [6.0.0] - 2026-09-30
+
+### Fixed
+
 - Custom agents lost web fetch, search, questions, the browser, and the session tools in VS Code agent-host (Copilot SDK) sessions, because the runtime drops every VS Code tool name it cannot resolve ([github/copilot-cli#4594](https://github.com/github/copilot-cli/issues/4594)). Every agent now declares the runtime name next to each VS Code name, and the agents that are not contained get a common web, search, question, and session-tool baseline. Contained agents gain only `grep`, `glob`, and `ask_user` for tools they already had.
 - The Copilot CLI variant of `software-engineer` mapped web and search to the `web` and `search` aliases, which enable no tool. It now emits `web_fetch`, `grep`, and `glob`.
 - `Block-RemoteMutation` now allows the tool call with a warning when the hook payload is not valid JSON, as its message always said. It exited 1, which the Copilot SDK host treats as a denial, so a payload schema change would have blocked every tool call.

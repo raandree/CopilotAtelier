@@ -10,31 +10,65 @@ verify loading in the client being used rather than assuming cross-client parity
 
 ## Launchers
 
-Every entry in `hooks.json` carries two launchers. VS Code runs `windows` on
-Windows and `command` elsewhere. The Copilot SDK host has no `windows` key: its
-own format knows `bash`, `powershell`, `exec`, and a cross-platform `command`
-that it copies into `powershell` on Windows
+Every entry in `hooks.json` carries three launchers. VS Code runs `windows` on
+Windows and `command` elsewhere; it reads `powershell` only when `windows` is
+missing. The Copilot SDK host has no `windows` key: its own format knows
+`bash`, `powershell`, `exec`, and a cross-platform `command`, and explicit
+`bash` or `powershell` entries take precedence on their platforms
 ([hooks configuration reference](https://docs.github.com/en/copilot/reference/hooks-configuration)).
-It therefore runs `command` on every platform, Windows included. Both launchers
-are identical apart from the interpreter — `pwsh` or `powershell` — and neither
-may depend on `HOME`, which Windows does not define.
+It therefore runs `powershell` on Windows and `command` elsewhere, and the cloud
+agent, which honours only `bash`, falls back to `command`. All three launchers
+start their script the same way apart from the interpreter — `pwsh`, or
+`powershell` for `windows` — and none may depend on `HOME`, which Windows does
+not define. `windows` and `powershell` also end with one statement of their
+own, explained below.
 
 Each launcher runs the first of these scripts that exists:
 
 1. `<PLUGIN_ROOT>/com.github.copilot/hooks/scripts/<Script>.ps1`
-2. `<HOME>/.copilot/hooks/scripts/<Script>.ps1`
-3. `<USERPROFILE>/.copilot/hooks/scripts/<Script>.ps1`
+2. `<USERPROFILE>/.copilot/hooks/scripts/<Script>.ps1`
+3. `<HOME>/.copilot/hooks/scripts/<Script>.ps1`
 4. `.copilot/hooks/scripts/<Script>.ps1` under the profile folder the operating
    system reports, for a host that passes a stripped environment
 
+`USERPROFILE` comes before `HOME`. Windows always defines `USERPROFILE`, while
+`HOME` there is whatever a tool such as Git for Windows set, and a `HOME` that
+points at a writable tree would otherwise run a planted script instead of the
+deployed one. A `HOME` that does not answer, such as an unreachable UNC path, is
+then never probed while `USERPROFILE` holds the script. Probing one took longer
+than the 20-second hook timeout, and the Copilot SDK host allows a call whose
+hook times out. On Linux and macOS `USERPROFILE` is unset, so `HOME` applies.
+
 An unset root becomes an unresolvable `*` and a relative root is anchored at the
 filesystem root, so no candidate ever resolves against the working directory.
-The launcher passes the script's exit code through unchanged; a host that wraps
-it in PowerShell can still flatten that code, as Troubleshooting explains. When
-no candidate exists or the script cannot start, the launcher names the script
-and the underlying error on standard error and exits `2` for `PreToolUse`, which
-blocks, and `1` for the lifecycle events, which warns. `command` needs `pwsh` on
-`PATH`.
+When no candidate exists or the script cannot start, the launcher names the
+script and the underlying error on standard error and exits `2` for
+`PreToolUse`, which blocks, and `1` for the lifecycle events, which warns.
+`command` and `powershell` need `pwsh` on `PATH`.
+
+The launcher passes the script's exit code through unchanged, but on Windows
+both hosts run it inside an outer PowerShell, which reports any failed native
+command as `1`:
+
+| Host | Spawn on Windows | Source |
+|---|---|---|
+| VS Code Local harness | `powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -Command <windows>` | `HookExecutor` in VS Code's built-in `extensions/copilot/dist/extension.js` |
+| Copilot SDK host | `pwsh.exe -nop -nol -c <launcher>`, started by `copilot-runtime.exe` | process capture of `command`, 2026-10-02 |
+
+VS Code blocks only on `2` and treats every other non-zero exit as a warning,
+and the SDK host shows the block reason only on `2`, so `windows` and
+`powershell` end with
+`; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]`
+(`+ 1` for the lifecycle events). The outer PowerShell runs it and exits with the
+inner code, or with the launcher's own failure code when the inner interpreter
+never started. Under `cmd.exe` the statement only reaches the inner `-Command`
+after a `try` block that always exits, so when the inner interpreter cannot
+start at all, a `cmd.exe` spawn reports `1`, while both PowerShell spawns report
+the launcher's failure code. `command` cannot carry it, because `sh`
+runs `command` on Linux and macOS and rejects the statement; that is why the SDK
+host gets its own `powershell` launcher. The capture above shows how it ran
+`command` before that key existed. That it runs `powershell` the same way still
+needs a live check in a new Copilot SDK chat.
 
 ## Contents
 
@@ -64,21 +98,42 @@ message, or `--grep` value that merely contains the word does not trip it. A
 tool with no command-bearing field exits `0` immediately, so editing a document
 that mentions `git push` is never blocked. The reason goes to standard error and
 the script exits with `2`, which VS Code treats as a blocking error and shows to
-the model. A payload that is not valid JSON is allowed with a warning on
-standard error and exit `0`: the Copilot SDK host denies a `preToolUse` call on
-every other non-zero exit, so a payload schema change would otherwise block
-every tool call.
+the model. On exit `2` the Copilot SDK host ignores standard error and merges one
+JSON object from standard output into the deny, so the guard also prints the
+reason there: top-level `permissionDecision` and `permissionDecisionReason` for
+that host, and the same pair under `hookSpecificOutput` for VS Code. The
+command-bearing fields are walked up to 64 levels deep. When the
+walk cannot cover a payload, because it is nested deeper or is not valid JSON,
+its raw text is also scanned three ways: as written, with JSON escapes decoded,
+and without the JSON punctuation, so an argument array such as
+`["git","push"]` reads as the command it is. A blocked command found there
+blocks the call. That path errs toward blocking: a payload that only mentions a
+blocked command, such as a document in an unreadable payload, is blocked too.
+Otherwise a payload that is not valid JSON is
+allowed with a warning on standard error and exit `0`: the Copilot SDK host
+denies a `preToolUse` call on every other non-zero exit, so a payload schema
+change would otherwise block every tool call.
 
 ### Authorizing a remote mutation
 
-The house rules allow a push when the user asks for it in the current turn. Set
-the escape hatch for that command:
+The house rules allow a push when the user asks for it in the current turn, but
+an agent cannot lift the block itself. Each host starts the hook with its own
+environment: VS Code passes its extension host's environment plus the entry's
+`env`, and the Copilot SDK host its runtime's. A variable set in an agent
+terminal never reaches the hook. On 2026-10-02, in a Copilot SDK chat,
+`COPILOT_ATELIER_ALLOW_REMOTE` set in one tool call was already gone in the next,
+because every call ran in a new process, and the probe was still denied. Setting
+the variable inside the blocked command cannot work either, because the hook
+judges the command before it runs.
 
-```powershell
-$env:COPILOT_ATELIER_ALLOW_REMOTE = '1'
-```
+So the user runs an authorized push in their own terminal. The agent hands over
+the exact command and does not retry it.
 
-Unset it afterwards. The hook records every override on standard error.
+`COPILOT_ATELIER_ALLOW_REMOTE=1` still allows a blocked command when it is set
+in the hook's own environment, for example in the environment VS Code itself
+was started with. That turns the guard off for every chat of that instance, so
+do not use it to authorize a single command. The hook records every override on
+standard error.
 
 ## Add-SessionContext
 
@@ -93,6 +148,12 @@ absolute path of `Get-SessionElapsed.ps1`. The agent cannot resolve that path
 itself — the script sits under `~/.copilot` when deployed and under the plugin
 root when installed as a plugin, which is the probe `hooks.json` already carries.
 
+The context goes into one JSON object twice, under the key each host reads: a
+top-level `additionalContext` for the Copilot SDK host and Copilot CLI, and
+`hookSpecificOutput.additionalContext` for the VS Code Local harness. Each host
+ignores the other's key, so dropping either one silently removes the context
+from that host's sessions.
+
 ### Session context budget
 
 Injected context defaults to a 4096-character limit. Set
@@ -103,8 +164,9 @@ budget for one hook, not a token count or a live context-window estimate.
 
 There is no master-off profile: all four shipped hooks serve lifecycle or
 safety obligations. The context budget never disables remote-mutation checks.
-Do not persist `COPILOT_ATELIER_ALLOW_REMOTE` in hook configuration; it remains
-a per-command authorization supplied only after the user's current request.
+Do not persist `COPILOT_ATELIER_ALLOW_REMOTE` in hook configuration or in the
+environment VS Code starts with; an authorized push runs in the user's own
+terminal.
 
 ## The session clock
 
@@ -221,14 +283,29 @@ which survives because Instructions are re-sent with every request.
   `HOME` and needs `pwsh` on `PATH`. Launchers from releases before this fix
   looked only at `PLUGIN_ROOT` and `HOME` there and failed closed on every call.
   Redeploy, then start a new session.
-- **A `PreToolUse` block reaches the host as exit `1`.** A host that runs the
-  launcher inside an outer PowerShell `-Command` — as the Copilot SDK host does
-  on Windows — reports only whether its last command succeeded, so exit `2`
-  arrives as `1`. The SDK host fails closed on every non-zero `preToolUse` exit,
-  so the call is still denied, but as `Denied by preToolUse hook (hook errored)`
-  without the reason. No launcher text can prevent the flattening: a trailing
-  bare `exit` turns it into `0`, which would allow the call. Only the host can
-  keep the code, by ending its wrapper with `exit $LASTEXITCODE`.
+- **A Copilot SDK session never receives the SessionStart context.** The
+  session's `events.jsonl` shows the `sessionStart` hook ending with
+  `success: true`, yet no `Session started at` text reaches the model. The SDK
+  host reads only a top-level `additionalContext` and ignores
+  `hookSpecificOutput`, the only key the VS Code Local harness reads. Releases
+  before this fix wrote only the nested key. Redeploy, then start a new session.
+  That `hook.end` event's `output.additionalContext` shows exactly what the host
+  injected, and the field is absent when nothing was.
+- **A `PreToolUse` block reaches the host as exit `1`.** On Windows both hosts
+  run the launcher inside an outer PowerShell `-Command` (see Launchers). That
+  outer PowerShell reports only whether its last command succeeded, so exit `2`
+  arrives as `1`.
+  - The Copilot SDK host fails closed on every non-zero `preToolUse` exit. The
+    call is still denied, but as `Denied by preToolUse hook (hook errored)`
+    without the reason. Since 2026-10-02 the SDK host runs the `powershell`
+    launcher, which hands the code on, so the reason should reach the model. A
+    session started before that deploy keeps the old hooks and still shows
+    `hook errored`.
+  - VS Code blocks only on `2`, so in Local chats on Windows the guard only
+    warned until 2026-10-02. The `windows` launcher now ends with an `exit` that
+    hands the inner code on.
+  - A bare trailing `exit` would not work: it exits `0` and would allow the call.
+  - `command` cannot carry the statement, because `sh` runs it too.
 - **The hook dies with a PowerShell parser error.** VS Code hands the command to
   a PowerShell shell, which expands the double-quoted `-Command` argument before
   the child process parses it. A `$` token is therefore consumed by the outer

@@ -126,6 +126,51 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
         $result.Output | Should -Match 'Blocked by Copilot Atelier'
     }
 
+    It 'sends an authorized command to the user''s own terminal instead of the unreachable override' {
+        <#
+            Each host starts the hook with its own environment, so a variable an
+            agent sets in its terminal never reaches the guard (verified in a
+            Copilot SDK chat on 2026-10-02). The reason must not send the model
+            after an override it cannot set.
+        #>
+        $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
+        $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'in their own terminal'
+        $result.Output | Should -Not -Match 'set COPILOT_ATELIER_ALLOW_REMOTE'
+    }
+
+    It 'reports a block on standard output in the shape each host reads' {
+        <#
+            On exit 2 the Copilot SDK host ignores standard error and merges one
+            JSON object from standard output into the deny, reading the top-level
+            permissionDecisionReason. VS Code's Local harness reads standard
+            error on exit 2 and hookSpecificOutput otherwise, so one object
+            carries both shapes.
+        #>
+        $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
+        $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $json = [regex]::Match($result.Output, '\{"permissionDecision".*\}')
+        $json.Success | Should -BeTrue -Because $result.Output
+        $decision = $json.Value | ConvertFrom-Json
+        $decision.permissionDecision | Should -BeExactly 'deny'
+        $decision.permissionDecisionReason | Should -Match '\ABlocked by Copilot Atelier: this command pushes to a git remote'
+        $decision.hookSpecificOutput.hookEventName | Should -BeExactly 'PreToolUse'
+        $decision.hookSpecificOutput.permissionDecision | Should -BeExactly 'deny'
+        $decision.hookSpecificOutput.permissionDecisionReason | Should -BeExactly $decision.permissionDecisionReason
+    }
+
+    It 'writes nothing to standard output when it allows a command' {
+        $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git status --short'
+        $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $result.Output | Should -Not -Match 'permissionDecision'
+    }
+
     It 'allows a terminal command that <Reason>' -ForEach @(
         @{ Reason = 'reads git state'; Command = 'git status --short' }
         @{ Reason = 'commits locally'; Command = 'git commit -m "feat: add hooks"' }
@@ -221,6 +266,83 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
 
         $result.ExitCode | Should -Be 0 -Because $result.Output
     }
+
+    Context 'when the payload cannot be walked field by field' {
+        <#
+            Regression guard for the post-release review of v6.0.0: a payload
+            nested past the walk's depth, or past what ConvertFrom-Json accepts
+            (100 levels in Windows PowerShell, 1024 in PowerShell 7), carried a
+            push straight through. Whatever the walk cannot reach is scanned as
+            raw text before the call is allowed.
+        #>
+        BeforeAll {
+            function script:New-NestedPayload {
+                param(
+                    [Parameter(Mandatory)]
+                    [ValidateRange(1, 5000)]
+                    [int]$Depth,
+
+                    [Parameter(Mandatory)]
+                    [string]$Command
+                )
+
+                $commandJson = [ordered]@{ command = $Command } | ConvertTo-Json -Compress
+                '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
+                    ('{"a":' * $Depth) + $commandJson + ('}' * $Depth) + '}'
+            }
+        }
+
+        It 'blocks a push nested <Depth> levels deep' -ForEach @(
+            @{ Depth = 6 }
+            @{ Depth = 120 }
+            @{ Depth = 2100 }
+        ) {
+            $payload = script:New-NestedPayload -Depth $Depth -Command 'git push origin main'
+
+            $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Output | Should -Match 'Blocked by Copilot Atelier'
+        }
+
+        It 'allows a benign command nested 2100 levels deep with a warning' {
+            $payload = script:New-NestedPayload -Depth 2100 -Command 'git status --short'
+
+            $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $result.Output | Should -Match 'Block-RemoteMutation: '
+        }
+
+        It 'blocks an unreadable payload that carries a push' {
+            $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload '{"tool_input":{"command":"git push origin main"'
+
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+        }
+
+        It 'blocks an unreadable payload that spells the push with JSON escapes' {
+            $payload = '{"tool_input":{"command":"git\u0020push origin main"'
+
+            $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+        }
+
+        It 'blocks a push written as an argument array nested <Depth> levels deep' -ForEach @(
+            @{ Depth = 6 }
+            @{ Depth = 70 }
+            @{ Depth = 2100 }
+        ) {
+            # Raw JSON puts a comma, not a space, after "git", which the command
+            # patterns need (re-review finding SEC-13).
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
+                ('{"a":' * $Depth) + '{"args":["git","push","origin","main"]}' + ('}' * $Depth) + '}'
+
+            $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+        }
+    }
 }
 
 Describe 'Add-SessionContext' -Tag 'Unit' {
@@ -289,6 +411,24 @@ Describe 'Add-SessionContext' -Tag 'Unit' {
         $parsed.hookSpecificOutput.hookEventName | Should -Be 'SessionStart'
         $parsed.hookSpecificOutput.additionalContext | Should -Match 'UTC'
         $parsed.hookSpecificOutput.additionalContext | Should -Match 'PRE-FLIGHT'
+    }
+
+    It 'gives the Copilot SDK host the same context as a top-level additionalContext' {
+        <#
+            The GitHub hooks reference consumes only a top-level additionalContext
+            for sessionStart and never reads hookSpecificOutput, the shape the
+            VS Code Local harness reads. One object has to serve both hosts, or
+            no Copilot SDK chat receives the Memory Bank probe and clock path.
+        #>
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $parsed = (script:Invoke-SessionStart -Payload $payload).Output | ConvertFrom-Json
+
+        $parsed.additionalContext | Should -Match '^Session started at '
+        $parsed.additionalContext | Should -BeExactly $parsed.hookSpecificOutput.additionalContext
     }
 
     It 'falls back to the current directory when the payload omits cwd' {
@@ -939,6 +1079,7 @@ Describe 'Hook configuration' -Tag 'Unit' {
             foreach ($hook in $hookEvent.Value) {
                 $hook.command
                 $hook.windows
+                $hook.powershell
             }
         }
 

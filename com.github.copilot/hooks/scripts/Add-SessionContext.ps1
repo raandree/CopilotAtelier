@@ -26,8 +26,11 @@
     Directory holding the session clock files. Defaults to the per-user
     application data location. Tests override it to stay off the real profile.
 .NOTES
-    Emits the SessionStart output contract shared by VS Code, Copilot CLI, and
-    Claude Code. Always exits 0 so a probe failure never blocks a session.
+    Writes one JSON object that serves two host contracts with the same text: a
+    top-level additionalContext, the only key the Copilot SDK host and Copilot
+    CLI read, and hookSpecificOutput.additionalContext, the key the VS Code
+    Local harness reads. Always exits 0 so a probe failure never blocks a
+    session.
 #>
 
 [CmdletBinding()]
@@ -238,6 +241,10 @@ if ($additionalContext.Length -gt $contextLimit) {
 
 $output = [ordered]@{
     continue = $true
+    # Two hosts, two contracts. The Copilot SDK host and Copilot CLI read only a
+    # top-level additionalContext; the VS Code Local harness reads only
+    # hookSpecificOutput. Each host ignores the other's key, so carry both.
+    additionalContext = $additionalContext
     hookSpecificOutput = [ordered]@{
         hookEventName = 'SessionStart'
         additionalContext = $additionalContext

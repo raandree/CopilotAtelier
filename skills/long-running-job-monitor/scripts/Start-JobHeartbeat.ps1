@@ -121,13 +121,67 @@ function Save-HeartbeatState
         [pscustomobject] $State
     )
 
+    # .NET resolves a relative path against the process directory, not $PWD.
+    $Path = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
+
     $directory = Split-Path -Path $Path -Parent
     if ($directory -and -not (Test-Path -LiteralPath $directory -PathType Container))
     {
         New-Item -ItemType Directory -Path $directory -Force | Out-Null
     }
 
-    $State | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $Path -Encoding utf8
+    # -Stop, -TouchStatus, and the wake read can run while another invocation
+    # writes. Writing in place truncates the file first, so a reader could parse
+    # an empty or cut-off file; renaming a complete sibling over it swaps the
+    # content in one step.
+    $temporaryPath = '{0}.{1}.tmp' -f $Path, [guid]::NewGuid().ToString('N')
+    $hasOverwritingMove = $null -ne [IO.File].GetMethod('Move', [type[]] @([string], [string], [bool]))
+    if (-not $hasOverwritingMove)
+    {
+        # Windows PowerShell's .NET Framework has no overwriting File.Move, and
+        # File.Replace briefly leaves no file at the path. This MoveFile performs
+        # the same single replacing rename.
+        Add-Type -AssemblyName Microsoft.VisualBasic
+    }
+
+    try
+    {
+        $State | ConvertTo-Json -Depth 4 |
+            Set-Content -LiteralPath $temporaryPath -Encoding utf8 -ErrorAction Stop
+
+        $deadline = [datetime]::UtcNow.AddSeconds(5)
+        while ($true)
+        {
+            try
+            {
+                if ($hasOverwritingMove)
+                {
+                    [IO.File]::Move($temporaryPath, $Path, $true)
+                }
+                else
+                {
+                    [Microsoft.VisualBasic.FileIO.FileSystem]::MoveFile($temporaryPath, $Path, $true)
+                }
+
+                return
+            }
+            catch [System.IO.IOException], [System.UnauthorizedAccessException]
+            {
+                # On Windows a reader holding the file open blocks the rename
+                # for the length of its read.
+                if ([datetime]::UtcNow -ge $deadline)
+                {
+                    throw
+                }
+
+                Start-Sleep -Milliseconds 10
+            }
+        }
+    }
+    finally
+    {
+        Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction Ignore
+    }
 }
 
 function ConvertTo-UtcDateTime

@@ -1,11 +1,13 @@
 <#
     Contract and behavior of the launcher commands in com.github.copilot/hooks/hooks.json.
 
-    Every hook entry carries two launchers. VS Code runs `windows` on Windows and
-    `command` everywhere else, but the Copilot SDK host ignores `windows` and runs
-    `command` on every platform. Both launchers therefore have to find and run
-    their script in every spawn mode a host uses, whatever subset of PLUGIN_ROOT,
-    HOME, and USERPROFILE the host passes on. Windows does not define HOME.
+    Every hook entry carries three launchers. VS Code runs `windows` on Windows
+    and `command` everywhere else; it ignores `powershell` while `windows` is
+    present. The Copilot SDK host ignores `windows`: it runs `powershell` on
+    Windows and `command` everywhere else. Every launcher therefore has to find
+    and run its script in every spawn mode a host uses, whatever subset of
+    PLUGIN_ROOT, HOME, and USERPROFILE the host passes on. Windows does not
+    define HOME.
 
     The behavioral cases never run a real hook script: SessionStart, Stop, and
     PreCompact write state. Each case swaps the script name in the launcher for a
@@ -27,11 +29,11 @@ BeforeDiscovery {
 
     $script:launcherCase = @(
         foreach ($name in $hookConfig.hooks.PSObject.Properties.Name) {
-            foreach ($branch in 'command', 'windows') {
+            foreach ($branch in 'command', 'windows', 'powershell') {
                 $skipReason = ''
                 if ($branch -eq 'windows' -and -not $script:isWindowsPlatform) {
                     $skipReason = 'powershell.exe exists only on Windows'
-                } elseif ($branch -eq 'command' -and -not $pwshAvailable) {
+                } elseif ($branch -in 'command', 'powershell' -and -not $pwshAvailable) {
                     $skipReason = 'pwsh is not on PATH'
                 }
 
@@ -41,32 +43,43 @@ BeforeDiscovery {
     )
 
     # The spawn modes a host uses: Node's `shell: true` on Windows and on POSIX,
-    # and a PowerShell that runs the launcher through -Command. The Copilot SDK
-    # host takes the last route on Windows: it copies `command` into its
-    # `powershell` field.
+    # and a PowerShell that runs the launcher through -Command. `vscode` is the
+    # exact spawn of VS Code's Local harness on Windows, which runs only the
+    # `windows` launcher, and `sdk` the one the Copilot SDK host's
+    # copilot-runtime.exe used on Windows in a process capture on 2026-10-02.
     $script:spawnCase = @(
         foreach ($name in $hookConfig.hooks.PSObject.Properties.Name) {
-            foreach ($branch in 'command', 'windows') {
-                foreach ($mode in 'cmd', 'sh', 'pwsh', 'powershell') {
+            foreach ($branch in 'command', 'windows', 'powershell') {
+                foreach ($mode in 'cmd', 'sh', 'pwsh', 'powershell', 'vscode', 'sdk') {
+                    if (($mode -eq 'vscode' -and $branch -ne 'windows') -or
+                        ($mode -eq 'sdk' -and $branch -ne 'powershell') -or
+                        ($branch -eq 'powershell' -and $mode -notin 'cmd', 'sdk')) {
+                        continue
+                    }
+
                     $skipReason = ''
                     if ($branch -eq 'windows' -and -not $script:isWindowsPlatform) {
                         $skipReason = 'powershell.exe exists only on Windows'
-                    } elseif ($mode -in 'cmd', 'powershell' -and -not $script:isWindowsPlatform) {
-                        $skipReason = "$mode.exe exists only on Windows"
+                    } elseif ($mode -in 'cmd', 'powershell', 'vscode', 'sdk' -and -not $script:isWindowsPlatform) {
+                        $skipReason = "$mode spawns exist only on Windows"
                     } elseif ($mode -eq 'sh' -and $script:isWindowsPlatform) {
                         $skipReason = '/bin/sh is not part of Windows'
-                    } elseif (($branch -eq 'command' -or $mode -eq 'pwsh') -and -not $pwshAvailable) {
+                    } elseif (($branch -in 'command', 'powershell' -or $mode -in 'pwsh', 'sdk') -and -not $pwshAvailable) {
                         $skipReason = 'pwsh is not on PATH'
                     }
+
+                    # PreToolUse fails closed with 2 and the lifecycle events warn
+                    # with 1. An outer PowerShell -Command reports only whether its
+                    # last command succeeded, so it surfaces both as 1, unless the
+                    # launcher passes the inner exit code on, as `windows` and
+                    # `powershell` do.
+                    $passesExitCodeOn = $mode -in 'cmd', 'sh' -or $branch -in 'windows', 'powershell'
 
                     @{
                         Event = $name
                         Branch = $branch
                         Mode = $mode
-                        # PreToolUse fails closed with 2, the lifecycle events warn
-                        # with 1, and an outer PowerShell -Command reports only
-                        # whether its last command succeeded, so it surfaces both as 1.
-                        ObservedFailureCode = if ($name -eq 'PreToolUse' -and $mode -in 'cmd', 'sh') { 2 } else { 1 }
+                        ObservedFailureCode = if ($name -eq 'PreToolUse' -and $passesExitCodeOn) { 2 } else { 1 }
                         SkipReason = $skipReason
                     }
                 }
@@ -89,7 +102,28 @@ BeforeAll {
 
     # The whole script is one double-quoted -Command argument, so cmd.exe, sh,
     # and an outer PowerShell each hand it to the interpreter as a single word.
-    $script:launcherShape = '\A(?<interpreter>pwsh|powershell) (?<options>.+?) -Command "(?<script>[^"]+)"\z'
+    # Only the windows and powershell launchers continue after it, with
+    # Get-ExitPassThrough.
+    $script:launcherShape = '\A(?<interpreter>pwsh|powershell) (?<options>.+?) -Command "(?<script>[^"]+)"(?<suffix>.*)\z'
+
+    <#
+        The statement the windows and powershell launchers end with. VS Code runs
+        `windows`, and the Copilot SDK host `powershell`, as the -Command text of
+        an outer PowerShell, which reports only whether its last command
+        succeeded, so the launcher hands the inner exit code on itself. A
+        missing code means the inner interpreter never ran and falls back to the
+        launcher's own failure code. Under cmd.exe the text only reaches the
+        inner -Command after a try block that always exits.
+    #>
+    function Get-ExitPassThrough {
+        param(
+            [Parameter(Mandatory)]
+            [ValidateSet(1, 2)]
+            [int]$FailureCode
+        )
+
+        ' ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + {0})[0]' -f $FailureCode
+    }
 
     function Get-HookLauncher {
         param(
@@ -97,7 +131,7 @@ BeforeAll {
             [string]$EventName,
 
             [Parameter(Mandatory)]
-            [ValidateSet('command', 'windows')]
+            [ValidateSet('command', 'windows', 'powershell')]
             [string]$Branch
         )
 
@@ -122,8 +156,8 @@ BeforeAll {
         The exit code the spawning host can see. cmd.exe and sh pass the
         launcher's code through unchanged. An outer PowerShell -Command converts
         every non-zero native exit code to 1 (about_Pwsh, -Command), which no
-        launcher text can prevent: a host that wraps hooks that way has to end
-        its wrapper with `exit $LASTEXITCODE` to see a PreToolUse block as 2.
+        text inside the quoted -Command argument can prevent; the windows
+        launcher therefore ends with a statement the outer PowerShell runs.
     #>
     function Get-ObservedExitCode {
         param(
@@ -131,10 +165,13 @@ BeforeAll {
             [string]$Mode,
 
             [Parameter(Mandatory)]
+            [string]$Branch,
+
+            [Parameter(Mandatory)]
             [int]$ExitCode
         )
 
-        if ($Mode -in 'pwsh', 'powershell') {
+        if ($Mode -in 'pwsh', 'powershell', 'vscode', 'sdk' -and $Branch -notin 'windows', 'powershell') {
             [int]($ExitCode -ne 0)
         } else {
             $ExitCode
@@ -263,7 +300,7 @@ BeforeAll {
             [string]$Launcher,
 
             [Parameter(Mandatory)]
-            [ValidateSet('cmd', 'sh', 'pwsh', 'powershell')]
+            [ValidateSet('cmd', 'sh', 'pwsh', 'powershell', 'vscode', 'sdk')]
             [string]$Mode,
 
             [Parameter(Mandatory)]
@@ -294,6 +331,18 @@ BeforeAll {
             'powershell' {
                 $filePath = 'powershell'
                 $argumentLine = '-NoProfile -NonInteractive -Command ' + (ConvertTo-ProcessArgument -Value $Launcher)
+            }
+            'vscode' {
+                # HookExecutor in VS Code's built-in extensions/copilot/dist/extension.js
+                # on Windows with ComSpec set to cmd.exe, arguments verbatim.
+                $filePath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\WindowsPowerShell\v1.0\powershell.exe'
+                $argumentLine = '-ExecutionPolicy Bypass -NoProfile -NoLogo -Command ' + (ConvertTo-ProcessArgument -Value $Launcher)
+            }
+            'sdk' {
+                # copilot-runtime.exe of the Copilot SDK host on Windows, as a
+                # process capture showed on 2026-10-02.
+                $filePath = $script:pwshPath
+                $argumentLine = '-nop -nol -c ' + (ConvertTo-ProcessArgument -Value $Launcher)
             }
         }
 
@@ -454,16 +503,16 @@ BeforeAll {
 }
 
 Describe 'Hook launcher contract' -Tag 'Unit' {
-    It 'declares a type, both launchers, and a timeout for the <Event> hook' -ForEach $script:eventCase {
+    It 'declares a type, the three launchers, and a timeout for the <Event> hook' -ForEach $script:eventCase {
         $entries = @($script:hookConfig.hooks.$Event)
         $entries | Should -Not -BeNullOrEmpty
 
         foreach ($entry in $entries) {
             $entry.type | Should -BeExactly 'command'
-            $entry.command | Should -BeOfType [string]
-            $entry.command | Should -Not -BeNullOrEmpty
-            $entry.windows | Should -BeOfType [string]
-            $entry.windows | Should -Not -BeNullOrEmpty
+            foreach ($launcherKey in 'command', 'windows', 'powershell') {
+                $entry.$launcherKey | Should -BeOfType [string] -Because "$launcherKey is a launcher a host runs"
+                $entry.$launcherKey | Should -Not -BeNullOrEmpty -Because "$launcherKey is a launcher a host runs"
+            }
             ($entry.timeout -is [int] -or $entry.timeout -is [long]) | Should -BeTrue -Because 'the timeout is a whole number of seconds'
             $entry.timeout | Should -BeGreaterThan 0
         }
@@ -481,7 +530,13 @@ Describe 'Hook launcher contract' -Tag 'Unit' {
             Should -Match ("\[Environment\]::GetEnvironmentVariable\('USERPROFILE'\)|\[Environment\]::GetFolderPath\('UserProfile'\)")
     }
 
-    It 'searches PLUGIN_ROOT, HOME, USERPROFILE, then the user profile folder in the <Branch> launcher of <Event>' -ForEach $script:launcherCase {
+    It 'searches PLUGIN_ROOT, USERPROFILE, HOME, then the user profile folder in the <Branch> launcher of <Event>' -ForEach $script:launcherCase {
+        <#
+            USERPROFILE comes before HOME: Windows always defines USERPROFILE,
+            while HOME there is whatever a tool such as Git for Windows set, so a
+            HOME pointing at a writable tree would otherwise run a planted script
+            instead of the deployed guard (post-release review SEC-02).
+        #>
         $launcher = Get-HookLauncher -EventName $Event -Branch $Branch
 
         $candidate = @(
@@ -491,7 +546,7 @@ Describe 'Hook launcher contract' -Tag 'Unit' {
                 }
         )
 
-        $candidate | Should -Be @('PLUGIN_ROOT', 'HOME', 'USERPROFILE', 'folder:UserProfile')
+        $candidate | Should -Be @('PLUGIN_ROOT', 'USERPROFILE', 'HOME', 'folder:UserProfile')
     }
 
     It 'passes the <Branch> launcher of <Event> as one quoted -Command argument no outer shell expands' -ForEach $script:launcherCase {
@@ -504,6 +559,9 @@ Describe 'Hook launcher contract' -Tag 'Unit' {
         $commandText | Should -Not -Match '`' -Because 'sh substitutes backticks and PowerShell reads them as escapes'
         $commandText | Should -Not -Match '"' -Because 'an inner double quote ends the single argument early'
         $commandText | Should -Not -Match '%' -Because 'cmd.exe expands %NAME% even inside double quotes'
+
+        $suffix = [regex]::Match($launcher, $script:launcherShape).Groups['suffix'].Value
+        $suffix | Should -Not -Match '[$`"%]' -Because 'the text after the argument reaches the same shells unquoted'
     }
 
     It 'starts the <Branch> launcher of <Event> without a profile, without prompts, and past the execution policy' -ForEach $script:launcherCase {
@@ -514,10 +572,27 @@ Describe 'Hook launcher contract' -Tag 'Unit' {
             Should -BeExactly '-NoProfile -NonInteractive -ExecutionPolicy Bypass'
     }
 
-    It 'derives the windows launcher of <Event> from command by swapping only the interpreter' -ForEach $script:eventCase {
+    It 'derives the windows launcher of <Event> from command by swapping the interpreter and passing the exit code on' -ForEach $script:eventCase {
         foreach ($entry in @($script:hookConfig.hooks.$Event)) {
             $entry.command | Should -Match '\Apwsh '
-            $entry.windows | Should -BeExactly ('powershell' + $entry.command.Substring('pwsh'.Length))
+            [regex]::Match($entry.command, $script:launcherShape).Groups['suffix'].Value |
+                Should -BeExactly '' -Because 'sh runs command on Linux and macOS and rejects a PowerShell statement after it'
+
+            $failureCode = [int][regex]::Match($entry.command, 'exit (?<code>\d) \}"\z').Groups['code'].Value
+            $entry.windows |
+                Should -BeExactly ('powershell' + $entry.command.Substring('pwsh'.Length) + (Get-ExitPassThrough -FailureCode $failureCode))
+        }
+    }
+
+    It 'derives the powershell launcher of <Event> from command by passing the exit code on' -ForEach $script:eventCase {
+        <#
+            The Copilot SDK host prefers `powershell` on Windows and runs it as
+            the -c text of an outer pwsh, so only a passed-on exit code lets a
+            PreToolUse block arrive as 2 with its reason instead of `hook errored`.
+        #>
+        foreach ($entry in @($script:hookConfig.hooks.$Event)) {
+            $failureCode = [int][regex]::Match($entry.command, 'exit (?<code>\d) \}"\z').Groups['code'].Value
+            $entry.powershell | Should -BeExactly ($entry.command + (Get-ExitPassThrough -FailureCode $failureCode))
         }
     }
 
@@ -545,7 +620,7 @@ Describe 'Hook launcher behavior' -Tag 'Unit' {
                 }
 
                 $result.ExitCode |
-                    Should -Be (Get-ObservedExitCode -Mode $Mode -ExitCode $exitCode) -Because "the stub exited $exitCode. $($result.StandardError)"
+                    Should -Be (Get-ObservedExitCode -Mode $Mode -Branch $Branch -ExitCode $exitCode) -Because "the stub exited $exitCode. $($result.StandardError)"
                 (Get-StubRecord -Sandbox $sandbox).Candidate | Should -BeExactly 'USERPROFILE'
             }
         }
@@ -581,6 +656,22 @@ Describe 'Hook launcher behavior' -Tag 'Unit' {
 
             $result.ExitCode | Should -Be 0 -Because $result.StandardError
             (Get-StubRecord -Sandbox $sandbox).Candidate | Should -BeExactly 'HOME'
+        }
+
+        It 'prefers USERPROFILE over HOME' {
+            if ($SkipReason) { Set-ItResult -Skipped -Because $SkipReason }
+
+            $sandbox = New-LauncherSandbox -Root $TestDrive -EventName $Event -Branch $Branch
+            Add-LauncherStub -Sandbox $sandbox -Root $sandbox.HomeRoot -Directory $script:homeScriptDirectory -Candidate 'HOME'
+            Add-LauncherStub -Sandbox $sandbox -Root $sandbox.UserProfileRoot -Directory $script:homeScriptDirectory -Candidate 'USERPROFILE'
+
+            $result = Invoke-SandboxLauncher -Sandbox $sandbox -Mode $Mode -Environment @{
+                HOME = $sandbox.HomeRoot
+                USERPROFILE = $sandbox.UserProfileRoot
+            }
+
+            $result.ExitCode | Should -Be 0 -Because $result.StandardError
+            (Get-StubRecord -Sandbox $sandbox).Candidate | Should -BeExactly 'USERPROFILE'
         }
 
         It 'exits <ObservedFailureCode> and names the cause when no candidate holds the script' {
@@ -700,13 +791,21 @@ Describe 'Hook launcher user profile fallback' -Tag 'Unit' {
 }
 
 Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration' -Skip:(-not $script:isWindowsPlatform) {
-    It '<Expectation> through the <Branch> launcher spawned by cmd.exe with HOME unset' -ForEach @(
-        @{ Branch = 'command'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
-        @{ Branch = 'command'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
-        @{ Branch = 'command'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
-        @{ Branch = 'windows'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
-        @{ Branch = 'windows'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
-        @{ Branch = 'windows'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
+    It '<Expectation> through the <Branch> launcher spawned by <Mode> with HOME unset' -ForEach @(
+        @{ Branch = 'command'; Mode = 'cmd'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
+        @{ Branch = 'command'; Mode = 'cmd'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
+        @{ Branch = 'command'; Mode = 'cmd'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
+        @{ Branch = 'windows'; Mode = 'cmd'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
+        @{ Branch = 'windows'; Mode = 'cmd'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
+        @{ Branch = 'windows'; Mode = 'cmd'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
+        # VS Code treats only exit 2 as a block and any other failure as a warning.
+        @{ Branch = 'windows'; Mode = 'vscode'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
+        @{ Branch = 'windows'; Mode = 'vscode'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
+        @{ Branch = 'windows'; Mode = 'vscode'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
+        # The Copilot SDK host denies on any non-zero exit, but only exit 2 carries the reason.
+        @{ Branch = 'powershell'; Mode = 'sdk'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
+        @{ Branch = 'powershell'; Mode = 'sdk'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
+        @{ Branch = 'powershell'; Mode = 'sdk'; RawPayload = 'not json at all'; ExitCode = 0; Expectation = 'allows an unreadable payload' }
     ) {
         # The real guard, staged the way Install-CopilotAtelier deploys it.
         $caseRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
@@ -728,11 +827,83 @@ Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration
 
         $result = Invoke-HookLauncher `
             -Launcher (Get-HookLauncher -EventName 'PreToolUse' -Branch $Branch) `
-            -Mode 'cmd' `
+            -Mode $Mode `
             -WorkingDirectory $workingDirectory `
             -Environment @{ USERPROFILE = $userProfile } `
             -Payload $payload
 
         $result.ExitCode | Should -Be $ExitCode -Because $result.StandardError
+    }
+
+    It 'hands the Copilot SDK host the block reason on standard output' {
+        <#
+            On exit 2 the SDK host ignores standard error and merges one JSON
+            object from standard output into the deny; its permissionDecisionReason
+            is what the model reads. Before 2026-10-02 the model saw only
+            "(hook errored)".
+        #>
+        $caseRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
+        $userProfile = Join-Path -Path $caseRoot -ChildPath 'userprofile'
+        $workingDirectory = Join-Path -Path $caseRoot -ChildPath 'cwd'
+        $deployedScripts = Join-Path -Path $userProfile -ChildPath $script:homeScriptDirectory
+        $null = New-Item -ItemType Directory -Path $deployedScripts, $workingDirectory -Force
+        Copy-Item -LiteralPath (Join-Path -Path $script:hookScriptRoot -ChildPath 'Block-RemoteMutation.ps1') -Destination $deployedScripts
+
+        $payload = [ordered]@{
+            hook_event_name = 'PreToolUse'
+            tool_name = 'powershell'
+            tool_input = [ordered]@{ command = 'git push origin main' }
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $result = Invoke-HookLauncher `
+            -Launcher (Get-HookLauncher -EventName 'PreToolUse' -Branch 'powershell') `
+            -Mode 'sdk' `
+            -WorkingDirectory $workingDirectory `
+            -Environment @{ USERPROFILE = $userProfile } `
+            -Payload $payload
+
+        $result.ExitCode | Should -Be 2 -Because $result.StandardError
+        $decision = $result.StandardOutput | ConvertFrom-Json
+        $decision.permissionDecision | Should -BeExactly 'deny'
+        $decision.permissionDecisionReason | Should -Match '\ABlocked by Copilot Atelier: this command pushes to a git remote'
+        $decision.hookSpecificOutput.hookEventName | Should -BeExactly 'PreToolUse'
+        $decision.hookSpecificOutput.permissionDecision | Should -BeExactly 'deny'
+        $decision.hookSpecificOutput.permissionDecisionReason | Should -BeExactly $decision.permissionDecisionReason
+    }
+
+    It 'never probes an unreachable HOME while USERPROFILE holds the guard through the <Branch> launcher spawned by <Mode>' -ForEach @(
+        @{ Branch = 'command'; Mode = 'cmd' }
+        @{ Branch = 'windows'; Mode = 'vscode' }
+    ) {
+        <#
+            Probing a UNC home that does not answer took 21.7 seconds, past the
+            20-second hook timeout, and the Copilot SDK host fails open on a
+            timeout (post-release review SEC-04). 192.0.2.1 is TEST-NET-1, which
+            is never routed.
+        #>
+        $caseRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
+        $userProfile = Join-Path -Path $caseRoot -ChildPath 'userprofile'
+        $workingDirectory = Join-Path -Path $caseRoot -ChildPath 'cwd'
+        $deployedScripts = Join-Path -Path $userProfile -ChildPath $script:homeScriptDirectory
+        $null = New-Item -ItemType Directory -Path $deployedScripts, $workingDirectory -Force
+        Copy-Item -LiteralPath (Join-Path -Path $script:hookScriptRoot -ChildPath 'Block-RemoteMutation.ps1') -Destination $deployedScripts
+
+        $payload = [ordered]@{
+            hook_event_name = 'PreToolUse'
+            tool_name = 'run_in_terminal'
+            tool_input = [ordered]@{ command = 'git status --short' }
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $stopwatch = [Diagnostics.Stopwatch]::StartNew()
+        $result = Invoke-HookLauncher `
+            -Launcher (Get-HookLauncher -EventName 'PreToolUse' -Branch $Branch) `
+            -Mode $Mode `
+            -WorkingDirectory $workingDirectory `
+            -Environment @{ USERPROFILE = $userProfile; HOME = '\\192.0.2.1\profile' } `
+            -Payload $payload
+        $stopwatch.Stop()
+
+        $result.ExitCode | Should -Be 0 -Because $result.StandardError
+        $stopwatch.Elapsed.TotalSeconds | Should -BeLessThan 10 -Because 'the launcher must not wait on the unreachable HOME'
     }
 }
