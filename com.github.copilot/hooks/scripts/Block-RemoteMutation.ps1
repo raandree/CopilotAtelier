@@ -23,9 +23,10 @@
     the raw payload text is also scanned, with its JSON escapes decoded, before
     the call is allowed.
 
-    Set COPILOT_ATELIER_ALLOW_REMOTE=1 in the environment to authorize a remote
-    mutation. The hook then allows the command and records the override on
-    standard error.
+    COPILOT_ATELIER_ALLOW_REMOTE=1 in the hook's own environment allows a
+    blocked command and records the override on standard error. An agent
+    cannot set it: each host starts the hook with its own environment, not the
+    agent terminal's, so an authorized push runs in the user's own terminal.
 .PARAMETER InputJson
     Hook payload as JSON. Defaults to reading standard input. Tests pass the
     payload directly so they do not depend on redirected input.
@@ -180,8 +181,9 @@ foreach ($operation in $blockedOperation.GetEnumerator()) {
 
     [Console]::Error.WriteLine(
         "Blocked by Copilot Atelier: this command $($operation.Key), which the house rules forbid " +
-        'without explicit per-turn authorization from the user. Ask the user to confirm, then ' +
-        'set COPILOT_ATELIER_ALLOW_REMOTE=1 for that command. Do not rewrite the command to evade this check.'
+        'without explicit per-turn authorization from the user. If the user asked for it in this turn, ' +
+        'hand them the exact command to run in their own terminal; an agent cannot lift this block. ' +
+        'Do not rewrite the command to evade this check.'
     )
     exit 2
 }

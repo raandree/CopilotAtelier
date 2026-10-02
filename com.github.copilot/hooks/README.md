@@ -100,14 +100,24 @@ change would otherwise block every tool call.
 
 ### Authorizing a remote mutation
 
-The house rules allow a push when the user asks for it in the current turn. Set
-the escape hatch for that command:
+The house rules allow a push when the user asks for it in the current turn, but
+an agent cannot lift the block itself. Each host starts the hook with its own
+environment: VS Code passes its extension host's environment plus the entry's
+`env`, and the Copilot SDK host its runtime's. A variable set in an agent
+terminal never reaches the hook. On 2026-10-02, in a Copilot SDK chat,
+`COPILOT_ATELIER_ALLOW_REMOTE` set in one tool call was already gone in the next,
+because every call ran in a new process, and the probe was still denied. Setting
+the variable inside the blocked command cannot work either, because the hook
+judges the command before it runs.
 
-```powershell
-$env:COPILOT_ATELIER_ALLOW_REMOTE = '1'
-```
+So the user runs an authorized push in their own terminal. The agent hands over
+the exact command and does not retry it.
 
-Unset it afterwards. The hook records every override on standard error.
+`COPILOT_ATELIER_ALLOW_REMOTE=1` still allows a blocked command when it is set
+in the hook's own environment, for example in the environment VS Code itself
+was started with. That turns the guard off for every chat of that instance, so
+do not use it to authorize a single command. The hook records every override on
+standard error.
 
 ## Add-SessionContext
 
@@ -138,8 +148,9 @@ budget for one hook, not a token count or a live context-window estimate.
 
 There is no master-off profile: all four shipped hooks serve lifecycle or
 safety obligations. The context budget never disables remote-mutation checks.
-Do not persist `COPILOT_ATELIER_ALLOW_REMOTE` in hook configuration; it remains
-a per-command authorization supplied only after the user's current request.
+Do not persist `COPILOT_ATELIER_ALLOW_REMOTE` in hook configuration or in the
+environment VS Code starts with; an authorized push runs in the user's own
+terminal.
 
 ## The session clock
 

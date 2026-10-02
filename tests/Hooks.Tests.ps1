@@ -126,6 +126,21 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
         $result.Output | Should -Match 'Blocked by Copilot Atelier'
     }
 
+    It 'sends an authorized command to the user''s own terminal instead of the unreachable override' {
+        <#
+            Each host starts the hook with its own environment, so a variable an
+            agent sets in its terminal never reaches the guard (verified in a
+            Copilot SDK chat on 2026-10-02). The reason must not send the model
+            after an override it cannot set.
+        #>
+        $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
+        $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'in their own terminal'
+        $result.Output | Should -Not -Match 'set COPILOT_ATELIER_ALLOW_REMOTE'
+    }
+
     It 'allows a terminal command that <Reason>' -ForEach @(
         @{ Reason = 'reads git state'; Command = 'git status --short' }
         @{ Reason = 'commits locally'; Command = 'git commit -m "feat: add hooks"' }
