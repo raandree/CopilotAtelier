@@ -23,7 +23,7 @@ Pitch every answer and question at the contributor's familiarity level in the kn
 
 ## Questions
 
-- Give every technical decision question a recommended answer and a `not sure, you pick` option, in exactly those words or their direct translation.
+- Give every technical decision question a recommended answer and a `not sure, you pick` option, in exactly those words or their direct translation. Offer no such option when asking to authorize an irreversible, destructive, or security-relevant action; ask for an explicit answer instead.
 - At `new` and `familiar`, add the reason in one plain sentence, what changes with a different choice, and whether the choice can be undone.
 - At `new`, bundle reversible, low-impact detail decisions into one set of recommended defaults the contributor can accept at once; ask anything irreversible or security-relevant on its own.
 - Offer two to four typical answers when the contributor may not know the options.

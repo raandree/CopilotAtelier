@@ -9,15 +9,14 @@ source: current task evidence
 
 ## Current focus
 
-Contributor calibration (Decision 0027) on `ai/contributor-calibration`, not
-pushed. Phase 1 is implemented and independently reviewed: the always-on
-`contributor-calibration` Instruction with question rules, answer rules, and
-delegation bounds, `/simpler` and `/deeper`, `not sure, you pick` in three
-question-heavy Customizations, the `memory-bank` safeguard, and two Glossary
-terms. An independent review passed after one fix round: all 4 Majors closed,
-and every Minor and Nit fixed or ruled on, with F-03 parked. This branch also
-carries four Memory Bank commits from a parallel session (`9b22edc` to
-`0996292`).
+Contributor calibration (Decision 0027) on `ai/contributor-calibration`, on
+`origin` up to `66d76ef`; later commits are local. Phase 1 is implemented and
+independently reviewed: the always-on `contributor-calibration` Instruction
+with question rules, answer rules, and delegation bounds, `/simpler` and
+`/deeper`, `not sure, you pick` in three question-heavy Customizations, the
+`memory-bank` safeguard, and two Glossary terms. The review passed after one
+fix round; F-03 was fixed on 2026-10-02 and `docs/SECURITY-REVIEW.md` lists
+every finding. A parallel session also commits Memory Bank notes here.
 
 Phase 2 goes to `software-architect` for a Design Concept through a forward
 Session handoff in `.memory-bank/session/` (local, gitignored, refreshed
@@ -29,8 +28,8 @@ chats show 3 of 497, the rate drifts between runs, and an explicit language
 rule made it worse, so arms are compared only when run concurrently.
 
 The full `build,test` run fails one gate unrelated to this work: v6.0.0 is
-tagged on `a592832`, this branch has moved past the tag, and the automated
-rollover `origin/updateChangelogAfterv6.0.0` is not yet merged into `main`.
+tagged on `a592832`, this branch has moved past the tag, and the rollover is in
+local `main` (`09e2798`) but not yet in this branch or `origin/main`.
 
 ## Previous focuses
 

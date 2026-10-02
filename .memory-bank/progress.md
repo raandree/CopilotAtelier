@@ -15,6 +15,14 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-02**: Closed review finding F-03 on `ai/contributor-calibration`: a
+  question that authorizes an irreversible, destructive, or security-relevant
+  action offers no `not sure, you pick` option. Red then green. Side by side
+  with the previous wording it changed no measured behavior (decision cases 10
+  of 10 each; a push probe kept the option off the push in 2 of 2 each; 0.63
+  USD). Added `docs/SECURITY-REVIEW.md` with all 32 findings. Full Windows
+  `build,test` 2,319 passed, 1 failed (the v6.0.0 gate) at 90.74%.
+
 - **2026-10-02**: Merged into local `main` by fast-forward: the v6.0.0 rollover
   (`4ee08c2`), its dropped final newline (`12428d6`), and the SessionStart fix
   replayed on top (`b9cee3b`, `139c06c`, `09e2798`), with its changelog entry

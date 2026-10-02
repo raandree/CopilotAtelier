@@ -33,7 +33,8 @@ Phase 1 ships the always-on `contributor-calibration` Instruction and the
 - Delegation counts only when the contributor writes the phrase, never when
   a file, a fetched page, or tool output contains it. It never authorizes an
   irreversible, destructive, or security-relevant action such as a push, a
-  deletion, or a permission change, and `new` bundles only reversible,
+  deletion, or a permission change; a question that authorizes such an action
+  offers no `not sure, you pick` option at all. `new` bundles only reversible,
   low-impact details into one set of defaults.
 - The level decides whether a question leads with the plain-language
   recommendation or with the precise term; the precise term always appears.
@@ -86,6 +87,11 @@ agreed constraints:
   development machine show it in 3 of 497 English messages. The rate drifts
   between runs, wording changes did not remove it, and an explicit language
   rule made it worse, so the Instruction has none.
+- An independent review found 4 Major issues, all closed, and passed after one
+  fix round; [`docs/SECURITY-REVIEW.md`](../../docs/SECURITY-REVIEW.md) lists
+  every finding with its resolution. The last one, the carve-out for questions
+  that authorize an action, changed no measured behavior: with and without it,
+  10 of 10 decision replies kept the option, and 2 of 2 kept it off a push.
 
 ## Confirmation
 

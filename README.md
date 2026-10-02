@@ -191,12 +191,14 @@ that can be undone. "Not sure, you pick" takes the recommendation and records it
 as an assumption for an expert to check. It counts only when you write it
 yourself, and it never authorizes an irreversible, destructive, or
 security-relevant action such as a push, a deletion, or a permission change;
-for those the agent asks you for an explicit answer. In `new` and `familiar`
-areas an answer also illustrates an abstract finding, such as a statistic or a
-rule, with one concrete example. At every level, a calculated or reconstructed
-result says which sources it came from and how. A level changes wording and
-depth only; warnings, tests, and reviews stay the same. `/simpler` and `/deeper`
-are VS Code Prompts; in other clients, ask in words.
+for those the agent offers no such option and asks you for an explicit answer.
+In `new` and `familiar` areas an answer also illustrates an abstract finding,
+such as a statistic or a rule, with one concrete example. At every level, a
+calculated or reconstructed result says which sources it came from and how. A
+level changes wording and depth only; warnings, tests, and reviews stay the
+same. `/simpler` and `/deeper` are VS Code Prompts; in other clients, ask in
+words. The independent security review of this feature is in
+[docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md).
 
 ## Available Skills
 
