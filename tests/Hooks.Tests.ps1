@@ -221,6 +221,68 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
 
         $result.ExitCode | Should -Be 0 -Because $result.Output
     }
+
+    Context 'when the payload cannot be walked field by field' {
+        <#
+            Regression guard for the post-release review of v6.0.0: a payload
+            nested past the walk's depth, or past what ConvertFrom-Json accepts
+            (100 levels in Windows PowerShell, 1024 in PowerShell 7), carried a
+            push straight through. Whatever the walk cannot reach is scanned as
+            raw text before the call is allowed.
+        #>
+        BeforeAll {
+            function script:New-NestedPayload {
+                param(
+                    [Parameter(Mandatory)]
+                    [ValidateRange(1, 5000)]
+                    [int]$Depth,
+
+                    [Parameter(Mandatory)]
+                    [string]$Command
+                )
+
+                $commandJson = [ordered]@{ command = $Command } | ConvertTo-Json -Compress
+                '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
+                    ('{"a":' * $Depth) + $commandJson + ('}' * $Depth) + '}'
+            }
+        }
+
+        It 'blocks a push nested <Depth> levels deep' -ForEach @(
+            @{ Depth = 6 }
+            @{ Depth = 120 }
+            @{ Depth = 2100 }
+        ) {
+            $payload = script:New-NestedPayload -Depth $Depth -Command 'git push origin main'
+
+            $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Output | Should -Match 'Blocked by Copilot Atelier'
+        }
+
+        It 'allows a benign command nested 2100 levels deep with a warning' {
+            $payload = script:New-NestedPayload -Depth 2100 -Command 'git status --short'
+
+            $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $result.Output | Should -Match 'Block-RemoteMutation: '
+        }
+
+        It 'blocks an unreadable payload that carries a push' {
+            $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload '{"tool_input":{"command":"git push origin main"'
+
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+        }
+
+        It 'blocks an unreadable payload that spells the push with JSON escapes' {
+            $payload = '{"tool_input":{"command":"git\u0020push origin main"'
+
+            $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+        }
+    }
 }
 
 Describe 'Add-SessionContext' -Tag 'Unit' {

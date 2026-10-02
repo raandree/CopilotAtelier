@@ -90,10 +90,13 @@ message, or `--grep` value that merely contains the word does not trip it. A
 tool with no command-bearing field exits `0` immediately, so editing a document
 that mentions `git push` is never blocked. The reason goes to standard error and
 the script exits with `2`, which VS Code treats as a blocking error and shows to
-the model. A payload that is not valid JSON is allowed with a warning on
-standard error and exit `0`: the Copilot SDK host denies a `preToolUse` call on
-every other non-zero exit, so a payload schema change would otherwise block
-every tool call.
+the model. The command-bearing fields are walked up to 64 levels deep. When the
+walk cannot cover a payload, because it is nested deeper or is not valid JSON,
+its raw text is also scanned, with JSON escapes decoded, and a blocked command
+found there blocks the call. Otherwise a payload that is not valid JSON is
+allowed with a warning on standard error and exit `0`: the Copilot SDK host
+denies a `preToolUse` call on every other non-zero exit, so a payload schema
+change would otherwise block every tool call.
 
 ### Authorizing a remote mutation
 

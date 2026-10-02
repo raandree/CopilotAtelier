@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Block a push in VS Code Local chats on Windows. VS Code runs a hook's `windows` launcher as the `-Command` text of an outer Windows PowerShell, which reported the guard's exit code 2 as 1, and VS Code treats every exit other than 2 as a warning, so the `PreToolUse` guard only warned there. The launcher now ends with a statement that passes the inner exit code on. Found by the post-release review of the v6.0.0 hook launcher fix.
 - Look for the hook scripts under `USERPROFILE` before `HOME`. Since v6.0.0 the launchers tried `HOME` first, so a `HOME` that a tool such as Git for Windows pointed at a writable tree could run a planted script instead of the deployed guard, and a `HOME` on an unreachable network share delayed the guard past its 20-second timeout, which the Copilot SDK host treats as allow.
+- Scan the raw payload text whenever the `PreToolUse` guard cannot walk the payload field by field. A payload that was not valid JSON has been allowed since v6.0.0, and the walk stopped four levels deep, so a push nested more than four levels, or more than the 100 levels Windows PowerShell parses (1,024 in PowerShell 7), went through. The walk now reaches 64 levels, and whatever it cannot reach is scanned as raw text, with JSON escapes decoded, before the call is allowed.
 
 ## [6.0.0] - 2026-09-30
 

@@ -18,6 +18,11 @@
     can evade it. It removes the accidental path; branch protection and a
     server-side policy remain the real enforcement.
 
+    The command-bearing fields are walked up to 64 levels deep. When the walk
+    cannot cover the payload, because it is nested deeper or is not valid JSON,
+    the raw payload text is also scanned, with its JSON escapes decoded, before
+    the call is allowed.
+
     Set COPILOT_ATELIER_ALLOW_REMOTE=1 in the environment to authorize a remote
     mutation. The hook then allows the command and records the override on
     standard error.
@@ -28,7 +33,8 @@
     Exit codes follow the VS Code hook contract: 0 allows, 2 blocks, and any
     other value is a non-blocking warning. The Copilot SDK host instead denies
     a preToolUse call on every non-zero exit, so this script uses only 0 and 2:
-    an unreadable payload is allowed with a warning on standard error.
+    an unreadable payload is allowed with a warning on standard error unless
+    its raw text carries a blocked command.
 #>
 
 [CmdletBinding()]
@@ -60,6 +66,12 @@ $blockedOperation = [ordered]@{
 # lacks a shell keyword, and every miss would fail open.
 $commandField = @('command', 'commandLine', 'cmd', 'script', 'args', 'arguments')
 
+# The field walk stops below this depth. Whatever it cannot reach, it reports,
+# and the raw payload text is scanned instead, so nesting cannot carry a
+# command past the guard.
+$maximumDepth = 64
+$isWalkComplete = $true
+
 function Get-CommandText {
     [CmdletBinding()]
     [OutputType([string])]
@@ -72,7 +84,12 @@ function Get-CommandText {
         [int]$Depth = 0
     )
 
-    if ($null -eq $InputObject -or $InputObject -is [string] -or $Depth -gt 4) {
+    if ($null -eq $InputObject -or $InputObject -is [string]) {
+        return ''
+    }
+
+    if ($Depth -gt $script:maximumDepth) {
+        $script:isWalkComplete = $false
         return ''
     }
 
@@ -117,16 +134,31 @@ if ([string]::IsNullOrWhiteSpace($InputJson)) {
     exit 0
 }
 
+$isPayloadReadable = $true
 try {
     $payload = $InputJson | ConvertFrom-Json -ErrorAction Stop
+    $commandText = Get-CommandText -InputObject $payload.tool_input
 } catch {
-    # Exit 0, not 1: the Copilot SDK host denies a preToolUse call on any other
-    # non-zero exit, so a payload schema change would block every tool call.
-    [Console]::Error.WriteLine('Block-RemoteMutation: hook payload is not valid JSON; allowing the tool call.')
-    exit 0
+    # Windows PowerShell rejects JSON nested past 100 levels and PowerShell 7
+    # past 1024, so an unreadable payload is not necessarily a harmless one.
+    $isPayloadReadable = $false
+    $isWalkComplete = $false
+    $commandText = ''
 }
 
-$commandText = Get-CommandText -InputObject $payload.tool_input
+if (-not $isWalkComplete) {
+    # Scan what the walk could not reach as raw text, also with its JSON escapes
+    # decoded, so neither nesting nor malformed JSON hides a blocked command.
+    $rawText = $InputJson
+    try {
+        $rawText = $rawText + ' ' + [regex]::Unescape($InputJson)
+    } catch [System.ArgumentException] {
+        Write-Verbose -Message 'The payload holds an escape Regex.Unescape rejects; it is scanned as written.'
+    }
+
+    $commandText = $commandText + ' ' + $rawText
+}
+
 if ([string]::IsNullOrWhiteSpace($commandText)) {
     exit 0
 }
@@ -152,6 +184,16 @@ foreach ($operation in $blockedOperation.GetEnumerator()) {
         'set COPILOT_ATELIER_ALLOW_REMOTE=1 for that command. Do not rewrite the command to evade this check.'
     )
     exit 2
+}
+
+if (-not $isPayloadReadable) {
+    # Exit 0, not 1: the Copilot SDK host denies a preToolUse call on any other
+    # non-zero exit, so a payload schema change would block every tool call.
+    [Console]::Error.WriteLine('Block-RemoteMutation: hook payload is not valid JSON; allowing the tool call.')
+} elseif (-not $isWalkComplete) {
+    [Console]::Error.WriteLine(
+        "Block-RemoteMutation: hook payload is nested deeper than $maximumDepth levels and its raw text holds no blocked command; allowing the tool call."
+    )
 }
 
 exit 0
