@@ -76,15 +76,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   paired cases: content 83.3% to 90.0%, decision contract 0% to 100%, all 55.6%
   to 93.3%; wrong-language replies 12 to 5. About 3.20 USD in model calls.
 
-- **2026-09-30**: Shipped contributor calibration Phase 1 on
-  `ai/contributor-calibration` (decision 0027): the always-on
-  `contributor-calibration` Instruction, `/simpler` and `/deeper`, and
-  `not sure, you pick` in `grill-me`, `software-architect`, and
-  `gilb-requirements-engineering`. New test red 19 then green 19; full Windows
-  `build,test` 2,309 passed, 1 failed at 90.74%. The failure is the v6.0.0
-  changelog gate, which fails past the tag until `updateChangelogAfterv6.0.0`
-  merges. Behavior unmeasured. Not pushed.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
