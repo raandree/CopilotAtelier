@@ -343,6 +343,102 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             $result.ExitCode | Should -Be 2 -Because $result.Output
         }
     }
+
+    Context 'when inspecting a payload would outlast the hook timeout' {
+        <#
+            Regression guard for re-review finding SEC-17: the patterns scale
+            quadratically with the git words on one line, so 64 KB of them took
+            21.5 seconds, past the 20-second hook timeout, and a timeout fails
+            open. The whole decision now has a time limit, and a payload not
+            inspected within it is blocked.
+        #>
+        BeforeAll {
+            function script:Invoke-HookWithin {
+                param(
+                    [Parameter(Mandatory)]
+                    [string]$ScriptPath,
+
+                    [Parameter(Mandatory)]
+                    [string]$Payload,
+
+                    [Parameter(Mandatory)]
+                    [int]$TimeoutSecond,
+
+                    [Parameter()]
+                    [string[]]$ArgumentList = @()
+                )
+
+                $startInfo = [Diagnostics.ProcessStartInfo]::new($script:powerShellPath)
+                foreach ($argument in @('-NoProfile', '-NonInteractive', '-File', $ScriptPath) + $ArgumentList) {
+                    $startInfo.ArgumentList.Add($argument)
+                }
+                $startInfo.UseShellExecute = $false
+                $startInfo.RedirectStandardInput = $true
+                $startInfo.RedirectStandardOutput = $true
+                $startInfo.RedirectStandardError = $true
+
+                $stopwatch = [Diagnostics.Stopwatch]::StartNew()
+                $process = [Diagnostics.Process]::Start($startInfo)
+                try {
+                    $outputTask = $process.StandardOutput.ReadToEndAsync()
+                    $errorTask = $process.StandardError.ReadToEndAsync()
+                    $process.StandardInput.Write($Payload)
+                    $process.StandardInput.Close()
+
+                    $hasExited = $process.WaitForExit($TimeoutSecond * 1000)
+                    if (-not $hasExited) {
+                        $process.Kill($true)
+                        $process.WaitForExit()
+                    }
+
+                    [pscustomobject]@{
+                        HasExited = $hasExited
+                        ExitCode = if ($hasExited) { $process.ExitCode } else { $null }
+                        Seconds = [Math]::Round($stopwatch.Elapsed.TotalSeconds, 1)
+                        Output = $outputTask.Result + $errorTask.Result
+                    }
+                } finally {
+                    $process.Dispose()
+                }
+            }
+        }
+
+        It 'blocks a deeply nested payload it cannot inspect in time' {
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
+                ('{"a":' * 70) + '{"note":"' + ('git status ' * 50000) + '"}' + ('}' * 70) + '}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Output | Should -Match 'could not be inspected'
+        }
+
+        It 'blocks a readable command it cannot inspect in time' {
+            $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command ('git status ' * 50000)
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Output | Should -Match 'could not be inspected'
+        }
+
+        It 'blocks a payload whose matches only add up to more than the time limit' {
+            # No single match here takes a second, so only a limit on the whole
+            # decision stops it: uncapped, four patterns over four raw texts ran
+            # 5.8 seconds. The payload holds no blocked command, so exit 2 can
+            # only come from the time limit.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
+                ('{"a":' * 70) + '{"note":"' + ('git reset git clean gh api ' * 900) + '"}' + ('}' * 70) + '}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15 -ArgumentList '-TimeLimitSecond', '0.5'
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because "it ran $($result.Seconds) s: $($result.Output)"
+            $result.Output | Should -Match 'could not be inspected'
+        }
+    }
 }
 
 Describe 'Add-SessionContext' -Tag 'Unit' {

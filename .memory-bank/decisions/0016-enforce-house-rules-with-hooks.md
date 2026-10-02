@@ -126,13 +126,18 @@ Consequences:
   `; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + <failure code>)[0]`,
   which the outer PowerShell runs. `command` cannot carry that statement, because
   `sh` runs `command` too.
-- The same review's Major findings are fixed:
+- The Major findings of that review and of its two re-reviews are fixed:
   - The launchers search `USERPROFILE` before `HOME`, so a planted or unreachable
     `HOME` can no longer win or time the guard out.
   - The guard scans the raw payload when it cannot walk it field by field.
+  - The guard blocks a payload it has not inspected within five seconds.
+    Some patterns slow down quadratically, and a hook timeout lets the call
+    through.
 - The per-command override in the decision outcome cannot work. An authorized
   push runs in the user's own terminal, and the guard's message, `AGENTS.md`, and
-  the hooks README say so.
+  the hooks README say so. A value persisted in the user environment would
+  reach every host started later and turn the guard off there, so it must never
+  be persisted.
 - The Copilot SDK host gets its own `powershell` launcher, which the reference
   says it prefers on Windows: `command` plus the same statement. On a block the
   guard also prints one JSON deny object on standard output, top-level for the

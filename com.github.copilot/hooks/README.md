@@ -112,7 +112,11 @@ blocked command, such as a document in an unreadable payload, is blocked too.
 Otherwise a payload that is not valid JSON is
 allowed with a warning on standard error and exit `0`: the Copilot SDK host
 denies a `preToolUse` call on every other non-zero exit, so a payload schema
-change would otherwise block every tool call.
+change would otherwise block every tool call. The whole decision has a time
+limit of five seconds, a quarter of the hook timeout. Some patterns slow down
+quadratically on one long line of `git` words, so a payload the guard has not
+inspected within the limit is blocked rather than left to the timeout, which
+would let it through.
 
 ### Authorizing a remote mutation
 
@@ -127,7 +131,9 @@ the variable inside the blocked command cannot work either, because the hook
 judges the command before it runs.
 
 So the user runs an authorized push in their own terminal. The agent hands over
-the exact command and does not retry it.
+the exact command and does not retry it. A value persisted in the user
+environment, for example with `setx`, is different: every host started
+afterwards inherits it and runs with the guard off, so never persist it.
 
 `COPILOT_ATELIER_ALLOW_REMOTE=1` still allows a blocked command when it is set
 in the hook's own environment, for example in the environment VS Code itself
@@ -322,6 +328,8 @@ which survives because Instructions are re-sent with every request.
   `timeout` as an alias of its own `timeoutSec` and, unlike every other failure,
   lets a timed-out `preToolUse` hook through. Investigate slow filesystem access
   before changing the limit; do not replace a bounded hook with an unlimited one.
+  The `PreToolUse` guard keeps its own decision under five seconds and blocks
+  what it cannot inspect in that time, so a slow payload cannot ride the timeout.
 - **A redeployed hook does not take effect.** The Copilot SDK host reads hook
   configuration when a session starts; a chat that was already open, and the
   subagents it starts, keep what they loaded. Start a new chat.

@@ -24,14 +24,24 @@
     the raw payload text is also scanned, with its JSON escapes decoded and
     without its JSON punctuation, before the call is allowed. That errs toward
     blocking: there, a payload that only mentions a blocked command is blocked.
+    The whole decision has a time limit, five seconds by default, and a payload
+    not inspected within it is blocked, so a slow scan never outlasts the hook
+    timeout, which fails open.
 
     COPILOT_ATELIER_ALLOW_REMOTE=1 in the hook's own environment allows a
     blocked command and records the override on standard error. An agent
-    cannot set it: each host starts the hook with its own environment, not the
-    agent terminal's, so an authorized push runs in the user's own terminal.
+    cannot set it for the running host: each host starts the hook with its own
+    environment, not the agent terminal's, so an authorized push runs in the
+    user's own terminal. A value persisted in the user environment, for example
+    with setx, reaches every host started later and turns the guard off there,
+    so never persist it.
 .PARAMETER InputJson
     Hook payload as JSON. Defaults to reading standard input. Tests pass the
     payload directly so they do not depend on redirected input.
+.PARAMETER TimeLimitSecond
+    Longest time, in seconds, the guard may take to decide, counted from its
+    start. Defaults to 5 and accepts 0.1 to 10, which keeps the decision well
+    inside the 20-second hook timeout. The hook never passes it; tests lower it.
 .NOTES
     Exit codes follow the VS Code hook contract: 0 allows, 2 blocks, and any
     other value is a non-blocking warning. The Copilot SDK host instead denies
@@ -45,8 +55,15 @@ param(
     [Parameter()]
     [AllowEmptyString()]
     [AllowNull()]
-    [string]$InputJson
+    [string]$InputJson,
+
+    [Parameter()]
+    [ValidateRange(0.1, 10.0)]
+    [double]$TimeLimitSecond = 5
 )
+
+# The time limit counts from here, so it also covers reading and parsing the payload.
+$decisionClock = [System.Diagnostics.Stopwatch]::StartNew()
 
 # First match wins; the most consequential rule is listed first. Each git rule
 # anchors on the subcommand position so a branch name, commit message, or
@@ -68,6 +85,14 @@ $blockedOperation = [ordered]@{
 # of these is tool-agnostic; gating on the tool name misses executors whose name
 # lacks a shell keyword, and every miss would fail open.
 $commandField = @('command', 'commandLine', 'cmd', 'script', 'args', 'arguments')
+
+# Some patterns scan to the end of the line from every git word, which grows
+# quadratically: 64 KB of git words took 21.5 seconds, past the 20-second hook
+# timeout, and a timeout fails open in the Copilot SDK host. Many matches that
+# each stay under a second add up the same way, so the limit covers the whole
+# decision: every match gets only the time left, and a payload not inspected in
+# time is blocked.
+$timeLimit = [TimeSpan]::FromSeconds($TimeLimitSecond)
 
 # The field walk stops below this depth. Whatever it cannot reach, it reports,
 # and the raw payload text is scanned instead, so nesting cannot carry a
@@ -149,9 +174,16 @@ try {
     $commandText = ''
 }
 
+$scanText = [System.Collections.Generic.List[string]]::new()
+if (-not [string]::IsNullOrWhiteSpace($commandText)) {
+    $scanText.Add($commandText)
+}
+
 if (-not $isWalkComplete) {
     # Scan what the walk could not reach as raw text, also with its JSON escapes
     # decoded, so neither nesting nor malformed JSON hides a blocked command.
+    # Each text is scanned on its own: one joined text would only make the
+    # quadratic patterns slower.
     $rawText = [System.Collections.Generic.List[string]]::new()
     $rawText.Add($InputJson)
     try {
@@ -166,32 +198,57 @@ if (-not $isWalkComplete) {
         $rawText.Add(($text -replace '["\[\],]', ' '))
     }
 
-    $commandText = $commandText + ' ' + ($rawText -join ' ')
+    $scanText.AddRange($rawText)
 }
 
-if ([string]::IsNullOrWhiteSpace($commandText)) {
+if ($scanText.Count -eq 0) {
     exit 0
 }
 
 # Fold shell line continuations so a split command cannot hide the subcommand.
-$commandText = $commandText -replace '[`^\\]\r?\n\s*', ' '
+for ($index = 0; $index -lt $scanText.Count; $index++) {
+    $scanText[$index] = $scanText[$index] -replace '[`^\\]\r?\n\s*', ' '
+}
 
-foreach ($operation in $blockedOperation.GetEnumerator()) {
-    if ($commandText -notmatch $operation.Value) {
-        continue
+$notInspectedInTime = 'this command could not be inspected within the time limit'
+$blockedBecause = $null
+:operation foreach ($operation in $blockedOperation.GetEnumerator()) {
+    foreach ($text in $scanText) {
+        $timeLeft = $timeLimit - $decisionClock.Elapsed
+        if ($timeLeft -le [TimeSpan]::Zero) {
+            $blockedBecause = $notInspectedInTime
+            break operation
+        }
+
+        try {
+            $pattern = [regex]::new(
+                $operation.Value,
+                [System.Text.RegularExpressions.RegexOptions]::IgnoreCase,
+                $timeLeft
+            )
+            if ($pattern.IsMatch($text)) {
+                $blockedBecause = "this command $($operation.Key)"
+                break operation
+            }
+        } catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
+            $blockedBecause = $notInspectedInTime
+            break operation
+        }
     }
+}
 
+if ($blockedBecause) {
     if ($env:COPILOT_ATELIER_ALLOW_REMOTE -eq '1') {
         [Console]::Error.WriteLine(
-            "Block-RemoteMutation: allowed by COPILOT_ATELIER_ALLOW_REMOTE - command $($operation.Key)."
+            "Block-RemoteMutation: allowed by COPILOT_ATELIER_ALLOW_REMOTE - $blockedBecause."
         )
         exit 0
     }
 
-    $reason = "Blocked by Copilot Atelier: this command $($operation.Key), which the house rules forbid " +
-        'without explicit per-turn authorization from the user. If the user asked for it in this turn, ' +
-        'hand them the exact command to run in their own terminal; an agent cannot lift this block. ' +
-        'Do not rewrite the command to evade this check.'
+    $reason = "Blocked by Copilot Atelier: $blockedBecause, and the house rules forbid remote-mutating " +
+        'or irreversible commands without explicit per-turn authorization from the user. If the user ' +
+        'asked for it in this turn, hand them the exact command to run in their own terminal; an agent ' +
+        'cannot lift this block. Do not rewrite the command to evade this check.'
 
     # VS Code reads the reason from standard error on exit 2. The Copilot SDK host
     # ignores standard error then and merges one JSON object from standard output
