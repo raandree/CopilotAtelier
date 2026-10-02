@@ -26,7 +26,9 @@ under `[Unreleased]` in `CHANGELOG.md`.
 - **2026-10-02**: Merged into local `main` by fast-forward: the v6.0.0 rollover
   (`4ee08c2`), its dropped final newline (`12428d6`), and the SessionStart fix
   replayed on top (`b9cee3b`, `139c06c`, `09e2798`), with its changelog entry
-  moved back under `[Unreleased]`. Not pushed, not deployed.
+  moved back under `[Unreleased]`. Full gate on `main`: 2,288 passed, 0
+  failed, 121 skipped, 90.74%. Worktree and fix branch removed. Not pushed,
+  not deployed.
 
 - **2026-10-01**: Fixed the missing SessionStart context on
   `ai/sdk-session-context` (`7bc21c6`, docs `3c4dc35` and later). The Copilot
