@@ -129,7 +129,8 @@ Consequences:
 - The Major findings of that review and of its re-reviews are fixed:
   - The launchers search `USERPROFILE` before `HOME`, so a planted or unreachable
     `HOME` can no longer win or time the guard out.
-  - The guard scans the raw payload when it cannot walk it field by field.
+  - The guard scans the raw payload when it cannot walk it field by field,
+    joining split command fields as the walk does.
   - The guard blocks a payload it has not inspected within five seconds.
     Some patterns slow down quadratically, parsing and walking a payload with
     very many values cannot be interrupted, and a hook timeout lets the call

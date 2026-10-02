@@ -352,7 +352,10 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             open. The whole decision now has a time limit, and a payload not
             inspected within it is blocked. Its re-check found the parse and the
             field walk unbounded (SEC-20 to SEC-22); they are bounded by size,
-            by the number of values, and by half the time limit.
+            by the number of values, and by half the time limit. The next one
+            found the raw text scan blind to a command split across fields and
+            too slow under PowerShell 7 for a large benign write (SEC-23 to
+            SEC-25).
         #>
         BeforeAll {
             function script:Invoke-HookWithin {
@@ -496,17 +499,66 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             $result.Output | Should -Match 'pushes to a git remote'
         }
 
-        It 'blocks a push even with an out-of-range time limit of <TimeLimit> seconds' -ForEach @(
+        It 'blocks a push even with an invalid time limit of <TimeLimit>' -ForEach @(
             @{ TimeLimit = '0' }
             @{ TimeLimit = '100' }
+            @{ TimeLimit = 'abc' }
         ) {
-            # Finding SEC-22: a rejected parameter exits 1, which VS Code treats
-            # as a warning, so the guard clamps the value instead.
+            # Findings SEC-22 and SEC-25: a rejected parameter exits 1, which
+            # VS Code treats as a warning, so the guard clamps the value and
+            # falls back to the default for one that is not a number.
             $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
 
             $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload -ExtraArgument '-TimeLimitSecond', $TimeLimit
 
             $result.ExitCode | Should -Be 2 -Because $result.Output
+        }
+
+        It 'blocks a push split across command fields when <Case>' -ForEach @(
+            @{ Case = 'the payload is too large to walk'; Padding = 'large'; Between = '' }
+            @{ Case = 'the walk runs out of values'; Padding = 'values'; Between = '' }
+            @{ Case = 'the fields are nested past the walk'; Padding = 'deep'; Between = '' }
+            @{ Case = 'another field sits between the parts'; Padding = 'large'; Between = ',"cwd":"/repo"' }
+        ) {
+            # Re-check finding SEC-23: the walk joins every command-bearing field,
+            # so {"command":"git","args":["push"]} reads as one command line. The
+            # raw text scan kept the field names between the parts, so whenever
+            # the walk was cut short, the split push went through.
+            $split = '"command":"git"' + $Between + ',"args":["push","origin","main"]'
+            $payload = switch ($Padding) {
+                'large' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                        ((, '{"x":"a"}') * 120000 -join ',') + '],' + $split + '}}'
+                }
+                'values' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                        ((, '{"x":0}') * 25000 -join ',') + '],' + $split + '}}'
+                }
+                'deep' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
+                        ('{"a":' * 70) + '{' + $split + '}' + ('}' * 70) + '}'
+                }
+            }
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Output | Should -Match 'pushes to a git remote'
+        }
+
+        It 'allows a large benign write with no git or gh text in time' {
+            # Re-check finding SEC-24: under pwsh every pattern scan of a 3 MB
+            # text took about 210 ms, so a benign write over 2.3 MB ran out of
+            # time and was blocked. A text without git or gh matches no pattern.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"create_file","tool_input":{"filePath":"notes.txt","content":"' +
+                ('lorem ipsum dolor sit amet, ' * 110000) + '"}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $result.Output | Should -Match 'too large to walk field by field'
         }
     }
 }

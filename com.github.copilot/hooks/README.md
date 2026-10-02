@@ -105,11 +105,15 @@ that host, and the same pair under `hookSpecificOutput` for VS Code. The
 command-bearing fields are walked up to 64 levels deep and 20,000 values, in a
 payload of up to 1 MB. When the walk cannot cover a payload, because it is
 nested deeper, larger, holds more values, or is not valid JSON,
-its raw text is also scanned three ways: as written, with JSON escapes decoded,
-and without the JSON punctuation, so an argument array such as
-`["git","push"]` reads as the command it is. A blocked command found there
-blocks the call. That path errs toward blocking: a payload that only mentions a
-blocked command, such as a document in an unreadable payload, is blocked too.
+its raw text is also scanned: as written, with JSON escapes decoded, and
+without the JSON punctuation, so an argument array such as `["git","push"]`
+reads as the command it is. The command-bearing fields are also pulled out of
+it and joined the way the walk joins them, so a command split across fields,
+such as `{"command":"git","args":["push"]}`, reads as one line too. A blocked
+command found there blocks the call. That path errs toward blocking: a payload
+that only mentions a blocked command, such as a document in an unreadable
+payload, is blocked too. A text with neither `git` nor `gh` in it is skipped,
+because every pattern needs one of them.
 Otherwise a payload that is not valid JSON is
 allowed with a warning on standard error and exit `0`: the Copilot SDK host
 denies a `preToolUse` call on every other non-zero exit, so a payload schema

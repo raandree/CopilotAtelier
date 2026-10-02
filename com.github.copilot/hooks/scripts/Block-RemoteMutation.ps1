@@ -42,9 +42,10 @@
     payload directly so they do not depend on redirected input.
 .PARAMETER TimeLimitSecond
     Longest time, in seconds, the guard may take to decide, counted from its
-    start. Defaults to 5. A value outside 0.1 to 10 is clamped into that range
-    rather than rejected, because a rejected parameter would exit 1, which
-    VS Code treats as a warning. The hook never passes it; tests lower it.
+    start. Defaults to 5. A value outside 0.1 to 10 is clamped into that range,
+    and one that is not a number falls back to 5, rather than being rejected:
+    a rejected parameter would exit 1, which VS Code treats as a warning. The
+    hook never passes it; tests lower it.
 .NOTES
     Exit codes follow the VS Code hook contract: 0 allows, 2 blocks, and any
     other value is a non-blocking warning. The Copilot SDK host instead denies
@@ -61,18 +62,28 @@ param(
     [string]$InputJson,
 
     [Parameter()]
-    [double]$TimeLimitSecond = 5
+    [string]$TimeLimitSecond = '5'
 )
 
 # The time limit counts from here, so it also covers reading and parsing the payload.
 $decisionClock = [System.Diagnostics.Stopwatch]::StartNew()
 
-# Clamp rather than validate: a rejected parameter exits 1, which VS Code treats
-# as a warning, so a bad value would let a blocked command through.
-if (-not ($TimeLimitSecond -ge 0.1)) {
-    $TimeLimitSecond = 0.1
-} elseif ($TimeLimitSecond -gt 10) {
-    $TimeLimitSecond = 10
+# Parse and clamp rather than validate: a rejected parameter exits 1, which
+# VS Code treats as a warning, so a bad value would let a blocked command through.
+$timeLimitValue = 0.0
+$isNumber = [double]::TryParse(
+    $TimeLimitSecond,
+    [System.Globalization.NumberStyles]::Float,
+    [System.Globalization.CultureInfo]::InvariantCulture,
+    [ref]$timeLimitValue
+)
+if (-not $isNumber) {
+    $timeLimitValue = 5
+}
+if (-not ($timeLimitValue -ge 0.1)) {
+    $timeLimitValue = 0.1
+} elseif ($timeLimitValue -gt 10) {
+    $timeLimitValue = 10
 }
 
 # First match wins; the most consequential rule is listed first. Each git rule
@@ -96,13 +107,18 @@ $blockedOperation = [ordered]@{
 # lacks a shell keyword, and every miss would fail open.
 $commandField = @('command', 'commandLine', 'cmd', 'script', 'args', 'arguments')
 
+# The same fields in raw JSON text: a string value, or a flat array of values.
+$rawFieldPattern = '"(?:' + (($commandField | ForEach-Object { [regex]::Escape($_) }) -join '|') +
+    ')"\s*:\s*(?:"((?:[^"\\]|\\.)*)"|\[([^\[\]]*)\])'
+
 # Some patterns scan to the end of the line from every git word, which grows
 # quadratically: 64 KB of git words took 21.5 seconds, past the 20-second hook
 # timeout, and a timeout fails open in the Copilot SDK host. Many matches that
 # each stay under a second add up the same way, so the limit covers the whole
 # decision: every match gets only the time left, and a payload not inspected in
 # time is blocked.
-$timeLimit = [TimeSpan]::FromSeconds($TimeLimitSecond)
+$timeLimit = [TimeSpan]::FromSeconds($timeLimitValue)
+$notInspectedInTime = 'this command could not be inspected within the time limit'
 
 # Parsing and the field walk cannot be interrupted, and 300,000 small objects
 # kept the walk busy past the hook timeout. So only a payload up to 1 MB is
@@ -225,6 +241,68 @@ function Block-ToolCall {
     exit 2
 }
 
+function Join-RawCommandField {
+    <#
+        Joins the command-bearing fields found in raw JSON text the way the walk
+        joins them, so a command split across fields, such as
+        {"command":"git","args":["push"]}, reads as one command line. It shares
+        the decision's time limit and blocks the call when that runs out.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Text,
+
+        [Parameter()]
+        [switch]$DecodeValue
+    )
+
+    $part = [System.Collections.Generic.List[string]]::new()
+    try {
+        $timeLeft = $script:timeLimit - $script:decisionClock.Elapsed
+        if ($timeLeft -le [TimeSpan]::Zero) {
+            Block-ToolCall -Because $script:notInspectedInTime
+        }
+
+        $fieldPattern = [regex]::new(
+            $script:rawFieldPattern,
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase,
+            $timeLeft
+        )
+
+        # Match and NextMatch rather than enumerating Matches: a timeout raised
+        # inside foreach's enumeration would not reach the catch below as itself.
+        $match = $fieldPattern.Match($Text)
+        while ($match.Success) {
+            if ($script:decisionClock.Elapsed -gt $script:timeLimit) {
+                Block-ToolCall -Because $script:notInspectedInTime
+            }
+
+            $value = if ($match.Groups[1].Success) { $match.Groups[1].Value } else { $match.Groups[2].Value }
+            if ($DecodeValue -and $value.Contains('\')) {
+                try {
+                    $value = [regex]::Unescape($value)
+                } catch [System.ArgumentException] {
+                    Write-Verbose -Message 'A field holds an escape Regex.Unescape rejects; it is joined as written.'
+                }
+            }
+
+            if (-not $match.Groups[1].Success) {
+                $value = $value -replace '["\[\],]', ' '
+            }
+
+            $part.Add($value)
+            $match = $match.NextMatch()
+        }
+    } catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
+        Block-ToolCall -Because $script:notInspectedInTime
+    }
+
+    return ($part -join ' ')
+}
+
 if ([string]::IsNullOrEmpty($InputJson)) {
     # Decode explicitly: Windows PowerShell would otherwise use the console input
     # encoding, which mangles non-ASCII payloads that pwsh reads as UTF-8.
@@ -274,10 +352,23 @@ if (-not $isWalkComplete) {
     # quadratic patterns slower.
     $rawText = [System.Collections.Generic.List[string]]::new()
     $rawText.Add($InputJson)
-    try {
-        $rawText.Add([regex]::Unescape($InputJson))
-    } catch [System.ArgumentException] {
-        Write-Verbose -Message 'The payload holds an escape Regex.Unescape rejects; it is scanned as written.'
+    if ($InputJson.Contains('\')) {
+        try {
+            $rawText.Add([regex]::Unescape($InputJson))
+        } catch [System.ArgumentException] {
+            Write-Verbose -Message 'The payload holds an escape Regex.Unescape rejects; it is scanned as written.'
+        }
+    }
+
+    # The walk joins every command-bearing field it finds, which the raw text
+    # cannot: there, field names and other fields sit between the parts of a
+    # command split across fields. So the same fields are pulled out of the raw
+    # text and joined, as written with each value decoded and, for a key spelled
+    # with escapes, from the decoded text. They are short, so they go first.
+    $fieldText = [System.Collections.Generic.List[string]]::new()
+    $fieldText.Add((Join-RawCommandField -Text $InputJson -DecodeValue))
+    if ($rawText.Count -gt 1) {
+        $fieldText.Add((Join-RawCommandField -Text $rawText[1]))
     }
 
     # An argument array reads as ["git","push"] in raw JSON. Without the JSON
@@ -286,6 +377,11 @@ if (-not $isWalkComplete) {
         $rawText.Add(($text -replace '["\[\],]', ' '))
     }
 
+    foreach ($text in $fieldText) {
+        if (-not [string]::IsNullOrWhiteSpace($text)) {
+            $scanText.Add($text)
+        }
+    }
     $scanText.AddRange($rawText)
 }
 
@@ -298,7 +394,16 @@ for ($index = 0; $index -lt $scanText.Count; $index++) {
     $scanText[$index] = $scanText[$index] -replace '[`^\\]\r?\n\s*', ' '
 }
 
-$notInspectedInTime = 'this command could not be inspected within the time limit'
+# Every pattern needs a git or gh word. Searching for one costs a fraction of a
+# pattern scan, which under PowerShell 7 takes about 70 ms per MB, so a text
+# without either is not scanned at all.
+$scanText = @(
+    $scanText | Where-Object {
+        $_.IndexOf('git', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+        $_.IndexOf('gh', [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+    }
+)
+
 $blockedBecause = $null
 :operation foreach ($operation in $blockedOperation.GetEnumerator()) {
     foreach ($text in $scanText) {
