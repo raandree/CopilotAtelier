@@ -15,6 +15,12 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-02**: Live check A2 in a Copilot SDK chat (VS Code 1.140.0, SDK
+  1.0.15-preview.4): the guard blocks through the new `powershell` launcher,
+  but the model reads only the runtime's own `hook exited with code 2`. Spawned
+  as that host spawns it, the deployed guard writes the reason to standard error
+  and as one JSON object to standard output; the runtime uses neither on exit 2.
+
 - **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
   `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
   - The post-release review failed the v6.0.0 launcher fix: in VS Code Local
@@ -58,11 +64,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   `09e2798`; full gate 2,288 passed, 0 failed). The Copilot SDK host reads only
   a top-level `additionalContext` and VS Code Local `hookSpecificOutput`; the
   hook writes both.
-
-- **2026-10-01**: Closed the independent review of contributor calibration
-  (4 Major, then a passing fix round; F-03 closed on 2026-10-02). The private
-  eval's pinned `gpt-5.5` judge agrees with human labels on 38 of 40: 100% with
-  the Instruction against 52.1% without, for about 7.36 USD in model calls.
 
 ## Stable capabilities
 
@@ -109,8 +110,9 @@ under `[Unreleased]` in `CHANGELOG.md`.
   chats:
   - prompt 01's two-chat check;
   - prompt 05's VS Code Local probe and its override test;
-  - prompt 06's probe in a new Copilot SDK chat: does it run the new
-    `powershell` launcher and show the reason?
+  - prompt 06's SDK reason (A2 above): the hook's comments and tests assume a
+    stdout merge on exit 2 that the runtime does not do; find an output it
+    reads (a JSON deny on exit 0 would fail open if unparsed), verify it live;
   - prompt 04 on the hand-patched machine, once `main` is pushed.
 - Copilot SDK chats load every Instruction twice, once as `C:\Users\…` and once
   as `c:\Users\…`. VS Code discovers `~/.copilot/instructions` as a default
