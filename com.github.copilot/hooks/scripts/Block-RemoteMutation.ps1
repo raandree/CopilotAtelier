@@ -19,14 +19,16 @@
     can evade it. It removes the accidental path; branch protection and a
     server-side policy remain the real enforcement.
 
-    The command-bearing fields are walked up to 64 levels deep. When the walk
-    cannot cover the payload, because it is nested deeper or is not valid JSON,
-    the raw payload text is also scanned, with its JSON escapes decoded and
-    without its JSON punctuation, before the call is allowed. That errs toward
-    blocking: there, a payload that only mentions a blocked command is blocked.
-    The whole decision has a time limit, five seconds by default, and a payload
-    not inspected within it is blocked, so a slow scan never outlasts the hook
-    timeout, which fails open.
+    The command-bearing fields are walked up to 64 levels deep and 20,000
+    values, in payloads up to 1 MB. When the walk cannot cover the payload,
+    because it is nested deeper, larger, holds more values, or is not valid
+    JSON, the raw payload text is also scanned, with its JSON escapes decoded
+    and without its JSON punctuation, before the call is allowed. That errs
+    toward blocking: there, a payload that only mentions a blocked command is
+    blocked. The whole decision has a time limit, five seconds by default, of
+    which the walk may use half. A payload not inspected within it is blocked,
+    and so is one larger than 4 MB, so no payload outlasts the hook timeout,
+    which fails open.
 
     COPILOT_ATELIER_ALLOW_REMOTE=1 in the hook's own environment allows a
     blocked command and records the override on standard error. An agent
@@ -40,8 +42,9 @@
     payload directly so they do not depend on redirected input.
 .PARAMETER TimeLimitSecond
     Longest time, in seconds, the guard may take to decide, counted from its
-    start. Defaults to 5 and accepts 0.1 to 10, which keeps the decision well
-    inside the 20-second hook timeout. The hook never passes it; tests lower it.
+    start. Defaults to 5. A value outside 0.1 to 10 is clamped into that range
+    rather than rejected, because a rejected parameter would exit 1, which
+    VS Code treats as a warning. The hook never passes it; tests lower it.
 .NOTES
     Exit codes follow the VS Code hook contract: 0 allows, 2 blocks, and any
     other value is a non-blocking warning. The Copilot SDK host instead denies
@@ -58,12 +61,19 @@ param(
     [string]$InputJson,
 
     [Parameter()]
-    [ValidateRange(0.1, 10.0)]
     [double]$TimeLimitSecond = 5
 )
 
 # The time limit counts from here, so it also covers reading and parsing the payload.
 $decisionClock = [System.Diagnostics.Stopwatch]::StartNew()
+
+# Clamp rather than validate: a rejected parameter exits 1, which VS Code treats
+# as a warning, so a bad value would let a blocked command through.
+if (-not ($TimeLimitSecond -ge 0.1)) {
+    $TimeLimitSecond = 0.1
+} elseif ($TimeLimitSecond -gt 10) {
+    $TimeLimitSecond = 10
+}
 
 # First match wins; the most consequential rule is listed first. Each git rule
 # anchors on the subcommand position so a branch name, commit message, or
@@ -94,11 +104,24 @@ $commandField = @('command', 'commandLine', 'cmd', 'script', 'args', 'arguments'
 # time is blocked.
 $timeLimit = [TimeSpan]::FromSeconds($TimeLimitSecond)
 
+# Parsing and the field walk cannot be interrupted, and 300,000 small objects
+# kept the walk busy past the hook timeout. So only a payload up to 1 MB is
+# parsed, and the walk stops after 20,000 values or half the time limit; what
+# it did not cover is scanned as raw text, which the time limit does bound. A
+# payload over 4 MB is blocked unscanned: no model writes a tool call that
+# large, and even the linear passes over it take seconds.
+$maximumParseLength = 1MB
+$maximumPayloadLength = 4MB
+$maximumVisitCount = 20000
+$walkTimeLimit = [TimeSpan]::FromTicks([long]($timeLimit.Ticks / 2))
+$visitCount = 0
+
 # The field walk stops below this depth. Whatever it cannot reach, it reports,
 # and the raw payload text is scanned instead, so nesting cannot carry a
 # command past the guard.
 $maximumDepth = 64
 $isWalkComplete = $true
+$walkStopReason = $null
 
 function Get-CommandText {
     [CmdletBinding()]
@@ -118,12 +141,20 @@ function Get-CommandText {
 
     if ($Depth -gt $script:maximumDepth) {
         $script:isWalkComplete = $false
+        $script:walkStopReason = "is nested deeper than $script:maximumDepth levels"
         return ''
     }
 
     $collected = [System.Collections.Generic.List[string]]::new()
 
     foreach ($property in $InputObject.PSObject.Properties) {
+        $script:visitCount++
+        if ($script:visitCount -gt $script:maximumVisitCount -or $script:decisionClock.Elapsed -gt $script:walkTimeLimit) {
+            $script:isWalkComplete = $false
+            $script:walkStopReason = 'has too many values to walk in time'
+            break
+        }
+
         $value = $property.Value
 
         if ($property.Name -in $script:commandField) {
@@ -135,6 +166,13 @@ function Get-CommandText {
         }
 
         foreach ($child in @($value)) {
+            $script:visitCount++
+            if ($script:visitCount -gt $script:maximumVisitCount -or $script:decisionClock.Elapsed -gt $script:walkTimeLimit) {
+                $script:isWalkComplete = $false
+                $script:walkStopReason = 'has too many values to walk in time'
+                break
+            }
+
             if ($child -is [psobject] -and $child.PSObject.Properties.Name.Count -gt 0 -and $child -isnot [string] -and $child -isnot [ValueType]) {
                 $nested = Get-CommandText -InputObject $child -Depth ($Depth + 1)
                 if (-not [string]::IsNullOrWhiteSpace($nested)) {
@@ -145,6 +183,46 @@ function Get-CommandText {
     }
 
     return ($collected -join ' ')
+}
+
+function Block-ToolCall {
+    <#
+        Ends the script with exit 2 and the reason, or with exit 0 when the
+        override is set in the hook's own environment.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Because
+    )
+
+    if ($env:COPILOT_ATELIER_ALLOW_REMOTE -eq '1') {
+        [Console]::Error.WriteLine(
+            "Block-RemoteMutation: allowed by COPILOT_ATELIER_ALLOW_REMOTE - $Because."
+        )
+        exit 0
+    }
+
+    $reason = "Blocked by Copilot Atelier: $Because, and the house rules forbid remote-mutating " +
+        'or irreversible commands without explicit per-turn authorization from the user. If the user ' +
+        'asked for it in this turn, hand them the exact command to run in their own terminal; an agent ' +
+        'cannot lift this block. Do not rewrite the command to evade this check.'
+
+    # VS Code reads the reason from standard error on exit 2. The Copilot SDK host
+    # ignores standard error then and merges one JSON object from standard output
+    # into the deny, so the same reason also goes there, in both hosts' shapes.
+    [Console]::Error.WriteLine($reason)
+    $decision = [ordered]@{
+        permissionDecision = 'deny'
+        permissionDecisionReason = $reason
+        hookSpecificOutput = [ordered]@{
+            hookEventName = 'PreToolUse'
+            permissionDecision = 'deny'
+            permissionDecisionReason = $reason
+        }
+    }
+    [Console]::Out.WriteLine(($decision | ConvertTo-Json -Depth 3 -Compress))
+    exit 2
 }
 
 if ([string]::IsNullOrEmpty($InputJson)) {
@@ -162,16 +240,26 @@ if ([string]::IsNullOrWhiteSpace($InputJson)) {
     exit 0
 }
 
+if ($InputJson.Length -gt $maximumPayloadLength) {
+    Block-ToolCall -Because 'this tool call is too large to inspect'
+}
+
 $isPayloadReadable = $true
-try {
-    $payload = $InputJson | ConvertFrom-Json -ErrorAction Stop
-    $commandText = Get-CommandText -InputObject $payload.tool_input
-} catch {
-    # Windows PowerShell rejects JSON nested past 100 levels and PowerShell 7
-    # past 1024, so an unreadable payload is not necessarily a harmless one.
-    $isPayloadReadable = $false
+if ($InputJson.Length -gt $maximumParseLength) {
     $isWalkComplete = $false
+    $walkStopReason = 'is too large to walk field by field'
     $commandText = ''
+} else {
+    try {
+        $payload = $InputJson | ConvertFrom-Json -ErrorAction Stop
+        $commandText = Get-CommandText -InputObject $payload.tool_input
+    } catch {
+        # Windows PowerShell rejects JSON nested past 100 levels and PowerShell 7
+        # past 1024, so an unreadable payload is not necessarily a harmless one.
+        $isPayloadReadable = $false
+        $isWalkComplete = $false
+        $commandText = ''
+    }
 }
 
 $scanText = [System.Collections.Generic.List[string]]::new()
@@ -238,33 +326,7 @@ $blockedBecause = $null
 }
 
 if ($blockedBecause) {
-    if ($env:COPILOT_ATELIER_ALLOW_REMOTE -eq '1') {
-        [Console]::Error.WriteLine(
-            "Block-RemoteMutation: allowed by COPILOT_ATELIER_ALLOW_REMOTE - $blockedBecause."
-        )
-        exit 0
-    }
-
-    $reason = "Blocked by Copilot Atelier: $blockedBecause, and the house rules forbid remote-mutating " +
-        'or irreversible commands without explicit per-turn authorization from the user. If the user ' +
-        'asked for it in this turn, hand them the exact command to run in their own terminal; an agent ' +
-        'cannot lift this block. Do not rewrite the command to evade this check.'
-
-    # VS Code reads the reason from standard error on exit 2. The Copilot SDK host
-    # ignores standard error then and merges one JSON object from standard output
-    # into the deny, so the same reason also goes there, in both hosts' shapes.
-    [Console]::Error.WriteLine($reason)
-    $decision = [ordered]@{
-        permissionDecision = 'deny'
-        permissionDecisionReason = $reason
-        hookSpecificOutput = [ordered]@{
-            hookEventName = 'PreToolUse'
-            permissionDecision = 'deny'
-            permissionDecisionReason = $reason
-        }
-    }
-    [Console]::Out.WriteLine(($decision | ConvertTo-Json -Depth 3 -Compress))
-    exit 2
+    Block-ToolCall -Because $blockedBecause
 }
 
 if (-not $isPayloadReadable) {
@@ -273,7 +335,7 @@ if (-not $isPayloadReadable) {
     [Console]::Error.WriteLine('Block-RemoteMutation: hook payload is not valid JSON; allowing the tool call.')
 } elseif (-not $isWalkComplete) {
     [Console]::Error.WriteLine(
-        "Block-RemoteMutation: hook payload is nested deeper than $maximumDepth levels and its raw text holds no blocked command; allowing the tool call."
+        "Block-RemoteMutation: hook payload $walkStopReason and its raw text holds no blocked command; allowing the tool call."
     )
 }
 

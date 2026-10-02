@@ -126,13 +126,15 @@ Consequences:
   `; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + <failure code>)[0]`,
   which the outer PowerShell runs. `command` cannot carry that statement, because
   `sh` runs `command` too.
-- The Major findings of that review and of its two re-reviews are fixed:
+- The Major findings of that review and of its re-reviews are fixed:
   - The launchers search `USERPROFILE` before `HOME`, so a planted or unreachable
     `HOME` can no longer win or time the guard out.
   - The guard scans the raw payload when it cannot walk it field by field.
   - The guard blocks a payload it has not inspected within five seconds.
-    Some patterns slow down quadratically, and a hook timeout lets the call
-    through.
+    Some patterns slow down quadratically, parsing and walking a payload with
+    very many values cannot be interrupted, and a hook timeout lets the call
+    through. So it parses only up to 1 MB, walks only up to 20,000 values, and
+    blocks a payload over 4 MB unscanned.
 - The per-command override in the decision outcome cannot work. An authorized
   push runs in the user's own terminal, and the guard's message, `AGENTS.md`, and
   the hooks README say so. A value persisted in the user environment would

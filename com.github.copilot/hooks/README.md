@@ -102,8 +102,9 @@ the model. On exit `2` the Copilot SDK host ignores standard error and merges on
 JSON object from standard output into the deny, so the guard also prints the
 reason there: top-level `permissionDecision` and `permissionDecisionReason` for
 that host, and the same pair under `hookSpecificOutput` for VS Code. The
-command-bearing fields are walked up to 64 levels deep. When the
-walk cannot cover a payload, because it is nested deeper or is not valid JSON,
+command-bearing fields are walked up to 64 levels deep and 20,000 values, in a
+payload of up to 1 MB. When the walk cannot cover a payload, because it is
+nested deeper, larger, holds more values, or is not valid JSON,
 its raw text is also scanned three ways: as written, with JSON escapes decoded,
 and without the JSON punctuation, so an argument array such as
 `["git","push"]` reads as the command it is. A blocked command found there
@@ -113,10 +114,12 @@ Otherwise a payload that is not valid JSON is
 allowed with a warning on standard error and exit `0`: the Copilot SDK host
 denies a `preToolUse` call on every other non-zero exit, so a payload schema
 change would otherwise block every tool call. The whole decision has a time
-limit of five seconds, a quarter of the hook timeout. Some patterns slow down
+limit of five seconds, a quarter of the hook timeout, and the walk may use half
+of it. Parsing and walking cannot be interrupted, and some patterns slow down
 quadratically on one long line of `git` words, so a payload the guard has not
 inspected within the limit is blocked rather than left to the timeout, which
-would let it through.
+would let it through. A payload over 4 MB is blocked without being scanned; no
+model writes a tool call that large.
 
 ### Authorizing a remote mutation
 
@@ -328,8 +331,9 @@ which survives because Instructions are re-sent with every request.
   `timeout` as an alias of its own `timeoutSec` and, unlike every other failure,
   lets a timed-out `preToolUse` hook through. Investigate slow filesystem access
   before changing the limit; do not replace a bounded hook with an unlimited one.
-  The `PreToolUse` guard keeps its own decision under five seconds and blocks
-  what it cannot inspect in that time, so a slow payload cannot ride the timeout.
+  The `PreToolUse` guard limits its own decision to about five seconds and
+  blocks what it cannot inspect in that time, so a slow payload cannot ride the
+  timeout.
 - **A redeployed hook does not take effect.** The Copilot SDK host reads hook
   configuration when a session starts; a chat that was already open, and the
   subagents it starts, keep what they loaded. Start a new chat.

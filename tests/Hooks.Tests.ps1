@@ -350,7 +350,9 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             quadratically with the git words on one line, so 64 KB of them took
             21.5 seconds, past the 20-second hook timeout, and a timeout fails
             open. The whole decision now has a time limit, and a payload not
-            inspected within it is blocked.
+            inspected within it is blocked. Its re-check found the parse and the
+            field walk unbounded (SEC-20 to SEC-22); they are bounded by size,
+            by the number of values, and by half the time limit.
         #>
         BeforeAll {
             function script:Invoke-HookWithin {
@@ -437,6 +439,74 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
             $result.ExitCode | Should -Be 2 -Because "it ran $($result.Seconds) s: $($result.Output)"
             $result.Output | Should -Match 'could not be inspected'
+        }
+
+        It 'blocks a push in a payload with too many values to walk before the hook timeout' {
+            # Re-check finding SEC-20: parsing and the field walk cannot be
+            # interrupted, and 300,000 small objects kept the guard walking past
+            # the 20-second hook timeout, so the push beside them went through.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                ((, '{"x":"a"}') * 300000 -join ',') + '],"command":"git push origin main"}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            # A slow runner may reach the time limit before the push matches;
+            # either way the call is blocked in time.
+            $result.Output | Should -Match 'pushes to a git remote|could not be inspected'
+        }
+
+        It 'allows a benign payload too large to walk once its raw text is scanned' {
+            # Finding SEC-21: walking 120,000 objects used up the time limit, so
+            # an ordinary command was blocked as not inspected in time. The walk
+            # is now skipped whatever the limit; the generous limit only keeps a
+            # slow runner's raw text scan from running out of time.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                ((, '{"x":"a"}') * 120000 -join ',') + '],"command":"git status --short"}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15 -ArgumentList '-TimeLimitSecond', '10'
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $result.Output | Should -Match 'too large to walk field by field'
+        }
+
+        It 'stops walking a payload with more values than it may visit and scans its raw text' {
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                ((, '{"x":0}') * 25000 -join ',') + '],"command":"git status --short"}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $result.Output | Should -Match 'too many values to walk in time'
+        }
+
+        It 'blocks a push that the stopped walk never reached' {
+            # The command field comes after the values that stop the walk, so
+            # only the raw text scan can find it.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
+                ((, '{"x":0}') * 25000 -join ',') + '],"command":"git push origin main"}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Output | Should -Match 'pushes to a git remote'
+        }
+
+        It 'blocks a push even with an out-of-range time limit of <TimeLimit> seconds' -ForEach @(
+            @{ TimeLimit = '0' }
+            @{ TimeLimit = '100' }
+        ) {
+            # Finding SEC-22: a rejected parameter exits 1, which VS Code treats
+            # as a warning, so the guard clamps the value instead.
+            $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
+
+            $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload -ExtraArgument '-TimeLimitSecond', $TimeLimit
+
+            $result.ExitCode | Should -Be 2 -Because $result.Output
         }
     }
 }
