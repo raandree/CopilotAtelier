@@ -133,6 +133,8 @@ Consequences:
     joining split command fields as the walk does. Both join them in document
     order and, within each object, executables first, so arguments written
     before the command, as sorted keys put them, still read as one command.
+    The raw scan also joins them across the whole payload, erring toward
+    blocking.
   - The guard blocks a payload it has not inspected within five seconds.
     Some patterns slow down quadratically, parsing and walking a payload with
     very many values cannot be interrupted, and a hook timeout lets the call

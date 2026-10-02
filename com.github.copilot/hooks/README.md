@@ -113,7 +113,11 @@ its raw text is also scanned: as written, with JSON escapes decoded, and
 without the JSON punctuation, so an argument array such as `["git","push"]`
 reads as the command it is. The command-bearing fields are also pulled out of
 it and joined the way the walk joins them, so a command split across fields,
-such as `{"command":"git","args":["push"]}`, reads as one line too. A blocked
+such as `{"command":"git","args":["push"]}`, reads as one line too. There they
+are also joined across the whole payload, executables first and in reverse,
+because a brace in raw text cannot show reliably where an object ends; like the
+rest of this path, that errs toward blocking and can pair one entry's
+executable with another entry's arguments. A blocked
 command found there blocks the call. That path errs toward blocking: a payload
 that only mentions a blocked command, such as a document in an unreadable
 payload, is blocked too. A text with neither `git` nor `gh` in it is skipped,
@@ -130,8 +134,12 @@ would let it through. A payload over 4 MB is blocked without being scanned; no
 model writes a tool call that large. A payload over 1 MB that names git on most
 lines, such as a large document about git, can still run out of time and be
 blocked: JSON escaping puts its whole text on one raw line, where some patterns
-slow down quadratically. Under PowerShell 7 so can a payload over 1 MB with
-tens of thousands of command fields. Write such a file in parts, or run the
+slow down quadratically. Under PowerShell 7, which the Copilot SDK host runs
+on Windows, a batch of more than about 16,000 command entries, such as
+`{"command":"ls","args":["x"]}`, also runs out of time: 32,000 of them
+(0.9 MB) are blocked after 5.4 seconds, while Windows PowerShell, which VS Code
+runs, allows 64,000 in 2.5 seconds. So the same oversized tool call can pass in
+one host and be blocked in the other. Write such a file in parts, or run the
 command yourself.
 
 ### Authorizing a remote mutation

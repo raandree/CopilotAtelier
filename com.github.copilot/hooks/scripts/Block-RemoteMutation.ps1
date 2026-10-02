@@ -230,10 +230,13 @@ function Join-CommandPart {
         Returns the texts to scan for the command-bearing values: all of them in
         document order, and each object's executables before its arguments,
         because a tool may write them in either order, for example with its
-        keys sorted. The per-object joins are kept apart by a line no pattern
-        crosses, so one entry's executable never pairs with another entry's
-        arguments. On a payload dense with git words, this second text adds
-        about half again to the scan.
+        keys sorted. Each per-object join ends in a semicolon on its own line,
+        which no pattern crosses, so one entry's executable never pairs with
+        another entry's arguments. The raw text scan, which errs toward
+        blocking and cannot tell objects apart reliably, also passes the values
+        by kind; they are then joined across the whole payload as well,
+        executables first and in reverse. On a payload dense with git words,
+        each extra text adds about half again to the scan.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -244,7 +247,15 @@ function Join-CommandPart {
 
         [Parameter(Mandatory)]
         [AllowEmptyCollection()]
-        [System.Collections.Generic.List[string]]$ObjectCommand
+        [System.Collections.Generic.List[string]]$ObjectCommand,
+
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]]$ExecutablePart,
+
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]]$ArgumentPart
     )
 
     if ($Part.Count -gt 0) {
@@ -252,7 +263,14 @@ function Join-CommandPart {
     }
 
     if ($ObjectCommand.Count -gt 0) {
-        $ObjectCommand -join "`n;`n"
+        ($ObjectCommand -join ";`n") + ';'
+    }
+
+    if ($ExecutablePart.Count -gt 0 -and $ArgumentPart.Count -gt 0) {
+        ([string[]]$ExecutablePart.ToArray() + [string[]]$ArgumentPart.ToArray()) -join ' '
+        $reversed = $Part.ToArray()
+        [array]::Reverse($reversed)
+        $reversed -join ' '
     }
 }
 
@@ -319,6 +337,8 @@ function Get-RawCommandText {
     $objectJoin = [System.Collections.Generic.List[string]]::new()
     $executable = [System.Collections.Generic.List[string]]::new()
     $argument = [System.Collections.Generic.List[string]]::new()
+    $executableAll = [System.Collections.Generic.List[string]]::new()
+    $argumentAll = [System.Collections.Generic.List[string]]::new()
     try {
         $timeLeft = $script:timeLimit - $script:decisionClock.Elapsed
         if ($timeLeft -le [TimeSpan]::Zero) {
@@ -386,8 +406,10 @@ function Get-RawCommandText {
                 $part.Add($value)
                 if ($executableName.Contains($group[1].Value)) {
                     $executable.Add($value)
+                    $executableAll.Add($value)
                 } else {
                     $argument.Add($value)
+                    $argumentAll.Add($value)
                 }
             }
 
@@ -402,7 +424,10 @@ function Get-RawCommandText {
         $objectJoin.Add((([string[]]$executable.ToArray() + [string[]]$argument.ToArray()) -join ' '))
     }
 
-    Join-CommandPart -Part $part -ObjectCommand $objectJoin
+    # A brace between two fields only suggests a new object; a nested value or a
+    # brace in a string looks the same. So the fields are also joined across the
+    # whole payload, which errs toward blocking like the rest of this path.
+    Join-CommandPart -Part $part -ObjectCommand $objectJoin -ExecutablePart $executableAll -ArgumentPart $argumentAll
 }
 
 if ([string]::IsNullOrEmpty($InputJson)) {

@@ -566,20 +566,28 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             @{ Case = 'the payload is too large to walk'; Shape = 'large' }
             @{ Case = 'another command field sits between them'; Shape = 'between' }
             @{ Case = 'several entries put their arguments first'; Shape = 'entries' }
+            @{ Case = 'a nested value sits between them in a payload too large to walk'; Shape = 'nested-large' }
+            @{ Case = 'a brace in a string sits between them in a payload too large to walk'; Shape = 'string-brace-large' }
+            @{ Case = 'a nested value sits between them past the visit cap'; Shape = 'nested-values' }
         ) {
             # Re-check finding SEC-26: the walk and the raw join both read the
             # fields in document order, so {"args":["push"],"command":"git"},
             # the order a serializer that sorts its keys writes, read as
             # "push git". Each object's fields are now also joined executables
-            # first.
+            # first. Finding SEC-31: on the raw text path a brace between the
+            # fields split them into different objects, so the raw text path
+            # now also joins the fields across the whole payload.
             $split = '"args":["push","origin","main"],"command":"git"'
+            $nestedSplit = '"args":["push","origin","main"],"x":{},"command":"git"'
+            $stringBraceSplit = '"args":["push","origin","main"],"note":"fix {bug}","command":"git"'
+            $largePadding = '"items":[' + ((, '{"x":"a"}') * 120000 -join ',') + '],'
+            $valuePadding = '"items":[' + ((, '{"x":0}') * 60000 -join ',') + '],'
             $payload = switch ($Shape) {
                 'walked' {
                     '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $split + '}}'
                 }
                 'large' {
-                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"items":[' +
-                        ((, '{"x":"a"}') * 120000 -join ',') + '],' + $split + '}}'
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $largePadding + $split + '}}'
                 }
                 'between' {
                     '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
@@ -588,6 +596,15 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
                 'entries' {
                     '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"steps":[{' + $split +
                         '},{"args":["status"],"command":"npm"}]}}'
+                }
+                'nested-large' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $largePadding + $nestedSplit + '}}'
+                }
+                'string-brace-large' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $largePadding + $stringBraceSplit + '}}'
+                }
+                'nested-values' {
+                    '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $valuePadding + $nestedSplit + '}}'
                 }
             }
 
@@ -611,19 +628,20 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
         }
 
         It 'allows a batch that only looks blocked when joined across entries: <Case>' -ForEach @(
-            @{ Case = 'docker push beside git status'; Steps = '{"command":"docker","args":["push","myimage"]},{"command":"git","args":["status","--short"]}'; Padded = $false }
-            @{ Case = 'make clean -f beside git status'; Steps = '{"command":"make","args":["clean","-f","Makefile"]},{"command":"git","args":["status"]}'; Padded = $false }
-            @{ Case = 'npm --no-verify beside git log'; Steps = '{"command":"npm","args":["test","--no-verify"]},{"command":"git","args":["log","-1"]}'; Padded = $false }
-            @{ Case = 'docker push beside git status, too large to walk'; Steps = '{"command":"docker","args":["push","myimage"]},{"command":"git","args":["status","--short"]}'; Padded = $true }
+            @{ Case = 'docker push beside git status'; Steps = '{"command":"docker","args":["push","myimage"]},{"command":"git","args":["status","--short"]}' }
+            @{ Case = 'make clean -f beside git status'; Steps = '{"command":"make","args":["clean","-f","Makefile"]},{"command":"git","args":["status"]}' }
+            @{ Case = 'npm --no-verify beside git log'; Steps = '{"command":"npm","args":["test","--no-verify"]},{"command":"git","args":["log","-1"]}' }
+            @{ Case = 'git -c before an entry that runs push'; Steps = '{"args":["-c"],"command":"git"},{"args":["x"],"command":"push"}' }
         ) {
             # Re-check finding SEC-29: executables-first and reversed joins over
             # the whole payload paired git from one entry with push, -f, or
-            # --no-verify from another, so ordinary batches were blocked.
-            $padding = if ($Padded) { '"items":[' + ((, '{"x":"a"}') * 120000 -join ',') + '],' } else { '' }
-            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $padding +
-                '"steps":[' + $Steps + ']}}'
+            # --no-verify from another, so ordinary batches were blocked. Only
+            # the raw text path, which errs toward blocking, still joins across
+            # entries. Finding SEC-32: a per-object join ending in an option
+            # must not reach across into the next entry.
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{"steps":[' + $Steps + ']}}'
 
-            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15 -ArgumentList '-TimeLimitSecond', '10'
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
 
             $result.HasExited | Should -BeTrue -Because "it ran $($result.Seconds) s"
             $result.ExitCode | Should -Be 0 -Because $result.Output
