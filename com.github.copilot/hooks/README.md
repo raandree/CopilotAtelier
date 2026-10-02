@@ -23,10 +23,18 @@ The `windows` launcher also ends with one statement of its own, explained below.
 Each launcher runs the first of these scripts that exists:
 
 1. `<PLUGIN_ROOT>/com.github.copilot/hooks/scripts/<Script>.ps1`
-2. `<HOME>/.copilot/hooks/scripts/<Script>.ps1`
-3. `<USERPROFILE>/.copilot/hooks/scripts/<Script>.ps1`
+2. `<USERPROFILE>/.copilot/hooks/scripts/<Script>.ps1`
+3. `<HOME>/.copilot/hooks/scripts/<Script>.ps1`
 4. `.copilot/hooks/scripts/<Script>.ps1` under the profile folder the operating
    system reports, for a host that passes a stripped environment
+
+`USERPROFILE` comes before `HOME`. Windows always defines `USERPROFILE`, while
+`HOME` there is whatever a tool such as Git for Windows set, and a `HOME` that
+points at a writable tree would otherwise run a planted script instead of the
+deployed one. A `HOME` that does not answer, such as an unreachable UNC path, is
+then never probed while `USERPROFILE` holds the script. Probing one took longer
+than the 20-second hook timeout, and the Copilot SDK host allows a call whose
+hook times out. On Linux and macOS `USERPROFILE` is unset, so `HOME` applies.
 
 An unset root becomes an unresolvable `*` and a relative root is anchored at the
 filesystem root, so no candidate ever resolves against the working directory.

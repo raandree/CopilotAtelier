@@ -517,7 +517,13 @@ Describe 'Hook launcher contract' -Tag 'Unit' {
             Should -Match ("\[Environment\]::GetEnvironmentVariable\('USERPROFILE'\)|\[Environment\]::GetFolderPath\('UserProfile'\)")
     }
 
-    It 'searches PLUGIN_ROOT, HOME, USERPROFILE, then the user profile folder in the <Branch> launcher of <Event>' -ForEach $script:launcherCase {
+    It 'searches PLUGIN_ROOT, USERPROFILE, HOME, then the user profile folder in the <Branch> launcher of <Event>' -ForEach $script:launcherCase {
+        <#
+            USERPROFILE comes before HOME: Windows always defines USERPROFILE,
+            while HOME there is whatever a tool such as Git for Windows set, so a
+            HOME pointing at a writable tree would otherwise run a planted script
+            instead of the deployed guard (post-release review SEC-02).
+        #>
         $launcher = Get-HookLauncher -EventName $Event -Branch $Branch
 
         $candidate = @(
@@ -527,7 +533,7 @@ Describe 'Hook launcher contract' -Tag 'Unit' {
                 }
         )
 
-        $candidate | Should -Be @('PLUGIN_ROOT', 'HOME', 'USERPROFILE', 'folder:UserProfile')
+        $candidate | Should -Be @('PLUGIN_ROOT', 'USERPROFILE', 'HOME', 'folder:UserProfile')
     }
 
     It 'passes the <Branch> launcher of <Event> as one quoted -Command argument no outer shell expands' -ForEach $script:launcherCase {
@@ -625,6 +631,22 @@ Describe 'Hook launcher behavior' -Tag 'Unit' {
 
             $result.ExitCode | Should -Be 0 -Because $result.StandardError
             (Get-StubRecord -Sandbox $sandbox).Candidate | Should -BeExactly 'HOME'
+        }
+
+        It 'prefers USERPROFILE over HOME' {
+            if ($SkipReason) { Set-ItResult -Skipped -Because $SkipReason }
+
+            $sandbox = New-LauncherSandbox -Root $TestDrive -EventName $Event -Branch $Branch
+            Add-LauncherStub -Sandbox $sandbox -Root $sandbox.HomeRoot -Directory $script:homeScriptDirectory -Candidate 'HOME'
+            Add-LauncherStub -Sandbox $sandbox -Root $sandbox.UserProfileRoot -Directory $script:homeScriptDirectory -Candidate 'USERPROFILE'
+
+            $result = Invoke-SandboxLauncher -Sandbox $sandbox -Mode $Mode -Environment @{
+                HOME = $sandbox.HomeRoot
+                USERPROFILE = $sandbox.UserProfileRoot
+            }
+
+            $result.ExitCode | Should -Be 0 -Because $result.StandardError
+            (Get-StubRecord -Sandbox $sandbox).Candidate | Should -BeExactly 'USERPROFILE'
         }
 
         It 'exits <ObservedFailureCode> and names the cause when no candidate holds the script' {
@@ -782,5 +804,41 @@ Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration
             -Payload $payload
 
         $result.ExitCode | Should -Be $ExitCode -Because $result.StandardError
+    }
+
+    It 'never probes an unreachable HOME while USERPROFILE holds the guard through the <Branch> launcher spawned by <Mode>' -ForEach @(
+        @{ Branch = 'command'; Mode = 'cmd' }
+        @{ Branch = 'windows'; Mode = 'vscode' }
+    ) {
+        <#
+            Probing a UNC home that does not answer took 21.7 seconds, past the
+            20-second hook timeout, and the Copilot SDK host fails open on a
+            timeout (post-release review SEC-04). 192.0.2.1 is TEST-NET-1, which
+            is never routed.
+        #>
+        $caseRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
+        $userProfile = Join-Path -Path $caseRoot -ChildPath 'userprofile'
+        $workingDirectory = Join-Path -Path $caseRoot -ChildPath 'cwd'
+        $deployedScripts = Join-Path -Path $userProfile -ChildPath $script:homeScriptDirectory
+        $null = New-Item -ItemType Directory -Path $deployedScripts, $workingDirectory -Force
+        Copy-Item -LiteralPath (Join-Path -Path $script:hookScriptRoot -ChildPath 'Block-RemoteMutation.ps1') -Destination $deployedScripts
+
+        $payload = [ordered]@{
+            hook_event_name = 'PreToolUse'
+            tool_name = 'run_in_terminal'
+            tool_input = [ordered]@{ command = 'git status --short' }
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $stopwatch = [Diagnostics.Stopwatch]::StartNew()
+        $result = Invoke-HookLauncher `
+            -Launcher (Get-HookLauncher -EventName 'PreToolUse' -Branch $Branch) `
+            -Mode $Mode `
+            -WorkingDirectory $workingDirectory `
+            -Environment @{ USERPROFILE = $userProfile; HOME = '\\192.0.2.1\profile' } `
+            -Payload $payload
+        $stopwatch.Stop()
+
+        $result.ExitCode | Should -Be 0 -Because $result.StandardError
+        $stopwatch.Elapsed.TotalSeconds | Should -BeLessThan 10 -Because 'the launcher must not wait on the unreachable HOME'
     }
 }
