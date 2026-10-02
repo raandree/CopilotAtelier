@@ -164,13 +164,13 @@ unproven — train reached 100 % while validation fell.
 ## Next step
 
 Contributor calibration: fast-forward `main` to `ai/fix-heartbeat-state-race`
-(`bff3ac4`, the heartbeat flake fix), push it, and merge it into this branch;
-the branch is on `origin`, so merge rather than rebase. 2026-10-02 dry runs
-merged cleanly and cleared the v6.0.0 gate. Then deploy, and start a
-`software-architect` chat with the Phase 2 handoff. The private eval kit lives
-in `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\` (README
-inside; never commit its content). Grow it past 20 cases with its
-`Find-CalibrationCandidates.ps1 -Since 2026-09-30` on RAANDREE3.
+(`bff3ac4`), push it, and merge it into this branch, not rebase (it is on
+`origin`); dry runs merged cleanly and cleared the v6.0.0 gate CI fails on.
+Before this branch reaches `main`, settle GitVersion's bump rules: `21d4d50`'s
+"Major issues." makes CI version it 7.0.0. Then deploy from `main` and start
+the Phase 2 `software-architect` chat. The eval kit (README inside; never commit
+it) is `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\`; grow it
+past 20 cases with its `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on RAANDREE3.
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
 `#web/fetch` check and the five amended prompts in

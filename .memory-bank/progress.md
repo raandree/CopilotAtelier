@@ -130,10 +130,12 @@ under `[Unreleased]` in `CHANGELOG.md`.
   `COPILOT_ATELIER_ALLOW_REMOTE` set in an agent terminal reaches the hook
   (05); and surface the block reason the SDK host drops (06).
 - Copilot SDK chats load every Instruction twice, once as `C:\Users\…` and once
-  as `c:\Users\…` (seen in two chats on 2026-10-01). Find which two sources
+  as `c:\Users\…` (seen 2026-10-01, again 2026-10-02). Find which two sources
   disagree on drive-letter case; no `chat.instructionsFilesLocations` is set.
-- Decide on GitVersion's `major-version-bump-message`: it matches "major"
-  anywhere, so review prose in #25 moved `main` to 6.0.0.
+- Decide on GitVersion's bump messages before `ai/contributor-calibration`
+  reaches `main`: they match anywhere, so #25's review prose made 6.0.0,
+  `21d4d50`'s "Major issues." versions that branch 7.0.0 in CI, and `b9cee3b`'s
+  "Add-SessionContext" makes the next preview 6.1.0, not 6.0.1.
 - Split research delegation into a read-only code explorer and a public-source
   researcher instead of granting the full `research-analyst` tool surface, and
   review the twelve-agent browser allow-list role by role, adding explicit
