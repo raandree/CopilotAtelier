@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-01
+last-verified: 2026-10-02
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,6 +14,13 @@ from `a592832` (release API, verified 2026-10-01). Incremental work is tracked
 under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake on
+  `ai/fix-heartbeat-state-race` (`bff3ac4`, from local `main`, not merged).
+  `Set-Content` empties the state file before writing it; `Save-HeartbeatState`
+  now renames a complete temporary file over it (on Windows PowerShell 5.1 via
+  `Microsoft.VisualBasic` `MoveFile`, because `File.Replace` left the path empty
+  for 183 of 6,536 reads). New test: 2 to 94 torn reads before, none in 18 runs.
 
 - **2026-10-02**: Closed review finding F-03 on `ai/contributor-calibration`: a
   question that authorizes an irreversible, destructive, or security-relevant
@@ -104,9 +111,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
 - Contributor calibration: the Phase 2 Design Concept with `software-architect`
   (Session handoff), and growing the private eval past 20 real cases with a
   `-Since 2026-09-30` search on RAANDREE3.
-- `LongRunningJobMonitor.Tests.ps1:229` reads the heartbeat state file as soon
-  as it exists, but `Set-Content` creates it before writing; it failed once in a
-  full build on 2026-10-01 and passed twice alone. Poll for the field instead.
 - `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
   workspace, so a subagent or parallel chat there shadows the parent's clock
   (2026-10-01: a 06:29 start). Inject the reader with this session's `-Path`.
@@ -115,7 +119,9 @@ under `[Unreleased]` in `CHANGELOG.md`.
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
 - Push local `main` (5 commits ahead on 2026-10-02): it carries the v6.0.0
   rollover, so `updateChangelogAfterv6.0.0` needs no pull request, and the
-  SessionStart fix. Then rebase `ai/contributor-calibration` onto it.
+  SessionStart fix. First fast-forward it to `ai/fix-heartbeat-state-race`
+  (`bff3ac4`, the heartbeat flake fix). Then merge `main` into
+  `ai/contributor-calibration`; the branch is on `origin`, so do not rebase.
 - Hook follow-ups, with prompts on the development machine's Desktop (amended
   2026-10-01; 03 retired): deploy the SessionStart fix, merged into local
   `main` on 2026-10-02 (01); review the shipped fix independently (02);
