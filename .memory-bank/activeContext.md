@@ -164,9 +164,9 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Contributor calibration: the user opens and merges a pull request for
-`updateChangelogAfterv6.0.0` (none exists, checked 2026-10-01), rebases this
-branch (keeping the new Added and Changed entries under `[Unreleased]`), and
+Contributor calibration: once `main` is pushed (it now carries the v6.0.0
+rollover and the SessionStart fix), the user rebases this branch onto it
+(keeping the new Added and Changed entries under `[Unreleased]`) and
 starts a `software-architect` chat with the Phase 2 handoff. The eval grows past
 20 cases once new real chats exist: rerun `Find-CalibrationCandidates.ps1` with
 `-Since 2026-09-30` on RAANDREE3; Prox1 has none since then.
@@ -174,5 +174,5 @@ starts a `software-architect` chat with the Phase 2 handoff. The eval grows past
 Still open from earlier work (Open work in `progress.md`): the live agent-host
 `#web/fetch` check and the five amended prompts in
 `%USERPROFILE%\Desktop\CopilotAtelier-hook-followups` (README has the order).
-The SessionStart fix (01) is verified on `ai/sdk-session-context`, not yet
-deployed or merged. `a592832` is already on `origin/main`.
+The SessionStart fix (01) is merged into local `main` (`09e2798`), not yet
+pushed or deployed. `a592832` is already on `origin/main`.

@@ -15,6 +15,11 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-02**: Merged into local `main` by fast-forward: the v6.0.0 rollover
+  (`4ee08c2`), its dropped final newline (`12428d6`), and the SessionStart fix
+  replayed on top (`b9cee3b`, `139c06c`, `09e2798`), with its changelog entry
+  moved back under `[Unreleased]`. Not pushed, not deployed.
+
 - **2026-10-01**: Fixed the missing SessionStart context on
   `ai/sdk-session-context` (`7bc21c6`, docs `3c4dc35` and later). The Copilot
   SDK host reads only a top-level `additionalContext`; the hook wrote only
@@ -70,17 +75,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   changelog gate, which fails past the tag until `updateChangelogAfterv6.0.0`
   merges. Behavior unmeasured. Not pushed.
 
-- **2026-09-29**: Restored Custom agent tools in VS Code agent-host sessions on
-  `ai/agent-runtime-tool-names` (decision 0026). The runtime drops VS Code tool
-  names it cannot resolve, so every agent now pairs them with `web_fetch`,
-  `grep`, `glob`, `ask_user`, and `vscodeBrowser/*`; the twelve open agents add
-  seven session tools and the four contained ones gain only search and question
-  names. The CLI contract emits `web_fetch`, `grep`, and `glob` instead of the
-  dead `web` and `search` aliases. New test red 28 then green; offline probe 16
-  of 16 agents; full Windows build/test 2,286/0/121 at 90.74%. The security
-  review's parser Major was fixed (red 7 then green); its `agents:` and
-  cross-session findings are recorded in 0026 for the user. Not pushed.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -118,12 +112,12 @@ under `[Unreleased]` in `CHANGELOG.md`.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
-- Open and merge a pull request for `updateChangelogAfterv6.0.0`, which carries
-  `plugin.json` (checked locally 2026-09-30). None exists (checked 2026-10-01);
-  until it merges, every commit past v6.0.0 fails the release-provenance test.
+- Push local `main` (5 commits ahead on 2026-10-02): it carries the v6.0.0
+  rollover, so `updateChangelogAfterv6.0.0` needs no pull request, and the
+  SessionStart fix. Then rebase `ai/contributor-calibration` onto it.
 - Hook follow-ups, with prompts on the development machine's Desktop (amended
-  2026-10-01; 03 retired): deploy and merge the verified SessionStart fix on
-  `ai/sdk-session-context` (01); review the shipped fix independently (02);
+  2026-10-01; 03 retired): deploy the SessionStart fix, merged into local
+  `main` on 2026-10-02 (01); review the shipped fix independently (02);
   run the `-Repair` deploy on the hand-patched machine from `main` (04); check
   whether VS Code turns a block (exit 2) into a warning, and whether
   `COPILOT_ATELIER_ALLOW_REMOTE` set in an agent terminal reaches the hook
