@@ -15,11 +15,14 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-10-02**: Live check A2 in a Copilot SDK chat (VS Code 1.140.0, SDK
-  1.0.15-preview.4): the guard blocks through the new `powershell` launcher,
-  but the model reads only the runtime's own `hook exited with code 2`. Spawned
-  as that host spawns it, the deployed guard writes the reason to standard error
-  and as one JSON object to standard output; the runtime uses neither on exit 2.
+- **2026-10-02**: Live checks after the deploy (VS Code 1.140.0, SDK
+  1.0.15-preview.4). A1, B1, and B2 passed: the SessionStart context arrives
+  once in a Copilot SDK chat (top-level `additionalContext`) and a Local chat
+  (`hookSpecificOutput`), both clocks are measured, and Local blocks the probe
+  with the full reason. A2 did not: the SDK denies it through the new
+  `powershell` launcher, but the model reads only `hook exited with code 2`
+  (in two chats), though the guard, spawned as that host spawns it, writes the
+  reason to standard error and as JSON to standard output.
 
 - **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
   `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
@@ -59,12 +62,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   USD). Added `docs/SECURITY-REVIEW.md` with all 32 findings. Full Windows
   `build,test` 2,319 passed, 1 failed (the v6.0.0 gate) at 90.74%.
 
-- **2026-10-02**: Merged into local `main` by fast-forward: the v6.0.0 rollover
-  (`4ee08c2`, `12428d6`) and the SessionStart fix (`b9cee3b`, `139c06c`,
-  `09e2798`; full gate 2,288 passed, 0 failed). The Copilot SDK host reads only
-  a top-level `additionalContext` and VS Code Local `hookSpecificOutput`; the
-  hook writes both.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -96,6 +93,10 @@ under `[Unreleased]` in `CHANGELOG.md`.
 - `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
   workspace, so a subagent or parallel chat there shadows the parent's clock
   (2026-10-01: a 06:29 start). Inject the reader with this session's `-Path`.
+- A resumed Copilot SDK session restarts its clock: the runtime reruns
+  `sessionStart` with `source: resume`, and `Add-SessionContext.ps1` ignores
+  `source`, so it overwrites `startedUtc`, `turns`, and the injected start
+  (2026-10-02: a 20:23 start became 20:55). Keep an existing clock on resume.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
@@ -108,8 +109,7 @@ under `[Unreleased]` in `CHANGELOG.md`.
   the API key question answered on 2026-08-25.
 - Live checks the agent cannot run, all after the 2026-10-02 deploy and in new
   chats:
-  - prompt 01's two-chat check;
-  - prompt 05's VS Code Local probe and its override test;
+  - prompt 05's override test (B3);
   - prompt 06's SDK reason (A2 above): the hook's comments and tests assume a
     stdout merge on exit 2 that the runtime does not do; find an output it
     reads (a JSON deny on exit 0 would fail open if unparsed), verify it live;
