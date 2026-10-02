@@ -570,8 +570,8 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             # Re-check finding SEC-26: the walk and the raw join both read the
             # fields in document order, so {"args":["push"],"command":"git"},
             # the order a serializer that sorts its keys writes, read as
-            # "push git". The fields are now also joined executable first and in
-            # reverse order.
+            # "push git". Each object's fields are now also joined executables
+            # first.
             $split = '"args":["push","origin","main"],"command":"git"'
             $payload = switch ($Shape) {
                 'walked' {
@@ -607,6 +607,25 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
 
             $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
 
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+        }
+
+        It 'allows a batch that only looks blocked when joined across entries: <Case>' -ForEach @(
+            @{ Case = 'docker push beside git status'; Steps = '{"command":"docker","args":["push","myimage"]},{"command":"git","args":["status","--short"]}'; Padded = $false }
+            @{ Case = 'make clean -f beside git status'; Steps = '{"command":"make","args":["clean","-f","Makefile"]},{"command":"git","args":["status"]}'; Padded = $false }
+            @{ Case = 'npm --no-verify beside git log'; Steps = '{"command":"npm","args":["test","--no-verify"]},{"command":"git","args":["log","-1"]}'; Padded = $false }
+            @{ Case = 'docker push beside git status, too large to walk'; Steps = '{"command":"docker","args":["push","myimage"]},{"command":"git","args":["status","--short"]}'; Padded = $true }
+        ) {
+            # Re-check finding SEC-29: executables-first and reversed joins over
+            # the whole payload paired git from one entry with push, -f, or
+            # --no-verify from another, so ordinary batches were blocked.
+            $padding = if ($Padded) { '"items":[' + ((, '{"x":"a"}') * 120000 -join ',') + '],' } else { '' }
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":{' + $padding +
+                '"steps":[' + $Steps + ']}}'
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15 -ArgumentList '-TimeLimitSecond', '10'
+
+            $result.HasExited | Should -BeTrue -Because "it ran $($result.Seconds) s"
             $result.ExitCode | Should -Be 0 -Because $result.Output
         }
     }

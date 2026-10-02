@@ -152,10 +152,13 @@ $isWalkComplete = $true
 $walkStopReason = $null
 
 # The walk collects the command-bearing values here in document order, and
-# again by kind, so they can be joined in more than one order.
+# each object's executables-first join, so either order reads as a command.
 $commandPart = [System.Collections.Generic.List[string]]::new()
-$executablePart = [System.Collections.Generic.List[string]]::new()
-$argumentPart = [System.Collections.Generic.List[string]]::new()
+$objectCommand = [System.Collections.Generic.List[string]]::new()
+
+# A brace between two fields in raw text means they may belong to different
+# objects, so the raw join starts a new object there.
+$braceCharacter = [char[]]'{}'
 
 function Add-CommandPart {
     [CmdletBinding()]
@@ -178,6 +181,9 @@ function Add-CommandPart {
         return
     }
 
+    $executable = [System.Collections.Generic.List[string]]::new()
+    $argument = [System.Collections.Generic.List[string]]::new()
+
     foreach ($property in $InputObject.PSObject.Properties) {
         $script:visitCount++
         if ($script:visitCount -gt $script:maximumVisitCount -or $script:decisionClock.Elapsed -gt $script:walkTimeLimit) {
@@ -193,9 +199,9 @@ function Add-CommandPart {
             if (-not [string]::IsNullOrWhiteSpace($text)) {
                 $script:commandPart.Add($text)
                 if ($property.Name -in $script:executableField) {
-                    $script:executablePart.Add($text)
+                    $executable.Add($text)
                 } else {
-                    $script:argumentPart.Add($text)
+                    $argument.Add($text)
                 }
             }
         }
@@ -213,13 +219,21 @@ function Add-CommandPart {
             }
         }
     }
+
+    if ($executable.Count -gt 0 -and $argument.Count -gt 0) {
+        $script:objectCommand.Add((([string[]]$executable.ToArray() + [string[]]$argument.ToArray()) -join ' '))
+    }
 }
 
 function Join-CommandPart {
     <#
-        Joins command-bearing values three ways, because a tool may write the
-        executable and its arguments in either order, for example with its keys
-        sorted: as written, executables before arguments, and in reverse.
+        Returns the texts to scan for the command-bearing values: all of them in
+        document order, and each object's executables before its arguments,
+        because a tool may write them in either order, for example with its
+        keys sorted. The per-object joins are kept apart by a line no pattern
+        crosses, so one entry's executable never pairs with another entry's
+        arguments. On a payload dense with git words, this second text adds
+        about half again to the scan.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -230,23 +244,15 @@ function Join-CommandPart {
 
         [Parameter(Mandatory)]
         [AllowEmptyCollection()]
-        [System.Collections.Generic.List[string]]$ExecutablePart,
-
-        [Parameter(Mandatory)]
-        [AllowEmptyCollection()]
-        [System.Collections.Generic.List[string]]$ArgumentPart
+        [System.Collections.Generic.List[string]]$ObjectCommand
     )
 
-    if ($Part.Count -eq 0) {
-        return
+    if ($Part.Count -gt 0) {
+        $Part -join ' '
     }
 
-    $Part -join ' '
-    if ($Part.Count -gt 1) {
-        ([string[]]$ExecutablePart.ToArray() + [string[]]$ArgumentPart.ToArray()) -join ' '
-        $reversed = $Part.ToArray()
-        [array]::Reverse($reversed)
-        $reversed -join ' '
+    if ($ObjectCommand.Count -gt 0) {
+        $ObjectCommand -join "`n;`n"
     }
 }
 
@@ -310,6 +316,7 @@ function Get-RawCommandText {
     )
 
     $part = [System.Collections.Generic.List[string]]::new()
+    $objectJoin = [System.Collections.Generic.List[string]]::new()
     $executable = [System.Collections.Generic.List[string]]::new()
     $argument = [System.Collections.Generic.List[string]]::new()
     try {
@@ -326,14 +333,43 @@ function Get-RawCommandText {
 
         # Match and NextMatch rather than enumerating Matches: a timeout raised
         # inside foreach's enumeration would not reach the catch below as itself.
+        # The loop runs once per field and can meet a flood of them, so it keeps
+        # its lookups local. A per-object join needs an executable field, so a
+        # text without one also skips the per-field brace search.
+        $clock = $script:decisionClock
+        $limit = $script:timeLimit
+        $brace = $script:braceCharacter
+        $executableName = [System.Collections.Generic.HashSet[string]]::new(
+            [string[]]$script:executableField,
+            [System.StringComparer]::OrdinalIgnoreCase
+        )
+        $hasExecutable = $false
+        foreach ($name in $executableName) {
+            if ($Text.IndexOf('"' + $name + '"', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                $hasExecutable = $true
+                break
+            }
+        }
+
+        $previousEnd = 0
         $match = $fieldPattern.Match($Text)
         while ($match.Success) {
-            if ($script:decisionClock.Elapsed -gt $script:timeLimit) {
+            if ($clock.Elapsed -gt $limit) {
                 Block-ToolCall -Because $script:notInspectedInTime
             }
 
-            $isString = $match.Groups[2].Success
-            $value = if ($isString) { $match.Groups[2].Value } else { $match.Groups[3].Value }
+            # A brace since the previous field starts another object.
+            if ($hasExecutable -and $Text.IndexOfAny($brace, $previousEnd, $match.Index - $previousEnd) -ge 0) {
+                if ($executable.Count -gt 0 -and $argument.Count -gt 0) {
+                    $objectJoin.Add((([string[]]$executable.ToArray() + [string[]]$argument.ToArray()) -join ' '))
+                }
+                $executable.Clear()
+                $argument.Clear()
+            }
+
+            $group = $match.Groups
+            $isString = $group[2].Success
+            $value = if ($isString) { $group[2].Value } else { $group[3].Value }
             if ($DecodeValue -and $value.Contains('\')) {
                 try {
                     $value = [regex]::Unescape($value)
@@ -343,25 +379,30 @@ function Get-RawCommandText {
             }
 
             if (-not $isString) {
-                $value = $value -replace '["\[\],]', ' '
+                $value = $value.Replace('"', ' ').Replace('[', ' ').Replace(']', ' ').Replace(',', ' ')
             }
 
             if (-not [string]::IsNullOrWhiteSpace($value)) {
                 $part.Add($value)
-                if ($match.Groups[1].Value -in $script:executableField) {
+                if ($executableName.Contains($group[1].Value)) {
                     $executable.Add($value)
                 } else {
                     $argument.Add($value)
                 }
             }
 
+            $previousEnd = $match.Index + $match.Length
             $match = $match.NextMatch()
         }
     } catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
         Block-ToolCall -Because $script:notInspectedInTime
     }
 
-    Join-CommandPart -Part $part -ExecutablePart $executable -ArgumentPart $argument
+    if ($executable.Count -gt 0 -and $argument.Count -gt 0) {
+        $objectJoin.Add((([string[]]$executable.ToArray() + [string[]]$argument.ToArray()) -join ' '))
+    }
+
+    Join-CommandPart -Part $part -ObjectCommand $objectJoin
 }
 
 if ([string]::IsNullOrEmpty($InputJson)) {
@@ -400,7 +441,7 @@ if ($InputJson.Length -gt $maximumParseLength) {
 }
 
 $scanText = [System.Collections.Generic.List[string]]::new()
-foreach ($text in @(Join-CommandPart -Part $commandPart -ExecutablePart $executablePart -ArgumentPart $argumentPart)) {
+foreach ($text in @(Join-CommandPart -Part $commandPart -ObjectCommand $objectCommand)) {
     $scanText.Add($text)
 }
 
