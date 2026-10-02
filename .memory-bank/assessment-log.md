@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-07
+last-verified: 2026-10-02
 owner: security-reviewer
 source: security assessments of this repository
 ---
@@ -10,6 +10,47 @@ source: security assessments of this repository
 Episodic record of completed security assessments. One entry per assessment:
 date, scope, verdict, and the findings that outlived the review. Retain two
 years; archive older entries to a dated Memory Bank topic.
+
+## 2026-10-01 contributor calibration Phase 1 and its private eval tooling
+
+Scope: round 1 reviewed `a592832..6b00681` on `ai/contributor-calibration` — the
+always-on `contributor-calibration` Instruction, the `/simpler` and `/deeper`
+Prompts, the `grill-me`, `software-architect`, `gilb-requirements-engineering`,
+and `memory-bank` edits, Decision 0027, the Glossary terms, README, CHANGELOG,
+and `tests/ContributorCalibration.Tests.ps1` — plus two private helper scripts
+outside the repository that mine local chat history and redact it. Round 2
+reviewed the fixes and added the private eval runner, which sends approved,
+anonymised prompts to the model backend and now carries a pinned LLM judge.
+
+Verdict: round 1 **Fail**, zero Blocker and four Major. Round 2 **Pass**, zero
+Blocker and zero Major, with eleven Minor and two Nit raised against the fixes
+and the runner. The Majors were an injection surface and an excessive-agency
+path in the always-on Instruction, and two redaction defects in the helpers.
+Every finding is resolved. Round 2 verified each round-1 fix by re-running its
+original reproduction rather than by reading the diff; the round-2 findings
+were fixed afterwards and verified by the author's own tests — the private
+self-check, the runner's Check and Calibrate modes, and the Pester suite — and
+F-03, last to close on 2026-10-02, by a side-by-side measurement. No third
+review round followed.
+Full record, finding by finding, in
+[docs/SECURITY-REVIEW.md](../docs/SECURITY-REVIEW.md).
+
+Residual risk, with no finding left open:
+
+- The behavior eval stays outside the repository because its cases come from
+  personal chats, so none of its numbers can be reproduced here. The committed
+  tests assert the wording, not the behavior, and model language drift between
+  runs was disclosed rather than verified.
+- Redaction in the private helpers does not cover personal names outside paths
+  or postal addresses. The limitation is documented; a human read before
+  anything leaves the machine is the only control.
+- The delegation, provenance, and authorization bounds are model-layer rules.
+  The deterministic hook covers remote mutation and hard reset, not every
+  irreversible action.
+- A familiarity level lives only in the conversation, so a compaction resets it
+  to the default. Accepted until the Phase 2 profile exists.
+- The always-on Instruction sits at 3,811 of its 4,096-character test cap, so
+  the next rule added to it needs a trade.
 
 ## 2026-09-07 uncommitted feature review: validation, learning inbox, adapters
 

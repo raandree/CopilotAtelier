@@ -163,12 +163,14 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Contributor calibration: once `main` is pushed (it now carries the v6.0.0
-rollover and the SessionStart fix), the user rebases this branch onto it
-(keeping the new Added and Changed entries under `[Unreleased]`) and
-starts a `software-architect` chat with the Phase 2 handoff. The eval grows past
-20 cases once new real chats exist: rerun `Find-CalibrationCandidates.ps1` with
-`-Since 2026-09-30` on RAANDREE3; Prox1 has none since then.
+Contributor calibration: once `main` is pushed (it carries the v6.0.0 rollover
+and the SessionStart fix), merge it into this branch; the branch is on `origin`,
+so merge rather than rebase. A 2026-10-02 dry run merged cleanly and cleared the
+v6.0.0 gate. Then deploy, and start a `software-architect` chat with the Phase 2
+handoff. The private eval kit lives outside every repository, in
+`%USERPROFILE%\Documents\CopilotAtelier-private\calibration\` (README inside;
+never commit its content). Grow it past 20 cases with its
+`Find-CalibrationCandidates.ps1 -Since 2026-09-30` on RAANDREE3.
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
 `#web/fetch` check and the five amended prompts in
