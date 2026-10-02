@@ -774,7 +774,12 @@ The repository is a [Sampler](https://github.com/gaelcolas/Sampler) project. The
 
 The version comes from [GitVersion](https://gitversion.net/) via
 [`GitVersion.yml`](GitVersion.yml), so the built module lands in
-`output/module/CopilotAtelier/<version>/`.
+`output/module/CopilotAtelier/<version>/`. A commit raises the version only
+through the Conventional Commit type in its subject line (`feat:` the minor,
+`fix:` or `perf:` the patch, `!` the major), a `BREAKING CHANGE:` footer, or an
+explicit `+semver:` override; other words in the message do not count. A
+squash merge keeps only the pull request title as the subject, so give the
+title a type too.
 [CI](.github/workflows/ci.yml) packages once on `ubuntu-latest` and tests the
 artifact on Linux, macOS, and Windows with PowerShell 7. Pushes to `ai/**`
 topic branches run these checks before a pull request. Once an open PR targets

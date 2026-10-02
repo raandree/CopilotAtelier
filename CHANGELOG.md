@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Deliver the SessionStart context to Copilot SDK (agent host) and Copilot CLI sessions. `Add-SessionContext` wrote it only under `hookSpecificOutput`, which those hosts ignore; it now also writes the top-level `additionalContext` they read.
 - Keep the `long-running-job-monitor` heartbeat state readable while it is rewritten. `Start-JobHeartbeat.ps1` wrote the state file in place, so `-Stop`, `-TouchStatus`, or a wake read at the same moment could find it empty or cut off and fail; it now renames a complete file over it, also on Windows PowerShell 5.1.
+- Stop the wording of a commit message from choosing the release version. `GitVersion.yml` raised it on words such as "major", "breaking", or "add" anywhere in a message, which is how review text made 6.0.0 a major release; now only the Conventional Commit type in the subject line (`feat:`, `fix:`, `perf:`, `!`), a `BREAKING CHANGE:` footer, or an explicit `+semver:` override counts.
 
 ## [6.0.0] - 2026-09-30
 
