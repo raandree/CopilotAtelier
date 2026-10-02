@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add contributor calibration: every agent pitches answers and questions at your familiarity with each knowledge area (`new`, `familiar`, or `expert`; `familiar` until you say otherwise), and in `new` and `familiar` areas illustrates an abstract finding with a concrete example; every calculated or reconstructed result names its sources and method. Every technical question offers a recommended answer and a `not sure, you pick` option; a delegated answer becomes an assumption flagged for expert review, counts only when you write it yourself, and never authorizes an irreversible, destructive, or security-relevant action; a question that authorizes such an action comes without the option. A level changes wording and depth, never warnings, tests, or reviews, and is never written to a repository. See [How Much Explanation You Want](README.md#how-much-explanation-you-want).
+- Add [`docs/SECURITY-REVIEW.md`](docs/SECURITY-REVIEW.md), the independent security review of contributor calibration with every finding, its severity, and its resolution.
+- Add the `/simpler` and `/deeper` Prompts, which re-explain the last answer one familiarity level simpler or deeper and keep that level for its knowledge area for the rest of the session.
+
+### Changed
+
+- Let `grill-me`, `software-architect`, and `gilb-requirements-engineering` accept `not sure, you pick`: the recommended answer, or for a numeric target a level derived from `Past`, `Record`, or a verified benchmark, is recorded as an assumption flagged for expert review instead of blocking the interview.
+- Document in `agent-evals` that the Copilot backend's content filter blocks some harmless eval prompts, why an embedded chat transcript makes it worse, and how to keep a comparison fair: situation as system context, `FinishReason` logged per call, retries, and arms compared only on cases complete in both. See [harness prerequisites](skills/agent-evals/SKILL.md#harness-prerequisites).
+- Document in `agent-evals` that compared arms must run at the same time, because backend behavior drifts within hours, and that an LLM judge's disagreement can expose a mislabelled reply, which justifies a label correction only for an objective error. See [micro-tests](skills/agent-evals/SKILL.md#micro-test-the-wording-first).
+
 ### Fixed
 
 - Deliver the SessionStart context to Copilot SDK (agent host) and Copilot CLI sessions. `Add-SessionContext` wrote it only under `hookSpecificOutput`, which those hosts ignore; it now also writes the top-level `additionalContext` they read.

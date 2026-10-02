@@ -74,6 +74,7 @@ A full eval run is the final gate, but it is slow and expensive per iteration. W
 3. **Five or more repetitions per variant.** A single sample is noise in exactly the way one lucky run is noise for a full eval.
 4. **Read every flagged match yourself.** Score programmatically if you like, but template echoes and quoted counter-examples register as hits, so automated counts overstate both failure and success.
 5. **Treat variance as a metric.** When guidance lands, repetitions converge on the same shape. Five different interpretations across five repetitions means the wording is not binding — tighten the form before adding words.
+6. **Run the arms you compare at the same time.** Backend behavior drifts within hours: one Instruction version gave 0 of 3 replies in the wrong language on a case and 2 of 6 half an hour later, a shift a sequential comparison would have blamed on the wording.
 
 Micro-tests settle wording. They do not replace the capability and regression sets below for a Customization that enforces a discipline.
 
@@ -114,6 +115,7 @@ Pick the cheapest grader that fits the output.
   - **Pin the judge model** and version it — a judge upgrade shifts every score.
   - **Give a rubric and a 1–5 (or pass/fail) scale**, ask for a score **and** a one-line justification, and few-shot it with a labelled good and bad example.
   - **Calibrate against human labels** on a sample before trusting it. Watch for known judge biases: position, verbosity ("longer = better"), and self-preference (a model favours its own style).
+  - **Read every disagreement before trusting the labels either.** A judge can quote a passage the labeller missed. Correct a label only for an objective error like that, never to raise agreement, and freeze the judge before it grades a run.
   - Use a *different* model as judge than the one under test where practical.
 - **Human** (gold standard, expensive). Use to label the initial failure set and to calibrate the LLM judge — not for every run.
 
@@ -157,6 +159,16 @@ Use a new working directory whenever the query set, catalogue, model, or
 Customization revision changes: existing replies are not provenance-checked.
 
 Point `-WorkDir` **outside the repository**. `Skills/` is the published module payload, so scratch written under a skill folder is copied into the built module; the build prunes it and `.gitignore` catches it, but neither is a reason to aim there.
+
+**The Copilot backend's content filter blocks some harmless prompts.** A blocked
+call returns `FinishReason` `content_filter` with no content, and it is still
+billed. A chat transcript embedded in the user message trips it far more often
+than the same situation sent as system context, with the contributor's line as
+the user message. Measured 2026-09-30 on `claude-opus-5`: 5 of 17 baseline
+prompts were blocked with an embedded transcript, 1 of 10 with the situation as
+system context. Log `FinishReason` per call, retry missing samples in a later
+round, and compare arms only on cases complete in both, because the filter can
+hit one arm and spare the other.
 
 ## Fallback harness
 

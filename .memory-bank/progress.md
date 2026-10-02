@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-29
+last-verified: 2026-10-02
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -9,94 +9,60 @@ source: CHANGELOG.md and git history
 
 ## Project status
 
-Copilot Atelier's latest full GitHub release is `v5.0.0`, published 2026-09-10;
-`main` published pre-release `v6.0.0-preview0001` on 2026-09-29 (release API,
-verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
-`CHANGELOG.md`.
+Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
+from `a592832` (release API, verified 2026-10-01). Incremental work is tracked
+under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-09-29**: Restored Custom agent tools in VS Code agent-host sessions on
-  `ai/agent-runtime-tool-names` (decision 0026). The runtime drops VS Code tool
-  names it cannot resolve, so every agent now pairs them with `web_fetch`,
-  `grep`, `glob`, `ask_user`, and `vscodeBrowser/*`; the twelve open agents add
-  seven session tools and the four contained ones gain only search and question
-  names. The CLI contract emits `web_fetch`, `grep`, and `glob` instead of the
-  dead `web` and `search` aliases. New test red 28 then green; offline probe 16
-  of 16 agents; full Windows build/test 2,286/0/121 at 90.74%. The security
-  review's parser Major was fixed (red 7 then green); its `agents:` and
-  cross-session findings are recorded in 0026 for the user. Not pushed.
+- **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
+  `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
+  - The post-release review failed the v6.0.0 launcher fix: in VS Code Local
+    chats on Windows the push guard only warned, because VS Code's outer
+    `powershell.exe -Command` reports exit 2 as 1 (Blocker, reproduced).
+  - Nine re-reviews followed; every Blocker and Major was fixed test-first
+    (SEC-13 to SEC-33, assessment log). The guard now decides within about
+    5 s (1 MB parse, 20,000-field walk, 4 MB block caps) and joins split
+    command fields in document order and per object, and on its raw path also
+    across the payload. The last re-review approved.
+  - The override cannot reach a hook from an agent terminal, so an authorized
+    push runs in the user's own terminal; never persist it. The SDK host gets
+    its own `powershell` launcher and the reason on stdout.
+  - Hook suites: 559 passed, 0 failed; full gate of the merge (`634546e`)
+    2,536 passed, 0 failed. Deployed: hooks match the source, the deployment
+    is healthy, and a push exits 2 with its reason in both host spawns.
 
-- **2026-09-29**: Part 2 of the hook fix. The GitHub hooks reference verifies the
-  SDK host's contract: PascalCase events get the VS Code `tool_input` payload,
-  `timeout` aliases `timeoutSec`, a timeout fails open, and any other non-zero
-  `preToolUse` exit denies. `Block-RemoteMutation` therefore allows an unreadable
-  payload with exit 0 (red 3, then focused 428/0/56). Redeployed; this session
-  and its subagents did not reload hooks, so the fresh-chat check is the user's.
-- **2026-09-29**: Fixed the hook launchers on `ai/fix-hook-launcher-home`. The
-  Copilot SDK host copies `command` into its `powershell` field on Windows, where
-  `HOME` is unset, so every `PreToolUse` call was denied as `hook errored` and
-  `SessionStart` never injected context (this machine's 2026-09-24 session log
-  records exactly that). Launchers now try `PLUGIN_ROOT`, `HOME`, `USERPROFILE`,
-  then the OS profile folder, bypass the execution policy, and report the
-  underlying error. New `tests/HookLauncher.Tests.ps1`: red 125 of 284 against
-  the old launchers; full Windows build/test 2,155/0/121 at 90.67% coverage.
-- **2026-09-29**: Diagnosed CI run `36549550887` (PR #26 rollover: `plugin.json`
-  4.0.0 under `[5.0.0]` on all platforms); `main` was already green after #25
-  (`314c795`, run `36553689149`). Fixed the cause on `ai/rollover-plugin-manifest`:
-  `Update_PluginManifest_Version` runs before `Create_ChangeLog_GitHub_PR`,
-  `GitHubFilesToAdd` commits the manifest, and admission never republishes
-  changelog- or manifest-only pushes. Red 8 of 29; mutations caught 4 and 1;
-  focused 65/0/0; full Windows build/test 1,931/0/65 at 90.67%. Not pushed.
+- **2026-10-02**: The version now rises only from Conventional Commit markers
+  (`31042ea`, `bd60b7a`), approved by an independent review. With GitVersion
+  5.12.0, local `main` would publish `6.0.1-preview0001` (`6.1.0` before), and
+  with the calibration branch `6.1.0` (`7.0.0` before). Merged `main` into
+  `ai/contributor-calibration` (`e0955fb`).
 
-- **2026-09-29**: Rebased `ai/eval-gate-integrity` onto `main` `16a81d3` (#26,
-  the automated v5.0.0 changelog rollover). Only `2b45419` conflicted; the
-  resolution keeps one `[5.0.0]` heading below the branch's `[Unreleased]`
-  fixes and restores the MD047 final newline the rollover stripped. `e8961fa`
-  is tree-identical to `ab68c93`; range-diff shows the other four commits
-  patch-identical. Focused suites 43/0/0; markdownlint clean. Not pushed.
+- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake (`bff3ac4`,
+  now on local `main`).
+  `Set-Content` empties the state file before writing it; `Save-HeartbeatState`
+  now renames a complete temporary file over it (on Windows PowerShell 5.1 via
+  `Microsoft.VisualBasic` `MoveFile`, because `File.Replace` left the path empty
+  for 183 of 6,536 reads). New test: 2 to 94 torn reads before, none in 18 runs.
 
-- **2026-09-25**: Implemented F1-F4, N1-N3, P1/P2 review follow-ups: compatible
-  trigger replies, structured severity, bounded reads, stable timeout errors,
-  valid sample IDs, missing edge-case coverage, CI deduplication/cancellation,
-  non-publishing changelog validation, and unique release headings. Eval red
-  12 then 176/0/38; CI red 18 then 43/0/0; duplicate-header mutation rejected.
-  Final focused 220/0/38; full Windows build/test 1,917/0/65 at 90.67% coverage.
-  Pushed `fc12ef3` and opened PR #25. Push run `36121027315` and PR run
-  `36121068837` passed admission, packaging, and every platform. No deployment
-  or merge; the docs-only close-out push also verifies PR deduplication live.
+- **2026-10-02**: Closed review finding F-03 on `ai/contributor-calibration`: a
+  question that authorizes an irreversible, destructive, or security-relevant
+  action offers no `not sure, you pick` option. Red then green. Side by side
+  with the previous wording it changed no measured behavior (decision cases 10
+  of 10 each; a push probe kept the option off the push in 2 of 2 each; 0.63
+  USD). Added `docs/SECURITY-REVIEW.md` with all 32 findings. Full Windows
+  `build,test` 2,319 passed, 1 failed (the v6.0.0 gate) at 90.74%.
 
-- **2026-09-24**: Independent review of `7a186c5..2b45419` approved the eval/CI
-  batch with no Blocker, Major, or exploitable vulnerability. Four Minor
-  observations concern reply-format compatibility, message-derived severity,
-  duplicate CI cost, and future rollover coordination; the sample-query ID gap
-  was verified as pre-existing. No implementation changes or remote mutations.
-  The prior exact-head run `36043691291` is green; review records stay local.
+- **2026-10-02**: Merged into local `main` by fast-forward: the v6.0.0 rollover
+  (`4ee08c2`, `12428d6`) and the SessionStart fix (`b9cee3b`, `139c06c`,
+  `09e2798`; full gate 2,288 passed, 0 failed). The Copilot SDK host reads only
+  a top-level `additionalContext` and VS Code Local `hookSpecificOutput`; the
+  hook writes both.
 
-- **2026-09-24**: Research-backed evaluation gate hardening on
-  `ai/eval-gate-integrity`: strict case/ID validation, literal substring
-  matching, exact sample counts, bounded regex execution, and trigger failures
-  that cannot disappear into correct negatives or smaller denominators.
-  Original scripts failed 28 of 45 corrected CLI regressions. Full Windows gate
-  1,875/0/67 at 90.67% coverage preceded final self-review follow-ups; rebuilt
-  affected gate 634/0/59 passed afterward. Topic pushes run the unchanged
-  three-platform CI matrix without enabling deployment. No live
-  model quality, trigger discovery, or containment improvement is claimed.
-  First-push CI run `36040997940` caught the overdue v5 release rollover after
-  the tag-at-HEAD exemption lapsed. Restored its verified history and static
-  plugin version; repair gate 40/0/0. No remote merge or weakened gate.
-
-- **2026-09-10**: Fixed Windows OneDrive false detection from a generic variable
-  or pre-created folder, preserving account-specific selection, explicit
-  targets, and macOS/Linux defaults. Both regressions red then green; focused
-  7/0; full Windows `build,test` 1,779/0/116 at 90.67% coverage. AST/analyzer
-  clean; README and changelog updated. Live path resolution now stays local;
-  no real-profile deployment, migration, or remote mutation was performed.
-
-- **2026-09-08**: Moved the wiki timeout and partial-publication recovery lessons
-  into the two existing Sampler Skills with one real regression case; gates
-  617/0/108. Five ShellPilot requests per arm made zero Skill loads, so body
-  effects and native discovery remain unmeasured. No commit or remote mutation.
+- **2026-10-01**: Closed the independent review of contributor calibration
+  (4 Major, then a passing fix round; F-03 closed on 2026-10-02). The private
+  eval's pinned `gpt-5.5` judge agrees with human labels on 38 of 40: 100% with
+  the Instruction against 52.1% without, for about 7.36 USD in model calls.
 
 ## Stable capabilities
 
@@ -123,18 +89,49 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
 
 ## Open work
 
+- Contributor calibration: the Phase 2 Design Concept with `software-architect`
+  (Session handoff), and growing the private eval past 20 real cases with a
+  `-Since 2026-09-30` search on RAANDREE3.
+- `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
+  workspace, so a subagent or parallel chat there shadows the parent's clock
+  (2026-10-01: a 06:29 start). Inject the reader with this session's `-Path`.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
-- Confirm that the next full release's generated rollover PR carries
-  `plugin.json` and passes CI.
-- Hook follow-ups, with prompts on the development machine's Desktop: check
-  whether VS Code wraps hook commands in PowerShell `-Command`, which would turn
-  a block (exit 2) into a warning; check whether `COPILOT_ATELIER_ALLOW_REMOTE`
-  set in an agent terminal reaches the hook, which the host starts with its own
-  environment; and surface the block reason the SDK host drops.
-- Decide on GitVersion's `major-version-bump-message`: it matches "major"
-  anywhere, so review prose in #25 moved `main` to 6.0.0.
+- Push local `main` (`fea564f`, 21 ahead of `origin/main`) from your own
+  terminal: the guard blocks agent pushes, and the override cannot reach it.
+  CI then publishes 6.0.1-preview0001, and the merged remote branches
+  `updateChangelogAfterv6.0.0` and `copilot/dgthths` can go. Then push
+  `ai/contributor-calibration` (`634546e` merges `main`) and give its pull
+  request a `feat:` title, since a squash keeps only the title. Close #19,
+  the API key question answered on 2026-08-25.
+- Live checks the agent cannot run, all after the 2026-10-02 deploy and in new
+  chats:
+  - prompt 01's two-chat check;
+  - prompt 05's VS Code Local probe and its override test;
+  - prompt 06's probe in a new Copilot SDK chat: does it run the new
+    `powershell` launcher and show the reason?
+  - prompt 04 on the hand-patched machine, once `main` is pushed.
+- Copilot SDK chats load every Instruction twice, once as `C:\Users\…` and once
+  as `c:\Users\…`. VS Code discovers `~/.copilot/instructions` as a default
+  `copilot-personal` source, and the SDK runtime has its own user-instruction
+  discovery (`COPILOT_CUSTOM_INSTRUCTIONS_DIRS`). Report it upstream: turning
+  off either source affects every chat.
+- Unfixed Minor findings from the 2026-10-02 reviews (assessment log):
+  - Hooks: SEC-07 (camelCase `toolArgs`), SEC-08 (Bypass without an integrity
+    check), SEC-09 and SEC-10 (test gaps), SEC-12 (the override applies to
+    the whole environment), SEC-15 (a dead UNC `PLUGIN_ROOT` still outlasts
+    the timeout), SEC-34 (a batch beside 25,000 small objects falls onto the
+    raw path and is blocked as a push; options in the assessment log).
+  - Versioning and heartbeat: F-02 (fail fast on permanent `IOException`s),
+    F-06 (sweep stale `.tmp` files), F-09 (Constrained Language Mode).
+  - Accepted and documented: SEC-14, SEC-16, SEC-19 (`command` has no exit
+    pass-through), SEC-27 (the limit can overrun by about 1.5 s), SEC-28 and
+    escaped-key splits (known evasions), SEC-30 and oversized payloads blocked
+    as not inspected in time (git-dense over 1 MB; under pwsh, batches over
+    about 16,000 command entries, which Windows PowerShell allows), the raw
+    path pairing fields across entries (errs toward blocking), and a linear
+    standard-input read (about 120 MB to outlast the timeout).
 - Split research delegation into a read-only code explorer and a public-source
   researcher instead of granting the full `research-analyst` tool surface, and
   review the twelve-agent browser allow-list role by role, adding explicit
@@ -145,8 +142,10 @@ verified 2026-09-29). Incremental work is tracked under `[Unreleased]` in
   capture the trigger-eval harness's expected simulated backend failure so the
   successful full build emits no warning.
 - Restore a Windows PowerShell 5.1 CI leg now that `Repair_ManifestEncoding`
-  fixes the manifest. Re-adding it guards the fix and needs the `ci.yml`
-  `shell: pwsh` steps distinguished from `powershell.exe`.
+  fixes the manifest. Re-adding it guards the fix and the heartbeat's
+  `MoveFile` path (review F-03), and needs the `ci.yml` `shell: pwsh` steps
+  distinguished from `powershell.exe`. The hook tests' process helpers use
+  .NET-only `ProcessStartInfo.ArgumentList` and `Kill($true)`; port or skip them.
 - Run the eleven shipped trigger-query sets, then cover the 37 Skills still on
   the `SkillTriggerCoverage` uncovered baseline. Every set is authored but
   unmeasured. ShellPilot now reports ready with the existing Copilot backend;

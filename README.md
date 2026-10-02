@@ -24,6 +24,7 @@ well-known `~/.copilot/` folders that VS Code and the Copilot CLI both read.
 - [Folder Structure](#folder-structure)
 - [What Each Folder Contains](#what-each-folder-contains)
 - [How Much Process You Want](#how-much-process-you-want)
+- [How Much Explanation You Want](#how-much-explanation-you-want)
 - [Available Skills](#available-skills)
 - [Choosing What Gets Installed](#choosing-what-gets-installed)
 - [Skill health](#skill-health)
@@ -169,6 +170,35 @@ it requires a directly supplied containment-profile SHA-256 and a pinned live
 profile; a separate data-isolated runner owns any endpoint access. Shared and
 production mutations become supervised procedures and remain visibly
 incomplete. Nothing is pushed.
+
+## How Much Explanation You Want
+
+Every agent pitches answers and questions at your familiarity with the knowledge
+area involved: `new`, `familiar`, or `expert`. It assumes `familiar` until you
+say otherwise. No familiarity level is written to a repository; a level lasts
+for the session, so state it again after a long conversation is compacted.
+
+| You want | Type this |
+|---|---|
+| The last answer again, one level simpler | `/simpler` |
+| The last answer again, one level deeper | `/deeper` |
+| A level for one area | `I'm new to Kerberos` or `I know DSC well` |
+| The agent to decide a question you cannot judge | `not sure, you pick` |
+
+Every technical question comes with a recommended answer. In `new` and
+`familiar` areas it also says why, what changes with another choice, and whether
+that can be undone. "Not sure, you pick" takes the recommendation and records it
+as an assumption for an expert to check. It counts only when you write it
+yourself, and it never authorizes an irreversible, destructive, or
+security-relevant action such as a push, a deletion, or a permission change;
+for those the agent offers no such option and asks you for an explicit answer.
+In `new` and `familiar` areas an answer also illustrates an abstract finding,
+such as a statistic or a rule, with one concrete example. At every level, a
+calculated or reconstructed result says which sources it came from and how. A
+level changes wording and depth only; warnings, tests, and reviews stay the
+same. `/simpler` and `/deeper` are VS Code Prompts; in other clients, ask in
+words. The independent security review of this feature is in
+[docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md).
 
 ## Available Skills
 

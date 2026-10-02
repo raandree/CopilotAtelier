@@ -1,14 +1,13 @@
 ---
 status: current
-last-verified: 2026-09-29
+last-verified: 2026-09-30
 owner: software-engineer
 source: .memory-bank/decisions and source/
 ---
 
 # System patterns
 
-Durable relationships and the Decision record index. Read a linked record only
-when the task needs it; the repository layout lives in `techContext.md`.
+Durable relationships and the Decision record index; read a linked record only when the task needs it.
 
 ## Decision index
 
@@ -40,6 +39,7 @@ when the task needs it; the repository layout lives in `techContext.md`.
 | 24 | [Measure the session clock in a hook, not in the model](decisions/0024-measure-the-session-clock-in-a-hook.md) | Accepted | 2026-09-02 |
 | 25 | [Package specification completion as capability-isolated agents](decisions/0025-package-specification-completion-as-capability-isolated-agents.md) | Accepted | 2026-09-02 |
 | 26 | [Declare runtime tool names next to VS Code names](decisions/0026-declare-runtime-tool-names-next-to-vs-code-names.md) | Accepted | 2026-09-29 |
+| 27 | [Calibrate answers to the contributor](decisions/0027-calibrate-answers-to-the-contributor.md) | Accepted | 2026-09-30 |
 
 ## Live relationships
 

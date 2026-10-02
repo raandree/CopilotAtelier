@@ -28,6 +28,8 @@ Classify the turn first. A **non-impacting** turn (pure Q&A, read-only investiga
 5. Clear the deployed Definition of Done gate: acceptance criteria, role-specific gates, focused/final validation, self-review, risk-triggered independent review, security, and residual-risk reporting.
 6. Emit a `[x]/[ ]` POST-FLIGHT checklist.
 
+The always-on [`contributor-calibration.instructions.md`](com.github.copilot/rules/contributor-calibration.instructions.md) also applies on every turn: it pitches answers at the contributor's familiarity with each knowledge area, offers a recommended answer and a `not sure, you pick` option with every technical decision question, and never lets a delegated answer authorize an irreversible, destructive, or security-relevant action. See [How Much Explanation You Want](README.md#how-much-explanation-you-want).
+
 ## Never push
 
 **Never run `git push`** (or any remote-mutating git operation) unless the user explicitly asks in the current turn. Local commits and branches are fine; pushing, force-pushing, and PR creation require explicit per-turn authorization. Do not bypass hooks (for example `--no-verify`).

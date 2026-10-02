@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-29
+last-verified: 2026-10-02
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,52 +9,44 @@ source: current task evidence
 
 ## Current focus
 
-`ai/agent-runtime-tool-names` (local, from `main` `0b4cf8e`, not pushed) makes
-every Custom agent keep its tools in VS Code 1.139.1 agent-host sessions. The
-agent host hands `tools:` to the Copilot runtime as a strict allow-list, which
-drops the VS Code names it cannot resolve (github/copilot-cli#4594), so a
-selected agent lost `web_fetch`, `grep`, `glob`, `ask_user`, the browser tools,
-and the session tools. Decision 0026 records the fix: every VS Code name keeps a
-runtime name next to it, the twelve open agents get a web, search, question,
-and session-tool baseline, and the four contained agents gain only `grep`,
-`glob`, and (Contoso) `ask_user`. Browser tools are named `vscodeBrowser/<tool>`
-because VS Code 1.139.1 deprecates the `browser` tool set. `web_search` is left
-out: no no-agent session here offers it. The CLI contract now maps `web/fetch`
-to `web_fetch` and the search family to `grep` plus `glob`.
+Hook guard follow-ups (Desktop prompts 02, 05, 06) are done on local `main`
+(`fea564f`, ahead of `origin/main`), merged into `ai/contributor-calibration`
+(`634546e`), and deployed on 2026-10-02: every hook file matches the source
+and `Test-CopilotAtelier` is healthy. Ten independent reviews of the hook fixes
+ended in an approval; every Blocker and Major is fixed, and the accepted and
+open Minor findings are listed in `progress.md`. The guard now decides
+within about five seconds: it parses only up to 1 MB, walks up to 20,000 fields
+and nested objects, blocks a payload over 4 MB unscanned, and joins split
+command fields in document order and per object; its raw path also joins them
+across the payload, erring toward blocking. Agents cannot push: the guard
+blocks it, and the override cannot reach a hook from an agent terminal.
 
-`tests/AgentRuntimeToolNames.Tests.ps1` was red 28 then green, and the offline
-per-agent probe (`agent-probe.mjs` in session `bed592a8`) passed all sixteen
-agents. Redeploy with `./Setup-CopilotSettings.ps1` from this clone, then the
-user's live check: agent-host chat, `software-engineer` selected,
-`#web/fetch heise.de` must call `web_fetch`, not `Invoke-WebRequest`.
-
-## Previous plan-review work
-
-PR-01 through PR-09 and the CONDITIONAL review's heading-verifier coverage gap
-are resolved in the integrated tree. The verifier is mandatory and every server
-read is checked by the dependency-free gate; excessive JSON nesting is refused.
-Per-launch sessions, bounded state, ownership locks, parser-verified anchors,
-source rechecks, immutable assets, and revision-scoped drafts remain intact.
-The guide, threat model, and `assessment-log.md` retain the full contracts and
-original findings. Browser feedback never grants chat sign-off authority.
-
-Earlier local evidence: Windows gate 1,775/0/116 at 90.72% coverage; Node 255;
-Edge 42. This did not prove the failing cross-platform artifact transfer.
-No fresh independent review of the combined HTTP and persistence corrections
-is claimed; `review: on` remains recommended for those earlier changes.
+Contributor calibration (Decision 0027) Phase 1 is implemented and
+independently reviewed on `ai/contributor-calibration`; Phase 2 goes to
+`software-architect` through the Session handoff in `.memory-bank/session/`.
+The private behavior eval (17 real-chat cases, pinned `gpt-5.5` judge, 38 of 40
+against human labels) scored 52.1% without the Instruction and 100% with it.
+`claude-opus-5` answers some English prompts in German under the eval's thin
+context, so arms are compared only when run concurrently. A parallel session
+also commits Memory Bank notes here.
 
 ## Previous focuses
 
-- **Hook launchers (`0ed6c0e`, `225c190`, on `main`).** The Copilot SDK host
-  runs `command` on Windows, where `HOME` is unset; launchers now try
-  `PLUGIN_ROOT`, `HOME`, `USERPROFILE`, then the OS profile folder, and
-  `Block-RemoteMutation` exits `0` on an unreadable payload because the host
-  denies on `1`. Decision 0016 carries the host contract table.
+- **Version rules (`31042ea`, `bd60b7a`, on `main`).** Only the Conventional
+  Commit type in the subject, a `BREAKING CHANGE:` line, or `+semver:` raises
+  the version; review text such as "Major issues." no longer does.
+- **Runtime tool names (`a592832`, on `main`).** Every Custom agent pairs its
+  VS Code tool names with runtime names, so agent-host sessions keep `web_fetch`,
+  `grep`, `glob`, `ask_user`, browser, and session tools (Decision 0026,
+  github/copilot-cli#4594). Red 28 then green; offline probe 16 of 16 agents.
+- **Plan-review findings PR-01 to PR-09.** Resolved in the integrated tree with
+  a mandatory heading verifier; the guide, threat model, and `assessment-log.md`
+  keep the contracts. Browser feedback never grants chat sign-off. The
+  cross-platform artifact transfer stayed unproven, and `review: on` remains
+  recommended for the combined HTTP and persistence corrections.
 - **Plugin manifest rollover (`6367e68`, on `main`).** `Update_PluginManifest_Version`
   rewrites `plugin.json` before `Create_ChangeLog_GitHub_PR`, so a rollover no
-  longer fails its own manifest guard (CI run 36549550887). GitVersion's
-  case-insensitive `major-version-bump-message` matched "Major" in #25's review
-  text, so `main` versions 6.0.0; tightening it is a pending user decision.
+  longer fails its own manifest guard (CI run 36549550887).
 - **Client-specific adapters (task 06, `288a4ad`).** VS Code profiles remain the
   source; the adapter rewrites strictly parsed frontmatter through explicit
   capability mappings, rejects unsupported grants, and preserves the body bytes.
@@ -166,14 +158,22 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Redeploy this branch with `./Setup-CopilotSettings.ps1` from the clone, open a
-new agent-host chat with `software-engineer` selected, and confirm that
-`#web/fetch heise.de` calls `web_fetch`. Then decide on push and pull request.
+All of it needs the user; agents cannot push.
 
-Six self-contained prompts in `%USERPROFILE%\Desktop\CopilotAtelier-hook-followups`
-on the development machine carry the remaining work, in order: the fresh Copilot
-SDK chat check, an independent security review, push with pull request and CI,
-a `-Repair` deploy on the hand-patched machine (the plan refuses to overwrite a
-modified Owned file), how each host spawns hooks and whether the push override
-reaches them, and the block reason the SDK host drops. Both commits are
-redeployed to `C:\Users\install\CopilotAtelier`. No push was performed.
+1. Push local `main` from your own terminal. CI publishes 6.0.1-preview0001.
+   Then delete the merged remote branches `updateChangelogAfterv6.0.0` and
+   `copilot/dgthths`.
+2. Push `ai/contributor-calibration` and open its pull request with a `feat:`
+   title, because a squash keeps only the title.
+3. Run the live checks in new chats, as the Desktop
+   `CopilotAtelier-hook-followups\00-README.md` lists them: 01's two-chat check,
+   05's VS Code Local probe and override test, and 06's probe in both hosts.
+   Then run 04 on the other machine. Close #19, the API key question, which is
+   already answered.
+4. Start the Phase 2 `software-architect` chat for contributor calibration.
+   Grow the eval kit in `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\`
+   past 20 cases with `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on
+   RAANDREE3; never commit the kit.
+
+Still open from earlier work: the live agent-host `#web/fetch` check, and the
+duplicate Instruction loading in Copilot SDK chats (Open work in `progress.md`).

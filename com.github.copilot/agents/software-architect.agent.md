@@ -101,6 +101,8 @@ Concept rather than argued about.
 2. **Interrogate.** Apply `grill-me` at the chosen depth. Ask one question or
    one tight cluster at a time through `#tool:vscode/askQuestions`, adapt the
    next question to the last answer, and announce each category transition.
+   Ask each question the way the `contributor-calibration` Instruction
+   specifies.
 3. **Quantify.** Apply `gilb-requirements-engineering` the moment an
    unquantified quality word survives the interview. "Fast", "robust",
    "scalable", and "user-friendly" become a Scale, a Meter, and a number, or
@@ -110,7 +112,9 @@ Concept rather than argued about.
    quantified requirements, not on enthusiasm. Name the option you recommend
    and why the runner-up loses.
 5. **Concept.** Write the Design Concept. Every unanswered question becomes an
-   explicit `TBD` with an owner, never a silent assumption.
+   explicit `TBD` with an owner, never a silent assumption. A question delegated
+   with `not sure, you pick` records your recommendation as an explicit
+   assumption flagged for expert review.
 6. **Gate.** Stop. Wait for explicit sign-off. Revisions to the concept are the
    only acceptable output until it arrives.
 7. **Hand off.** On sign-off, record the durable choice and offer the

@@ -24,13 +24,11 @@ source: build.yaml and source/
 | Skill conformance | `uv` fetching upstream `skills-ref` (pinned) | Validates `Skills/*` against the open specification |
 | Optional plan review | Node 20.11+ with `markdown-it`, DOMPurify, `jsdom`, Mermaid, Lucide, Playwright | `tools/plan-review` only; never installed for module consumers |
 
-`uv` is the only non-PowerShell dependency of the module itself and it is
-test-only: without it the conformance gate skips locally and throws in CI, where
-the workflow installs it. Nothing in building, installing, or using the module
-needs it. `tools/plan-review` is opt-in and self-contained: its `npm install`
-is run by hand, its dependency-free half runs in the gate through
-`tests/PlanReview.Tests.ps1`, and its Playwright checks drive installed
-Microsoft Edge through the `msedge` channel rather than downloading a browser.
+`uv` is the module's only non-PowerShell dependency and is test-only: without it
+the conformance gate skips locally and throws in CI, which installs it.
+`tools/plan-review` is opt-in: its `npm install` is run by hand, its
+dependency-free half runs in the gate through `tests/PlanReview.Tests.ps1`, and
+its Playwright checks drive installed Microsoft Edge (`msedge` channel).
 
 ## Module layout
 
@@ -129,9 +127,8 @@ expose `~/.copilot/{agents,instructions,skills,prompts,hooks}`.
 | `github.copilot.chat.agent.maxRequests` | `500` | Support long agent workflows |
 | `gitlens.ai.vscode.model` | `copilot:claude-opus-5` | GitLens model |
 
-Setup removes the `github.copilot.advanced.model` key written by earlier
-releases. `github.copilot.advanced` is the completions bag and has no documented
-`model` member, so the value was never consumed.
+Setup removes the undocumented `github.copilot.advanced.model` key that earlier
+releases wrote; nothing ever consumed it.
 
 Custom agents declare `model` as a priority array. The last entry must be a GA
 model so a retirement degrades instead of breaking every agent.
@@ -139,8 +136,11 @@ model so a retirement degrades instead of breaking every agent.
 ## Execution constraints
 
 Use the shared execution-safety Instruction: synchronous one-shot commands,
-detached Pester/build runs, temporary logs, and no foreground polling. Never
-mutate a remote without an explicit current-turn request.
+detached Pester/build runs, temporary logs, and no foreground polling. A
+detached `*>&1 | Out-File` run loses a terminating error to standard error, so
+wrap an entry point such as `Setup-CopilotSettings.ps1` in `try`/`catch` that
+logs the error record. Never mutate a remote without an explicit current-turn
+request.
 
 ## Validation
 
@@ -149,7 +149,7 @@ mutate a remote without an explicit current-turn request.
 - Test CI-affecting changes in a temporary clean clone with copied `output/`
   artifacts and `./build.ps1 -Tasks test`; local ignored files can mask failures.
 - Read non-ASCII Markdown with `-Encoding UTF8` on Windows PowerShell 5.1;
-  its ANSI default corrupts BOM-less UTF-8. Existing ASCII-only matches are safe.
+  its ANSI default corrupts BOM-less UTF-8.
 - Environment-bound tests use `BeforeDiscovery` probes and `-Skip`, never
   discovery-failing `#requires`. Reserve `Unit` for portable tests: Linux selects
   by tag. Hooks resolve payload paths with .NET to avoid provider errors
