@@ -62,7 +62,9 @@ and the SDK host shows the block reason only on `2`, so `windows` and
 (`+ 1` for the lifecycle events). The outer PowerShell runs it and exits with the
 inner code, or with the launcher's own failure code when the inner interpreter
 never started. Under `cmd.exe` the statement only reaches the inner `-Command`
-after a `try` block that always exits. `command` cannot carry it, because `sh`
+after a `try` block that always exits, so when the inner interpreter cannot
+start at all, a `cmd.exe` spawn reports `1`, while both PowerShell spawns report
+the launcher's failure code. `command` cannot carry it, because `sh`
 runs `command` on Linux and macOS and rejects the statement; that is why the SDK
 host gets its own `powershell` launcher. The capture above shows how it ran
 `command` before that key existed. That it runs `powershell` the same way still
@@ -102,8 +104,12 @@ reason there: top-level `permissionDecision` and `permissionDecisionReason` for
 that host, and the same pair under `hookSpecificOutput` for VS Code. The
 command-bearing fields are walked up to 64 levels deep. When the
 walk cannot cover a payload, because it is nested deeper or is not valid JSON,
-its raw text is also scanned, with JSON escapes decoded, and a blocked command
-found there blocks the call. Otherwise a payload that is not valid JSON is
+its raw text is also scanned three ways: as written, with JSON escapes decoded,
+and without the JSON punctuation, so an argument array such as
+`["git","push"]` reads as the command it is. A blocked command found there
+blocks the call. That path errs toward blocking: a payload that only mentions a
+blocked command, such as a document in an unreadable payload, is blocked too.
+Otherwise a payload that is not valid JSON is
 allowed with a warning on standard error and exit `0`: the Copilot SDK host
 denies a `preToolUse` call on every other non-zero exit, so a payload schema
 change would otherwise block every tool call.

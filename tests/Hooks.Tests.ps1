@@ -327,6 +327,21 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
 
             $result.ExitCode | Should -Be 2 -Because $result.Output
         }
+
+        It 'blocks a push written as an argument array nested <Depth> levels deep' -ForEach @(
+            @{ Depth = 6 }
+            @{ Depth = 70 }
+            @{ Depth = 2100 }
+        ) {
+            # Raw JSON puts a comma, not a space, after "git", which the command
+            # patterns need (re-review finding SEC-13).
+            $payload = '{"hook_event_name":"PreToolUse","tool_name":"mcp_tool","tool_input":' +
+                ('{"a":' * $Depth) + '{"args":["git","push","origin","main"]}' + ('}' * $Depth) + '}'
+
+            $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
+
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+        }
     }
 }
 

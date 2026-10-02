@@ -21,8 +21,9 @@
 
     The command-bearing fields are walked up to 64 levels deep. When the walk
     cannot cover the payload, because it is nested deeper or is not valid JSON,
-    the raw payload text is also scanned, with its JSON escapes decoded, before
-    the call is allowed.
+    the raw payload text is also scanned, with its JSON escapes decoded and
+    without its JSON punctuation, before the call is allowed. That errs toward
+    blocking: there, a payload that only mentions a blocked command is blocked.
 
     COPILOT_ATELIER_ALLOW_REMOTE=1 in the hook's own environment allows a
     blocked command and records the override on standard error. An agent
@@ -151,14 +152,21 @@ try {
 if (-not $isWalkComplete) {
     # Scan what the walk could not reach as raw text, also with its JSON escapes
     # decoded, so neither nesting nor malformed JSON hides a blocked command.
-    $rawText = $InputJson
+    $rawText = [System.Collections.Generic.List[string]]::new()
+    $rawText.Add($InputJson)
     try {
-        $rawText = $rawText + ' ' + [regex]::Unescape($InputJson)
+        $rawText.Add([regex]::Unescape($InputJson))
     } catch [System.ArgumentException] {
         Write-Verbose -Message 'The payload holds an escape Regex.Unescape rejects; it is scanned as written.'
     }
 
-    $commandText = $commandText + ' ' + $rawText
+    # An argument array reads as ["git","push"] in raw JSON. Without the JSON
+    # punctuation it reads as the command line the walk would have joined.
+    foreach ($text in @($rawText)) {
+        $rawText.Add(($text -replace '["\[\],]', ' '))
+    }
+
+    $commandText = $commandText + ' ' + ($rawText -join ' ')
 }
 
 if ([string]::IsNullOrWhiteSpace($commandText)) {
