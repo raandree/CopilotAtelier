@@ -15,8 +15,31 @@ under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake on
-  `ai/fix-heartbeat-state-race` (`bff3ac4`, from local `main`, not merged).
+- **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
+  `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
+  - The post-release review failed the v6.0.0 launcher fix: in VS Code Local
+    chats on Windows the push guard only warned, because VS Code's outer
+    `powershell.exe -Command` reports exit 2 as 1 (Blocker, reproduced).
+  - Nine re-reviews followed; every Blocker and Major was fixed test-first
+    (SEC-13 to SEC-33, assessment log). The guard now decides within about
+    5 s (1 MB parse, 20,000-field walk, 4 MB block caps) and joins split
+    command fields in document order and per object, and on its raw path also
+    across the payload. The last re-review approved.
+  - The override cannot reach a hook from an agent terminal, so an authorized
+    push runs in the user's own terminal; never persist it. The SDK host gets
+    its own `powershell` launcher and the reason on stdout.
+  - Hook suites: 559 passed, 0 failed; full gate of the merge (`634546e`)
+    2,536 passed, 0 failed. Deployed: hooks match the source, the deployment
+    is healthy, and a push exits 2 with its reason in both host spawns.
+
+- **2026-10-02**: The version now rises only from Conventional Commit markers
+  (`31042ea`, `bd60b7a`), approved by an independent review. With GitVersion
+  5.12.0, local `main` would publish `6.0.1-preview0001` (`6.1.0` before), and
+  with the calibration branch `6.1.0` (`7.0.0` before). Merged `main` into
+  `ai/contributor-calibration` (`e0955fb`).
+
+- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake (`bff3ac4`,
+  now on local `main`).
   `Set-Content` empties the state file before writing it; `Save-HeartbeatState`
   now renames a complete temporary file over it (on Windows PowerShell 5.1 via
   `Microsoft.VisualBasic` `MoveFile`, because `File.Replace` left the path empty
@@ -31,57 +54,15 @@ under `[Unreleased]` in `CHANGELOG.md`.
   `build,test` 2,319 passed, 1 failed (the v6.0.0 gate) at 90.74%.
 
 - **2026-10-02**: Merged into local `main` by fast-forward: the v6.0.0 rollover
-  (`4ee08c2`), its dropped final newline (`12428d6`), and the SessionStart fix
-  replayed on top (`b9cee3b`, `139c06c`, `09e2798`), with its changelog entry
-  moved back under `[Unreleased]`. Full gate on `main`: 2,288 passed, 0
-  failed, 121 skipped, 90.74%. Worktree and fix branch removed. Not pushed,
-  not deployed.
+  (`4ee08c2`, `12428d6`) and the SessionStart fix (`b9cee3b`, `139c06c`,
+  `09e2798`; full gate 2,288 passed, 0 failed). The Copilot SDK host reads only
+  a top-level `additionalContext` and VS Code Local `hookSpecificOutput`; the
+  hook writes both.
 
-- **2026-10-01**: Fixed the missing SessionStart context on
-  `ai/sdk-session-context` (`7bc21c6`, docs `3c4dc35` and later). The Copilot
-  SDK host reads only a top-level `additionalContext`; the hook wrote only
-  `hookSpecificOutput`, which VS Code's built-in Copilot extension reads for
-  Local chats. It now writes both. Test red then green; full gate 2,287 passed,
-  1 failed (the v6.0.0 gate). A probe chat received the fixed context once and
-  no nested or plain-text marker. Not deployed, not pushed.
-
-- **2026-10-01**: Closed the independent review of contributor calibration:
-  4 Major (delegation bounds, provenance, two redaction gaps), then a passing
-  fix round; every Minor and Nit fixed test-first or ruled on, F-03 parked
-  (private self-check red 15, then 46 of 46). The private eval gained a pinned
-  `gpt-5.5` judge (38 of 40 against human labels): full run 100% against 52.1%
-  without, shipped wording 39 of 39 on the 8 cases it could affect. German
-  replies are a drifting `claude-opus-5` quirk. About 7.36 USD in model calls.
-  Full Windows `build,test` 2,317 passed, 2 failed at 90.74%: the v6.0.0 gate
-  and a race in `LongRunningJobMonitor.Tests.ps1:229`, green in isolation.
-
-- **2026-10-01**: First live denial since the launcher fix: a harmless push
-  probe in an SDK chat was blocked. The guard matched and exited 2, the host
-  logged `Hook command failed with code 1` with the reason on stderr, and the
-  model saw only `(hook errored)`, so prompt 06 still applies.
-
-- **2026-10-01**: Audited the six hook follow-up prompts on the Desktop: none
-  was run, and the fix reached `main` by fast-forward without a pull request or
-  the prompt-02 review. CI run 36601011621 passed ubuntu, macos, and windows,
-  so prompt 03 was retired. Eight SDK sessions since the redeploy logged 1,113
-  `preToolUse` runs and no failed hook, yet none received the `SessionStart`
-  context: the GitHub hooks reference consumes only a top-level
-  `additionalContext`, and `Add-SessionContext.ps1` nests it under
-  `hookSpecificOutput`, the VS Code Local shape. Prompt 01 now targets that.
-
-- **2026-09-30**: Added answer rules to contributor calibration: at `new` and
-  `familiar` an abstract finding gets one concrete example, and a calculated
-  result names its sources and method. Red 2 then green. The private eval,
-  rerun with a frozen grader, scores 52.1% to 87.5% over 16 paired cases; read
-  by hand, the rules appear in 8 of 8 and 7 of 8 replies, against 2 of 3 and at
-  most 1 of 3 before. The exact `not sure, you pick` fell to 12 of 16 in two
-  cases, delegation always offered. About 2.63 USD. Full Windows `build,test`
-  2,311 passed, 1 failed (the v6.0.0 gate) at 90.74%. Not pushed.
-
-- **2026-09-30**: Built a private behavior eval for contributor calibration from
-  17 approved real-chat cases, kept outside the repository. `claude-opus-5`, K=3,
-  paired cases: content 83.3% to 90.0%, decision contract 0% to 100%, all 55.6%
-  to 93.3%; wrong-language replies 12 to 5. About 3.20 USD in model calls.
+- **2026-10-01**: Closed the independent review of contributor calibration
+  (4 Major, then a passing fix round; F-03 closed on 2026-10-02). The private
+  eval's pinned `gpt-5.5` judge agrees with human labels on 38 of 40: 100% with
+  the Instruction against 52.1% without, for about 7.36 USD in model calls.
 
 ## Stable capabilities
 
@@ -117,25 +98,40 @@ under `[Unreleased]` in `CHANGELOG.md`.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
-- Push local `main` (5 commits ahead on 2026-10-02): it carries the v6.0.0
-  rollover, so `updateChangelogAfterv6.0.0` needs no pull request, and the
-  SessionStart fix. First fast-forward it to `ai/fix-heartbeat-state-race`
-  (`bff3ac4`, the heartbeat flake fix). Then merge `main` into
-  `ai/contributor-calibration`; the branch is on `origin`, so do not rebase.
-- Hook follow-ups, with prompts on the development machine's Desktop (amended
-  2026-10-01; 03 retired): deploy the SessionStart fix, merged into local
-  `main` on 2026-10-02 (01); review the shipped fix independently (02);
-  run the `-Repair` deploy on the hand-patched machine from `main` (04); check
-  whether VS Code turns a block (exit 2) into a warning, and whether
-  `COPILOT_ATELIER_ALLOW_REMOTE` set in an agent terminal reaches the hook
-  (05); and surface the block reason the SDK host drops (06).
+- Push local `main` (`fea564f`, 21 ahead of `origin/main`) from your own
+  terminal: the guard blocks agent pushes, and the override cannot reach it.
+  CI then publishes 6.0.1-preview0001, and the merged remote branches
+  `updateChangelogAfterv6.0.0` and `copilot/dgthths` can go. Then push
+  `ai/contributor-calibration` (`634546e` merges `main`) and give its pull
+  request a `feat:` title, since a squash keeps only the title. Close #19,
+  the API key question answered on 2026-08-25.
+- Live checks the agent cannot run, all after the 2026-10-02 deploy and in new
+  chats:
+  - prompt 01's two-chat check;
+  - prompt 05's VS Code Local probe and its override test;
+  - prompt 06's probe in a new Copilot SDK chat: does it run the new
+    `powershell` launcher and show the reason?
+  - prompt 04 on the hand-patched machine, once `main` is pushed.
 - Copilot SDK chats load every Instruction twice, once as `C:\Users\…` and once
-  as `c:\Users\…` (seen 2026-10-01, again 2026-10-02). Find which two sources
-  disagree on drive-letter case; no `chat.instructionsFilesLocations` is set.
-- Decide on GitVersion's bump messages before `ai/contributor-calibration`
-  reaches `main`: they match anywhere, so #25's review prose made 6.0.0,
-  `21d4d50`'s "Major issues." versions that branch 7.0.0 in CI, and `b9cee3b`'s
-  "Add-SessionContext" makes the next preview 6.1.0, not 6.0.1.
+  as `c:\Users\…`. VS Code discovers `~/.copilot/instructions` as a default
+  `copilot-personal` source, and the SDK runtime has its own user-instruction
+  discovery (`COPILOT_CUSTOM_INSTRUCTIONS_DIRS`). Report it upstream: turning
+  off either source affects every chat.
+- Unfixed Minor findings from the 2026-10-02 reviews (assessment log):
+  - Hooks: SEC-07 (camelCase `toolArgs`), SEC-08 (Bypass without an integrity
+    check), SEC-09 and SEC-10 (test gaps), SEC-12 (the override applies to
+    the whole environment), SEC-15 (a dead UNC `PLUGIN_ROOT` still outlasts
+    the timeout), SEC-34 (a batch beside 25,000 small objects falls onto the
+    raw path and is blocked as a push; options in the assessment log).
+  - Versioning and heartbeat: F-02 (fail fast on permanent `IOException`s),
+    F-06 (sweep stale `.tmp` files), F-09 (Constrained Language Mode).
+  - Accepted and documented: SEC-14, SEC-16, SEC-19 (`command` has no exit
+    pass-through), SEC-27 (the limit can overrun by about 1.5 s), SEC-28 and
+    escaped-key splits (known evasions), SEC-30 and oversized payloads blocked
+    as not inspected in time (git-dense over 1 MB; under pwsh, batches over
+    about 16,000 command entries, which Windows PowerShell allows), the raw
+    path pairing fields across entries (errs toward blocking), and a linear
+    standard-input read (about 120 MB to outlast the timeout).
 - Split research delegation into a read-only code explorer and a public-source
   researcher instead of granting the full `research-analyst` tool surface, and
   review the twelve-agent browser allow-list role by role, adding explicit
@@ -146,8 +142,10 @@ under `[Unreleased]` in `CHANGELOG.md`.
   capture the trigger-eval harness's expected simulated backend failure so the
   successful full build emits no warning.
 - Restore a Windows PowerShell 5.1 CI leg now that `Repair_ManifestEncoding`
-  fixes the manifest. Re-adding it guards the fix and needs the `ci.yml`
-  `shell: pwsh` steps distinguished from `powershell.exe`.
+  fixes the manifest. Re-adding it guards the fix and the heartbeat's
+  `MoveFile` path (review F-03), and needs the `ci.yml` `shell: pwsh` steps
+  distinguished from `powershell.exe`. The hook tests' process helpers use
+  .NET-only `ProcessStartInfo.ArgumentList` and `Kill($true)`; port or skip them.
 - Run the eleven shipped trigger-query sets, then cover the 37 Skills still on
   the `SkillTriggerCoverage` uncovered baseline. Every set is authored but
   unmeasured. ShellPilot now reports ready with the existing Copilot backend;

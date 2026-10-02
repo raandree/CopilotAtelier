@@ -9,30 +9,32 @@ source: current task evidence
 
 ## Current focus
 
-Contributor calibration (Decision 0027) on `ai/contributor-calibration`, on
-`origin` up to `66d76ef`; later commits are local. Phase 1 is implemented and
-independently reviewed: the always-on `contributor-calibration` Instruction
-with question rules, answer rules, and delegation bounds, `/simpler` and
-`/deeper`, `not sure, you pick` in three question-heavy Customizations, the
-`memory-bank` safeguard, and two Glossary terms. The review passed after one
-fix round; F-03 was fixed on 2026-10-02 and `docs/SECURITY-REVIEW.md` lists
-every finding. A parallel session also commits Memory Bank notes here.
+Hook guard follow-ups (Desktop prompts 02, 05, 06) are done on local `main`
+(`fea564f`, ahead of `origin/main`), merged into `ai/contributor-calibration`
+(`634546e`), and deployed on 2026-10-02: every hook file matches the source
+and `Test-CopilotAtelier` is healthy. Ten independent reviews of the hook fixes
+ended in an approval; every Blocker and Major is fixed, and the accepted and
+open Minor findings are listed in `progress.md`. The guard now decides
+within about five seconds: it parses only up to 1 MB, walks up to 20,000 fields
+and nested objects, blocks a payload over 4 MB unscanned, and joins split
+command fields in document order and per object; its raw path also joins them
+across the payload, erring toward blocking. Agents cannot push: the guard
+blocks it, and the override cannot reach a hook from an agent terminal.
 
-Phase 2 goes to `software-architect` for a Design Concept through a forward
-Session handoff in `.memory-bank/session/` (local, gitignored, refreshed
-2026-10-01). A private behavior eval (17 real-chat cases) now grades its two
-semantic checks with a pinned `gpt-5.5` judge that agrees with human labels on
-38 of 40 replies: 52.1% without the Instruction, 100% with it. `claude-opus-5`
-answers some English prompts in German under the eval's thin context; real
-chats show 3 of 497, the rate drifts between runs, and an explicit language
-rule made it worse, so arms are compared only when run concurrently.
-
-The full `build,test` run fails one gate unrelated to this work: v6.0.0 is
-tagged on `a592832`, this branch has moved past the tag, and the rollover is in
-local `main` (`09e2798`) but not yet in this branch or `origin/main`.
+Contributor calibration (Decision 0027) Phase 1 is implemented and
+independently reviewed on `ai/contributor-calibration`; Phase 2 goes to
+`software-architect` through the Session handoff in `.memory-bank/session/`.
+The private behavior eval (17 real-chat cases, pinned `gpt-5.5` judge, 38 of 40
+against human labels) scored 52.1% without the Instruction and 100% with it.
+`claude-opus-5` answers some English prompts in German under the eval's thin
+context, so arms are compared only when run concurrently. A parallel session
+also commits Memory Bank notes here.
 
 ## Previous focuses
 
+- **Version rules (`31042ea`, `bd60b7a`, on `main`).** Only the Conventional
+  Commit type in the subject, a `BREAKING CHANGE:` line, or `+semver:` raises
+  the version; review text such as "Major issues." no longer does.
 - **Runtime tool names (`a592832`, on `main`).** Every Custom agent pairs its
   VS Code tool names with runtime names, so agent-host sessions keep `web_fetch`,
   `grep`, `glob`, `ask_user`, browser, and session tools (Decision 0026,
@@ -42,16 +44,9 @@ local `main` (`09e2798`) but not yet in this branch or `origin/main`.
   keep the contracts. Browser feedback never grants chat sign-off. The
   cross-platform artifact transfer stayed unproven, and `review: on` remains
   recommended for the combined HTTP and persistence corrections.
-- **Hook launchers (`0ed6c0e`, `225c190`, on `main`).** The Copilot SDK host
-  runs `command` on Windows, where `HOME` is unset; launchers now try
-  `PLUGIN_ROOT`, `HOME`, `USERPROFILE`, then the OS profile folder, and
-  `Block-RemoteMutation` exits `0` on an unreadable payload because the host
-  denies on `1`. Decision 0016 carries the host contract table.
 - **Plugin manifest rollover (`6367e68`, on `main`).** `Update_PluginManifest_Version`
   rewrites `plugin.json` before `Create_ChangeLog_GitHub_PR`, so a rollover no
-  longer fails its own manifest guard (CI run 36549550887). GitVersion's
-  case-insensitive `major-version-bump-message` matched "Major" in #25's review
-  text, so `main` versions 6.0.0; tightening it is a pending user decision.
+  longer fails its own manifest guard (CI run 36549550887).
 - **Client-specific adapters (task 06, `288a4ad`).** VS Code profiles remain the
   source; the adapter rewrites strictly parsed frontmatter through explicit
   capability mappings, rejects unsupported grants, and preserves the body bytes.
@@ -163,17 +158,22 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-Contributor calibration: fast-forward `main` to `ai/fix-heartbeat-state-race`
-(`bff3ac4`), push it, and merge it into this branch, not rebase (it is on
-`origin`); dry runs merged cleanly and cleared the v6.0.0 gate CI fails on.
-Before this branch reaches `main`, settle GitVersion's bump rules: `21d4d50`'s
-"Major issues." makes CI version it 7.0.0. Then deploy from `main` and start
-the Phase 2 `software-architect` chat. The eval kit (README inside; never commit
-it) is `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\`; grow it
-past 20 cases with its `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on RAANDREE3.
+All of it needs the user; agents cannot push.
 
-Still open from earlier work (Open work in `progress.md`): the live agent-host
-`#web/fetch` check and the five amended prompts in
-`%USERPROFILE%\Desktop\CopilotAtelier-hook-followups` (README has the order).
-The SessionStart fix (01) is merged into local `main` (`09e2798`), not yet
-pushed or deployed. `a592832` is already on `origin/main`.
+1. Push local `main` from your own terminal. CI publishes 6.0.1-preview0001.
+   Then delete the merged remote branches `updateChangelogAfterv6.0.0` and
+   `copilot/dgthths`.
+2. Push `ai/contributor-calibration` and open its pull request with a `feat:`
+   title, because a squash keeps only the title.
+3. Run the live checks in new chats, as the Desktop
+   `CopilotAtelier-hook-followups\00-README.md` lists them: 01's two-chat check,
+   05's VS Code Local probe and override test, and 06's probe in both hosts.
+   Then run 04 on the other machine. Close #19, the API key question, which is
+   already answered.
+4. Start the Phase 2 `software-architect` chat for contributor calibration.
+   Grow the eval kit in `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\`
+   past 20 cases with `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on
+   RAANDREE3; never commit the kit.
+
+Still open from earlier work: the live agent-host `#web/fetch` check, and the
+duplicate Instruction loading in Copilot SDK chats (Open work in `progress.md`).
