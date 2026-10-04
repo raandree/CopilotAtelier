@@ -791,6 +791,30 @@ Describe 'Hook launcher user profile fallback' -Tag 'Unit' {
 }
 
 Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration' -Skip:(-not $script:isWindowsPlatform) {
+    BeforeAll {
+        <#
+            The guard blocks any command it cannot inspect within five seconds,
+            and its first Windows PowerShell run on a cold CI runner can take
+            that long: there it blocked a benign command with exit 2 (CI runs
+            104 and 106, 2026-10-04), the first case below that runs the real
+            guard under Windows PowerShell. That is the guard failing closed as
+            designed, not a launcher defect, so one unasserted run through the
+            same spawn pays the cold start before the cases below.
+        #>
+        $warmUpProfile = Join-Path -Path $TestDrive -ChildPath 'warm-up\userprofile'
+        $warmUpDirectory = Join-Path -Path $TestDrive -ChildPath 'warm-up\cwd'
+        $warmUpScripts = Join-Path -Path $warmUpProfile -ChildPath $script:homeScriptDirectory
+        $null = New-Item -ItemType Directory -Path $warmUpScripts, $warmUpDirectory -Force
+        Copy-Item -LiteralPath (Join-Path -Path $script:hookScriptRoot -ChildPath 'Block-RemoteMutation.ps1') -Destination $warmUpScripts
+
+        $null = Invoke-HookLauncher `
+            -Launcher (Get-HookLauncher -EventName 'PreToolUse' -Branch 'windows') `
+            -Mode 'cmd' `
+            -WorkingDirectory $warmUpDirectory `
+            -Environment @{ USERPROFILE = $warmUpProfile } `
+            -Payload '{"hook_event_name":"PreToolUse","tool_name":"run_in_terminal","tool_input":{"command":"git status --short"}}'
+    }
+
     It '<Expectation> through the <Branch> launcher spawned by <Mode> with HOME unset' -ForEach @(
         @{ Branch = 'command'; Mode = 'cmd'; Command = 'git status --short'; ExitCode = 0; Expectation = 'allows a benign command' }
         @{ Branch = 'command'; Mode = 'cmd'; Command = 'git push origin main'; ExitCode = 2; Expectation = 'blocks a push' }
