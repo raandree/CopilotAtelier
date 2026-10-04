@@ -23,6 +23,11 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   the `[Unreleased]` changelog entry and the hooks README, which claimed the
   SDK host reads the guard's reason on exit 2. Not deployed yet.
 
+- **2026-10-04**: Fixed an intermittent Windows CI failure, also seen on `main`
+  (runs 104, 106): a cold runner's first Windows PowerShell run of the real
+  guard overran its 5-second limit and blocked a benign command. The launcher
+  integration block now warms it up once, unasserted.
+
 - **2026-10-02**: Live checks after the deploy (VS Code 1.140.0, SDK
   1.0.15-preview.4), verified against the session logs on 2026-10-04. A1 and
   B1 to B3 passed: the SessionStart context arrives once in a Copilot SDK chat
@@ -58,15 +63,12 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
     is healthy, and a push exits 2 with its reason in both host spawns.
 
 - **2026-10-02**: The version now rises only from Conventional Commit markers
-  (`31042ea`, `bd60b7a`), approved by an independent review. With GitVersion
-  5.12.0, local `main` would publish `6.0.1-preview0001` (`6.1.0` before), and
-  with the calibration branch `6.1.0` (`7.0.0` before). Merged `main` into
-  `ai/contributor-calibration` (`e0955fb`).
+  (`31042ea`, `bd60b7a`), approved by an independent review; `main` was then
+  merged into `ai/contributor-calibration` (`e0955fb`).
 
-- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake (`bff3ac4`
-  renames a complete temporary file over the heartbeat state; on Windows
-  PowerShell 5.1 via `MoveFile`, since `File.Replace` left the path empty for
-  183 of 6,536 reads). Torn reads: 2 to 94 per run before, none in 18 after.
+- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake (`bff3ac4`):
+  the heartbeat state is renamed over atomically, also on Windows PowerShell
+  5.1; torn reads fell from 2 to 94 per run to none in 18.
 
 ## Stable capabilities
 
