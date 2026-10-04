@@ -98,10 +98,14 @@ message, or `--grep` value that merely contains the word does not trip it. A
 tool with no command-bearing field exits `0` immediately, so editing a document
 that mentions `git push` is never blocked. The reason goes to standard error and
 the script exits with `2`, which VS Code treats as a blocking error and shows to
-the model. On exit `2` the Copilot SDK host ignores standard error and merges one
-JSON object from standard output into the deny, so the guard also prints the
-reason there: top-level `permissionDecision` and `permissionDecisionReason` for
-that host, and the same pair under `hookSpecificOutput` for VS Code. The
+the model. The GitHub hooks reference says that on exit `2` the Copilot SDK
+host ignores standard error and merges one JSON object from standard output
+into the deny, so the guard also prints the reason there: top-level
+`permissionDecision` and `permissionDecisionReason` for that host, and the same
+pair under `hookSpecificOutput` for VS Code. The SDK runtime in VS Code 1.140.0
+(1.0.15-preview.4) uses neither: a live check on 2026-10-02 found the call
+denied, but the model read only
+`Denied by preToolUse hook: hook exited with code 2`. The
 command-bearing fields are walked up to 64 levels deep and 20,000 fields and
 nested objects, in a payload of up to 1 MB; plain values in arrays, such as a
 file list, do not count. Their values are joined in document order and, within
@@ -179,6 +183,11 @@ It also starts the session clock described below, and hands the agent the
 absolute path of `Get-SessionElapsed.ps1`. The agent cannot resolve that path
 itself — the script sits under `~/.copilot` when deployed and under the plugin
 root when installed as a plugin, which is the probe `hooks.json` already carries.
+
+A resumed session keeps its clock. The Copilot SDK runtime reruns the hook with
+`source: resume` when it reloads a chat; when a readable clock of that session
+exists, the hook leaves it untouched and injects its original start time.
+Restarting it there reset the elapsed line and the turn count.
 
 The context goes into one JSON object twice, under the key each host reads: a
 top-level `additionalContext` for the Copilot SDK host and Copilot CLI, and
@@ -330,8 +339,10 @@ which survives because Instructions are re-sent with every request.
   - The Copilot SDK host fails closed on every non-zero `preToolUse` exit. The
     call is still denied, but as `Denied by preToolUse hook (hook errored)`
     without the reason. Since 2026-10-02 the SDK host runs the `powershell`
-    launcher, which hands the code on, so the reason should reach the model. A
-    session started before that deploy keeps the old hooks and still shows
+    launcher, which hands the code on: the deny now reads
+    `Denied by preToolUse hook: hook exited with code 2`, still without the
+    reason (see [Block-RemoteMutation](#block-remotemutation)). A session
+    started before that deploy keeps the old hooks and still shows
     `hook errored`.
   - VS Code blocks only on `2`, so in Local chats on Windows the guard only
     warned until 2026-10-02. The `windows` launcher now ends with an `exit` that

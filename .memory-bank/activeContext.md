@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-02
+last-verified: 2026-10-04
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,29 +9,32 @@ source: current task evidence
 
 ## Current focus
 
-Hook guard follow-ups (Desktop prompts 02, 05, 06) are done on local `main`
-(`fea564f`, ahead of `origin/main`), merged into `ai/contributor-calibration`
-(`634546e`), and deployed on 2026-10-02: every hook file matches the source
-and `Test-CopilotAtelier` is healthy. Ten independent reviews of the hook fixes
-ended in an approval; every Blocker and Major is fixed, and the accepted and
-open Minor findings are listed in `progress.md`. The guard now decides
-within about five seconds: it parses only up to 1 MB, walks up to 20,000 fields
-and nested objects, blocks a payload over 4 MB unscanned, and joins split
-command fields in document order and per object; its raw path also joins them
-across the payload, erring toward blocking. Agents cannot push: the guard
-blocks it, and the override cannot reach a hook from an agent terminal.
+The 2026-10-02 hook deploy is live-checked; on 2026-10-04 every result was
+verified against the session logs. Four of five checks passed: the
+SessionStart context arrives once in Copilot SDK and Local chats with a
+measured clock, and Local denies the push probe with the full reason, also with
+the override set in the agent's terminal. In Copilot SDK chats the guard still
+denies, but the model reads only `hook exited with code 2`, a literal in SDK
+runtime 1.0.15-preview.4; neither the guard's standard error nor its JSON on
+standard output reaches the model. That keeps prompt 06 open. The clock restart
+on resume that the checks also found is fixed on `ai/record-live-checks`, with
+the changelog and README claims A2 disproved; it is not deployed yet.
 
-Contributor calibration (Decision 0027) Phase 1 is implemented and
-independently reviewed on `ai/contributor-calibration`; Phase 2 goes to
-`software-architect` through the Session handoff in `.memory-bank/session/`.
-The private behavior eval (17 real-chat cases, pinned `gpt-5.5` judge, 38 of 40
-against human labels) scored 52.1% without the Instruction and 100% with it.
-`claude-opus-5` answers some English prompts in German under the eval's thin
-context, so arms are compared only when run concurrently. A parallel session
-also commits Memory Bank notes here.
+Pull request #27 is merged into `main` as `7a48abe` and published as
+`6.1.0-preview0001`; #19 is closed. So contributor calibration (Decision 0027)
+Phase 1 is on `main`; Phase 2 goes to `software-architect` through the Session
+handoff in `.memory-bank/session/`. The private behavior eval (17 real-chat
+cases, pinned `gpt-5.5` judge, 38 of 40 against human labels) scored 52.1%
+without the Instruction and 100% with it. `claude-opus-5` answers some English
+prompts in German under the eval's thin context, so arms are compared only
+when run concurrently. A parallel session also commits Memory Bank notes here.
 
 ## Previous focuses
 
+- **Hook guard follow-ups (prompts 02, 05, 06; `d8cc6f5` to `fea564f`).** Ten
+  reviews ended in an approval. The guard decides within about five seconds
+  (1 MB parse, 20,000-field walk, 4 MB block) and errs toward blocking; the
+  override cannot reach a hook from an agent terminal. Deployed 2026-10-02.
 - **Version rules (`31042ea`, `bd60b7a`, on `main`).** Only the Conventional
   Commit type in the subject, a `BREAKING CHANGE:` line, or `+semver:` raises
   the version; review text such as "Major issues." no longer does.
@@ -158,22 +161,17 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-All of it needs the user; agents cannot push.
-
-1. Push local `main` from your own terminal. CI publishes 6.0.1-preview0001.
-   Then delete the merged remote branches `updateChangelogAfterv6.0.0` and
-   `copilot/dgthths`.
-2. Push `ai/contributor-calibration` and open its pull request with a `feat:`
-   title, because a squash keeps only the title.
-3. Run the live checks in new chats, as the Desktop
-   `CopilotAtelier-hook-followups\00-README.md` lists them: 01's two-chat check,
-   05's VS Code Local probe and override test, and 06's probe in both hosts.
-   Then run 04 on the other machine. Close #19, the API key question, which is
-   already answered.
-4. Start the Phase 2 `software-architect` chat for contributor calibration.
+1. Start the Phase 2 `software-architect` chat for contributor calibration.
    Grow the eval kit in `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\`
    past 20 cases with `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on
    RAANDREE3; never commit the kit.
+2. Prompt 06, check A2: probe in a scratch workspace which `preToolUse` deny
+   output the SDK runtime reads, fix test-first without trading away exit 2,
+   and rerun A2 in a new Copilot chat. If none carries the reason, report the
+   missing standard-output merge upstream.
+3. The user runs prompt 04 on the hand-patched machine and deletes the merged
+   remote branch `copilot/dgthths`; agents cannot push. Once the clock fix is on
+   `main`, redeploy with `Setup-CopilotSettings.ps1` so new chats get it.
 
 Still open from earlier work: the live agent-host `#web/fetch` check, and the
 duplicate Instruction loading in Copilot SDK chats (Open work in `progress.md`).

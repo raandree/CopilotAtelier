@@ -14,7 +14,8 @@
     It also starts the session clock: the same timestamp is written to a small
     per-session file under LocalApplicationData, which the Stop hook reads to
     report the elapsed chat duration at the end of every turn. A model cannot
-    read a clock, so neither number may be left to it.
+    read a clock, so neither number may be left to it. A payload with source
+    'resume' keeps a readable clock of the same session and reports its start.
 
     COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS bounds injected context to
     1024-16384 characters (default 4096). Invalid values use the default.
@@ -176,6 +177,11 @@ $startedUtc = (Get-Date).ToUniversalTime()
     turn to report the elapsed chat duration, and it has to survive compaction,
     which is why it goes to disk rather than into the injected context alone.
     A clock failure must never cost the caller its Memory Bank probe.
+
+    A resumed session keeps its clock. The Copilot SDK runtime reruns this hook
+    with source 'resume' when it reloads a chat, and restarting the clock there
+    reset the elapsed duration and the turn count the Stop hook keeps. A clock
+    that cannot be read, or that names no start, is replaced as before.
 #>
 try {
     $clockPath = Get-SessionClockPath `
@@ -183,19 +189,41 @@ try {
         -WorkingDirectory $workingDirectory `
         -Root $ClockRoot
 
-    $clockDirectory = [IO.Path]::GetDirectoryName($clockPath)
+    $resumedStartUtc = $null
 
-    if (-not [IO.Directory]::Exists($clockDirectory)) {
-        [IO.Directory]::CreateDirectory($clockDirectory) | Out-Null
+    if ($payload -and [string]$payload.source -eq 'resume' -and [IO.File]::Exists($clockPath)) {
+        try {
+            $recorded = [IO.File]::ReadAllText($clockPath) | ConvertFrom-Json -ErrorAction Stop
+
+            if (-not [string]::IsNullOrWhiteSpace([string]$recorded.startedUtc)) {
+                $recordedStartUtc = ([datetimeoffset]$recorded.startedUtc).UtcDateTime
+
+                if ($recordedStartUtc -le $startedUtc) {
+                    $resumedStartUtc = $recordedStartUtc
+                }
+            }
+        } catch {
+            $resumedStartUtc = $null
+        }
     }
 
-    $clock = [ordered]@{
-        startedUtc = $startedUtc.ToString('o')
-        workspace = $workingDirectory
-        turns = 0
-    } | ConvertTo-Json -Depth 3
+    if ($null -ne $resumedStartUtc) {
+        $startedUtc = $resumedStartUtc
+    } else {
+        $clockDirectory = [IO.Path]::GetDirectoryName($clockPath)
 
-    [IO.File]::WriteAllText($clockPath, $clock, [Text.UTF8Encoding]::new($false))
+        if (-not [IO.Directory]::Exists($clockDirectory)) {
+            [IO.Directory]::CreateDirectory($clockDirectory) | Out-Null
+        }
+
+        $clock = [ordered]@{
+            startedUtc = $startedUtc.ToString('o')
+            workspace = $workingDirectory
+            turns = 0
+        } | ConvertTo-Json -Depth 3
+
+        [IO.File]::WriteAllText($clockPath, $clock, [Text.UTF8Encoding]::new($false))
+    }
 } catch {
     # A missing clock costs the closing duration line, nothing else. Reporting on
     # any other stream would corrupt the JSON contract on standard output.
