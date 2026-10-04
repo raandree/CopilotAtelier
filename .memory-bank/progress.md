@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-02
+last-verified: 2026-10-04
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -10,20 +10,29 @@ source: CHANGELOG.md and git history
 ## Project status
 
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
-from `a592832` (release API, verified 2026-10-01). Incremental work is tracked
-under `[Unreleased]` in `CHANGELOG.md`.
+from `a592832`. CI on `main` has since published the prereleases
+`6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to GitHub
+Releases and the PowerShell Gallery (verified 2026-10-04). Incremental work is
+tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
 - **2026-10-02**: Live checks after the deploy (VS Code 1.140.0, SDK
-  1.0.15-preview.4). A1 and B1 to B3 passed: the SessionStart context arrives
-  once in a Copilot SDK chat (top-level `additionalContext`) and a Local chat
-  (`hookSpecificOutput`), both clocks are measured, and Local blocks the probe
-  with the full reason, also with the override set in the agent's terminal.
-  A2 did not: the SDK denies it through the new `powershell` launcher, but the
-  model reads only `hook exited with code 2` (in two chats), though the guard,
-  spawned as that host spawns it, writes the reason to standard error and as
-  JSON to standard output.
+  1.0.15-preview.4), verified against the session logs on 2026-10-04. A1 and
+  B1 to B3 passed: the SessionStart context arrives once in a Copilot SDK chat
+  (top-level `additionalContext`) and a Local chat (`hookSpecificOutput`), both
+  clocks are measured, and Local blocks the probe with the full reason, also
+  with the override set in the agent's terminal. A2 did not: the SDK denies it
+  through the new `powershell` launcher, so exit 2 now arrives, but the model
+  reads only `hook exited with code 2` (in two chats), a literal in the SDK
+  runtime binary. The guard, spawned as that host spawns it, writes its reason
+  to standard error and as JSON to standard output; neither reaches the model.
+
+- **2026-10-02**: Pushed `main` and merged pull request #27 (contributor
+  calibration Phase 1, with review finding F-03 closed and
+  `docs/SECURITY-REVIEW.md`) as `7a48abe`; CI run 37058264901 passed and
+  published `6.1.0-preview0001`. Closed #19, the API key question. Only `main`
+  and the merged `copilot/dgthths` remain on GitHub.
 
 - **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
   `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
@@ -54,14 +63,6 @@ under `[Unreleased]` in `CHANGELOG.md`.
   now renames a complete temporary file over it (on Windows PowerShell 5.1 via
   `Microsoft.VisualBasic` `MoveFile`, because `File.Replace` left the path empty
   for 183 of 6,536 reads). New test: 2 to 94 torn reads before, none in 18 runs.
-
-- **2026-10-02**: Closed review finding F-03 on `ai/contributor-calibration`: a
-  question that authorizes an irreversible, destructive, or security-relevant
-  action offers no `not sure, you pick` option. Red then green. Side by side
-  with the previous wording it changed no measured behavior (decision cases 10
-  of 10 each; a push probe kept the option off the push in 2 of 2 each; 0.63
-  USD). Added `docs/SECURITY-REVIEW.md` with all 32 findings. Full Windows
-  `build,test` 2,319 passed, 1 failed (the v6.0.0 gate) at 90.74%.
 
 ## Stable capabilities
 
@@ -101,19 +102,16 @@ under `[Unreleased]` in `CHANGELOG.md`.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
-- Push local `main` (`fea564f`, 21 ahead of `origin/main`) from your own
-  terminal: the guard blocks agent pushes, and the override cannot reach it.
-  CI then publishes 6.0.1-preview0001, and the merged remote branches
-  `updateChangelogAfterv6.0.0` and `copilot/dgthths` can go. Then push
-  `ai/contributor-calibration` (`634546e` merges `main`) and give its pull
-  request a `feat:` title, since a squash keeps only the title. Close #19,
-  the API key question answered on 2026-08-25.
+- Delete the merged remote branch `copilot/dgthths` on GitHub or from your own
+  terminal; the guard blocks an agent's remote mutation.
 - Live checks the agent cannot run, all after the 2026-10-02 deploy and in new
   chats:
   - prompt 06's SDK reason (A2 above): the hook's comments and tests assume a
-    stdout merge on exit 2 that the runtime does not do; find an output it
-    reads (a JSON deny on exit 0 would fail open if unparsed), verify it live;
-  - prompt 04 on the hand-patched machine, once `main` is pushed.
+    stdout merge on exit 2 that the runtime does not do. Probe in a scratch
+    workspace which deny output it reads: exit 2 with a top-level-only object,
+    or a JSON deny on exit 0, which fails open if unparsed and so may ship
+    only if both hosts honor it. Then fix test-first and rerun A2;
+  - prompt 04 on the hand-patched machine; `main` is pushed.
 - Copilot SDK chats load every Instruction twice, once as `C:\Users\…` and once
   as `c:\Users\…`. VS Code discovers `~/.copilot/instructions` as a default
   `copilot-personal` source, and the SDK runtime has its own user-instruction

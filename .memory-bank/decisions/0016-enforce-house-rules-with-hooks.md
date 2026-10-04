@@ -1,9 +1,9 @@
 ---
 status: accepted
 date: 2026-07-28
-last-verified: 2026-10-02
+last-verified: 2026-10-04
 owner: software-engineer
-source: VS Code 1.130 agent customization docs; GitHub Copilot hooks configuration reference (2026-09-29); VS Code build 07f806f999 sources and a process capture (2026-10-02)
+source: VS Code 1.130 agent customization docs; GitHub Copilot hooks configuration reference (2026-09-29); VS Code build 07f806f999 sources and a process capture (2026-10-02); session logs of the 2026-10-02 live checks
 ---
 
 # Enforce house rules with hooks, not prose alone
@@ -73,8 +73,8 @@ and this machine's SDK session logs:
 | Reload | not verified | read at session start; an open chat and its subagents keep the old set |
 | `SessionStart` output | `hookSpecificOutput.additionalContext` | top-level `additionalContext` only; `hookSpecificOutput` is ignored |
 | Spawn on Windows | `powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -Command <windows>` (`HookExecutor`, built-in Copilot extension) | `pwsh.exe -nop -nol -c <command>`, started by `copilot-runtime.exe` |
-| Exit code on Windows | the outer PowerShell reports a failed native command as `1`; the `windows` launcher passes the inner code on since 2026-10-02 | the outer `pwsh` reports a failed `command` as `1`, denied as `hook errored`; the `powershell` launcher passes the code on since 2026-10-02 (live check pending) |
-| `PreToolUse` reason on exit `2` | standard error | one JSON object on standard output, merged into the deny; standard error is ignored |
+| Exit code on Windows | the outer PowerShell reports a failed native command as `1`; the `windows` launcher passes the inner code on since 2026-10-02 | the outer `pwsh` reports a failed `command` as `1`, denied as `hook errored`; the `powershell` launcher passes the code on since 2026-10-02, confirmed live the same day |
+| `PreToolUse` reason on exit `2` | standard error | documented: one JSON object on standard output, merged into the deny. Live with SDK 1.0.15-preview.4: neither standard output nor standard error; the model reads `Denied by preToolUse hook: hook exited with code 2` |
 | Hook environment | the extension host's environment plus the entry's `env` | the runtime's environment |
 | Override set in an agent terminal | never reaches the hook | never reaches the hook; every tool call runs in a new process |
 
@@ -149,10 +149,9 @@ Consequences:
 - The Copilot SDK host gets its own `powershell` launcher, which the reference
   says it prefers on Windows: `command` plus the same statement. On a block the
   guard also prints one JSON deny object on standard output, top-level for the
-  SDK host and under `hookSpecificOutput` for VS Code. Whether the SDK host runs
-  `powershell` exactly as it ran `command` still needs a live check in a new
-  chat; if it does not, a block still arrives non-zero and is denied as
-  `hook errored`.
+  SDK host and under `hookSpecificOutput` for VS Code. A live check on
+  2026-10-02 confirmed that the SDK host runs `powershell`, so exit 2 arrives,
+  but its deny still carries no reason; see the table.
 
 ## Confirmation
 
