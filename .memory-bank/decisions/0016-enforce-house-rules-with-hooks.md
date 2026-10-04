@@ -72,6 +72,7 @@ and this machine's SDK session logs:
 | Timeout | `timeout`, default 30 s | `timeoutSec`, with `timeout` as its alias; a timeout fails open |
 | Reload | not verified | read at session start; an open chat and its subagents keep the old set |
 | `SessionStart` output | `hookSpecificOutput.additionalContext` | top-level `additionalContext` only; `hookSpecificOutput` is ignored |
+| Session resume | not observed | reruns `sessionStart` with `source: resume` when it reloads a chat (2026-10-02); `Add-SessionContext` keeps that session's clock since 2026-10-04 |
 | Spawn on Windows | `powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -Command <windows>` (`HookExecutor`, built-in Copilot extension) | `pwsh.exe -nop -nol -c <command>`, started by `copilot-runtime.exe` |
 | Exit code on Windows | the outer PowerShell reports a failed native command as `1`; the `windows` launcher passes the inner code on since 2026-10-02 | the outer `pwsh` reports a failed `command` as `1`, denied as `hook errored`; the `powershell` launcher passes the code on since 2026-10-02, confirmed live the same day |
 | `PreToolUse` reason on exit `2` | standard error | documented: one JSON object on standard output, merged into the deny. Live with SDK 1.0.15-preview.4: neither standard output nor standard error; the model reads `Denied by preToolUse hook: hook exited with code 2` |

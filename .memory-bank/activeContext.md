@@ -16,7 +16,9 @@ measured clock, and Local denies the push probe with the full reason, also with
 the override set in the agent's terminal. In Copilot SDK chats the guard still
 denies, but the model reads only `hook exited with code 2`, a literal in SDK
 runtime 1.0.15-preview.4; neither the guard's standard error nor its JSON on
-standard output reaches the model. That keeps prompt 06 open.
+standard output reaches the model. That keeps prompt 06 open. The clock restart
+on resume that the checks also found is fixed on `ai/record-live-checks`, with
+the changelog and README claims A2 disproved; it is not deployed yet.
 
 Pull request #27 is merged into `main` as `7a48abe` and published as
 `6.1.0-preview0001`; #19 is closed. So contributor calibration (Decision 0027)
@@ -168,7 +170,8 @@ unproven — train reached 100 % while validation fell.
    and rerun A2 in a new Copilot chat. If none carries the reason, report the
    missing standard-output merge upstream.
 3. The user runs prompt 04 on the hand-patched machine and deletes the merged
-   remote branch `copilot/dgthths`; agents cannot push.
+   remote branch `copilot/dgthths`; agents cannot push. Once the clock fix is on
+   `main`, redeploy with `Setup-CopilotSettings.ps1` so new chats get it.
 
 Still open from earlier work: the live agent-host `#web/fetch` check, and the
 duplicate Instruction loading in Copilot SDK chats (Open work in `progress.md`).

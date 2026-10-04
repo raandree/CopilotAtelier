@@ -827,6 +827,74 @@ Describe 'Add-SessionContext' -Tag 'Unit' {
             Should -BeGreaterThan ([datetime]::UtcNow.AddMinutes(-5))
     }
 
+    It 'keeps the session clock when the runtime resumes the session' {
+        <#
+            The Copilot SDK runtime reruns sessionStart with source 'resume' when
+            it reloads a chat. Restarting the clock there reset the elapsed line
+            and the turn count, and moved the injected start time: on 2026-10-02
+            a session started at 20:23 reported 20:55 after its resume.
+        #>
+        New-Item -ItemType Directory -Path $script:clockRoot -Force | Out-Null
+        $clockPath = Join-Path $script:clockRoot 'session-session-abc.json'
+        $startedUtc = [datetime]::UtcNow.AddMinutes(-90)
+        $recorded = [ordered]@{
+            startedUtc = $startedUtc.ToString('o')
+            workspace = $script:repoRoot
+            turns = 3
+            lastTurnEndedUtc = [datetime]::UtcNow.AddMinutes(-5).ToString('o')
+        } | ConvertTo-Json -Depth 3
+        [IO.File]::WriteAllText($clockPath, $recorded, [Text.UTF8Encoding]::new($false))
+
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+            session_id = 'session-abc'
+            source = 'resume'
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $result = script:Invoke-SessionStart -Payload $payload
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        [IO.File]::ReadAllText($clockPath) | Should -BeExactly $recorded
+        ($result.Output | ConvertFrom-Json).additionalContext |
+            Should -Match ('^Session started at {0} UTC\.' -f
+                [regex]::Escape($startedUtc.ToString('yyyy-MM-dd HH:mm')))
+    }
+
+    It 'restarts the session clock when <Case>' -ForEach @(
+        @{ Case = 'a new session reuses the id'; Source = 'new'; Recorded = $null }
+        @{ Case = 'a resumed session has no readable clock'; Source = 'resume'; Recorded = '{"startedUtc":' }
+        @{ Case = 'a resumed clock has no start time'; Source = 'resume'; Recorded = '{"workspace":"x","turns":3}' }
+    ) {
+        New-Item -ItemType Directory -Path $script:clockRoot -Force | Out-Null
+        $clockPath = Join-Path $script:clockRoot 'session-session-abc.json'
+
+        if ($null -eq $Recorded) {
+            $Recorded = [ordered]@{
+                startedUtc = [datetime]::UtcNow.AddMinutes(-90).ToString('o')
+                workspace = $script:repoRoot
+                turns = 3
+            } | ConvertTo-Json -Depth 3
+        }
+
+        [IO.File]::WriteAllText($clockPath, $Recorded, [Text.UTF8Encoding]::new($false))
+
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+            session_id = 'session-abc'
+            source = $Source
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $result = script:Invoke-SessionStart -Payload $payload
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $clock = [IO.File]::ReadAllText($clockPath) | ConvertFrom-Json
+        $clock.turns | Should -Be 0
+        ([datetimeoffset]$clock.startedUtc).UtcDateTime |
+            Should -BeGreaterThan ([datetime]::UtcNow.AddMinutes(-5))
+    }
+
     It 'hands the agent the absolute path of the elapsed reader' {
         $payload = [ordered]@{
             hook_event_name = 'SessionStart'

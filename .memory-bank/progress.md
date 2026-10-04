@@ -17,6 +17,12 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-04**: Fixed the clock restart on resume that the live checks found:
+  `Add-SessionContext.ps1` keeps a readable clock of the same session when
+  `sessionStart` arrives with `source: resume` (red, then 18 of 18). Corrected
+  the `[Unreleased]` changelog entry and the hooks README, which claimed the
+  SDK host reads the guard's reason on exit 2. Not deployed yet.
+
 - **2026-10-02**: Live checks after the deploy (VS Code 1.140.0, SDK
   1.0.15-preview.4), verified against the session logs on 2026-10-04. A1 and
   B1 to B3 passed: the SessionStart context arrives once in a Copilot SDK chat
@@ -57,12 +63,10 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   with the calibration branch `6.1.0` (`7.0.0` before). Merged `main` into
   `ai/contributor-calibration` (`e0955fb`).
 
-- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake (`bff3ac4`,
-  now on local `main`).
-  `Set-Content` empties the state file before writing it; `Save-HeartbeatState`
-  now renames a complete temporary file over it (on Windows PowerShell 5.1 via
-  `Microsoft.VisualBasic` `MoveFile`, because `File.Replace` left the path empty
-  for 183 of 6,536 reads). New test: 2 to 94 torn reads before, none in 18 runs.
+- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake (`bff3ac4`
+  renames a complete temporary file over the heartbeat state; on Windows
+  PowerShell 5.1 via `MoveFile`, since `File.Replace` left the path empty for
+  183 of 6,536 reads). Torn reads: 2 to 94 per run before, none in 18 after.
 
 ## Stable capabilities
 
@@ -95,10 +99,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
   workspace, so a subagent or parallel chat there shadows the parent's clock
   (2026-10-01: a 06:29 start). Inject the reader with this session's `-Path`.
-- A resumed Copilot SDK session restarts its clock: the runtime reruns
-  `sessionStart` with `source: resume`, and `Add-SessionContext.ps1` ignores
-  `source`, so it overwrites `startedUtc`, `turns`, and the injected start
-  (2026-10-02: a 20:23 start became 20:55). Keep an existing clock on resume.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
