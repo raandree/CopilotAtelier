@@ -200,7 +200,9 @@ Consequences:
 - Deployed the same day. In a Copilot SDK chat opened before the deploy, the
   A2 probe was denied with `hook exited with code 2` at 12:11 UTC and with the
   full reason at 12:55 UTC: a session keeps the hooks configuration it started
-  with, but the launcher resolves the guard on every call.
+  with, but the launcher resolves the guard on every call. New chats then
+  passed A2 (Copilot SDK, 13:18 UTC) and B2 (Local, 13:24 UTC, `Tool execution
+  denied: Blocked by Copilot Atelier: …`).
 
 ## Confirmation
 

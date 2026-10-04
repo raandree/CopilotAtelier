@@ -23,7 +23,7 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   `hookSpecificOutput`; the guard now prints the top-level pair alone. The new
   `tests/HookSdkRuntime.Tests.ps1` runs the shipped launcher and guard in that
   runtime (red, then green). Full gate 2,542 passed, 0 failed; deployed, and
-  A2 then passed live in an open Copilot SDK chat.
+  A2 and B2 then passed in new chats (sessions `d2788da5`, `874b1f34`).
 
 - **2026-10-04**: Fixed the clock restart on resume that the live checks found:
   `Add-SessionContext.ps1` keeps a readable clock of the same session when
@@ -108,10 +108,8 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
 - Delete the merged remote branch `copilot/dgthths` on GitHub or from your own
   terminal; the guard blocks an agent's remote mutation.
-- Live checks the agent cannot run, in new chats:
-  - A2 and B2 after the 2026-10-04 deploy, to confirm the block reason end to
-    end in Copilot SDK and Local chats;
-  - prompt 04 on the hand-patched machine; `main` is pushed.
+- Merge `ai/hook-deny-reason` (prompt 06; A2 and B2 passed on 2026-10-04),
+  and run prompt 04 on the hand-patched machine; `main` is pushed.
 - Copilot SDK chats load every Instruction twice, once as `C:\Users\…` and once
   as `c:\Users\…`. VS Code discovers `~/.copilot/instructions` as a default
   `copilot-personal` source, and the SDK runtime has its own user-instruction
