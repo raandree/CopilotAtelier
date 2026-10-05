@@ -141,13 +141,14 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
         $result.Output | Should -Not -Match 'set COPILOT_ATELIER_ALLOW_REMOTE'
     }
 
-    It 'reports a block on standard output in the shape each host reads' {
+    It 'reports a block on standard output as one top-level deny object' {
         <#
-            On exit 2 the Copilot SDK host ignores standard error and merges one
-            JSON object from standard output into the deny, reading the top-level
-            permissionDecisionReason. VS Code's Local harness reads standard
-            error on exit 2 and hookSpecificOutput otherwise, so one object
-            carries both shapes.
+            On exit 2 the Copilot SDK host merges one JSON object from standard
+            output into the deny and shows the model its top-level
+            permissionDecisionReason. For a PascalCase event it drops an object
+            that also carries hookSpecificOutput and shows only "hook exited
+            with code 2" (SDK 1.0.15-preview.4, probed 2026-10-04). VS Code
+            ignores standard output on exit 2 and reads standard error.
         #>
         $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
         $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
@@ -156,11 +157,10 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
         $json = [regex]::Match($result.Output, '\{"permissionDecision".*\}')
         $json.Success | Should -BeTrue -Because $result.Output
         $decision = $json.Value | ConvertFrom-Json
+        $decision.PSObject.Properties.Name | Should -Be @('permissionDecision', 'permissionDecisionReason')
         $decision.permissionDecision | Should -BeExactly 'deny'
         $decision.permissionDecisionReason | Should -Match '\ABlocked by Copilot Atelier: this command pushes to a git remote'
-        $decision.hookSpecificOutput.hookEventName | Should -BeExactly 'PreToolUse'
-        $decision.hookSpecificOutput.permissionDecision | Should -BeExactly 'deny'
-        $decision.hookSpecificOutput.permissionDecisionReason | Should -BeExactly $decision.permissionDecisionReason
+        $result.Output | Should -Not -Match 'hookSpecificOutput'
     }
 
     It 'writes nothing to standard output when it allows a command' {

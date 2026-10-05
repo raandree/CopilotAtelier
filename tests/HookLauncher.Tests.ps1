@@ -861,10 +861,12 @@ Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration
 
     It 'hands the Copilot SDK host the block reason on standard output' {
         <#
-            On exit 2 the SDK host ignores standard error and merges one JSON
-            object from standard output into the deny; its permissionDecisionReason
-            is what the model reads. Before 2026-10-02 the model saw only
-            "(hook errored)".
+            On exit 2 the SDK host merges one JSON object from standard output
+            into the deny; its top-level permissionDecisionReason is what the
+            model reads. Before 2026-10-02 the model saw only "(hook errored)",
+            and until 2026-10-04 only "hook exited with code 2", because the
+            runtime drops the object of a PascalCase event when it also carries
+            hookSpecificOutput. HookSdkRuntime.Tests.ps1 checks the real runtime.
         #>
         $caseRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
         $userProfile = Join-Path -Path $caseRoot -ChildPath 'userprofile'
@@ -888,11 +890,9 @@ Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration
 
         $result.ExitCode | Should -Be 2 -Because $result.StandardError
         $decision = $result.StandardOutput | ConvertFrom-Json
+        $decision.PSObject.Properties.Name | Should -Be @('permissionDecision', 'permissionDecisionReason')
         $decision.permissionDecision | Should -BeExactly 'deny'
         $decision.permissionDecisionReason | Should -Match '\ABlocked by Copilot Atelier: this command pushes to a git remote'
-        $decision.hookSpecificOutput.hookEventName | Should -BeExactly 'PreToolUse'
-        $decision.hookSpecificOutput.permissionDecision | Should -BeExactly 'deny'
-        $decision.hookSpecificOutput.permissionDecisionReason | Should -BeExactly $decision.permissionDecisionReason
     }
 
     It 'never probes an unreachable HOME while USERPROFILE holds the guard through the <Branch> launcher spawned by <Mode>' -ForEach @(

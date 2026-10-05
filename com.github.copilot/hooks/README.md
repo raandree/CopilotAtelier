@@ -53,7 +53,7 @@ command as `1`:
 | Host | Spawn on Windows | Source |
 |---|---|---|
 | VS Code Local harness | `powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -Command <windows>` | `HookExecutor` in VS Code's built-in `extensions/copilot/dist/extension.js` |
-| Copilot SDK host | `pwsh.exe -nop -nol -c <launcher>`, started by `copilot-runtime.exe` | process capture of `command`, 2026-10-02 |
+| Copilot SDK host | `pwsh.exe -nop -nol -c <launcher>`, started by `copilot-runtime.exe` | process captures of `command` (2026-10-02) and `powershell` (2026-10-04) |
 
 VS Code blocks only on `2` and treats every other non-zero exit as a warning,
 and the SDK host shows the block reason only on `2`, so `windows` and
@@ -66,9 +66,8 @@ after a `try` block that always exits, so when the inner interpreter cannot
 start at all, a `cmd.exe` spawn reports `1`, while both PowerShell spawns report
 the launcher's failure code. `command` cannot carry it, because `sh`
 runs `command` on Linux and macOS and rejects the statement; that is why the SDK
-host gets its own `powershell` launcher. The capture above shows how it ran
-`command` before that key existed. That it runs `powershell` the same way still
-needs a live check in a new Copilot SDK chat.
+host gets its own `powershell` launcher. It runs that launcher the same way,
+passing the text on unexpanded.
 
 ## Contents
 
@@ -98,14 +97,17 @@ message, or `--grep` value that merely contains the word does not trip it. A
 tool with no command-bearing field exits `0` immediately, so editing a document
 that mentions `git push` is never blocked. The reason goes to standard error and
 the script exits with `2`, which VS Code treats as a blocking error and shows to
-the model. The GitHub hooks reference says that on exit `2` the Copilot SDK
-host ignores standard error and merges one JSON object from standard output
-into the deny, so the guard also prints the reason there: top-level
-`permissionDecision` and `permissionDecisionReason` for that host, and the same
-pair under `hookSpecificOutput` for VS Code. The SDK runtime in VS Code 1.140.0
-(1.0.15-preview.4) uses neither: a live check on 2026-10-02 found the call
-denied, but the model read only
-`Denied by preToolUse hook: hook exited with code 2`. The
+the model; on exit `2` VS Code does not read standard output. The Copilot SDK
+host does not read standard error then: it merges one JSON object from standard
+output into the deny, so the guard also prints the reason there, as top-level
+`permissionDecision` and `permissionDecisionReason` only. The object must not
+carry `hookSpecificOutput`. For a PascalCase event such as `PreToolUse`, the
+SDK runtime in VS Code 1.140.0 (1.0.15-preview.4) drops an object that does,
+and the model reads only `Denied by preToolUse hook: hook exited with code 2`,
+as it did until 2026-10-04; it also shows only that for an object with nothing
+but `hookSpecificOutput`, for plain text, and for standard error alone.
+[`tests/HookSdkRuntime.Tests.ps1`](../../tests/HookSdkRuntime.Tests.ps1) runs
+the guard inside that runtime and checks what the model reads. The
 command-bearing fields are walked up to 64 levels deep and 20,000 fields and
 nested objects, in a payload of up to 1 MB; plain values in arrays, such as a
 file list, do not count. Their values are joined in document order and, within
@@ -339,11 +341,14 @@ which survives because Instructions are re-sent with every request.
   - The Copilot SDK host fails closed on every non-zero `preToolUse` exit. The
     call is still denied, but as `Denied by preToolUse hook (hook errored)`
     without the reason. Since 2026-10-02 the SDK host runs the `powershell`
-    launcher, which hands the code on: the deny now reads
-    `Denied by preToolUse hook: hook exited with code 2`, still without the
-    reason (see [Block-RemoteMutation](#block-remotemutation)). A session
-    started before that deploy keeps the old hooks and still shows
-    `hook errored`.
+    launcher, which hands the code on, and since 2026-10-04 the deny carries
+    the reason: `Denied by preToolUse hook: Blocked by Copilot Atelier: …`. A
+    deny that reads `Denied by preToolUse hook: hook exited with code 2` comes
+    from an older guard, whose JSON on standard output also carried
+    `hookSpecificOutput` (see [Block-RemoteMutation](#block-remotemutation));
+    redeploy. The launcher reads the guard on every call, so even an open
+    session shows the reason from its next call. A session started before the
+    2026-10-02 deploy keeps the old hooks and still shows `hook errored`.
   - VS Code blocks only on `2`, so in Local chats on Windows the guard only
     warned until 2026-10-02. The `windows` launcher now ends with an `exit` that
     hands the inner code on.

@@ -9,16 +9,17 @@ source: current task evidence
 
 ## Current focus
 
-The 2026-10-02 hook deploy is live-checked; on 2026-10-04 every result was
-verified against the session logs. Four of five checks passed: the
-SessionStart context arrives once in Copilot SDK and Local chats with a
-measured clock, and Local denies the push probe with the full reason, also with
-the override set in the agent's terminal. In Copilot SDK chats the guard still
-denies, but the model reads only `hook exited with code 2`, a literal in SDK
-runtime 1.0.15-preview.4; neither the guard's standard error nor its JSON on
-standard output reaches the model. That keeps prompt 06 open. The clock restart
-on resume that the checks also found is fixed on `ai/record-live-checks`, with
-the changelog and README claims A2 disproved; it is not deployed yet.
+Prompt 06 is done on `ai/hook-deny-reason` (`a3d888d`); the merge is pending. A
+model-free probe of the Copilot SDK runtime VS Code bundles
+(`session.rpc.tools.execute`, own `COPILOT_HOME`) found why A2 failed: on exit 2
+it merges a JSON deny from standard output only when a PascalCase event's object
+has no `hookSpecificOutput`, and the guard printed both shapes. VS Code reads
+only standard error on exit 2. The guard now prints the top-level pair alone;
+`tests/HookSdkRuntime.Tests.ps1` asserts the reason inside the real runtime
+(red, then 4 of 4) and skips without VS Code and node. Decision 0016 holds the
+probe matrix. Full gate: 2,542 passed, 0 failed. Deployed 2026-10-04 12:53 UTC;
+A2 and B2 then passed in new chats (Copilot SDK `d2788da5`, Local `874b1f34`),
+so all five live checks have passed. The resume clock fix (#28) is deployed.
 
 Pull request #27 is merged into `main` as `7a48abe` and published as
 `6.1.0-preview0001`; #19 is closed. So contributor calibration (Decision 0027)
@@ -165,13 +166,13 @@ unproven — train reached 100 % while validation fell.
    Grow the eval kit in `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\`
    past 20 cases with `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on
    RAANDREE3; never commit the kit.
-2. Prompt 06, check A2: probe in a scratch workspace which `preToolUse` deny
-   output the SDK runtime reads, fix test-first without trading away exit 2,
-   and rerun A2 in a new Copilot chat. If none carries the reason, report the
-   missing standard-output merge upstream.
+2. The user pushes `ai/hook-deny-reason` from their own terminal and merges
+   it; A2 and B2 passed in new chats on 2026-10-04. If the GitHub reference
+   keeps describing the stdout merge without its `hookSpecificOutput`
+   condition, report that upstream.
 3. The user runs prompt 04 on the hand-patched machine and deletes the merged
-   remote branch `copilot/dgthths`; agents cannot push. Once the clock fix is on
-   `main`, redeploy with `Setup-CopilotSettings.ps1` so new chats get it.
+   remote branch `copilot/dgthths`; agents cannot push. The 2026-10-04 deploy
+   from `ai/hook-deny-reason` already carries `main`'s resume clock fix.
 
 Still open from earlier work: the live agent-host `#web/fetch` check, and the
 duplicate Instruction loading in Copilot SDK chats (Open work in `progress.md`).

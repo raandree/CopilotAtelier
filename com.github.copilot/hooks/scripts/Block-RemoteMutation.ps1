@@ -11,8 +11,10 @@
 
     On a match the reason is written to standard error and the script exits
     with 2, which VS Code treats as a blocking error and shows to the model.
-    The same reason goes to standard output as one JSON deny object, which the
-    Copilot SDK host reads on exit 2. Every other tool call exits 0.
+    The same reason goes to standard output as one JSON object with only the
+    top-level permissionDecision and permissionDecisionReason, which the
+    Copilot SDK host merges into its deny on exit 2. Every other tool call
+    exits 0.
 
     This is a best-effort guardrail, not a containment boundary. It matches
     patterns in a command string, so an obfuscated or indirectly invoked push
@@ -308,20 +310,17 @@ function Block-ToolCall {
         'asked for it in this turn, hand them the exact command to run in their own terminal; an agent ' +
         'cannot lift this block. Do not rewrite the command to evade this check.'
 
-    # VS Code reads the reason from standard error on exit 2. The Copilot SDK host
-    # ignores standard error then and merges one JSON object from standard output
-    # into the deny, so the same reason also goes there, in both hosts' shapes.
+    # VS Code reads the reason from standard error on exit 2 and ignores standard
+    # output. The Copilot SDK host ignores standard error then and merges one JSON
+    # object from standard output into the deny, but only a top-level one: for a
+    # PascalCase event it drops an object that also carries hookSpecificOutput
+    # and shows the model only that the hook exited with code 2.
     [Console]::Error.WriteLine($reason)
     $decision = [ordered]@{
         permissionDecision = 'deny'
         permissionDecisionReason = $reason
-        hookSpecificOutput = [ordered]@{
-            hookEventName = 'PreToolUse'
-            permissionDecision = 'deny'
-            permissionDecisionReason = $reason
-        }
     }
-    [Console]::Out.WriteLine(($decision | ConvertTo-Json -Depth 3 -Compress))
+    [Console]::Out.WriteLine(($decision | ConvertTo-Json -Compress))
     exit 2
 }
 

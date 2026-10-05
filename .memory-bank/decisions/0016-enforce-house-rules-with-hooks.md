@@ -3,7 +3,7 @@ status: accepted
 date: 2026-07-28
 last-verified: 2026-10-04
 owner: software-engineer
-source: VS Code 1.130 agent customization docs; GitHub Copilot hooks configuration reference (2026-09-29); VS Code build 07f806f999 sources and a process capture (2026-10-02); session logs of the 2026-10-02 live checks
+source: VS Code 1.130 agent customization docs; GitHub Copilot hooks configuration reference (2026-09-29); VS Code build 07f806f999 sources and a process capture (2026-10-02); session logs of the 2026-10-02 live checks; a model-free probe of the bundled Copilot SDK runtime (2026-10-04)
 ---
 
 # Enforce house rules with hooks, not prose alone
@@ -73,9 +73,10 @@ and this machine's SDK session logs:
 | Reload | not verified | read at session start; an open chat and its subagents keep the old set |
 | `SessionStart` output | `hookSpecificOutput.additionalContext` | top-level `additionalContext` only; `hookSpecificOutput` is ignored |
 | Session resume | not observed | reruns `sessionStart` with `source: resume` when it reloads a chat (2026-10-02); `Add-SessionContext` keeps that session's clock since 2026-10-04 |
-| Spawn on Windows | `powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -Command <windows>` (`HookExecutor`, built-in Copilot extension) | `pwsh.exe -nop -nol -c <command>`, started by `copilot-runtime.exe` |
+| Spawn on Windows | `powershell.exe -ExecutionPolicy Bypass -NoProfile -NoLogo -Command <windows>` (`HookExecutor`, built-in Copilot extension) | `pwsh.exe -nop -nol -c <powershell>`, else `<command>`, started by `copilot-runtime.exe`; the text reaches `pwsh` unexpanded (2026-10-04) |
 | Exit code on Windows | the outer PowerShell reports a failed native command as `1`; the `windows` launcher passes the inner code on since 2026-10-02 | the outer `pwsh` reports a failed `command` as `1`, denied as `hook errored`; the `powershell` launcher passes the code on since 2026-10-02, confirmed live the same day |
-| `PreToolUse` reason on exit `2` | standard error | documented: one JSON object on standard output, merged into the deny. Live with SDK 1.0.15-preview.4: neither standard output nor standard error; the model reads `Denied by preToolUse hook: hook exited with code 2` |
+| `PreToolUse` reason on exit `2` | standard error; standard output is not read | one JSON object on standard output, merged into the deny only with a top-level `permissionDecisionReason` and, for a PascalCase event, no `hookSpecificOutput`. Otherwise, and for standard error, plain text, or `decision: block`, the model reads `Denied by preToolUse hook: hook exited with code 2` (SDK 1.0.15-preview.4, runtime 1.0.89-7, probed 2026-10-04). The guard prints only the top-level pair since 2026-10-04 |
+| `PreToolUse` JSON deny on exit `0` | `hookSpecificOutput.permissionDecision` only | PascalCase: `hookSpecificOutput` when present, else the top level; camelCase: the top level only, so a nested-only deny is allowed; `decision: block` is allowed in both |
 | Hook environment | the extension host's environment plus the entry's `env` | the runtime's environment |
 | Override set in an agent terminal | never reaches the hook | never reaches the hook; every tool call runs in a new process |
 
@@ -152,7 +153,56 @@ Consequences:
   guard also prints one JSON deny object on standard output, top-level for the
   SDK host and under `hookSpecificOutput` for VS Code. A live check on
   2026-10-02 confirmed that the SDK host runs `powershell`, so exit 2 arrives,
-  but its deny still carries no reason; see the table.
+  but its deny still carries no reason; see the revision below.
+
+## Revision, 2026-10-04: one top-level deny object, verified in the runtime
+
+The live checks could not say why the SDK host dropped the reason, so the
+runtime was probed directly. `copilot-sdk/index.js` in VS Code's
+`@github/copilot-sdk-win32-x64` package started the bundled
+`copilot-runtime.exe` with its own `COPILOT_HOME`, a scratch workspace held the
+probe hooks in `.github/hooks`, and `session.rpc.tools.execute` ran a
+`powershell` call through the session's `preToolUse` pipeline without a model.
+The result's `textResultForLlm` is the text the model reads. Each hook variant
+was registered under both event casings:
+
+- Exit `2` with one top-level object, with or without the reason also on
+  standard error: the model reads `Denied by preToolUse hook: <reason>`.
+- Exit `2` with an object that also carries `hookSpecificOutput`, the shape the
+  guard printed: the camelCase entry shows the top-level reason, the PascalCase
+  entry only `hook exited with code 2`. That is the A2 failure, since
+  `hooks.json` registers `PreToolUse`.
+- Exit `2` with only `hookSpecificOutput`, only standard error, plain text, or
+  `decision: block`: `hook exited with code 2` in both casings.
+- Exit `1` or `3`: `Denied by preToolUse hook from "<source>" (hook errored)`.
+- Exit `0` with a JSON deny: honored as the table shows, so an object without
+  the shape that casing reads allows the call.
+
+VS Code's `HookExecutor` parses standard output only on exit `0`; on exit `2`
+it hands standard error to the model. `hookSpecificOutput` on the block path
+therefore never reached VS Code either.
+
+Consequences:
+
+- The guard prints only the top-level `permissionDecision` and
+  `permissionDecisionReason` and keeps exit `2` and the reason on standard
+  error. Both hosts still block on the exit code alone, so a missing or
+  malformed object costs only the reason.
+- A JSON deny on exit `0` stays rejected: the camelCase path allowed a
+  nested-only deny, and a host that does not parse the object would allow the
+  call.
+- `tests/HookSdkRuntime.Tests.ps1` runs the shipped launcher and the guard
+  inside the installed runtime and asserts the reason the model reads. It needs
+  Windows, node, and VS Code, and skips without them, for example on a CI
+  runner without VS Code.
+- The GitHub reference describes the merge without the `hookSpecificOutput`
+  condition; that gap is worth reporting upstream.
+- Deployed the same day. In a Copilot SDK chat opened before the deploy, the
+  A2 probe was denied with `hook exited with code 2` at 12:11 UTC and with the
+  full reason at 12:55 UTC: a session keeps the hooks configuration it started
+  with, but the launcher resolves the guard on every call. New chats then
+  passed A2 (Copilot SDK, 13:18 UTC) and B2 (Local, 13:24 UTC, `Tool execution
+  denied: Blocked by Copilot Atelier: …`).
 
 ## Confirmation
 
@@ -165,4 +215,7 @@ launcher through `cmd.exe`, `sh`, and an outer PowerShell with stub scripts, and
 the real guard through `cmd.exe` with `HOME` unset: a push exits 2, a benign
 command and an unreadable payload exit 0. Since 2026-10-02 it also runs the
 `windows` launcher through VS Code's exact spawn, and the real guard through it,
-where a push now exits 2.
+where a push now exits 2. Since 2026-10-04 `tests/HookSdkRuntime.Tests.ps1`
+runs the shipped `PreToolUse` launcher and guard inside the Copilot SDK runtime
+that VS Code bundles: the model reads the block reason, and a benign command
+passes the hook.

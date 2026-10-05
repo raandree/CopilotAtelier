@@ -81,8 +81,8 @@ Durable relationships and the Decision record index; read a linked record only w
     links, and hashes do not provide a transaction or sandbox.
 - Remove verified Discovery links non-recursively, dangling Unix links too.
     Make POSIX filename fixtures with .NET path APIs; `Join-Path` normalizes.
-- Hooks enforce unconditional rules; Instructions carry judgement calls. VS Code honors a hook's `windows` launcher, but the Copilot SDK host
-    runs `command` on Windows too: every launcher branch must work on every OS it can reach, Windows never depends on `HOME`, and launchers resolve exact trusted roots without `$`.
+- Hooks enforce unconditional rules; Instructions carry judgement calls. VS Code runs `windows`, the Copilot SDK host `powershell`, else `command`; every
+    branch must work on every OS it can reach without `HOME` or `$`. Prove a host's hook contract in its own runtime (`session.rpc.tools.execute`), not from its docs.
 - CI preserves hidden ownership metadata and canonical temporary paths. Nested
     Node runners clear `NODE_TEST_CONTEXT` and prove tests ran; external checks fail closed and baselines shrink.
     Deduplicate only an exact-head PR, never a stale one. Cancel topic/PR runs,

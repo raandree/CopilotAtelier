@@ -17,6 +17,14 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-04**: Fixed prompt 06 on `ai/hook-deny-reason`: Copilot SDK chats
+  show the guard's block reason. A model-free probe of the bundled runtime found
+  that on exit 2 it drops a PascalCase event's JSON deny that also carries
+  `hookSpecificOutput`; the guard now prints the top-level pair alone. The new
+  `tests/HookSdkRuntime.Tests.ps1` runs the shipped launcher and guard in that
+  runtime (red, then green). Full gate 2,542 passed, 0 failed; deployed, and
+  A2 and B2 then passed in new chats (sessions `d2788da5`, `874b1f34`).
+
 - **2026-10-04**: Fixed the clock restart on resume that the live checks found:
   `Add-SessionContext.ps1` keeps a readable clock of the same session when
   `sessionStart` arrives with `source: resume` (red, then 18 of 18). Corrected
@@ -30,14 +38,10 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - **2026-10-02**: Live checks after the deploy (VS Code 1.140.0, SDK
   1.0.15-preview.4), verified against the session logs on 2026-10-04. A1 and
-  B1 to B3 passed: the SessionStart context arrives once in a Copilot SDK chat
-  (top-level `additionalContext`) and a Local chat (`hookSpecificOutput`), both
-  clocks are measured, and Local blocks the probe with the full reason, also
-  with the override set in the agent's terminal. A2 did not: the SDK denies it
-  through the new `powershell` launcher, so exit 2 now arrives, but the model
-  reads only `hook exited with code 2` (in two chats), a literal in the SDK
-  runtime binary. The guard, spawned as that host spawns it, writes its reason
-  to standard error and as JSON to standard output; neither reaches the model.
+  B1 to B3 passed: SessionStart context once per chat in both hosts, measured
+  clocks, and Local blocks the probe with the full reason, also with the
+  override set in the agent's terminal. A2 failed: the SDK denied the probe,
+  but the model read only `hook exited with code 2` (fixed 2026-10-04).
 
 - **2026-10-02**: Pushed `main` and merged pull request #27 (contributor
   calibration Phase 1, with review finding F-03 closed and
@@ -106,14 +110,8 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
 - Delete the merged remote branch `copilot/dgthths` on GitHub or from your own
   terminal; the guard blocks an agent's remote mutation.
-- Live checks the agent cannot run, all after the 2026-10-02 deploy and in new
-  chats:
-  - prompt 06's SDK reason (A2 above): the hook's comments and tests assume a
-    stdout merge on exit 2 that the runtime does not do. Probe in a scratch
-    workspace which deny output it reads: exit 2 with a top-level-only object,
-    or a JSON deny on exit 0, which fails open if unparsed and so may ship
-    only if both hosts honor it. Then fix test-first and rerun A2;
-  - prompt 04 on the hand-patched machine; `main` is pushed.
+- Merge `ai/hook-deny-reason` (prompt 06; A2 and B2 passed on 2026-10-04),
+  and run prompt 04 on the hand-patched machine; `main` is pushed.
 - Copilot SDK chats load every Instruction twice, once as `C:\Users\…` and once
   as `c:\Users\…`. VS Code discovers `~/.copilot/instructions` as a default
   `copilot-personal` source, and the SDK runtime has its own user-instruction
