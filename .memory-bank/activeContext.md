@@ -9,17 +9,15 @@ source: current task evidence
 
 ## Current focus
 
-Prompt 06 is done on `ai/hook-deny-reason` (`a3d888d`); the merge is pending. A
-model-free probe of the Copilot SDK runtime VS Code bundles
-(`session.rpc.tools.execute`, own `COPILOT_HOME`) found why A2 failed: on exit 2
-it merges a JSON deny from standard output only when a PascalCase event's object
-has no `hookSpecificOutput`, and the guard printed both shapes. VS Code reads
-only standard error on exit 2. The guard now prints the top-level pair alone;
-`tests/HookSdkRuntime.Tests.ps1` asserts the reason inside the real runtime
-(red, then 4 of 4) and skips without VS Code and node. Decision 0016 holds the
-probe matrix. Full gate: 2,542 passed, 0 failed. Deployed 2026-10-04 12:53 UTC;
-A2 and B2 then passed in new chats (Copilot SDK `d2788da5`, Local `874b1f34`),
-so all five live checks have passed. The resume clock fix (#28) is deployed.
+Next: contributor calibration Phase 2 (Decision 0027), a design session with
+`software-architect` from the Session handoff in `.memory-bank/session/`
+(refreshed 2026-10-05), on `ai/calibration-phase-2`. Prompt 06 is closed:
+pull requests #29 (`9b6a341`) and #30 (`25d8233`) are merged, CI run 112 passed
+and published `6.1.0-preview0003` to GitHub Releases and the PowerShell
+Gallery, and the deployed hooks match `main`. The SDK runtime drops a
+PascalCase `preToolUse` deny that carries `hookSpecificOutput`; Decision 0016
+holds the probe matrix, and `tests/HookSdkRuntime.Tests.ps1` probes the runtime
+without a model through `session.rpc.tools.execute`.
 
 Pull request #27 is merged into `main` as `7a48abe` and published as
 `6.1.0-preview0001`; #19 is closed. So contributor calibration (Decision 0027)
@@ -162,17 +160,14 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. Start the Phase 2 `software-architect` chat for contributor calibration.
+1. Start the Phase 2 `software-architect` chat from the refreshed handoff.
    Grow the eval kit in `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\`
    past 20 cases with `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on
    RAANDREE3; never commit the kit.
-2. The user pushes `ai/hook-deny-reason` from their own terminal and merges
-   it; A2 and B2 passed in new chats on 2026-10-04. If the GitHub reference
-   keeps describing the stdout merge without its `hookSpecificOutput`
-   condition, report that upstream.
-3. The user runs prompt 04 on the hand-patched machine and deletes the merged
-   remote branch `copilot/dgthths`; agents cannot push. The 2026-10-04 deploy
-   from `ai/hook-deny-reason` already carries `main`'s resume clock fix.
+2. The user runs prompt 04 on the hand-patched machine and deletes the merged
+   remote branch `copilot/dgthths`; agents cannot push.
+3. Optional: report upstream that the GitHub hooks reference describes the
+   exit-2 stdout merge without its `hookSpecificOutput` condition.
 
 Still open from earlier work: the live agent-host `#web/fetch` check, and the
 duplicate Instruction loading in Copilot SDK chats (Open work in `progress.md`).

@@ -11,11 +11,16 @@ source: CHANGELOG.md and git history
 
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
-`6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to GitHub
-Releases and the PowerShell Gallery (verified 2026-10-04). Incremental work is
+`6.0.1-preview0001` (`fea564f`), `6.1.0-preview0001` (`7a48abe`),
+`6.1.0-preview0002` (`25d8233`), and `6.1.0-preview0003` (`9b6a341`) to GitHub
+Releases and the PowerShell Gallery (verified 2026-10-05). Incremental work is
 tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-10-05**: Merged pull requests #29 (`9b6a341`, prompt 06) and #30
+  (`25d8233`, the CI warm-up); CI run 112 passed on all three systems and
+  published `6.1.0-preview0003`. The deployed hooks match `main`.
 
 - **2026-10-04**: Fixed prompt 06 on `ai/hook-deny-reason`: Copilot SDK chats
   show the guard's block reason. A model-free probe of the bundled runtime found
@@ -29,7 +34,7 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   `Add-SessionContext.ps1` keeps a readable clock of the same session when
   `sessionStart` arrives with `source: resume` (red, then 18 of 18). Corrected
   the `[Unreleased]` changelog entry and the hooks README, which claimed the
-  SDK host reads the guard's reason on exit 2. Not deployed yet.
+  SDK host reads the guard's reason on exit 2. Deployed 2026-10-04.
 
 - **2026-10-04**: Fixed an intermittent Windows CI failure, also seen on `main`
   (runs 104, 106): a cold runner's first Windows PowerShell run of the real
@@ -50,21 +55,13 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   and the merged `copilot/dgthths` remain on GitHub.
 
 - **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
-  `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
-  - The post-release review failed the v6.0.0 launcher fix: in VS Code Local
-    chats on Windows the push guard only warned, because VS Code's outer
-    `powershell.exe -Command` reports exit 2 as 1 (Blocker, reproduced).
-  - Nine re-reviews followed; every Blocker and Major was fixed test-first
-    (SEC-13 to SEC-33, assessment log). The guard now decides within about
-    5 s (1 MB parse, 20,000-field walk, 4 MB block caps) and joins split
-    command fields in document order and per object, and on its raw path also
-    across the payload. The last re-review approved.
-  - The override cannot reach a hook from an agent terminal, so an authorized
-    push runs in the user's own terminal; never persist it. The SDK host gets
-    its own `powershell` launcher and the reason on stdout.
-  - Hook suites: 559 passed, 0 failed; full gate of the merge (`634546e`)
-    2,536 passed, 0 failed. Deployed: hooks match the source, the deployment
-    is healthy, and a push exits 2 with its reason in both host spawns.
+  `main` (`d8cc6f5` to `fea564f`). The post-release review found the push guard
+  only warning in VS Code Local chats on Windows (Blocker, fixed); nine
+  re-reviews fixed every Blocker and Major test-first (SEC-13 to SEC-33,
+  assessment log), and the last approved. The guard decides within about 5 s,
+  the override cannot reach a hook from an agent terminal, and the SDK host
+  got its own `powershell` launcher. Full gate of the merge (`634546e`): 2,536
+  passed, 0 failed.
 
 - **2026-10-02**: The version now rises only from Conventional Commit markers
   (`31042ea`, `bd60b7a`), approved by an independent review; `main` was then
@@ -104,14 +101,14 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   `-Since 2026-09-30` search on RAANDREE3.
 - `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
   workspace, so a subagent or parallel chat there shadows the parent's clock
-  (2026-10-01: a 06:29 start). Inject the reader with this session's `-Path`.
+  (2026-10-01: a 06:29 start; 2026-10-04, in one Copilot SDK chat: a 10:25 and
+  a 13:24 start). Inject the reader with this session's `-Path`.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
 - Delete the merged remote branch `copilot/dgthths` on GitHub or from your own
   terminal; the guard blocks an agent's remote mutation.
-- Merge `ai/hook-deny-reason` (prompt 06; A2 and B2 passed on 2026-10-04),
-  and run prompt 04 on the hand-patched machine; `main` is pushed.
+- Run prompt 04 on the hand-patched machine; `main` is pushed.
 - Copilot SDK chats load every Instruction twice, once as `C:\Users\…` and once
   as `c:\Users\…`. VS Code discovers `~/.copilot/instructions` as a default
   `copilot-personal` source, and the SDK runtime has its own user-instruction
