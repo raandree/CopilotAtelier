@@ -16,16 +16,20 @@ function Get-CopilotAtelierContributorProfile
             or none), its levels, any reason code that makes the profile
             unreadable, files beside it that may be OneDrive conflict copies,
             and the state of the registration file that re-sends levels after a
-            compaction.
+            compaction: none, owned, outdated (written from an earlier template;
+            the next write replaces it), pending (its record arrived without the
+            file), orphaned (no entry wants it any more), foreign, or modified.
+            RegistrationConflictCopies names, with their full paths, files in
+            the hooks folder that may be conflict copies of the registration,
+            which the hosts would load as a second hook.
 
             With -WorkspacePath the report also shows the exact sentence the
             SessionStart hook injects for that workspace. This is the
             30-second check when a session did not know a saved level.
 
             Aliases are masked unless -ShowAliases, because a report an agent
-            runs enters the model's context. The command never changes the
-            profile; it only completes a registration record that a crash left
-            pending.
+            runs enters the model's context. The command changes nothing, not
+            even a registration record.
 
         .PARAMETER WorkspacePath
             A workspace whose .memory-bank/projectbrief.md may declare Knowledge

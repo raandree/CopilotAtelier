@@ -210,6 +210,35 @@ Describe 'Uninstall-CopilotAtelier with a contributor profile' -Tag 'Unit' {
         Get-OwnedFileState -TargetPath $script:profile.TargetPath | Should -Be $before
     }
 
+    It 'Should stop before removing anything while a registration record waits for its file' {
+        # OneDrive delivered the record of a registration another machine created, but not the file yet.
+        New-Item -ItemType Directory -Path $script:contributorFolder -Force | Out-Null
+        $recordPath = Join-Path $script:contributorFolder 'registration.json'
+        Set-Content -LiteralPath $recordPath -Encoding ascii -Value ('{{"schemaVersion":1,"operation":"create","state":"complete","sha256":"{0}","updatedUtc":"2026-10-06T09:00:00Z"}}' -f ('A' * 64))
+        $record = Get-Content -LiteralPath $recordPath -Raw
+        $before = Get-OwnedFileState -TargetPath $script:profile.TargetPath
+
+        { Uninstall-CopilotAtelier -Confirm:$false } | Should -Throw -ExpectedMessage '*stopped before removing anything*contributor-profile.json*pending*'
+
+        Get-OwnedFileState -TargetPath $script:profile.TargetPath | Should -Be $before
+        Get-Content -LiteralPath $recordPath -Raw | Should -Be $record
+    }
+
+    It 'Should remove an owned registration that an earlier template wrote' {
+        Set-TestLevel
+        $recordPath = Join-Path $script:contributorFolder 'registration.json'
+        $earlier = (Get-Content -LiteralPath $script:registrationPath -Raw).Replace('"timeout": 20', '"timeout": 25')
+        [System.IO.File]::WriteAllText($script:registrationPath, $earlier, [System.Text.UTF8Encoding]::new($false))
+        $earlierHash = (Get-FileHash -LiteralPath $script:registrationPath).Hash
+        Set-Content -LiteralPath $recordPath -Encoding ascii -Value ('{{"schemaVersion":1,"operation":"create","state":"complete","sha256":"{0}","updatedUtc":"2026-10-06T09:00:00Z"}}' -f $earlierHash)
+
+        $result = Uninstall-CopilotAtelier -Confirm:$false
+
+        $result.ContributorRegistration | Should -Be 'removed'
+        Test-Path -LiteralPath $script:registrationPath | Should -BeFalse
+        Test-Path -LiteralPath $recordPath | Should -BeFalse
+    }
+
     It 'Should stop before removing anything while another writer holds the profile lock' {
         Set-TestLevel
         $before = Get-OwnedFileState -TargetPath $script:profile.TargetPath

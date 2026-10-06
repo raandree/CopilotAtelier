@@ -18,8 +18,9 @@ description: >-
   Install-CopilotAtelier).
 compatibility: >-
   Windows PowerShell 5.1 or PowerShell 7 or later. git on PATH for the identity
-  rule; without it the single or default entry applies. Re-sending levels after
-  a compaction needs a module or Setup installation, which deploys the hooks.
+  rule; without it the hooks read the single or default entry, and a write
+  needs -Contributor or -NewContributor. Re-sending levels after a compaction
+  needs a module or Setup installation, which deploys the hooks.
 ---
 
 # Contributor profile
@@ -71,9 +72,10 @@ The script and the module commands share one implementation.
 | Opt out or back in | `-Action Set -State Off` or `On` | `Set-CopilotAtelierContributorProfile -State Off` |
 | Snooze the interview | `-Action Set -SnoozeInterview` | none; the offer only |
 | Aliases and default | `-Action Set -AddAlias a@example.com -Default` | `Set-CopilotAtelierContributorProfile` |
+| Create your own entry beside others | `-Action Set -NewContributor` | `Set-CopilotAtelierContributorProfile -NewContributor` |
 | Copy to another machine | `-Action Export -Path <file>`, then `-Action Import -Path <file>` there | `Export-` and `Import-CopilotAtelierContributorProfile` |
 | Delete | `-Action Remove -Contributor <id or alias>`, or without it the whole file | `Remove-CopilotAtelierContributorProfile` |
-| Repair an orphaned registration | `-Action Remove -RegistrationOnly` | `Remove-CopilotAtelierContributorProfile -RegistrationOnly` |
+| Repair an orphaned or pending registration | `-Action Remove -RegistrationOnly` | `Remove-CopilotAtelierContributorProfile -RegistrationOnly` |
 
 Run the script from the Skill folder, for example
 `& '<skill folder>/scripts/ContributorProfile.ps1' -Action Get -WorkspacePath .`.
@@ -81,6 +83,31 @@ Several areas fit one write: `-KnowledgeArea 'Kerberos', 'Pester' -Level new, ex
 Remove asks for confirmation at high impact; after the contributor approves the
 preview, pass `-Confirm:$false` so a non-interactive terminal cannot hang.
 `-Contributor` takes an id or an alias and must name exactly one entry.
+
+## Which entry a write changes
+
+A write goes only to a positively chosen target: the entry `-Contributor`
+names, else the entry whose alias matches the workspace's
+`git config user.email`, else a new entry, the first one when no profile exists
+or the one `-NewContributor` creates. It never falls back to the only or the
+default entry, so on a shared account one person's level cannot land in another
+person's entry. Every other case writes nothing and names `-Contributor`,
+`-NewContributor`, and Import.
+
+The target is clear when no profile exists yet or when Get reports
+`Selection: alias`. Otherwise ask once per session, before the first write:
+
+1. **my entry**: confirm the entry Get shows, or ask for its id or alias, and
+   pass it as `-Contributor`.
+2. **a new entry of my own**: `-NewContributor`. Beside other entries it needs
+   the address git reports where the contributor works, from git itself or
+   from `-AddAlias`, or `-Default`; the hooks select entries by git address.
+   Show the preview, which says when the hooks reach the entry only where git
+   reports that address.
+3. **import my exported entry**: `-Action Import -Path <file>`.
+
+Use the answer for every write in the rest of the session. The hooks still read
+by the identity rule: the alias, else the only entry, else the default.
 
 ## The sentence a session receives
 
@@ -108,7 +135,8 @@ snoozed. The choices:
 3. **turn the profile off**: run Set with `-State Off`.
 
 With no entry yet, *not now* and *turn the profile off* create a minimal entry,
-so the choice is remembered. An entry without levels creates no registration.
+so the choice is remembered. With entries but no clear target, ask the target
+question above first. An entry without levels creates no registration.
 
 ## Rating questions
 
@@ -156,9 +184,11 @@ A workspace opts in with a section in `.memory-bank/projectbrief.md`:
 
 The hooks read only that section, the first 64 KB of the file, and the first 16
 bullets that pass the area-name rule: 1 to 48 letters of any script, digits,
-single spaces, and `. + # / & ( ) -`, starting with a letter or a digit.
-Matching ignores case and is otherwise exact, so `DSC` and `PowerShell DSC` are
-different areas. The `software-architect` Custom agent curates the list.
+single spaces, and `. + # / & ( ) -`, starting with a letter, a digit, or a dot
+directly followed by a letter or a digit, so `.NET` passes and `. NET` does
+not. Matching ignores case and is otherwise exact, so `DSC` and
+`PowerShell DSC` are different areas. The `software-architect` Custom agent
+curates the list.
 
 ## Registration and cost
 
@@ -166,17 +196,25 @@ different areas. The `software-architect` Custom agent curates the list.
 exists exactly while an entry on this machine is on and rates an area; Set,
 Import, and Remove create and remove it. Hosts load hook files when a session
 starts, so a change affects sessions started afterwards. While it exists, every
-successful tool call costs about 0.6 to 1 s more, depending on the machine and
-the host.
+successful tool call costs about one more hook launch, 0.6 to 1.2 s depending
+on the machine and the host.
 
-The writers never overwrite or delete a registration they did not create or one
-that changed after they wrote it; they name it instead. When the profile is
-deleted by hand or unreadable, Get reports an orphaned registration, and
-`Remove -RegistrationOnly` removes it.
+The writers own a registration through its record and the hash the record
+holds, whichever template wrote it, and replace one from an earlier template
+with the current one at the next write; Get reports it as `outdated` until
+then. They never overwrite or delete a registration they did not create or one
+that changed after they wrote it; they name it instead. On a OneDrive Canonical
+target the record and the file arrive in either order: a record whose file has
+not arrived is `pending`, and nothing acts on it until both are there. Get
+reports an orphaned registration when the profile was deleted by hand or is
+unreadable, and lists possible conflict copies of the registration in the hooks
+folder with their full paths. `Remove -RegistrationOnly` removes an orphaned
+registration or clears a pending one that never settles.
 
 ## Shared accounts
 
-Each person imports their own entry. `git config user.email` in the workspace
-selects the entry whose alias matches; without a match the only entry, else the
-default entry, applies. One person's opt-out ends the per-call cost only when no
-other entry on the machine is on and rates an area.
+Each person imports their own entry or creates one with `-NewContributor`.
+`git config user.email` in the workspace selects the entry whose alias matches;
+the hooks then fall back to the only entry, else the default entry, but a write
+never does. One person's opt-out ends the per-call cost only when no other entry
+on the machine is on and rates an area.

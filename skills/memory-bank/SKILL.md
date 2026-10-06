@@ -162,7 +162,8 @@ the migration leaves them untouched.
 ```
 
 `## Knowledge areas` is optional. Each bullet names one field, 1 to 48 letters,
-digits, single spaces, and `. + # / & ( ) -`, starting with a letter or a digit.
+digits, single spaces, and `. + # / & ( ) -`, starting with a letter, a digit,
+or a dot directly followed by a letter or a digit, such as `.NET`.
 The hooks read the first 16 valid bullets and inject each contributor's saved
 level for them from the private Contributor profile, never from this file. List
 names only; a level never belongs here. The `software-architect` Custom agent

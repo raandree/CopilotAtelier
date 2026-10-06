@@ -232,6 +232,11 @@ the method and the per-host table. For this record:
   0028's profile reader, about 4,600 nodes, adds about 0.35 s. Keep the common
   path of a hook small; `tests/Fixtures/Measure-CalibrationLatency.ps1` measures
   it.
+- Decision 0028 states hook latency in launches of a fixed no-op hook through
+  the same launcher and spawn (its ruling A1), not in milliseconds. A change to
+  a launcher in `hooks.json` changes that unit: a lighter launcher raises every
+  ratio without any regression, a heavier one hides one. Re-run the Meter and
+  re-baseline Decision 0028's latency levels in the same change.
 
 ## Confirmation
 

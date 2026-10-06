@@ -9,21 +9,22 @@ source: current task evidence
 
 ## Current focus
 
-Decision 0028 Amendment 1 is signed off (2026-10-06, `software-architect`):
-rulings A1 to A8 answer the five returned questions, the seven
-interpretations, and an independent review of the draft. Latency now counts in
-same-day launches of a fixed no-op hook over 20 paired replicates
-(SessionStart Budget 0.5 and Fail 1.0 launch, PostToolUse 1.1 and 1.25); the
-sentence Budget [worst] is 1,200; a registration is owned through its record
-and recorded hash, and an outdated one is replaced; `.NET` passes the
-area-name rule from the first release; writes go only to a positively chosen
-target, with a new `-NewContributor`; and nothing infers from a half-synced
-record and registration file, so Uninstall stops on it. `software-engineer`
-implements A1 to A8 test-first on `ai/calibration-phase-2`, then criteria 20 to
-22. The branch is not pushed.
+Decision 0028 Amendment 1 (rulings A1 to A8) is implemented test-first on
+`ai/calibration-phase-2`: the new tests ran red against `b72ac98` in a scratch
+worktree and green on the change. Writes go only to a positively chosen target,
+with `-NewContributor`; `.NET` passes the area-name rule; a registration is
+owned through its record's hash and an outdated one is replaced; reconciliation
+never rewrites a record, `Get-` changes nothing, and Uninstall stops on a
+pending registration. The amended Meter ran twice on Prox1: every gated cell
+meets its Budget except SessionStart with one entry in VS Code's spawn, 0.53 to
+0.61 launch at p95 against Budget 0.5, reproduced and within Fail 1.0. That
+result goes back to `software-architect`. The branch is not pushed.
 
 ## Previous focuses
 
+- **Amendment 1 rulings (`b72ac98`).** `software-architect` and the owner ruled
+  A1 to A8 on the five returned questions and seven interpretations; latency
+  counts in no-op hook launches over 20 paired replicates.
 - **Phase 2 implementation (`dc6c26a` to `279c07e`).** Built test-first; the
   SDK delivery probe passes in both runtimes. The latency Meter failed both
   budgets on Prox1 (+349 to +380 ms p95 SessionStart in the VS Code spawn), and
@@ -76,15 +77,9 @@ implements A1 to A8 test-first on `ai/calibration-phase-2`, then criteria 20 to
   contract verified for this implementation*. Missing telemetry is unknown, not
   zero: output counts only through a validated provenance sidecar, and
   disagreeing copies surface as `ConflictingRun`. Red 29 then 81/0.
-- **Reviewed learning inbox (task 03).** A project-scoped review queue outside
-  the routed base; artifacts are untrusted observations, and promotion is
-  append-only and hash-gated on `-Approve`.
-- **Installation profiles (task 02).** `-InstallationProfile` plus
-  `-IncludeSkill`/`-ExcludeSkill` on Install, Update, and Setup, with
-  `Get-CopilotAtelierProfile`. Only Skills are selectable; `memory-bank`,
-  `long-running-job-monitor`, and `agent-security-review` are mandatory because
-  deployed Instructions and shipped agents load them by name. The selection is
-  an additive optional `Selection` field inside schema 1.
+- **Tasks 02 and 03.** Installation profiles (`-InstallationProfile`,
+  `-IncludeSkill`/`-ExcludeSkill`; mandatory Skills stay) and the reviewed
+  learning inbox (append-only, hash-gated promotion); detail in `CHANGELOG.md`.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -156,18 +151,20 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. `software-engineer` implements Decision 0028 Amendment 1 (A1 to A8)
-   test-first from the Session handoff `handoff-2026-10-06T1350Z.md`: the
-   amended Meter, `.NET`, registration ownership and replacement, the
-   partial-view rule, the write-selection rule with `-NewContributor`, and the
-   sentence budget. Then: the eval of criterion 21 (grow the private kit in
+1. `software-architect` rules on the Prox1 result of criterion 20: SessionStart
+   added latency with one entry in VS Code's spawn is 0.53 to 0.61 launch at
+   p95 (p50 0.48 to 0.50), over Budget 0.5 in both runs and within Fail 1.0
+   (Decision 0028, *Latency Meter as amended*). Then: the amended Meter on
+   RAANDREE3 (`pwsh -NoProfile -File tests/Fixtures/Measure-CalibrationLatency.ps1`,
+   also TBD-5); the eval of criterion 21 (grow the private kit in
    `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\` with Phase 2
    groups and at least 6 persistence cases per Position, mined with
    `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on RAANDREE3 and Prox1;
-   never commit the kit), the amended Meter on RAANDREE3 (also TBD-5), and one
-   manual compaction each in VS Code Local and Copilot CLI (`/login` first).
-   The 2026-09-30 and 2026-10-06T1155Z Session handoffs are consumed and can be
-   pruned.
+   never commit the kit; runs are paid); and one manual compaction each in VS
+   Code Local and Copilot CLI (`/login` first). `review: on` is recommended
+   before a merge: a persistence format, five public commands, a hook on every
+   tool call, and deletion and replacement in the hooks folder. The 2026-09-30,
+   2026-10-06T1155Z, and 2026-10-06T1350Z Session handoffs are consumed.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.
 3. Optional: report upstream that the GitHub hooks reference describes the

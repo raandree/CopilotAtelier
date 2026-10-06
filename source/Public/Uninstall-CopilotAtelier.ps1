@@ -23,11 +23,13 @@ function Uninstall-CopilotAtelier
             The private Contributor profile in the Canonical target's contributor
             folder is personal content and stays. Before any file is removed, the
             registration file ~/.copilot/hooks/contributor-profile.json is
-            reconciled under the profile lock and removed when this module created
-            it unchanged. A foreign or modified registration, or a held lock,
-            stops the removal before anything changes and names the file,
-            because removing the hook scripts would leave it warning on every
-            tool call. Open chats keep the hooks they loaded until restarted.
+            reconciled under the profile lock and removed when this module owns
+            it: its bytes match the hash its record holds, whichever template
+            wrote it. A foreign or modified registration, a pending one whose
+            record arrived without the file, or a held lock stops the removal
+            before anything changes and names the file, because removing the
+            hook scripts would leave it warning on every tool call. Open chats
+            keep the hooks they loaded until restarted.
 
         .PARAMETER TargetPath
             Explicit Canonical target. Defaults to the normal profile resolver,

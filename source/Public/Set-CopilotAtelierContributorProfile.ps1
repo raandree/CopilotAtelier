@@ -8,12 +8,15 @@ function Set-CopilotAtelierContributorProfile
         .DESCRIPTION
             Changes one entry of the Contributor profile, the private file that
             keeps each contributor's Familiarity levels outside every
-            repository. Without -Contributor, the git address configured in the
-            current folder selects the entry by alias; without a match the only
-            entry, else the default entry, applies. When the profile has no
-            entry yet, or an unmatched address meets several entries without a
-            default, a new entry is created with that address as its first
-            alias.
+            repository. A write goes only to a positively chosen target: the
+            entry -Contributor names, else the entry whose alias matches the
+            git address configured in the current folder, else a new entry,
+            either the first one when no profile exists yet or the one
+            -NewContributor creates. It never falls back to the only or the
+            default entry, so on a shared account one person's level cannot
+            land in another person's entry. Every other case writes nothing and
+            names -Contributor, -NewContributor, and
+            Import-CopilotAtelierContributorProfile.
 
             The write takes the profile lock, replaces the file atomically, and
             fails without writing when another writer holds the lock for five
@@ -24,13 +27,16 @@ function Set-CopilotAtelierContributorProfile
             The command also manages the registration file
             ~/.copilot/hooks/contributor-profile.json, which re-sends levels
             after a compaction. It exists exactly while an entry is on and rates
-            a Knowledge area, and a file this command did not create is never
-            touched. Sessions started afterwards pick up the change.
+            a Knowledge area. A registration this module wrote from an earlier
+            template is replaced with the current one; a file this command did
+            not create, one changed since, or one whose record arrived without
+            it is never touched. Sessions started afterwards pick up the change.
 
         .PARAMETER KnowledgeArea
             The Knowledge areas to rate, paired in order with -Level. A name has
             1 to 48 letters, digits, single spaces, and . + # / & ( ) -, and
-            starts with a letter or a digit.
+            starts with a letter, a digit, or a dot followed by a letter or a
+            digit, such as .NET.
 
         .PARAMETER Level
             new, familiar, or expert, one for each -KnowledgeArea.
@@ -54,6 +60,16 @@ function Set-CopilotAtelierContributorProfile
             An entry id or alias. It must name exactly one entry; anything else
             fails before any write.
 
+        .PARAMETER NewContributor
+            Creates the caller's own entry with a new id, for example a second
+            person on a shared lab account, without a prior export. The git
+            address of the current folder becomes its first alias. Beside other
+            entries it must stay reachable for the hooks, which select entries
+            by git address: it needs that address, an alias from -AddAlias in
+            the same call, or -Default, and fails before any write without one
+            of them, when its alias already belongs to an entry, or when the
+            profile holds 16 entries. Cannot be combined with -Contributor.
+
         .OUTPUTS
             System.Management.Automation.PSCustomObject
 
@@ -67,6 +83,13 @@ function Set-CopilotAtelierContributorProfile
             Set-CopilotAtelierContributorProfile -State Off -WhatIf
 
             Previews turning the profile off without writing anything.
+
+        .EXAMPLE
+            Set-CopilotAtelierContributorProfile -NewContributor -AddAlias 'cy@example.com' -KnowledgeArea 'PowerShell DSC' -Level expert -WhatIf
+
+            Previews a new entry of the caller's own beside the existing ones.
+            The preview says when the hooks reach it only where git reports
+            that address.
 
         .LINK
             https://github.com/raandree/CopilotAtelier
@@ -111,7 +134,11 @@ function Set-CopilotAtelierContributorProfile
         [Parameter()]
         [ValidateNotNullOrEmpty()]
         [System.String]
-        $Contributor
+        $Contributor,
+
+        [Parameter()]
+        [System.Management.Automation.SwitchParameter]
+        $NewContributor
     )
 
     $ErrorActionPreference = 'Stop'
@@ -122,7 +149,7 @@ function Set-CopilotAtelierContributorProfile
         WorkspacePath = (Get-Location).ProviderPath
     }
 
-    foreach ($name in 'Contributor', 'KnowledgeArea', 'Level', 'State', 'AddAlias', 'RemoveAlias', 'Default')
+    foreach ($name in 'Contributor', 'NewContributor', 'KnowledgeArea', 'Level', 'State', 'AddAlias', 'RemoveAlias', 'Default')
     {
         if ($PSBoundParameters.ContainsKey($name))
         {

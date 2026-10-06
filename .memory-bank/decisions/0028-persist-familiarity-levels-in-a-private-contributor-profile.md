@@ -84,12 +84,12 @@ fixed or ruled, as recorded below.
 
 ## Confirmation
 
-Implemented by `software-engineer` on 2026-10-06 except as recorded below:
-criteria 20 to 22 are open. The five questions it returned to
-`software-architect` were ruled on the same day (*Rulings, 2026-10-06*), and
-Amendment 1 applies the rulings to the concept. The signed-off Acceptance
-criteria 1 to 25 below, as amended, are the contract; the spike TBD-1 ran
-before increment 2. Implementation records its
+Implemented by `software-engineer` on 2026-10-06, Amendment 1 included, except
+as recorded below: criterion 20 waits for RAANDREE3, and criteria 21 and 22 are
+open. The five questions it returned to `software-architect` were ruled on the
+same day (*Rulings, 2026-10-06*), and Amendment 1 applies the rulings to the
+concept. The signed-off Acceptance criteria 1 to 25 below, as amended, are the
+contract; the spike TBD-1 ran before increment 2. Implementation records its
 evidence here: the eval results against
 `Calibration.Persistence` and `Calibration.PhaseOneGuard`, the
 `Calibration.Delivery` matrix, and the latency Meter on Prox1 and RAANDREE3.
@@ -146,8 +146,8 @@ Still open, and not decided in code:
 
 | Criterion | State |
 |---|---|
-| 20 | Fails on Prox1, see the Meter below; RAANDREE3 not measured |
-| 21 | Not run: the private kit has no Phase 2 groups yet, its runs are paid, and it should measure the design that survives the questions below |
+| 20 | Prox1, amended Meter: every gated cell within Budget except SessionStart with one entry in VS Code's spawn, over Budget in both runs and within Fail; returned to `software-architect`. RAANDREE3 not measured |
+| 21 | Not run: the private kit has no Phase 2 groups yet and its runs are paid; Amendment 1 is implemented, so it can now measure the amended design |
 | 22 | The manual compactions in VS Code Local and in Copilot CLI (after `/login`) are not done; the plugin-install and no-tool-call cells are not measured |
 
 ### Latency Meter, 2026-10-06 on Prox1
@@ -348,6 +348,74 @@ new Blocker, and added finding 6:
 | 4 | Major | The push guard's own work sat inside the unit | A1 refined: a fixed no-op hook as the unit |
 | 5 | Minor | Missing tags and Amendment log entries | Fixed |
 | 6 | Major | A `-NewContributor` entry beside others, without a git email, was unreachable by the hooks, and `-NewContributor` with `-Contributor` was undefined | Fixed as the re-review proposed: a reachable alias or `-Default` is required, and the two parameters exclude each other |
+
+### Amendment 1 implemented, 2026-10-06 on Prox1
+
+`software-engineer` implemented rulings A1 to A8 test-first on
+`ai/calibration-phase-2`. Every new test ran red against the code of `b72ac98`
+in a scratch worktree, and green on the change: 30 of the 98 writer tests, the
+three leading-dot cases of the reader suite, and all 14 cases of the new
+`tests/CalibrationMeter.Tests.ps1`. The full gate then passed 3,062 tests with
+0 failures.
+
+| Ruling | Implementation | Evidence |
+|---|---|---|
+| A1 to A3 | The Meter's unit is `Invoke-NoOpHook.ps1`, which reads its payload as the shipped hooks do and runs through the SessionStart launcher with the same spawn; 2 warm-up and 20 measured replicates per run, cells rotated by one place per replicate, ratios per replicate before the nearest-rank p95, inclusive thresholds, and `-Repeat 2` merging each gated cell to its least severe verdict | `tests/CalibrationMeter.Tests.ps1` pins the arithmetic and the Budget and Fail levels; results below |
+| A4 | The template stays; the worst case is tested at or below 1,200 at both Positions | Reader suite |
+| A5 | Ownership through the record and its hash, whichever template; an outdated registration is replaced as a delete followed by a create; `Get-` reports `outdated` | Every crash point of a create, a delete, and a replacement reconciles to owned, outdated, pending, or none; opt-out, `-RegistrationOnly`, and Uninstall remove a registration from a changed template |
+| A6 | `.NET` passes the area-name rule in the profile and in `projectbrief.md` | The shared fixture set holds `.NET` valid and `.`, `..`, and `. NET` invalid; the hooks in both editions, the Skill script, and the module agree |
+| A7 | `-NewContributor` on `Set-` and on the Skill script; no fallback to the only or the default entry for a write; the reachability check and the preview note; the Skill's once-per-session target question | One test per branch, through the functions and through the module |
+| A8 | Reconciliation compares and never rewrites a record, clearing only a delete record whose file is gone; `Get-` changes nothing; a pending registration is left alone, stops Uninstall, and is cleared by `-RegistrationOnly` after confirmation; `Get-` lists registration conflict copies in the hooks folder | Nine delivery orders a second machine can see: no diagnosis, writer, or Uninstall changes the record or the file, and Uninstall stops |
+
+Where the amendment is silent, the code interprets it as follows, for
+confirmation:
+
+- `Get-` no longer reconciles at all. Before A8 it completed a pending record
+  under the lock, which "never rewrites a record" rules out; a writer or
+  Uninstall clears a finished delete record.
+- An unreadable record without a file reads as none, as before, and a writer
+  replaces it with its own pending record; beside a file it reads as modified.
+- A replacement clears the delete record before it writes the create record,
+  so its middle state is none.
+- A file in the hooks folder is a possible conflict copy of the registration
+  when its name starts with `contributor-profile` or, unless it is a cloud
+  placeholder, its text names `Add-FamiliarityContext.ps1`; TBD-2 is open.
+- `-NewContributor` on a machine without a profile creates the first entry,
+  which needs no alias.
+- A git address that is not a valid alias counts as no address for the
+  write-selection rule.
+
+### Latency Meter as amended, 2026-10-06 on Prox1
+
+Two runs of `Measure-CalibrationLatency.ps1 -Repeat 2`, 15:04 to 15:16 UTC,
+load 7 % at start: per run and spawn, 2 warm-up and 20 measured replicates of
+all seven cells in rotated order. p95 of the paired per-replicate ratios, in
+no-op hook launches, run 1 and run 2; the no-op launch itself measured p50 778
+to 790 ms through VS Code's spawn and 1,014 to 1,042 ms through the SDK host's.
+
+| Cell | VS Code spawn | SDK spawn | Budget | Fail | Reproduced verdict |
+|---|---|---|---|---|---|
+| SessionStart added, one entry | 0.61, 0.53 | 0.45, 0.35 | 0.5 | 1.0 | VS Code over budget; SDK within budget |
+| SessionStart added, no profile | 0.39, 0.25 | 0.27, 0.18 | 0.5 | 1.0 | Within budget |
+| SessionStart added, two entries (reported) | 0.85, 0.65 | 0.49, 0.44 | n/a | n/a | n/a |
+| PostToolUse, nothing pending | 1.12, 1.09 | 1.10, 1.08 | 1.1 | 1.25 | Within budget; run 1's over-budget verdicts were not reproduced |
+| Push guard, benign tool (reported) | 1.26, 1.18 | 1.16, 1.11 | n/a | n/a | n/a |
+
+In milliseconds, for the record: SessionStart added p95 +412 to +493 (one
+entry), +196 to +308 (no profile), and +504 to +655 (two entries) in VS Code's
+spawn; +349 to +482, +181 to +290, and +445 to +502 in the SDK host's.
+PostToolUse p95 838 to 884 ms and 1,094 to 1,152 ms.
+
+- **Criterion 20 does not hold on Prox1 for one cell.** SessionStart added
+  latency with a one-entry profile in VS Code's spawn is over Budget in both
+  runs, 0.53 to 0.61 launch at p95 and 0.48 to 0.50 at p50, and half the Fail
+  level. Every other gated cell meets its Budget. A result that contradicts
+  the concept goes back to `software-architect`; nothing was tuned in code to
+  reach the line.
+- The push guard costs 1.11 to 1.26 launches, so against the no-op unit the
+  ratios read higher than the Past lines divided by the guard, as ruling A1
+  expected.
+- TBD-5 stays open: RAANDREE3 is not measured.
 
 ## Signed-off Design Concept
 
@@ -775,12 +843,15 @@ Meter: tests/Fixtures/Measure-CalibrationLatency.ps1: 2 warm-up replicates,
        at or below Budget meets it, a value above Fail fails, and a verdict
        above Budget or Fail counts only when a second Meter run reproduces it.
        The push guard is reported, not used as the unit. (A1)
-Past [VS Code spawn, Prox1, one entry]: 0.40 to 0.44 launch (+349 to +380 ms)
-Past [SDK spawn, Prox1, one entry]: 0.18 to 0.31 launch (+189 to +330 ms)
-Past [VS Code spawn, Prox1, none]: 0.19 to 0.21 launch (+164 to +184 ms)
-Past [SDK spawn, Prox1, none]: 0.05 to 0.08 launch (+50 to +80 ms)
-       <- Meter, four runs on 2026-10-06, divided by the push guard, ranges
-       not paired; the first run of the amended Meter replaces them
+Past [VS Code spawn, Prox1, one entry]: 0.53 to 0.61 launch (p50 0.48 to 0.50)
+Past [SDK spawn, Prox1, one entry]: 0.35 to 0.45 launch (p50 0.31)
+Past [VS Code spawn, Prox1, none]: 0.25 to 0.39 launch (p50 0.20 to 0.21)
+Past [SDK spawn, Prox1, none]: 0.18 to 0.27 launch (p50 0.15 to 0.16)
+Past [VS Code spawn, Prox1, two entries]: 0.65 to 0.85 launch
+Past [SDK spawn, Prox1, two entries]: 0.44 to 0.49 launch
+       <- amended Meter, two runs on 2026-10-06, p95 of 20 paired
+       replicates; the no-op launch measured p50 778 to 790 ms (VS Code) and
+       1,014 to 1,042 ms (SDK)
 Budget [one entry, none]: 0.5 launch <- Ruling A2, 2026-10-06
 Fail [one entry, none]: 1.0 launch <- Ruling A2, 2026-10-06
 Report, not gate: [two entries], where the identity rule runs git <- Ruling A2
@@ -801,10 +872,11 @@ Scale: p95 over paired replicates of one non-injecting PostToolUse hook's
        time divided by the same replicate's no-op hook launch, under
        [Host spawn]. (A1)
 Meter: As SessionStart.AddedLatency.
-Past [VS Code spawn, Prox1]: 0.91 to 1.05 launch (793 to 901 ms)
-Past [SDK spawn, Prox1]: 0.94 to 1.09 launch (1,007 to 1,154 ms)
-       <- Meter, four runs on 2026-10-06, divided by the push guard, ranges
-       not paired; the first run of the amended Meter replaces them
+Past [VS Code spawn, Prox1]: 1.09 to 1.12 launch (838 to 884 ms)
+Past [SDK spawn, Prox1]: 1.08 to 1.10 launch (1,094 to 1,152 ms)
+       <- amended Meter, two runs on 2026-10-06, p95 of 20 paired
+       replicates; the push guard read 1.18 to 1.26 (VS Code) and 1.11 to
+       1.16 (SDK) launch
 Budget: 1.1 launch <- Ruling A3, 2026-10-06
 Fail: 1.25 launch <- Ruling A3, 2026-10-06
 Rationale: The common path reads the payload head, runs one regex, and checks

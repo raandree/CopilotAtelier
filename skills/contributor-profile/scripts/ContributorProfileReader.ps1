@@ -284,8 +284,10 @@ function ConvertTo-ContributorAreaName
         Applies the area-name rule of Decision record 0028 to raw text: trim,
         Unicode NFC, then 1 to 48 characters of letters of any script with their
         combining marks, decimal digits, single spaces, and . + # / & ( ) -,
-        starting with a letter or a digit. Returns the normalized name, or $null
-        when the text breaks the rule. The profile and projectbrief.md share it.
+        starting with a letter, a digit, or a dot directly followed by a letter
+        or a digit, so .NET passes (ruling A6). Returns the normalized name, or
+        $null when the text breaks the rule. The profile and projectbrief.md
+        share it.
     #>
     [CmdletBinding()]
     [OutputType([System.String])]
@@ -321,7 +323,7 @@ function ConvertTo-ContributorAreaName
         return $null
     }
 
-    if ($normalized -cnotmatch '\A[\p{L}\p{Nd}](?:[\p{L}\p{M}\p{Nd}.+#/&()-]| (?! ))*\z')
+    if ($normalized -cnotmatch '\A(?:[\p{L}\p{Nd}]|\.(?=[\p{L}\p{Nd}]))(?:[\p{L}\p{M}\p{Nd}.+#/&()-]| (?! ))*\z')
     {
         return $null
     }

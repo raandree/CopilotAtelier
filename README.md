@@ -187,11 +187,14 @@ session of a workspace that declares that Knowledge area in
 | A level for one area | `I'm new to Kerberos` or `I know DSC well` |
 | That level in later sessions | Answer `yes` to the save offer, or run `Set-CopilotAtelierContributorProfile -KnowledgeArea Kerberos -Level new` |
 | What a workspace receives, and why | `Get-CopilotAtelierContributorProfile -WorkspacePath .` |
+| An entry of your own beside someone else's, such as on a shared lab account | `Set-CopilotAtelierContributorProfile -NewContributor -AddAlias you@example.com` |
 | Saved levels no longer used | `Set-CopilotAtelierContributorProfile -State Off`, or `Remove-CopilotAtelierContributorProfile` |
 | The agent to decide a question you cannot judge | `not sure, you pick` |
 
 The profile syncs with the Canonical target through OneDrive; on a lab VM or in a
 container, copy it with `Export-` and `Import-CopilotAtelierContributorProfile`.
+A write changes only the entry whose alias matches your git address, or the one
+you name with `-Contributor`; it never falls back to someone else's entry.
 A workspace that declares Knowledge areas offers a short interview once, which
 you can snooze or turn off. See the
 [`contributor-profile`](skills/contributor-profile/SKILL.md) Skill.

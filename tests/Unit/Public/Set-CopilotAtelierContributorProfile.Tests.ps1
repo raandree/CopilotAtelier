@@ -54,12 +54,53 @@ Describe 'Set-CopilotAtelierContributorProfile' -Tag 'Unit' {
         Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $script:profilePath
 
         $null = Use-ContributorEnvironment -Variable $script:environment -ScriptBlock {
-            Set-CopilotAtelierContributorProfile -State 'Off' -Confirm:$false
+            Set-CopilotAtelierContributorProfile -Contributor 'ada@example.com' -State 'Off' -Confirm:$false
         }
 
         $text = Get-Content -LiteralPath $script:profilePath -Raw
         $text | Should -Match '"state": "off"'
         $text | Should -Match '"Kerberos"'
+    }
+
+    It 'Should write nothing without a positively chosen target, and name every way to choose one' {
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $script:profilePath
+        $before = Get-Content -LiteralPath $script:profilePath -Raw
+
+        {
+            Use-ContributorEnvironment -Variable $script:environment -ScriptBlock {
+                Set-CopilotAtelierContributorProfile -State 'Off' -Confirm:$false
+            }
+        } | Should -Throw -ExpectedMessage '*-Contributor*-NewContributor*Import-CopilotAtelierContributorProfile*'
+
+        Get-Content -LiteralPath $script:profilePath -Raw | Should -Be $before
+    }
+
+    It 'Should create the caller''s own entry beside another with -NewContributor' {
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $script:profilePath
+
+        $result = Use-ContributorEnvironment -Variable $script:environment -ScriptBlock {
+            Set-CopilotAtelierContributorProfile -NewContributor -AddAlias 'cy@example.com' -KnowledgeArea 'Pester' -Level 'expert' -Confirm:$false
+        }
+
+        $result.Created | Should -BeTrue
+        $entries = @((Get-Content -LiteralPath $script:profilePath -Raw | ConvertFrom-Json).contributors)
+        $entries.Count | Should -Be 2
+        @($entries[1].aliases) | Should -Be @('cy@example.com')
+        $entries[1].id | Should -Be $result.EntryId
+        $result.Messages -join ' ' | Should -Match 'only where git reports'
+    }
+
+    It 'Should refuse -NewContributor together with -Contributor before any write' {
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $script:profilePath
+        $before = Get-Content -LiteralPath $script:profilePath -Raw
+
+        {
+            Use-ContributorEnvironment -Variable $script:environment -ScriptBlock {
+                Set-CopilotAtelierContributorProfile -NewContributor -Contributor 'ada@example.com' -State 'Off' -Confirm:$false
+            }
+        } | Should -Throw -ExpectedMessage '*-NewContributor*-Contributor*'
+
+        Get-Content -LiteralPath $script:profilePath -Raw | Should -Be $before
     }
 
     It 'Should fail before any write when -Contributor names no single entry' {

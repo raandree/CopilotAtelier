@@ -325,10 +325,24 @@ on the first successful tool call after a compaction.
 `~/.copilot/hooks/contributor-profile.json`, a fixed template with the same
 three launchers, while an entry on this machine is on and rates a Knowledge
 area, and removes it when none does. Only machines with an active profile pay
-the per-call cost, about 0.6 to 1 s per successful tool call depending on the
-machine and the host, about what the push guard costs.
+the per-call cost, about one more hook launch per successful tool call, as much
+as the push guard: 0.6 to 1.2 s depending on the machine and the host.
 Hosts load hook files when a session starts, so a change affects later sessions;
 an open chat keeps calling the script, which then finds nothing to send.
+
+The writers own the registration through a record beside the profile that
+holds the file's SHA-256, whichever template wrote it, and replace one from an
+earlier template with the current template at the next write, so a launcher fix
+reaches each machine then. They never touch a file without a record or one that
+no longer matches it. On a OneDrive Canonical target the record and the file
+sync in either order; a record whose file has not arrived is pending, and
+nothing, including `Uninstall-CopilotAtelier`, acts on it until both are there.
+
+Latency is stated in launches of a fixed no-op hook through the same launcher
+and spawn, not in milliseconds:
+[`tests/Fixtures/Measure-CalibrationLatency.ps1`](../../tests/Fixtures/Measure-CalibrationLatency.ps1)
+measures it. A change to a launcher in `hooks.json` changes that unit, so re-run
+the Meter and re-baseline Decision record 0028's latency levels then.
 
 The common path reads `session_id` from the head of the payload, where both
 hosts put it ahead of every tool field, and one small state file, then exits.

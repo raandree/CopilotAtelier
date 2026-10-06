@@ -18,6 +18,16 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-06**: Implemented Decision 0028 Amendment 1 test-first on
+  `ai/calibration-phase-2` (`software-engineer`): write selection with
+  `-NewContributor`, `.NET`, registration ownership through the recorded hash
+  with replacement of outdated registrations, the partial-view rule with a
+  read-only `Get-`, the sentence budget, and the amended Meter with its tested
+  arithmetic. The new tests ran red against `b72ac98`, then green. The Meter's
+  two runs on Prox1 meet every Budget except SessionStart with one entry in
+  VS Code's spawn (0.53 to 0.61 launch, Budget 0.5, Fail 1.0): returned to
+  `software-architect`.
+
 - **2026-10-06**: Signed off Decision 0028 Amendment 1 (`software-architect`):
   rulings A1 to A8 on the five questions implementation returned, the seven
   interpretations, and a `rubber-duck` review of the draft (2 Blockers and 2
@@ -60,11 +70,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   the `[Unreleased]` changelog entry and the hooks README, which claimed the
   SDK host reads the guard's reason on exit 2. Deployed 2026-10-04.
 
-- **2026-10-04**: Fixed an intermittent Windows CI failure, also seen on `main`
-  (runs 104, 106): a cold runner's first Windows PowerShell run of the real
-  guard overran its 5-second limit and blocked a benign command. The launcher
-  integration block now warms it up once, unasserted.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -90,11 +95,12 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Contributor calibration: `software-engineer` implements Decision 0028
-  Amendment 1 (A1 to A8). Then criterion 21's eval with Phase 2 groups, the
-  private kit grown past 20 real cases (`-Since 2026-09-30` on RAANDREE3 and
-  Prox1), the amended Meter on RAANDREE3 (TBD-5), and one manual compaction
-  each in VS Code Local and Copilot CLI.
+- Contributor calibration: `software-architect` rules on criterion 20's Prox1
+  result (SessionStart with one entry in VS Code's spawn over Budget, within
+  Fail). Then the amended Meter on RAANDREE3 (TBD-5), criterion 21's paid eval
+  with Phase 2 groups and the private kit grown past 20 real cases
+  (`-Since 2026-09-30` on RAANDREE3 and Prox1), and one manual compaction each
+  in VS Code Local and Copilot CLI.
 - `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
   workspace, so a subagent or parallel chat there shadows the parent's clock
   (2026-10-01: a 06:29 start; 2026-10-04, in one Copilot SDK chat: a 10:25 and

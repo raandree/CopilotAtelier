@@ -40,6 +40,8 @@ Describe 'Area-name rule' -Tag 'Unit' {
         @{ Name = 'Node.js' }
         @{ Name = '3D printing' }
         @{ Name = 'Vue-Router' }
+        @{ Name = '.NET' }
+        @{ Name = '.5G' }
         @{ Name = 'a23456789012345678901234567890123456789012345678' }
     ) {
         ConvertTo-ContributorAreaName -Name $Name | Should -BeExactly $Name
@@ -65,7 +67,11 @@ Describe 'Area-name rule' -Tag 'Unit' {
     It 'refuses <Why>' -ForEach @(
         @{ Why = 'an empty name'; Name = '' }
         @{ Why = 'a name of spaces'; Name = '   ' }
-        @{ Why = 'a leading dot'; Name = '.NET' }
+        @{ Why = 'a lone dot'; Name = '.' }
+        @{ Why = 'two dots'; Name = '..' }
+        @{ Why = 'a dot before a space'; Name = '. NET' }
+        @{ Why = 'a dot before a combining mark'; Name = ".$([char]0x0308)NET" }
+        @{ Why = 'a leading hyphen'; Name = '-NET' }
         @{ Why = 'a double space'; Name = 'Active  Directory' }
         @{ Why = 'a quote'; Name = 'Kerberos"' }
         @{ Why = 'a backtick'; Name = 'Power`Shell' }
@@ -147,6 +153,8 @@ Describe 'Reading the shared fixture set' -Tag 'Unit' {
         {
             $read.ReasonCode | Should -BeNullOrEmpty
             $read.Profile.Contributors.Count | Should -Be 1
+            $levels = @($read.Profile.Contributors[0].Areas.Values | ForEach-Object -Process { '{0}: {1}' -f $_.Name, $_.Level })
+            ($levels -join '|') | Should -BeExactly (@($_.Levels) -join '|')
         }
     }
 }
@@ -584,22 +592,19 @@ Describe 'Calibration sentence' -Tag 'Unit' {
         (Format-ContributorCalibrationSentence -Calibration $typical).Length | Should -BeLessOrEqual 300
     }
 
-    It 'pins the worst case of 16 names of 48 characters (Context.SentenceSize)' {
+    It 'keeps the worst case of 16 names of 48 characters within 1,200 at either Position (Context.SentenceSize)' {
         <#
-            The fixed template makes the true worst case 1,118 characters at
-            session start and 1,178 re-sent, all levels familiar; with expert
-            levels it is 1,086. The signed-off budget of 1,100 cannot hold for
-            every profile. Decision record 0028 returns that question to the
-            architect; this test pins the measured lengths until it is decided.
+            Ruling A4 of Decision record 0028: Budget [worst, either Position]
+            is 1,200 characters and the template stays. With every level
+            familiar, the longest level word, the fixed template measured 1,118
+            at session start and 1,178 re-sent on 2026-10-06.
         #>
         $longNames = 1..16 | ForEach-Object -Process { ('Area {0:D2} ' -f $_) + ('x' * 40) }
-        $worst = New-TestCalibration -State 'levels' -Level ($longNames | ForEach-Object -Process { "$_=familiar" })
-        $expert = New-TestCalibration -State 'levels' -Level ($longNames | ForEach-Object -Process { "$_=expert" })
+        $worst = New-TestCalibration -State 'levels' -Level ($longNames | ForEach-Object -Process { "$_=familiar" }) -Unrated 0
 
         $longNames[0].Length | Should -Be 48
-        (Format-ContributorCalibrationSentence -Calibration $worst).Length | Should -Be 1118
-        (Format-ContributorCalibrationSentence -Calibration $worst -ReSent).Length | Should -Be 1178
-        (Format-ContributorCalibrationSentence -Calibration $expert).Length | Should -BeLessOrEqual 1100
+        (Format-ContributorCalibrationSentence -Calibration $worst).Length | Should -BeLessOrEqual 1200
+        (Format-ContributorCalibrationSentence -Calibration $worst -ReSent).Length | Should -BeLessOrEqual 1200
     }
 
     It 'never carries an address, a path, or an unmatched declared name' {

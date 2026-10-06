@@ -126,7 +126,7 @@ Describe 'Setting a contributor profile' -Tag 'Unit' {
         $location = New-WriterLocation -Name 'set-update'
         Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
 
-        $null = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -KnowledgeArea ' kerberos ' -Level 'expert' -Confirm:$false
+        $null = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -KnowledgeArea ' kerberos ' -Level 'expert' -Confirm:$false
 
         $areas = (Get-WriterProfile -Location $location).Contributors[0].Areas
         $areas['Kerberos'].Name | Should -BeExactly 'Kerberos'
@@ -139,7 +139,7 @@ Describe 'Setting a contributor profile' -Tag 'Unit' {
         $location = New-WriterLocation -Name 'set-several'
         Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
 
-        $result = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -KnowledgeArea 'Pester', 'Kerberos' -Level 'familiar', 'expert' -Confirm:$false
+        $result = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -KnowledgeArea 'Pester', 'Kerberos' -Level 'familiar', 'expert' -Confirm:$false
 
         $areas = (Get-WriterProfile -Location $location).Contributors[0].Areas
         $areas['Pester'].Level | Should -BeExactly 'familiar'
@@ -168,9 +168,9 @@ Describe 'Setting a contributor profile' -Tag 'Unit' {
         $location = New-WriterLocation -Name 'set-state'
         Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
 
-        $null = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -State 'Off' -Confirm:$false
+        $null = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -State 'Off' -Confirm:$false
         $off = (Get-WriterProfile -Location $location).Contributors[0]
-        $null = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -State 'On' -Confirm:$false
+        $null = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -State 'On' -Confirm:$false
         $on = (Get-WriterProfile -Location $location).Contributors[0]
 
         $off.State | Should -BeExactly 'off'
@@ -266,29 +266,214 @@ Describe 'Setting a contributor profile' -Tag 'Unit' {
         $location = New-WriterLocation -Name 'set-snooze'
         Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
 
-        $null = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -SnoozeInterview -Confirm:$false
+        $null = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -SnoozeInterview -Confirm:$false
 
         $until = ConvertFrom-ContributorUtcTimestamp -Value (Get-WriterProfile -Location $location).Contributors[0].InterviewSnoozedUntilUtc
         ($until - [datetime]::UtcNow).TotalDays | Should -BeGreaterThan 13.9
         ($until - [datetime]::UtcNow).TotalDays | Should -BeLessOrEqual 14
     }
 
-    It 'adds an entry for an unmatched address when several entries exist without a default' -Skip:(-not $script:gitAvailable) {
-        $location = New-WriterLocation -Name 'set-shared'
+    It 'writes nothing to the only entry when git names no address here' {
+        $location = New-WriterLocation -Name 'set-single-no-address'
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
+        $before = Get-FileText -Path $location.ProfilePath
+
+        $failure = $null
+        try
+        {
+            $null = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -KnowledgeArea 'Pester' -Level 'new' -Confirm:$false
+        }
+        catch
+        {
+            $failure = $_.Exception.Message
+        }
+
+        $failure | Should -Match '-Contributor'
+        $failure | Should -Match '-NewContributor'
+        $failure | Should -Match 'Import'
+        $failure | Should -Match 'Nothing was written'
+        Get-FileText -Path $location.ProfilePath | Should -BeExactly $before
+        Test-Path -LiteralPath $location.RegistrationPath | Should -BeFalse
+    }
+
+    It 'writes nothing for a git address that matches no entry, also among several entries without a default' -Skip:(-not $script:gitAvailable) {
+        $location = New-WriterLocation -Name 'set-unmatched'
         Write-ContributorFixture -Case @{ Text = ($script:twoEntryText -replace '"default":true', '"default":false') } -Path $location.ProfilePath
-        $repository = New-ContributorGitRepository -Path (Join-Path -Path $TestDrive -ChildPath 'set-shared-repo') -Email 'cy@example.com'
+        $before = Get-FileText -Path $location.ProfilePath
+        $repository = New-ContributorGitRepository -Path (Join-Path -Path $TestDrive -ChildPath 'set-unmatched-repo') -Email 'cy@example.com'
+
+        {
+            Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
+                Set-ContributorProfile -Location $location -WorkspacePath $repository -KnowledgeArea 'Kerberos' -Level 'expert' -Confirm:$false
+            }
+        } | Should -Throw '*-NewContributor*'
+
+        Get-FileText -Path $location.ProfilePath | Should -BeExactly $before
+    }
+
+    It 'never falls back to the default entry for a write' {
+        $location = New-WriterLocation -Name 'set-default-no-fallback'
+        Write-ContributorFixture -Case @{ Text = $script:twoEntryText } -Path $location.ProfilePath
+        $before = Get-FileText -Path $location.ProfilePath
+
+        {
+            Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
+                Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -State 'Off' -Confirm:$false
+            }
+        } | Should -Throw '*-Contributor*'
+
+        Get-FileText -Path $location.ProfilePath | Should -BeExactly $before
+    }
+
+    It 'writes to the entry whose alias matches the git address' -Skip:(-not $script:gitAvailable) {
+        $location = New-WriterLocation -Name 'set-alias-match'
+        Write-ContributorFixture -Case @{ Text = $script:twoEntryText } -Path $location.ProfilePath
+        $repository = New-ContributorGitRepository -Path (Join-Path -Path $TestDrive -ChildPath 'set-alias-match-repo') -Email 'BOB@example.com'
 
         $result = Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
             Set-ContributorProfile -Location $location -WorkspacePath $repository -KnowledgeArea 'Kerberos' -Level 'expert' -Confirm:$false
         }
 
-        $result.Created | Should -BeTrue
         $entries = (Get-WriterProfile -Location $location).Contributors
-        $entries.Count | Should -Be 3
-        @($entries[2].Aliases) | Should -Be @('cy@example.com')
+        $result.Created | Should -BeFalse
+        $result.EntryId | Should -BeExactly (New-ContributorFixtureId -Number 2)
+        $entries[1].Areas['Kerberos'].Level | Should -BeExactly 'expert'
+        $entries[0].Areas['Kerberos'].Level | Should -BeExactly 'new'
     }
 
-    It 'fails when it cannot tell whose entry to change' {
+    It 'creates a second entry with -NewContributor, without a prior export, that the identity rule selects in a later session' -Skip:(-not $script:gitAvailable) {
+        $location = New-WriterLocation -Name 'set-new-contributor'
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
+        $workspace = New-ContributorTestWorkspace -Path (Join-Path -Path $TestDrive -ChildPath 'set-new-contributor-repo') -Area 'Kerberos', 'Pester'
+        $null = New-ContributorGitRepository -Path $workspace -Email 'cy@example.com'
+
+        $result = Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
+            Set-ContributorProfile -Location $location -WorkspacePath $workspace -NewContributor -KnowledgeArea 'Kerberos' -Level 'expert' -Confirm:$false
+        }
+        $later = Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
+            Get-ContributorCalibration -WorkspacePath $workspace -Location $location
+        }
+
+        $entries = (Get-WriterProfile -Location $location).Contributors
+        $result.Created | Should -BeTrue
+        $entries.Count | Should -Be 2
+        $entries[1].Id | Should -BeExactly $result.EntryId
+        $entries[1].Id | Should -Not -BeExactly $entries[0].Id
+        @($entries[1].Aliases) | Should -Be @('cy@example.com')
+        $entries[1].Default | Should -BeFalse
+        $entries[0].Areas['Kerberos'].Level | Should -BeExactly 'new'
+        $later.Selection | Should -BeExactly 'alias'
+        $later.Entry.Id | Should -BeExactly $result.EntryId
+        @($later.Levels | ForEach-Object -Process { '{0}: {1}' -f $_.Name, $_.Level }) | Should -Be @('Kerberos: expert')
+    }
+
+    It 'gives a -NewContributor entry the alias -AddAlias names where git names no address, and the preview says where the hooks reach it' {
+        $location = New-WriterLocation -Name 'set-new-contributor-alias'
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
+        $before = Get-FileText -Path $location.ProfilePath
+
+        $preview = Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
+            Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -NewContributor -AddAlias 'cy@example.com' -KnowledgeArea 'Kerberos' -Level 'new' -WhatIf
+        }
+        $previewText = Get-FileText -Path $location.ProfilePath
+        $result = Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
+            Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -NewContributor -AddAlias 'cy@example.com' -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false
+        }
+
+        $preview.WhatIf | Should -BeTrue
+        $preview.Messages -join ' ' | Should -Match 'only where git reports'
+        $preview.Messages -join ' ' | Should -Match ([regex]::Escape('c***@example.com'))
+        $previewText | Should -BeExactly $before
+        $result.Created | Should -BeTrue
+        @((Get-WriterProfile -Location $location).Contributors[1].Aliases) | Should -Be @('cy@example.com')
+    }
+
+    It 'makes a -NewContributor entry reachable as the default without any alias' {
+        $location = New-WriterLocation -Name 'set-new-contributor-default'
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
+
+        $result = Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
+            Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -NewContributor -Default -KnowledgeArea 'Pester' -Level 'expert' -Confirm:$false
+        }
+
+        $entries = (Get-WriterProfile -Location $location).Contributors
+        $result.Created | Should -BeTrue
+        $entries[1].Default | Should -BeTrue
+        $entries[0].Default | Should -BeFalse
+        @($entries[1].Aliases).Count | Should -Be 0
+        $result.Messages -join ' ' | Should -Not -Match 'only where git reports'
+    }
+
+    It 'refuses a -NewContributor entry beside others that the hooks could not reach, and explains that they select by git address' {
+        $location = New-WriterLocation -Name 'set-new-contributor-unreachable'
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
+        $before = Get-FileText -Path $location.ProfilePath
+
+        {
+            Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
+                Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -NewContributor -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false
+            }
+        } | Should -Throw '*git email*-AddAlias*-Default*Nothing was written*'
+
+        Get-FileText -Path $location.ProfilePath | Should -BeExactly $before
+    }
+
+    It 'refuses -NewContributor together with -Contributor before any write' {
+        $location = New-WriterLocation -Name 'set-new-contributor-exclusive'
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
+        $before = Get-FileText -Path $location.ProfilePath
+
+        { Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -NewContributor -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false } | Should -Throw '*-NewContributor*-Contributor*'
+
+        Get-FileText -Path $location.ProfilePath | Should -BeExactly $before
+    }
+
+    It 'refuses a -NewContributor entry whose alias already belongs to an entry, from <Source>' -ForEach @(
+        @{ Source = '-AddAlias' }
+        @{ Source = 'the git address' }
+    ) {
+        if ($Source -eq 'the git address' -and -not (Get-Command -Name git -CommandType Application -ErrorAction SilentlyContinue))
+        {
+            Set-ItResult -Skipped -Because 'git is not available'
+            return
+        }
+
+        $location = New-WriterLocation -Name ('set-new-contributor-taken-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
+        $before = Get-FileText -Path $location.ProfilePath
+        $workspace = $script:plainFolder
+        $aliasArguments = @{ AddAlias = 'ADA@example.com' }
+        if ($Source -eq 'the git address')
+        {
+            $workspace = New-ContributorGitRepository -Path (Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))) -Email 'ada@example.com'
+            $aliasArguments = @{}
+        }
+
+        {
+            Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
+                Set-ContributorProfile -Location $location -WorkspacePath $workspace -NewContributor -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false @aliasArguments
+            }
+        } | Should -Throw '*belongs to *entry*'
+
+        Get-FileText -Path $location.ProfilePath | Should -BeExactly $before
+    }
+
+    It 'refuses a -NewContributor entry at the 16-entry cap' {
+        $location = New-WriterLocation -Name 'set-new-contributor-cap'
+        $entries = foreach ($number in 1..16) { New-ContributorFixtureEntry -Id (New-ContributorFixtureId -Number $number) -Aliases ('["p{0}@example.com"]' -f $number) }
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile -Entry $entries) } -Path $location.ProfilePath
+        $before = Get-FileText -Path $location.ProfilePath
+
+        {
+            Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
+                Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -NewContributor -AddAlias 'cy@example.com' -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false
+            }
+        } | Should -Throw '*16*'
+
+        Get-FileText -Path $location.ProfilePath | Should -BeExactly $before
+    }
+
+    It 'fails when it cannot tell whose entry to change, naming every way to choose one' {
         $location = New-WriterLocation -Name 'set-ambiguous'
         Write-ContributorFixture -Case @{ Text = ($script:twoEntryText -replace '"default":true', '"default":false') } -Path $location.ProfilePath
 
@@ -296,7 +481,7 @@ Describe 'Setting a contributor profile' -Tag 'Unit' {
             Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
                 Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false
             }
-        } | Should -Throw '*-Contributor*'
+        } | Should -Throw '*-Contributor*-NewContributor*Import*'
     }
 
     It 'writes nothing and fails clearly when another writer holds the lock for 5 seconds' {
@@ -323,7 +508,7 @@ Describe 'Setting a contributor profile' -Tag 'Unit' {
         $location = New-WriterLocation -Name 'set-atomic'
         Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
 
-        $null = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -KnowledgeArea 'Pester' -Level 'familiar' -Confirm:$false
+        $null = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -KnowledgeArea 'Pester' -Level 'familiar' -Confirm:$false
 
         $names = @(Get-ChildItem -LiteralPath $location.ContributorDirectory -Force | ForEach-Object -Process { $_.Name })
         $names | Should -Not -Contain 'profile.lock'
@@ -346,6 +531,77 @@ Describe 'Registration file' -Tag 'Unit' {
             $text = '{{"schemaVersion":1,"operation":"{0}","state":"{1}","sha256":"{2}","updatedUtc":"2026-10-06T09:00:00Z"}}' -f $Operation, $State, $Sha256
             [System.IO.File]::WriteAllText($Location.RecordPath, $text, [System.Text.UTF8Encoding]::new($false))
         }
+
+        function script:Get-BytesSha256
+        {
+            param ([byte[]] $Bytes)
+
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try
+            {
+                [System.BitConverter]::ToString($sha.ComputeHash($Bytes)).Replace('-', '')
+            }
+            finally
+            {
+                $sha.Dispose()
+            }
+        }
+
+        # The bytes an earlier release shipped: the template with another
+        # timeout, so its hash differs from the current template's.
+        $earlierText = [System.IO.File]::ReadAllText($script:templatePath).Replace('"timeout": 20', '"timeout": 25')
+        $script:earlierBytes = [System.Text.UTF8Encoding]::new($false).GetBytes($earlierText)
+        $script:earlierHash = Get-BytesSha256 -Bytes $script:earlierBytes
+
+        function script:Write-EarlierRegistration
+        {
+            param ($Location, [string] $Operation = 'create', [string] $State = 'complete')
+
+            [System.IO.File]::WriteAllBytes($Location.RegistrationPath, $script:earlierBytes)
+            Write-RegistrationRecord -Location $Location -Operation $Operation -State $State -Sha256 $script:earlierHash
+        }
+
+        function script:Get-RegistrationSnapshot
+        {
+            <#
+                The record's and the registration file's bytes as text, so a
+                test can prove that nothing rewrote either one.
+            #>
+            param ($Location)
+
+            [pscustomobject] @{
+                Record = Get-FileText -Path $Location.RecordPath
+                File   = if (Test-Path -LiteralPath $Location.RegistrationPath) { Get-Sha256 -Path $Location.RegistrationPath } else { $null }
+            }
+        }
+
+        function script:Set-RegistrationView
+        {
+            <#
+                Puts a record and a registration file in place as one machine
+                can see them, after a crash or while OneDrive delivers them in
+                either order. Record is none or <operation>-<state>-<template>;
+                File is none, current, or earlier.
+            #>
+            param ($Location, [string] $Record, [string] $File)
+
+            if ($Record -ne 'none')
+            {
+                $operation, $state, $template = $Record -split '-'
+                $hash = if ($template -eq 'earlier') { $script:earlierHash } else { $script:templateHash }
+                Write-RegistrationRecord -Location $Location -Operation $operation -State $state -Sha256 $hash
+            }
+
+            switch ($File)
+            {
+                'current' { Copy-Item -LiteralPath $script:templatePath -Destination $Location.RegistrationPath }
+                'earlier' { [System.IO.File]::WriteAllBytes($Location.RegistrationPath, $script:earlierBytes) }
+            }
+        }
+    }
+
+    It 'keeps the shipped template distinct from the earlier-template stand-in' {
+        $script:earlierHash | Should -Not -BeExactly $script:templateHash
     }
 
     It 'creates the registration, byte for byte the shipped template, when an entry is on and rates an area' {
@@ -372,9 +628,9 @@ Describe 'Registration file' -Tag 'Unit' {
 
     It 'removes the registration when no entry is on and rates an area' {
         $location = New-WriterLocation -Name 'registration-remove'
-        $null = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false
+        $first = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false
 
-        $result = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -State 'Off' -Confirm:$false
+        $result = Set-ContributorProfile -Location $location -Contributor $first.EntryId -State 'Off' -Confirm:$false
 
         $result.Registration | Should -BeExactly 'none'
         Test-Path -LiteralPath $location.RegistrationPath | Should -BeFalse
@@ -396,7 +652,7 @@ Describe 'Registration file' -Tag 'Unit' {
         Copy-Item -LiteralPath $script:templatePath -Destination $location.RegistrationPath
 
         $created = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false
-        $stopped = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -State 'Off' -Confirm:$false
+        $stopped = Set-ContributorProfile -Location $location -Contributor $created.EntryId -State 'Off' -Confirm:$false
 
         $created.Registration | Should -BeExactly 'foreign'
         $stopped.Registration | Should -BeExactly 'foreign'
@@ -407,10 +663,10 @@ Describe 'Registration file' -Tag 'Unit' {
 
     It 'never deletes a registration that was modified after it was written' {
         $location = New-WriterLocation -Name 'registration-modified'
-        $null = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false
+        $first = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false
         Add-Content -LiteralPath $location.RegistrationPath -Value ' '
 
-        $result = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -State 'Off' -Confirm:$false
+        $result = Set-ContributorProfile -Location $location -Contributor $first.EntryId -State 'Off' -Confirm:$false
 
         $result.Registration | Should -BeExactly 'modified'
         Test-Path -LiteralPath $location.RegistrationPath | Should -BeTrue
@@ -426,33 +682,150 @@ Describe 'Registration file' -Tag 'Unit' {
         Test-Path -LiteralPath $location.RecordPath | Should -BeFalse
     }
 
-    It 'recovers from a crash after the pending create record, before the file' {
-        $location = New-WriterLocation -Name 'crash-create-before-file'
-        Write-RegistrationRecord -Location $location -Operation 'create' -State 'pending' -Sha256 $script:templateHash
+    It 'reconciles a crash <Step> to <Expected>, never to modified, and never rewrites the record' -ForEach @(
+        @{ Step = 'after the pending create record, before the file'; Record = 'create-pending-current'; File = 'none'; Expected = 'pending' }
+        @{ Step = 'after the file, before the record was completed'; Record = 'create-pending-current'; File = 'current'; Expected = 'owned' }
+        @{ Step = 'after the pending delete record, before the file was removed'; Record = 'delete-pending-current'; File = 'current'; Expected = 'owned' }
+        @{ Step = 'after the file was removed, before the delete record was'; Record = 'delete-pending-current'; File = 'none'; Expected = 'none' }
+        @{ Step = 'in a replacement, after its pending delete record'; Record = 'delete-pending-earlier'; File = 'earlier'; Expected = 'outdated' }
+        @{ Step = 'in a replacement, after the earlier file was removed'; Record = 'delete-pending-earlier'; File = 'none'; Expected = 'none' }
+        @{ Step = 'in a replacement, after the delete record was cleared'; Record = 'none'; File = 'none'; Expected = 'none' }
+        @{ Step = 'in a replacement, after its pending create record'; Record = 'create-pending-current'; File = 'none'; Expected = 'pending' }
+        @{ Step = 'in a replacement, after the current file was written'; Record = 'create-pending-current'; File = 'current'; Expected = 'owned' }
+    ) {
+        $location = New-WriterLocation -Name ('crash-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+        Set-RegistrationView -Location $location -Record $Record -File $File
+        $before = Get-RegistrationSnapshot -Location $location
 
-        $result = Set-ContributorProfile -Location $location -WorkspacePath $script:plainFolder -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false
+        $reported = (Get-ContributorProfileReport -Location $location).Registration
+        $afterReport = Get-RegistrationSnapshot -Location $location
+        $lock = Enter-ContributorProfileLock -Location $location
+        try
+        {
+            $reconciled = Invoke-ContributorRegistrationReconcile -Location $location
+        }
+        finally
+        {
+            $lock.Dispose()
+        }
 
-        $result.Registration | Should -BeExactly 'owned'
-        (Get-Content -LiteralPath $location.RecordPath -Raw | ConvertFrom-Json).state | Should -BeExactly 'complete'
+        $reported | Should -BeIn @($Expected, 'orphaned') -Because 'a diagnosis without a profile reports an owned registration as orphaned'
+        $reconciled | Should -BeExactly $Expected
+        $afterReport.Record | Should -BeExactly $before.Record -Because 'a diagnosis changes nothing'
+        $afterReport.File | Should -BeExactly $before.File
+        if ($Record -like 'delete-*' -and $File -eq 'none')
+        {
+            Test-Path -LiteralPath $location.RecordPath | Should -BeFalse -Because 'a delete record whose file is gone is finished and may be cleared'
+        }
+        else
+        {
+            (Get-RegistrationSnapshot -Location $location).Record | Should -BeExactly $before.Record
+        }
+
+        (Get-RegistrationSnapshot -Location $location).File | Should -BeExactly $before.File
     }
 
-    It 'recovers from a crash after the file, before the record was completed' {
-        $location = New-WriterLocation -Name 'crash-create-after-file'
+    It 'replaces an owned registration from an earlier template with the current one at the next write' {
+        $location = New-WriterLocation -Name 'registration-replace'
         Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
-        Write-RegistrationRecord -Location $location -Operation 'create' -State 'pending' -Sha256 $script:templateHash
-        Copy-Item -LiteralPath $script:templatePath -Destination $location.RegistrationPath
+        Write-EarlierRegistration -Location $location
 
-        $report = Get-ContributorProfileReport -Location $location
+        $reported = (Get-ContributorProfileReport -Location $location).Registration
+        $result = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -KnowledgeArea 'Pester' -Level 'new' -Confirm:$false
 
-        $report.Registration | Should -BeExactly 'owned'
-        (Get-Content -LiteralPath $location.RecordPath -Raw | ConvertFrom-Json).state | Should -BeExactly 'complete'
+        $reported | Should -BeExactly 'outdated'
+        $result.Registration | Should -BeExactly 'owned'
+        Get-Sha256 -Path $location.RegistrationPath | Should -BeExactly $script:templateHash
+        $record = Get-Content -LiteralPath $location.RecordPath -Raw | ConvertFrom-Json
+        $record.operation | Should -BeExactly 'create'
+        $record.state | Should -BeExactly 'complete'
+        $record.sha256 | Should -BeExactly $script:templateHash
     }
 
-    It 'recovers from a crash during deletion, before the file was removed' {
+    It 'removes an owned registration from an earlier template through <Path>' -ForEach @(
+        @{ Path = 'the opt-out' }
+        @{ Path = 'Remove -RegistrationOnly' }
+        @{ Path = 'Uninstall' }
+    ) {
+        $location = New-WriterLocation -Name ('earlier-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
+        Write-EarlierRegistration -Location $location
+
+        switch ($Path)
+        {
+            'the opt-out' { (Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -State 'Off' -Confirm:$false).Registration | Should -BeExactly 'none' }
+            'Remove -RegistrationOnly' { (Remove-ContributorProfile -Location $location -RegistrationOnly -Confirm:$false).Removed | Should -BeExactly 'registration' }
+            'Uninstall' { Invoke-ContributorRegistrationUninstall -Location $location | Should -BeExactly 'removed' }
+        }
+
+        Test-Path -LiteralPath $location.RegistrationPath | Should -BeFalse
+        Test-Path -LiteralPath $location.RecordPath | Should -BeFalse
+    }
+
+    It 'leaves <View> alone as <Expected>, and Uninstall stops on it' -ForEach @(
+        @{ View = 'a create record that arrived before its file'; Record = 'create-pending-current'; File = 'none'; Expected = 'pending' }
+        @{ View = 'a completed create record that arrived before its file'; Record = 'create-complete-current'; File = 'none'; Expected = 'pending' }
+        @{ View = 'an earlier create record whose file was removed first'; Record = 'create-complete-earlier'; File = 'none'; Expected = 'pending' }
+        @{ View = 'a registration file that arrived before its record'; Record = 'none'; File = 'current'; Expected = 'foreign' }
+        @{ View = 'a registration file whose record was removed first'; Record = 'none'; File = 'earlier'; Expected = 'foreign' }
+        @{ View = 'a replacing create record beside the earlier file'; Record = 'create-pending-current'; File = 'earlier'; Expected = 'modified' }
+        @{ View = 'a completed replacing record beside the earlier file'; Record = 'create-complete-current'; File = 'earlier'; Expected = 'modified' }
+        @{ View = 'an earlier create record beside the replacing file'; Record = 'create-complete-earlier'; File = 'current'; Expected = 'modified' }
+        @{ View = 'an earlier delete record beside the replacing file'; Record = 'delete-pending-earlier'; File = 'current'; Expected = 'modified' }
+    ) {
+        $location = New-WriterLocation -Name ('partial-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
+        Set-RegistrationView -Location $location -Record $Record -File $File
+        $before = Get-RegistrationSnapshot -Location $location
+
+        $reported = (Get-ContributorProfileReport -Location $location).Registration
+        $wanted = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -KnowledgeArea 'Pester' -Level 'new' -Confirm:$false
+        $unwanted = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -State 'Off' -Confirm:$false
+        $uninstall = $null
+        try { $null = Invoke-ContributorRegistrationUninstall -Location $location } catch { $uninstall = $_.Exception.Message }
+        $repair = $null
+        if ($Expected -ne 'pending')
+        {
+            try { $null = Remove-ContributorProfile -Location $location -RegistrationOnly -Confirm:$false } catch { $repair = $_.Exception.Message }
+        }
+
+        $reported | Should -BeExactly $Expected
+        $wanted.Registration | Should -BeExactly $Expected
+        $unwanted.Registration | Should -BeExactly $Expected
+        $wanted.Messages -join ' ' | Should -Match ([regex]::Escape($location.RegistrationPath))
+        $uninstall | Should -Match 'stopped before removing anything'
+        $uninstall | Should -Match ([regex]::Escape($location.RegistrationPath))
+        if ($Expected -ne 'pending')
+        {
+            $repair | Should -Match $Expected
+        }
+
+        $after = Get-RegistrationSnapshot -Location $location
+        $after.Record | Should -BeExactly $before.Record
+        $after.File | Should -BeExactly $before.File
+    }
+
+    It 'clears a pending registration only with Remove -RegistrationOnly, which previews and asks first' {
+        $location = New-WriterLocation -Name 'pending-cleared'
+        Set-RegistrationView -Location $location -Record 'create-complete-current' -File 'none'
+        $before = Get-RegistrationSnapshot -Location $location
+
+        $preview = Remove-ContributorProfile -Location $location -RegistrationOnly -WhatIf
+        $previewed = Get-RegistrationSnapshot -Location $location
+        $result = Remove-ContributorProfile -Location $location -RegistrationOnly -Confirm:$false
+
+        $preview.Registration | Should -BeExactly 'pending'
+        $previewed.Record | Should -BeExactly $before.Record
+        $result.Removed | Should -BeExactly 'registration'
+        $result.Registration | Should -BeExactly 'none'
+        Test-Path -LiteralPath $location.RecordPath | Should -BeFalse
+        Test-Path -LiteralPath $location.RegistrationPath | Should -BeFalse
+    }
+
+    It 'removes a registration whose deletion crashed before the file was removed' {
         $location = New-WriterLocation -Name 'crash-delete-before-file'
         Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -State '"off"')) } -Path $location.ProfilePath
-        Write-RegistrationRecord -Location $location -Operation 'delete' -State 'pending' -Sha256 $script:templateHash
-        Copy-Item -LiteralPath $script:templatePath -Destination $location.RegistrationPath
+        Set-RegistrationView -Location $location -Record 'delete-pending-current' -File 'current'
 
         $result = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -SnoozeInterview -Confirm:$false
 
@@ -461,15 +834,36 @@ Describe 'Registration file' -Tag 'Unit' {
         Test-Path -LiteralPath $location.RecordPath | Should -BeFalse
     }
 
-    It 'recovers from a crash during deletion, after the file was removed' {
+    It 'leaves a finished delete record to the next writer, which clears it' {
         $location = New-WriterLocation -Name 'crash-delete-after-file'
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -State '"off"')) } -Path $location.ProfilePath
+        Set-RegistrationView -Location $location -Record 'delete-pending-current' -File 'none'
+
+        $report = Get-ContributorProfileReport -Location $location
+        $recordAfterReport = Test-Path -LiteralPath $location.RecordPath
+        $result = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -SnoozeInterview -Confirm:$false
+
+        $report.Registration | Should -BeExactly 'none'
+        $recordAfterReport | Should -BeTrue -Because 'a diagnosis changes nothing'
+        $result.Registration | Should -BeExactly 'none'
+        Test-Path -LiteralPath $location.RecordPath | Should -BeFalse
+    }
+
+    It 'lists possible conflict copies of the registration in the hooks folder, by name or by content, and never touches them' {
+        $location = New-WriterLocation -Name 'registration-conflicts'
         Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
-        Write-RegistrationRecord -Location $location -Operation 'delete' -State 'pending' -Sha256 $script:templateHash
+        $named = Join-Path -Path $location.HooksDirectory -ChildPath 'contributor-profile-Prox1.json'
+        $renamed = Join-Path -Path $location.HooksDirectory -ChildPath 'copy of the registration.json'
+        Copy-Item -LiteralPath $script:templatePath -Destination $named
+        Copy-Item -LiteralPath $script:templatePath -Destination $renamed
+        Set-Content -LiteralPath (Join-Path -Path $location.HooksDirectory -ChildPath 'hooks.json') -Value '{"hooks":{}}' -Encoding ascii
+        Set-Content -LiteralPath (Join-Path -Path $location.HooksDirectory -ChildPath 'other-team.json') -Value '{"hooks":{}}' -Encoding ascii
 
         $report = Get-ContributorProfileReport -Location $location
 
-        Test-Path -LiteralPath $location.RecordPath | Should -BeFalse
-        $report.Registration | Should -BeExactly 'none'
+        @($report.RegistrationConflictCopies | Sort-Object) | Should -Be @(@($named, $renamed) | Sort-Object)
+        Test-Path -LiteralPath $named | Should -BeTrue
+        Test-Path -LiteralPath $renamed | Should -BeTrue
     }
 
     It 'reports an orphaned registration and removes it with -RegistrationOnly' {

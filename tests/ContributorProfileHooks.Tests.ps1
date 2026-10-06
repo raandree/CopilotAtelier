@@ -519,7 +519,7 @@ Describe 'Registration template' -Tag 'Unit' {
 
 Describe 'Every entry point agrees on the shared fixture set in <Edition>' -Tag 'Unit' -ForEach $script:editions {
     BeforeAll {
-        $fixture = New-HookFixture -Area 'Kerberos', 'PowerShell DSC', 'Pester'
+        $fixture = New-HookFixture -Area 'Kerberos', 'PowerShell DSC', 'Pester', '.NET'
         $script:driverHome = $fixture
         $casesPath = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N') + '.json')
         $cases = foreach ($case in (Get-ContributorProfileFixtureCase))
@@ -547,7 +547,8 @@ $results = foreach ($case in (Get-Content -LiteralPath $CasesPath -Raw | Convert
     $postText = & (Join-Path $hooks 'Add-FamiliarityContext.ps1') -InputJson ($payload -f 'PostToolUse', $session, $cwd) -ClockRoot $ClockRoot
     $report = & $skill -Action Get -WorkspacePath $Workspace
     $writer = $null
-    try { $null = & $skill -Action Set -SnoozeInterview -WhatIf } catch { $writer = $_.Exception.Message }
+    # The fixture entry's id: a write goes only to a positively chosen target.
+    try { $null = & $skill -Action Set -Contributor '11111111-1111-4111-8111-111111111111' -SnoozeInterview -WhatIf } catch { $writer = $_.Exception.Message }
     [pscustomobject]@{
         Name = $case.Name
         Sentence = [string]$hookOut.additionalContext
@@ -599,15 +600,17 @@ $results = foreach ($case in (Get-Content -LiteralPath $CasesPath -Raw | Convert
         {
             $result.SkillReason | Should -BeNullOrEmpty
             $result.Writer | Should -BeNullOrEmpty
-            if ($result.SkillLevels.Count -gt 0)
+            (@($result.SkillLevels) -join '|') | Should -BeExactly (@($_.Levels) -join '|')
+            if (@($_.Levels).Count -gt 0)
             {
-                $result.Sentence | Should -Match ([regex]::Escape($script:expectedLevels))
-                $result.Resent | Should -Match ([regex]::Escape($script:expectedLevels))
-                $result.SkillLevels | Should -Be @('Kerberos: new', 'PowerShell DSC: expert')
+                # The workspace declares every rated fixture area in profile order.
+                $matched = (@($_.Levels) | ForEach-Object -Process { $areaName, $areaLevel = $_ -split ': ', 2; '"{0}" {1}' -f $areaName, $areaLevel }) -join '; '
+                $result.Sentence | Should -Match ([regex]::Escape($script:prefix + $matched + '. '))
+                $result.Resent | Should -Match ([regex]::Escape($script:prefix + $matched + '. '))
             }
             else
             {
-                $result.Sentence | Should -Match ([regex]::Escape('No contributor profile levels for this workspace; 3 declared Knowledge areas are unrated.'))
+                $result.Sentence | Should -Match ([regex]::Escape('No contributor profile levels for this workspace; 4 declared Knowledge areas are unrated.'))
                 $result.Resent | Should -BeNullOrEmpty
             }
         }
@@ -627,7 +630,7 @@ Describe 'The module commands agree with the hooks on the shared fixture set' -T
         $outcome = Use-ContributorEnvironment -Variable $script:moduleFixture.Environment -ScriptBlock {
             $report = Get-CopilotAtelierContributorProfile
             $writer = $null
-            try { $null = Set-CopilotAtelierContributorProfile -State 'On' -WhatIf } catch { $writer = $_.Exception.Message }
+            try { $null = Set-CopilotAtelierContributorProfile -Contributor '11111111-1111-4111-8111-111111111111' -State 'On' -WhatIf } catch { $writer = $_.Exception.Message }
             [pscustomobject]@{ Report = $report; Writer = $writer }
         }
 

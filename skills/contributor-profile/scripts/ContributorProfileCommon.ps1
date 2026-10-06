@@ -544,11 +544,13 @@ function Get-ContributorRegistrationFileHash
 function Invoke-ContributorRegistrationReconcile
 {
     <#
-        Reconciles the record against the observed file after any crash. The
-        caller holds the profile lock. Returns the status: none, owned, foreign
-        (a file this writer did not create), or modified (a file whose bytes no
-        longer match what was recorded and shipped). Only a pending or stale
-        record is ever changed here; the registration file never is.
+        Reconciles the record against the observed file. The caller holds the
+        profile lock. Returns the status Get-ContributorRegistrationStatus
+        reads: none, owned, outdated, pending, foreign, or modified. Nothing is
+        inferred from a partial view and no record is ever rewritten (ruling
+        A8): the only change is clearing a delete record whose file is gone,
+        because that deletion is finished. The registration file never changes
+        here.
     #>
     [CmdletBinding()]
     [OutputType([System.String])]
@@ -559,44 +561,17 @@ function Invoke-ContributorRegistrationReconcile
         $Location
     )
 
-    $template = Get-ContributorRegistrationTemplate
-    $record = Read-ContributorRegistrationRecord -Location $Location
-    $fileHash = Get-ContributorRegistrationFileHash -Location $Location
-
-    if ($null -eq $record)
+    $status = Get-ContributorRegistrationStatus -Location $Location
+    if ($status -eq 'none')
     {
-        if ($null -eq $fileHash) { return 'none' }
-        return 'foreign'
+        $record = Read-ContributorRegistrationRecord -Location $Location
+        if ($null -ne $record -and $record.Valid -and $record.Operation -eq 'delete')
+        {
+            Remove-ContributorRegistrationRecord -Location $Location
+        }
     }
 
-    if (-not $record.Valid)
-    {
-        if ($null -eq $fileHash) { return 'none' }
-        return 'modified'
-    }
-
-    $matchesBoth = $null -ne $fileHash -and $fileHash -ceq $record.Sha256 -and $fileHash -ceq $template.Sha256
-    if ($null -eq $fileHash)
-    {
-        # Crash before the file was written, or after it was removed, or the
-        # file was deleted by hand: nothing is registered any more.
-        Remove-ContributorRegistrationRecord -Location $Location
-        return 'none'
-    }
-
-    if (-not $matchesBoth)
-    {
-        return 'modified'
-    }
-
-    if ($record.Operation -ne 'create' -or $record.State -ne 'complete')
-    {
-        # A pending create that wrote its file, or a pending delete that did
-        # not remove it: the file is this writer's, unchanged.
-        Write-ContributorRegistrationRecord -Location $Location -Operation 'create' -State 'complete' -Sha256 $fileHash
-    }
-
-    return 'owned'
+    return $status
 }
 
 function New-ContributorRegistration
@@ -652,24 +627,22 @@ function New-ContributorRegistration
 function Remove-ContributorRegistration
 {
     <#
-        Deletes the registration in two phases, and only when the fixed path,
-        the record, the recorded hash, and the shipped template's hash agree.
-        The caller has reconciled and holds the lock.
+        Deletes the registration in two phases, and only an owned file: one at
+        the fixed path whose current SHA-256 equals the hash the record holds,
+        whichever shipped template it came from (ruling A5). The caller holds
+        the lock. Returns none, or the status that kept the file in place.
     #>
     [CmdletBinding()]
     [OutputType([System.String])]
     param ([Parameter(Mandatory = $true)] [System.Object] $Location)
 
-    $template = Get-ContributorRegistrationTemplate
-    $record = Read-ContributorRegistrationRecord -Location $Location
-    $fileHash = Get-ContributorRegistrationFileHash -Location $Location
-
-    if ($null -eq $record -or -not $record.Valid -or $record.Operation -ne 'create' -or $record.State -ne 'complete' -or
-        $fileHash -cne $record.Sha256 -or $fileHash -cne $template.Sha256)
+    $status = Get-ContributorRegistrationStatus -Location $Location
+    if (@('owned', 'outdated') -notcontains $status)
     {
-        return Invoke-ContributorRegistrationReconcile -Location $Location
+        return $status
     }
 
+    $fileHash = Get-ContributorRegistrationFileHash -Location $Location
     Write-ContributorRegistrationRecord -Location $Location -Operation 'delete' -State 'pending' -Sha256 $fileHash
     [System.IO.File]::Delete($Location.RegistrationPath)
     Remove-ContributorRegistrationRecord -Location $Location
@@ -679,8 +652,12 @@ function Remove-ContributorRegistration
 function Sync-ContributorRegistration
 {
     <#
-        Reconciles, then drives the registration toward the desired state.
-        Returns the status and a message for any file it must leave alone.
+        Reconciles, then drives the registration toward the desired state. An
+        owned registration from an earlier template is replaced with the
+        current one as a delete followed by a create, so every crash point ends
+        owned, outdated, pending, or none, never modified (ruling A5). A
+        pending, foreign, or modified registration is left alone. Returns the
+        status and a message for any file it must leave alone.
     #>
     [CmdletBinding()]
     [OutputType([System.Management.Automation.PSCustomObject])]
@@ -696,11 +673,19 @@ function Sync-ContributorRegistration
     )
 
     $status = Invoke-ContributorRegistrationReconcile -Location $Location
-    if ($Desired -and $status -eq 'none')
+    if ($Desired)
     {
-        $status = New-ContributorRegistration -Location $Location
+        if ($status -eq 'outdated')
+        {
+            $status = Remove-ContributorRegistration -Location $Location
+        }
+
+        if ($status -eq 'none')
+        {
+            $status = New-ContributorRegistration -Location $Location
+        }
     }
-    elseif (-not $Desired -and $status -eq 'owned')
+    elseif (@('owned', 'outdated') -contains $status)
     {
         $status = Remove-ContributorRegistration -Location $Location
     }
@@ -708,8 +693,9 @@ function Sync-ContributorRegistration
     $messages = @(
         switch ($status)
         {
-            'foreign' { "A file this writer did not create sits at '$($Location.RegistrationPath)'; it was left untouched. Remove it by hand if it is not yours." }
-            'modified' { "The registration at '$($Location.RegistrationPath)' was changed after it was written; it was left untouched." }
+            'foreign' { "A file this writer did not create sits at '$($Location.RegistrationPath)'; it was left untouched. If OneDrive is still delivering its record, this resolves itself; otherwise remove the file by hand if it is not yours." }
+            'modified' { "The registration at '$($Location.RegistrationPath)' does not match its record at '$($Location.RecordPath)': it was changed after it was written, or OneDrive has not delivered both yet. It was left untouched." }
+            'pending' { "The registration record at '$($Location.RecordPath)' names a file that is not at '$($Location.RegistrationPath)' yet; OneDrive may still be delivering it. It was left alone. If it never arrives, run Remove-CopilotAtelierContributorProfile -RegistrationOnly." }
             'unavailable' { 'Levels are not re-sent after a compaction on this machine: the PostToolUse hook script is not deployed here.' }
         }
     )
@@ -722,11 +708,11 @@ function Invoke-ContributorRegistrationUninstall
     <#
         Called by Uninstall-CopilotAtelier before it removes any file. Reads
         only the registration record and the file it names, never a level:
-        takes the profile lock, reconciles, and removes an unchanged
-        registration this module created. Throws, naming the file, when the
-        registration is foreign or modified or the lock is held, because
-        removing the deployed hook script would leave a registration that warns
-        on every tool call.
+        takes the profile lock, reconciles, and removes an owned registration,
+        whichever template it came from. Throws, naming the file, when the
+        registration is pending, foreign, or modified or the lock is held,
+        because removing the deployed hook script would leave a registration
+        that warns on every tool call.
     #>
     [CmdletBinding()]
     [OutputType([System.String])]
@@ -749,13 +735,18 @@ function Invoke-ContributorRegistrationUninstall
     try
     {
         $status = Invoke-ContributorRegistrationReconcile -Location $Location
-        if ($status -eq 'owned')
+        if (@('owned', 'outdated') -contains $status)
         {
             $status = Remove-ContributorRegistration -Location $Location
             if ($status -eq 'none')
             {
                 return 'removed'
             }
+        }
+
+        if ($status -eq 'pending')
+        {
+            throw ("Uninstall stopped before removing anything: the contributor profile registration at '{0}' is pending, because its record at '{1}' names a file that has not arrived. Removing the hook scripts would leave it warning on every tool call once OneDrive delivers it. Wait until OneDrive has synced, or clear it with Remove-CopilotAtelierContributorProfile -RegistrationOnly, then run Uninstall-CopilotAtelier again." -f $Location.RegistrationPath, $Location.RecordPath)
         }
 
         if ($status -ne 'none')
@@ -776,22 +767,97 @@ function Invoke-ContributorRegistrationUninstall
 function Get-ContributorRegistrationStatus
 {
     <#
-        The registration status without changing anything, for a reader that
-        does not hold the lock: none, owned, pending, foreign, or modified.
+        The registration status, read without the lock and without changing
+        anything. The record is compared with the observed file, and nothing
+        is inferred from a partial view (rulings A5 and A8):
+        none      no record and no file, or a delete record whose file is gone
+        owned     the file matches the recorded hash and the current template
+        outdated  the file matches the recorded hash of an earlier template
+        pending   a create record, pending or complete, whose file is absent;
+                  on a OneDrive Canonical target the file may still be on its way
+        foreign   a file without a record
+        modified  a file that does not match its record, or an unreadable
+                  record beside a file
     #>
     [CmdletBinding()]
     [OutputType([System.String])]
     param ([Parameter(Mandatory = $true)] [System.Object] $Location)
 
-    $template = Get-ContributorRegistrationTemplate
     $record = Read-ContributorRegistrationRecord -Location $Location
     $fileHash = Get-ContributorRegistrationFileHash -Location $Location
 
-    if ($null -eq $fileHash) { return 'none' }
-    if ($null -eq $record) { return 'foreign' }
-    if (-not $record.Valid -or $fileHash -cne $record.Sha256 -or $fileHash -cne $template.Sha256) { return 'modified' }
-    if ($record.Operation -eq 'create' -and $record.State -eq 'complete') { return 'owned' }
-    return 'pending'
+    if ($null -eq $record)
+    {
+        if ($null -eq $fileHash) { return 'none' }
+        return 'foreign'
+    }
+
+    if (-not $record.Valid)
+    {
+        if ($null -eq $fileHash) { return 'none' }
+        return 'modified'
+    }
+
+    if ($null -eq $fileHash)
+    {
+        if ($record.Operation -eq 'create') { return 'pending' }
+        return 'none'
+    }
+
+    if ($fileHash -cne $record.Sha256) { return 'modified' }
+    if ($fileHash -cne (Get-ContributorRegistrationTemplate).Sha256) { return 'outdated' }
+    return 'owned'
+}
+
+function Get-ContributorRegistrationConflictCopy
+{
+    <#
+        Files in the hooks folder that may be conflict copies of the
+        registration (ruling A8): every *.json other than hooks.json and the
+        registration itself whose name starts with contributor-profile or whose
+        text names the PostToolUse script. Hosts load each as a hook, so the
+        report names them with their full path; nothing deletes them. A cloud
+        placeholder is judged by its name only and is never opened.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.String])]
+    param ([Parameter(Mandatory = $true)] [System.Object] $Location)
+
+    if (-not [System.IO.Directory]::Exists($Location.HooksDirectory))
+    {
+        return
+    }
+
+    foreach ($file in [System.IO.Directory]::GetFiles($Location.HooksDirectory, '*.json'))
+    {
+        $name = [System.IO.Path]::GetFileName($file)
+        if (@('hooks.json', 'contributor-profile.json') -contains $name)
+        {
+            continue
+        }
+
+        $candidate = $name.StartsWith('contributor-profile', [System.StringComparison]::OrdinalIgnoreCase)
+        if (-not $candidate)
+        {
+            try
+            {
+                $info = [System.IO.FileInfo]::new($file)
+                if ((Test-ContributorFileLocal -Attributes ([System.Int64] $info.Attributes)) -and $info.Length -le (Get-ContributorProfileLimit).ProfileBytes)
+                {
+                    $candidate = [System.IO.File]::ReadAllText($file).Contains('Add-FamiliarityContext.ps1')
+                }
+            }
+            catch
+            {
+                $candidate = $false
+            }
+        }
+
+        if ($candidate)
+        {
+            $file
+        }
+    }
 }
 
 function Get-ContributorLocationMessage
@@ -853,9 +919,12 @@ function Set-ContributorProfile
     <#
         Sets one Knowledge area level, the opt-out state, aliases, the default
         flag, or the interview snooze on one entry, then manages the
-        registration file. Without -Contributor the identity rule selects the
-        entry; with no entry yet, or an unmatched git address among several
-        entries without a default, it creates one.
+        registration file. A write goes only to a positively chosen target
+        (ruling A7): the entry -Contributor names, else the entry whose alias
+        matches the git address of the workspace, else a new entry, the first
+        one when no profile exists or the one -NewContributor creates. It never
+        falls back to the only or the default entry; the identity rule still
+        governs what the hooks read.
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([System.Management.Automation.PSCustomObject])]
@@ -865,6 +934,7 @@ function Set-ContributorProfile
         [Parameter()] [AllowNull()] [AllowEmptyString()] [System.String] $WorkspacePath,
         [Parameter()] [AllowNull()] [AllowEmptyString()] [System.String] $GitExecutable,
         [Parameter()] [AllowNull()] [AllowEmptyString()] [System.String] $Contributor,
+        [Parameter()] [System.Management.Automation.SwitchParameter] $NewContributor,
         [Parameter()] [AllowNull()] [AllowEmptyCollection()] [System.String[]] $KnowledgeArea = @(),
         [Parameter()] [ValidateSet('new', 'familiar', 'expert')] [System.String[]] $Level = @(),
         [Parameter()] [ValidateSet('On', 'Off')] [System.String] $State,
@@ -875,6 +945,11 @@ function Set-ContributorProfile
     )
 
     $limit = Get-ContributorProfileLimit
+    if ($NewContributor -and -not [System.String]::IsNullOrWhiteSpace($Contributor))
+    {
+        throw '-NewContributor creates a new entry and -Contributor names an existing one; pass only one of them. Nothing was written.'
+    }
+
     $KnowledgeArea = @($KnowledgeArea | Where-Object -FilterScript { -not [System.String]::IsNullOrWhiteSpace($_) })
     if ($KnowledgeArea.Count -ne $Level.Count)
     {
@@ -887,7 +962,7 @@ function Set-ContributorProfile
         $areaName = ConvertTo-ContributorAreaName -Name $KnowledgeArea[$index]
         if ($null -eq $areaName)
         {
-            throw ("'{0}' breaks the area-name rule: 1 to 48 letters, digits, single spaces, and . + # / & ( ) -, starting with a letter or a digit. Nothing was written." -f $KnowledgeArea[$index])
+            throw ("'{0}' breaks the area-name rule: 1 to 48 letters, digits, single spaces, and . + # / & ( ) -, starting with a letter, a digit, or a dot followed by a letter or a digit. Nothing was written." -f $KnowledgeArea[$index])
         }
 
         $ratings.Add([pscustomobject] @{ Name = $areaName; Level = $Level[$index] })
@@ -901,7 +976,7 @@ function Set-ContributorProfile
         }
     }
 
-    if ($ratings.Count -eq 0 -and -not $State -and $AddAlias.Count -eq 0 -and $RemoveAlias.Count -eq 0 -and -not $Default -and -not $SnoozeInterview)
+    if ($ratings.Count -eq 0 -and -not $State -and $AddAlias.Count -eq 0 -and $RemoveAlias.Count -eq 0 -and -not $Default -and -not $SnoozeInterview -and -not $NewContributor)
     {
         throw 'Name at least one change. Nothing was written.'
     }
@@ -918,8 +993,11 @@ function Set-ContributorProfile
 
         $model = if ($read.Profile) { $read.Profile } else { New-ContributorProfileModel }
         $changes = [System.Collections.Generic.List[string]]::new()
+        $messages = [System.Collections.Generic.List[string]]::new()
         $created = $false
         $entry = $null
+        $email = $null
+        $hadEntries = $model.Contributors.Count -gt 0
 
         if (-not [System.String]::IsNullOrWhiteSpace($Contributor))
         {
@@ -934,16 +1012,29 @@ function Set-ContributorProfile
             }
 
             $email = Get-ContributorGitEmail -WorkingDirectory $workspace -GitExecutable $GitExecutable
-            if ($model.Contributors.Count -gt 0)
+            if (-not (Test-ContributorAlias -Alias $email))
             {
-                $entry = (Select-ContributorEntry -ContributorProfile $model -Email $email).Entry
+                $email = $null
             }
 
-            if ($null -eq $entry)
+            $owner = if ($null -ne $email) { (Select-ContributorEntry -ContributorProfile $model -Email $email) } else { $null }
+            $ownedByAlias = $null -ne $owner -and $owner.Reason -eq 'alias'
+
+            if (-not $NewContributor -and $hadEntries)
             {
-                if ($model.Contributors.Count -gt 0 -and -not (Test-ContributorAlias -Alias $email))
+                if (-not $ownedByAlias)
                 {
-                    throw 'Several entries exist, none is the default, and git names no address here, so it is unclear whose entry to change. Pass -Contributor with an id or an alias. Nothing was written.'
+                    $found = if ($null -eq $email) { 'git names no address here' } else { 'the address git names here matches no entry' }
+                    throw ("It is unclear whose entry to change: a write goes only to the entry -Contributor names or to the entry whose alias matches the git address of the workspace, and {0}. Pass -Contributor with an id or an alias to change your entry, -NewContributor to create an entry of your own, or Import-CopilotAtelierContributorProfile to bring in your exported entry. Nothing was written." -f $found)
+                }
+
+                $entry = $owner.Entry
+            }
+            else
+            {
+                if ($ownedByAlias)
+                {
+                    throw 'The address git names here already belongs to an entry; change that entry with -Contributor instead of creating another. Nothing was written.'
                 }
 
                 if ($model.Contributors.Count -ge $limit.Entries)
@@ -1043,6 +1134,23 @@ function Set-ContributorProfile
             $changes.Add('snooze the interview for 14 days')
         }
 
+        if ($created -and $hadEntries)
+        {
+            # The hooks reach an entry by alias, as the only entry, or as the
+            # default, so a new entry beside others needs an alias or -Default.
+            if ($entry.Aliases.Count -eq 0 -and -not $Default)
+            {
+                throw 'The hooks could never select a new entry beside the others: they choose an entry by the git email of the workspace, else the only entry, else the default. Pass -AddAlias with the address git reports where you work, or -Default. Nothing was written.'
+            }
+
+            $reported = @($entry.Aliases | Where-Object -FilterScript { $null -ne $email -and [System.String]::Equals($_, $email, [System.StringComparison]::OrdinalIgnoreCase) })
+            if (-not $Default -and $reported.Count -eq 0)
+            {
+                $masked = @($entry.Aliases | ForEach-Object -Process { Hide-ContributorAlias -Alias $_ }) -join ', '
+                $messages.Add(('The hooks reach the new entry only where git reports {0} as user.email; here git reports another address or none.' -f $masked))
+            }
+        }
+
         $result = [pscustomobject] @{
             ProfilePath  = $Location.ProfilePath
             Kind         = $Location.Kind
@@ -1051,7 +1159,7 @@ function Set-ContributorProfile
             Created      = $created
             Changes      = $changes.ToArray()
             Registration = $null
-            Messages     = [System.String[]] @()
+            Messages     = [System.String[]] $messages.ToArray()
             WhatIf       = $false
         }
 
@@ -1064,7 +1172,7 @@ function Set-ContributorProfile
         Save-ContributorProfile -Location $Location -ContributorProfile $model
         $sync = Sync-ContributorRegistration -Location $Location -Desired (Test-ContributorRegistrationDesired -ContributorProfile $model)
         $result.Registration = $sync.Status
-        $result.Messages = @($sync.Messages) + @(Get-ContributorLocationMessage -Location $Location)
+        $result.Messages = [System.String[]] (@($messages) + @($sync.Messages) + @(Get-ContributorLocationMessage -Location $Location))
         return $result
     }
     finally
@@ -1390,9 +1498,10 @@ function Import-ContributorProfile
 function Remove-ContributorProfile
 {
     <#
-        Deletes one entry, the whole profile file, or with -RegistrationOnly an
-        orphaned registration. A registration is removed only under the deletion
-        rule; a foreign or modified one is never touched.
+        Deletes one entry, the whole profile file, or with -RegistrationOnly
+        only the registration: an owned one under the ownership rule, whichever
+        template it came from, or a pending one that never settles, whose
+        record it clears. A foreign or modified registration is never touched.
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     [OutputType([System.Management.Automation.PSCustomObject])]
@@ -1423,7 +1532,19 @@ function Remove-ContributorProfile
                 return $result
             }
 
-            if ($status -ne 'owned')
+            if ($status -eq 'pending')
+            {
+                if ($PSCmdlet.ShouldProcess($Location.RecordPath, 'Clear the pending contributor profile registration'))
+                {
+                    Remove-ContributorRegistrationRecord -Location $Location
+                    $result.Registration = 'none'
+                    $result.Removed = 'registration'
+                }
+
+                return $result
+            }
+
+            if (@('owned', 'outdated') -notcontains $status)
             {
                 throw ("The registration at '{0}' is {1}; it is never deleted automatically. Nothing was removed." -f $Location.RegistrationPath, $status)
             }
@@ -1507,10 +1628,12 @@ function Get-ContributorProfileReport
     <#
         The 30-second check: where the profile lives and whether it syncs, the
         selected entry and why, its levels, the exact sentence for a workspace,
-        possible conflict copies, and the registration state. Aliases are
-        masked unless -ShowAliases, because an agent-run report enters the
-        model's context. Reconciles a pending registration record when the lock
-        is free, and changes nothing else.
+        possible conflict copies of the profile and of the registration, and
+        the registration state: none, owned, outdated (from an earlier
+        template; the next write replaces it), pending (a record whose file has
+        not arrived), orphaned (no entry wants it), foreign, or modified.
+        Aliases are masked unless -ShowAliases, because an agent-run report
+        enters the model's context. Changes nothing, not even a record.
     #>
     [CmdletBinding()]
     [OutputType([System.Management.Automation.PSCustomObject])]
@@ -1524,36 +1647,8 @@ function Get-ContributorProfileReport
 
     $read = Read-ContributorProfile -Location $Location
 
-    $registration = 'none'
-    if ([System.IO.File]::Exists($Location.RecordPath) -or [System.IO.File]::Exists($Location.RegistrationPath))
-    {
-        $lock = $null
-        if ([System.IO.File]::Exists($Location.RecordPath))
-        {
-            try
-            {
-                $lock = Enter-ContributorProfileLock -Location $Location -TimeoutMilliseconds 1000
-            }
-            catch
-            {
-                $lock = $null
-            }
-        }
-
-        try
-        {
-            $registration = if ($null -ne $lock) { Invoke-ContributorRegistrationReconcile -Location $Location } else { Get-ContributorRegistrationStatus -Location $Location }
-        }
-        finally
-        {
-            if ($null -ne $lock)
-            {
-                $lock.Dispose()
-            }
-        }
-    }
-
-    if ($registration -eq 'owned' -and -not (Test-ContributorRegistrationDesired -ContributorProfile $read.Profile))
+    $registration = Get-ContributorRegistrationStatus -Location $Location
+    if (@('owned', 'outdated') -contains $registration -and -not (Test-ContributorRegistrationDesired -ContributorProfile $read.Profile))
     {
         $registration = 'orphaned'
     }
@@ -1603,22 +1698,23 @@ function Get-ContributorProfileReport
     }
 
     return [pscustomobject] @{
-        ProfilePath      = $Location.ProfilePath
-        Kind             = $Location.Kind
-        Synced           = $Location.Synced
-        Storage          = $storage
-        Exists           = $read.Exists
-        ReasonCode       = $read.ReasonCode
-        Detail           = $read.Detail
-        EntryCount       = if ($read.Profile) { $read.Profile.Contributors.Count } else { 0 }
-        Selection        = $selection.Reason
-        EntryId          = if ($entry) { $entry.Id } else { $null }
-        State            = if ($entry) { $entry.State } else { $null }
-        Levels           = [System.String[]] @(if ($entry) { $entry.Areas.Values | ForEach-Object -Process { '{0}: {1}' -f $_.Name, $_.Level } })
-        Aliases          = [System.String[]] @(if ($entry) { $entry.Aliases | ForEach-Object -Process { if ($ShowAliases) { $_ } else { Hide-ContributorAlias -Alias $_ } } })
-        Sentence         = $sentence
-        ConflictCopies   = [System.String[]] $conflicts
-        Registration     = $registration
-        RegistrationPath = $Location.RegistrationPath
+        ProfilePath                = $Location.ProfilePath
+        Kind                       = $Location.Kind
+        Synced                     = $Location.Synced
+        Storage                    = $storage
+        Exists                     = $read.Exists
+        ReasonCode                 = $read.ReasonCode
+        Detail                     = $read.Detail
+        EntryCount                 = if ($read.Profile) { $read.Profile.Contributors.Count } else { 0 }
+        Selection                  = $selection.Reason
+        EntryId                    = if ($entry) { $entry.Id } else { $null }
+        State                      = if ($entry) { $entry.State } else { $null }
+        Levels                     = [System.String[]] @(if ($entry) { $entry.Areas.Values | ForEach-Object -Process { '{0}: {1}' -f $_.Name, $_.Level } })
+        Aliases                    = [System.String[]] @(if ($entry) { $entry.Aliases | ForEach-Object -Process { if ($ShowAliases) { $_ } else { Hide-ContributorAlias -Alias $_ } } })
+        Sentence                   = $sentence
+        ConflictCopies             = [System.String[]] $conflicts
+        Registration               = $registration
+        RegistrationPath           = $Location.RegistrationPath
+        RegistrationConflictCopies = [System.String[]] @(Get-ContributorRegistrationConflictCopy -Location $Location)
     }
 }

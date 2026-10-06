@@ -11,9 +11,14 @@
     unless -ShowAliases.
 
     Set changes one entry: a Knowledge area level, the opt-out state, aliases,
-    the default flag, or the interview snooze. Export writes a schema-1 file for
-    another machine; Import validates and merges one. Remove deletes an entry,
-    the whole file, or only an orphaned registration.
+    the default flag, or the interview snooze. A write goes only to a
+    positively chosen target: the entry -Contributor names, else the entry
+    whose alias matches the git address of the workspace, else a new entry,
+    the first one when no profile exists or the one -NewContributor creates.
+    It never falls back to the only or the default entry. Export writes a
+    schema-1 file for another machine; Import validates and merges one. Remove
+    deletes an entry, the whole file, or only an orphaned or pending
+    registration.
 
     Every write takes the profile lock, writes atomically, never lands under a
     git working tree, and supports -WhatIf. Run a write with -WhatIf first, show
@@ -29,6 +34,12 @@
 .PARAMETER Contributor
     An entry id or alias. It must name exactly one entry; anything else fails
     before any write.
+
+.PARAMETER NewContributor
+    With Set: creates the caller's own entry with a new id, taking the git
+    address of the workspace as its first alias. Beside other entries it needs
+    an alias, from git or from -AddAlias, or -Default, because the hooks select
+    entries by git address. Excludes -Contributor.
 
 .PARAMETER KnowledgeArea
     The Knowledge areas to rate, paired in order with -Level. The area-name
@@ -56,7 +67,8 @@
     The file Export writes or Import reads.
 
 .PARAMETER RegistrationOnly
-    With Remove: deletes only an orphaned registration file.
+    With Remove: deletes only an orphaned registration file, or clears a
+    pending registration whose file never arrived.
 
 .PARAMETER ShowAliases
     With Get: shows aliases unmasked.
@@ -66,6 +78,9 @@
 
 .EXAMPLE
     & ./ContributorProfile.ps1 -Action Set -KnowledgeArea 'Kerberos' -Level new -WhatIf
+
+.EXAMPLE
+    & ./ContributorProfile.ps1 -Action Set -NewContributor -AddAlias 'cy@example.com' -KnowledgeArea 'Kerberos' -Level new -WhatIf
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param
@@ -82,6 +97,10 @@ param
     [Parameter()]
     [System.String]
     $Contributor,
+
+    [Parameter()]
+    [System.Management.Automation.SwitchParameter]
+    $NewContributor,
 
     [Parameter()]
     [System.String[]]
@@ -140,7 +159,7 @@ else
 }
 
 $forward = @{}
-foreach ($name in 'Contributor', 'KnowledgeArea', 'Level', 'State', 'AddAlias', 'RemoveAlias', 'Default', 'SnoozeInterview', 'RegistrationOnly', 'ShowAliases')
+foreach ($name in 'Contributor', 'NewContributor', 'KnowledgeArea', 'Level', 'State', 'AddAlias', 'RemoveAlias', 'Default', 'SnoozeInterview', 'RegistrationOnly', 'ShowAliases')
 {
     if ($PSBoundParameters.ContainsKey($name))
     {
@@ -174,7 +193,7 @@ switch ($Action)
 
     'Set'
     {
-        $arguments = Select-ContributorForward -Source $forward -Name 'Contributor', 'KnowledgeArea', 'Level', 'State', 'AddAlias', 'RemoveAlias', 'Default', 'SnoozeInterview'
+        $arguments = Select-ContributorForward -Source $forward -Name 'Contributor', 'NewContributor', 'KnowledgeArea', 'Level', 'State', 'AddAlias', 'RemoveAlias', 'Default', 'SnoozeInterview'
         Set-ContributorProfile -Location $location -WorkspacePath $workspace @arguments
     }
 

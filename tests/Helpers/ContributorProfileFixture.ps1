@@ -71,17 +71,22 @@ function Get-ContributorProfileFixtureCase
 {
     <#
         Returns @{ Name; Reason; Text } or @{ Name; Reason; Bytes }. Reason is
-        $null for a valid profile.
+        $null for a valid profile, which also carries Levels: its entry's
+        levels as 'Name: level' in profile order, the order in which every
+        entry point reports them.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
     param ()
 
     $area = '{"level":"new","updatedUtc":"2026-10-01T08:00:00Z"}'
+    $standardLevels = @('Kerberos: new', 'PowerShell DSC: expert')
+    $dotNetAreas = '{"Kerberos":{"level":"new","updatedUtc":"2026-10-01T08:00:00Z"},"PowerShell DSC":{"level":"expert","updatedUtc":"2026-10-01T08:00:00Z"},".NET":{"level":"familiar","updatedUtc":"2026-10-01T08:00:00Z"}}'
 
-    @{ Name = 'valid profile'; Reason = $null; Text = (New-ContributorFixtureProfile) }
-    @{ Name = 'valid entry without areas or aliases'; Reason = $null; Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Aliases '[]' -Areas '{}')) }
-    @{ Name = 'valid profile with a byte-order mark'; Reason = $null; Bytes = ([byte[]] @(0xEF, 0xBB, 0xBF) + [System.Text.Encoding]::UTF8.GetBytes((New-ContributorFixtureProfile))) }
+    @{ Name = 'valid profile'; Reason = $null; Levels = $standardLevels; Text = (New-ContributorFixtureProfile) }
+    @{ Name = 'valid entry without areas or aliases'; Reason = $null; Levels = @(); Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Aliases '[]' -Areas '{}')) }
+    @{ Name = 'valid profile with a byte-order mark'; Reason = $null; Levels = $standardLevels; Bytes = ([byte[]] @(0xEF, 0xBB, 0xBF) + [System.Text.Encoding]::UTF8.GetBytes((New-ContributorFixtureProfile))) }
+    @{ Name = 'valid area name that starts with a dot'; Reason = $null; Levels = @($standardLevels + '.NET: familiar'); Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas $dotNetAreas)) }
 
     @{ Name = 'trailing comma'; Reason = 'invalid-json'; Text = '{"schemaVersion":1,"contributors":[' + (New-ContributorFixtureEntry) + '],}' }
     @{ Name = 'not JSON'; Reason = 'invalid-json'; Text = 'schemaVersion = 1' }
@@ -122,6 +127,9 @@ function Get-ContributorProfileFixtureCase
             )) }
     @{ Name = 'more than 200 areas'; Reason = 'invalid-schema'; Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas ('{' + ((1..201 | ForEach-Object -Process { '"Area {0}":{1}' -f $_, $area }) -join ',') + '}'))) }
     @{ Name = 'area name that breaks the rule'; Reason = 'invalid-schema'; Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas ('{"C_Sharp":' + $area + '}'))) }
+    @{ Name = 'area name of a lone dot'; Reason = 'invalid-schema'; Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas ('{".":' + $area + '}'))) }
+    @{ Name = 'area name of two dots'; Reason = 'invalid-schema'; Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas ('{"..":' + $area + '}'))) }
+    @{ Name = 'area name with a dot before a space'; Reason = 'invalid-schema'; Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas ('{". NET":' + $area + '}'))) }
     @{ Name = 'area name that is not normalized'; Reason = 'invalid-schema'; Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas ('{"Kerberos ":' + $area + '}'))) }
     @{ Name = 'case-only duplicate area name'; Reason = 'invalid-schema'; Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas ('{"Kerberos":' + $area + ',"kerberos":' + $area + '}'))) }
     @{ Name = 'level in the wrong case'; Reason = 'invalid-schema'; Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas '{"Kerberos":{"level":"Expert","updatedUtc":"2026-10-01T08:00:00Z"}}')) }

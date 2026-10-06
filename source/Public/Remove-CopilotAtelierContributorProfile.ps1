@@ -3,7 +3,7 @@ function Remove-CopilotAtelierContributorProfile
     <#
         .SYNOPSIS
             Deletes one entry of the private Contributor profile, the whole
-            profile file, or only an orphaned registration.
+            profile file, or only an orphaned or pending registration.
 
         .DESCRIPTION
             With -Contributor, removes that one entry; removing the last entry
@@ -15,8 +15,11 @@ function Remove-CopilotAtelierContributorProfile
             With -RegistrationOnly, removes only the registration file, for
             example after the profile was deleted by hand. A registration is
             deleted only when its record says this module created it and its
-            bytes still match the record and the shipped template; a foreign or
-            modified file is named and never touched.
+            bytes still match the hash the record holds, whichever template it
+            came from; a foreign or modified file is named and never touched.
+            The same switch clears a pending registration, a record whose file
+            never arrived, such as one left by a crash or by a sync that never
+            completed.
 
             The command asks for confirmation by default. Already-open chats
             keep the hooks they loaded until they are restarted.
@@ -26,7 +29,8 @@ function Remove-CopilotAtelierContributorProfile
             fails before any write.
 
         .PARAMETER RegistrationOnly
-            Removes only the registration file ~/.copilot/hooks/contributor-profile.json.
+            Removes only the registration file ~/.copilot/hooks/contributor-profile.json,
+            or clears a pending registration whose file never arrived.
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject
