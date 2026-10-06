@@ -16,6 +16,9 @@
 //   { "op": "newSession" }                         starts a session; later steps use it
 //   { "op": "send", "prompt": "..." }              one user turn; the fake model calls
 //                                                  probe_tool once, then answers in text
+//   { "op": "send", "prompt": "...", "noTool": true }
+//                                                  one user turn the fake model answers
+//                                                  in text alone, without a tool call
 //   { "op": "compact" }                            history.compact with trigger manual
 //   { "op": "writeFile", "path": "...", "content": "..." }
 //   { "op": "removeFile", "path": "..." }
@@ -168,7 +171,8 @@ let sessionOrdinal = 0;
 try {
     for (const [index, step] of steps.entries()) {
         currentStep = index;
-        toolCallsThisStep = 0;
+        // plan() calls probe_tool only while no call was made in this step.
+        toolCallsThisStep = step.noTool ? 1 : 0;
         const result = { step: index, op: step.op };
         switch (step.op) {
             case 'newSession': {

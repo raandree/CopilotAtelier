@@ -505,3 +505,207 @@ Describe 'Contributor levels delivered by <Runtime>' -Tag 'Integration' -Skip:(-
         $toolText | Should -Not -Match 'unrated'
     }
 }
+
+<#
+    Decision record 0028, Calibration.Delivery: the two cells that are reported,
+    not gated. A reply that makes no tool call after a compaction, and a
+    plugin-only installation after a compaction, are known gaps of the design;
+    these cases measure both in each runtime, so a host change that closes or
+    widens either one shows up here. Each conversation stages its own layout.
+#>
+Describe 'Contributor levels in the reported delivery cells of <Runtime>' -Tag 'Integration' -Skip:(-not ($script:runtimeAvailable -and $script:pwshAvailable)) -ForEach $script:conversationRuntimes {
+    BeforeAll {
+        $repoRoot = Split-Path -Parent $PSScriptRoot
+        . (Join-Path -Path $repoRoot -ChildPath 'tests/Helpers/ContributorProfileFixture.ps1')
+        $script:reportedSessionIds = [Collections.Generic.List[string]]::new()
+        $script:reportedLevels = '"Kerberos" new; "PowerShell DSC" expert.'
+
+        function Invoke-ReportedConversation
+        {
+            <#
+                Runs one conversation of the fixture with the environment given
+                and returns its { requests, events, steps }.
+            #>
+            param ([string] $Package, [string] $Runtime, [string] $CopilotHome, [string] $Workspace, [hashtable] $Environment, [object[]] $Steps)
+
+            $utf8 = [Text.UTF8Encoding]::new($false)
+            $startInfo = [Diagnostics.ProcessStartInfo]::new((Get-Command -Name 'node' -CommandType Application | Select-Object -First 1 -ExpandProperty Source))
+            foreach ($argument in @((Join-Path -Path $PSScriptRoot -ChildPath 'Fixtures\Invoke-CopilotSdkConversation.mjs'), $Package, $CopilotHome, $Workspace, $Runtime))
+            {
+                $startInfo.Arguments += ' "' + $argument + '"'
+            }
+
+            $startInfo.UseShellExecute = $false
+            $startInfo.CreateNoWindow = $true
+            $startInfo.WorkingDirectory = $Workspace
+            $startInfo.RedirectStandardInput = $true
+            $startInfo.RedirectStandardOutput = $true
+            $startInfo.RedirectStandardError = $true
+            $startInfo.StandardOutputEncoding = $utf8
+            $startInfo.StandardErrorEncoding = $utf8
+            $startInfo.EnvironmentVariables.Remove('PLUGIN_ROOT')
+            $startInfo.EnvironmentVariables.Remove('COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS')
+            foreach ($name in $Environment.Keys)
+            {
+                $startInfo.EnvironmentVariables[$name] = [string] $Environment[$name]
+            }
+
+            $process = [Diagnostics.Process]::Start($startInfo)
+            try
+            {
+                $outputTask = $process.StandardOutput.ReadToEndAsync()
+                $errorTask = $process.StandardError.ReadToEndAsync()
+                $inputBytes = $utf8.GetBytes((ConvertTo-Json -InputObject $Steps -Depth 5 -Compress))
+                $process.StandardInput.BaseStream.Write($inputBytes, 0, $inputBytes.Length)
+                $process.StandardInput.Close()
+
+                if (-not $process.WaitForExit(660000))
+                {
+                    $process.Kill()
+                    throw 'Invoke-CopilotSdkConversation.mjs did not exit within 660 seconds.'
+                }
+
+                $process.WaitForExit()
+                if ($process.ExitCode -ne 0)
+                {
+                    throw ('Invoke-CopilotSdkConversation.mjs exited with {0}: {1}' -f $process.ExitCode, $errorTask.Result)
+                }
+
+                $conversation = $outputTask.Result | ConvertFrom-Json
+            }
+            finally
+            {
+                $process.Dispose()
+            }
+
+            foreach ($sessionId in @($conversation.steps | Where-Object -Property op -EQ -Value 'newSession' | ForEach-Object -Process { $_.sessionId }))
+            {
+                $script:reportedSessionIds.Add($sessionId)
+            }
+
+            return $conversation
+        }
+
+        $emptyGitConfig = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N') + '.gitconfig')
+        Set-Content -LiteralPath $emptyGitConfig -Value '' -Encoding ascii
+
+        # Deployed layout: the registration exists, as the writer leaves it.
+        $root = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
+        $userHome = Join-Path -Path $root -ChildPath 'home'
+        $target = Join-Path -Path $root -ChildPath 'CopilotAtelier'
+        $deployedWorkspace = New-ContributorTestWorkspace -Path (Join-Path -Path $root -ChildPath 'workspace') -Area 'Kerberos', 'PowerShell DSC', 'Pester'
+        $deployedHome = Join-Path -Path $userHome -ChildPath '.copilot'
+        $null = New-Item -ItemType Directory -Path (Join-Path -Path $target -ChildPath 'hooks/scripts'), (Join-Path -Path $target -ChildPath 'skills'), $deployedHome -Force
+        Set-Content -LiteralPath (Join-Path -Path $target -ChildPath '.copilotatelier.json') -Value '{}' -Encoding ascii
+        Copy-Item -Path (Join-Path -Path $repoRoot -ChildPath 'com.github.copilot/hooks/hooks.json') -Destination (Join-Path -Path $target -ChildPath 'hooks')
+        Copy-Item -Path (Join-Path -Path $repoRoot -ChildPath 'com.github.copilot/hooks/scripts/*.ps1') -Destination (Join-Path -Path $target -ChildPath 'hooks/scripts')
+        Copy-Item -Path (Join-Path -Path $repoRoot -ChildPath 'skills/contributor-profile/assets/contributor-profile.hooks.json') -Destination (Join-Path -Path $target -ChildPath 'hooks/contributor-profile.json')
+        Copy-Item -Path (Join-Path -Path $repoRoot -ChildPath 'skills/contributor-profile') -Destination (Join-Path -Path $target -ChildPath 'skills') -Recurse
+        foreach ($name in 'hooks', 'skills')
+        {
+            $null = New-Item -ItemType Junction -Path (Join-Path -Path $deployedHome -ChildPath $name) -Target (Join-Path -Path $target -ChildPath $name)
+        }
+
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path (Join-Path -Path $target -ChildPath 'contributor/profile.json')
+        $script:noToolReply = Invoke-ReportedConversation -Package $PackageRoot -Runtime $RuntimePath -CopilotHome $deployedHome -Workspace $deployedWorkspace -Steps @(
+            @{ op = 'newSession' }
+            @{ op = 'send'; prompt = 'turn before the compaction' }
+            @{ op = 'compact' }
+            @{ op = 'send'; prompt = 'reply without a tool call'; noTool = $true }
+            @{ op = 'send'; prompt = 'turn with a tool call' }
+            @{ op = 'disconnect' }
+        ) -Environment @{
+            USERPROFILE         = $userHome
+            HOME                = $userHome
+            LOCALAPPDATA        = Join-Path -Path $root -ChildPath 'localappdata'
+            GIT_CONFIG_GLOBAL   = $emptyGitConfig
+            GIT_CONFIG_NOSYSTEM = '1'
+        }
+
+        <#
+            Plugin-only layout: the shipped hooks.json resolves every script under
+            PLUGIN_ROOT, no ~/.copilot/hooks exists, so the writers cannot create a
+            registration, and the profile lives under LocalApplicationData.
+        #>
+        $pluginRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
+        $plugin = Join-Path -Path $pluginRoot -ChildPath 'plugin'
+        $pluginUserHome = Join-Path -Path $pluginRoot -ChildPath 'home'
+        $pluginHome = Join-Path -Path $pluginUserHome -ChildPath '.copilot'
+        $pluginLocalData = Join-Path -Path $pluginRoot -ChildPath 'localappdata'
+        $pluginWorkspace = New-ContributorTestWorkspace -Path (Join-Path -Path $pluginRoot -ChildPath 'workspace') -Area 'Kerberos', 'PowerShell DSC', 'Pester'
+        $null = New-Item -ItemType Directory -Path (Join-Path -Path $plugin -ChildPath 'com.github.copilot/hooks/scripts'), (Join-Path -Path $plugin -ChildPath 'skills'), $pluginHome, (Join-Path -Path $pluginWorkspace -ChildPath '.github/hooks') -Force
+        Copy-Item -Path (Join-Path -Path $repoRoot -ChildPath 'com.github.copilot/hooks/scripts/*.ps1') -Destination (Join-Path -Path $plugin -ChildPath 'com.github.copilot/hooks/scripts')
+        Copy-Item -Path (Join-Path -Path $repoRoot -ChildPath 'skills/contributor-profile') -Destination (Join-Path -Path $plugin -ChildPath 'skills') -Recurse
+        Copy-Item -Path (Join-Path -Path $repoRoot -ChildPath 'com.github.copilot/hooks/hooks.json') -Destination (Join-Path -Path $pluginWorkspace -ChildPath '.github/hooks/hooks.json')
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path (Join-Path -Path $pluginLocalData -ChildPath 'CopilotAtelier/contributor/profile.json')
+        $script:pluginOnly = Invoke-ReportedConversation -Package $PackageRoot -Runtime $RuntimePath -CopilotHome $pluginHome -Workspace $pluginWorkspace -Steps @(
+            @{ op = 'newSession' }
+            @{ op = 'send'; prompt = 'turn before the compaction' }
+            @{ op = 'compact' }
+            @{ op = 'send'; prompt = 'turn after the compaction' }
+            @{ op = 'disconnect' }
+        ) -Environment @{
+            USERPROFILE         = $pluginUserHome
+            HOME                = $pluginUserHome
+            LOCALAPPDATA        = $pluginLocalData
+            PLUGIN_ROOT         = $plugin
+            GIT_CONFIG_GLOBAL   = $emptyGitConfig
+            GIT_CONFIG_NOSYSTEM = '1'
+        }
+
+        function Get-ReportedStepText ($Conversation, [int] $Step, [string] $Role)
+        {
+            foreach ($request in @($Conversation.requests | Where-Object -Property step -EQ -Value $Step))
+            {
+                $request.messages | Where-Object -FilterScript { -not $Role -or $_.role -eq $Role } | ForEach-Object -Process { $_.text }
+            }
+        }
+    }
+
+    AfterAll {
+        # The hooks keep their session clocks under the real LocalApplicationData,
+        # which Windows resolves without the environment; remove this run's files.
+        $sessions = Join-Path -Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)) -ChildPath 'CopilotAtelier/sessions'
+        foreach ($sessionId in $script:reportedSessionIds)
+        {
+            Get-ChildItem -Path (Join-Path -Path $sessions -ChildPath "session-$sessionId.*") -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'gives a reply that makes no tool call after a compaction no levels (reported gap)' {
+        $compaction = @($script:noToolReply.steps | Where-Object -Property op -EQ -Value 'compact')[0]
+        $replyRequests = @($script:noToolReply.requests | Where-Object -Property step -EQ -Value 3)
+
+        $compaction.success | Should -BeTrue
+        $replyRequests.Count | Should -BeGreaterThan 0
+        @($replyRequests | Where-Object -Property reply -Like -Value 'tool:*').Count | Should -Be 0 -Because 'the fake model answers this turn without a tool call'
+        (Get-ReportedStepText -Conversation $script:noToolReply -Step 3) -join "`n" | Should -Not -Match ([regex]::Escape($script:reportedLevels))
+        @($script:noToolReply.events | Where-Object -FilterScript { $_.step -eq 3 -and $_.type -eq 'hook.end' -and $_.hookType -eq 'postToolUse' }).Count | Should -Be 0
+    }
+
+    It 'gives the levels back on the next successful tool call after that reply' {
+        $toolText = (Get-ReportedStepText -Conversation $script:noToolReply -Step 4 -Role 'tool') -join "`n"
+
+        $toolText | Should -Match ([regex]::Escape($script:reportedLevels))
+        $toolText | Should -Match ([regex]::Escape('Re-sent after a compaction; make no offers in this session.'))
+    }
+
+    It 'shows a plugin-only installation the levels at session start' {
+        $sessionStart = @($script:pluginOnly.events | Where-Object -FilterScript { $_.type -eq 'hook.end' -and $_.hookType -eq 'sessionStart' })
+
+        $sessionStart.Count | Should -Be 1
+        $sessionStart[0].output.additionalContext | Should -Match ([regex]::Escape($script:reportedLevels))
+        (Get-ReportedStepText -Conversation $script:pluginOnly -Step 1) -join "`n" | Should -Match ([regex]::Escape($script:reportedLevels))
+    }
+
+    It 'sends a plugin-only installation no levels after a compaction (reported gap)' {
+        $compaction = @($script:pluginOnly.steps | Where-Object -Property op -EQ -Value 'compact')[0]
+        $toolText = (Get-ReportedStepText -Conversation $script:pluginOnly -Step 3 -Role 'tool') -join "`n"
+
+        $compaction.success | Should -BeTrue
+        $toolText | Should -Not -BeNullOrEmpty -Because 'the turn after the compaction made a tool call'
+        $toolText | Should -Not -Match ([regex]::Escape($script:reportedLevels))
+        $toolText | Should -Not -Match 'Re-sent after a compaction'
+        @($script:pluginOnly.events | Where-Object -FilterScript { $_.type -eq 'hook.end' -and $_.hookType -eq 'postToolUse' }).Count | Should -Be 0
+    }
+}
