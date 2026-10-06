@@ -18,7 +18,8 @@ reads, Uninstall holding the profile lock through its removal, link-aware
 working-tree guard). The two reported `Calibration.Delivery` cells are measured
 in the SDK runtime and Copilot CLI. The branch is deployed on Prox1 through
 Setup for criterion 22's manual compactions in
-`C:\Users\install\Documents\calibration-check`; a level is saved there.
+`C:\Users\install\Documents\calibration-check`, which declares Kerberos and
+PowerShell DSC; their levels sit in the private profile, never in a workspace.
 Criterion 21's unpaid groundwork sits in the private kit: the runner's `arms`
 and `profile` fields and `Preview` mode, `evals-phase2.json` (8 draft cases),
 and `evals-phase1-guard.json`. Criterion 20 is not met and is back with
