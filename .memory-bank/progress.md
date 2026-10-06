@@ -18,6 +18,11 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-06**: Recorded criterion 22's manual compactions in Decision 0028:
+  Copilot CLI re-sends the levels after `/compact` with a real model; VS Code
+  Local cannot, because Copilot Chat 0.68.0 runs no PreCompact hook for a
+  manual compaction (fourth question returned to `software-architect`).
+
 - **2026-10-06**: Recorded the RAANDREE3 latency Meter in Decision 0028: criterion
   20 is not met, with one cell over Budget and within Fail on each machine, and
   TBD-5 is answered no: RAANDREE3's VS Code launch costs 2.4 times Prox1's, so
@@ -63,10 +68,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - **2026-10-06**: Signed off the contributor calibration Phase 2 Design Concept
   as Decision 0028 (`software-architect`, 26 questions, all twelve categories).
-
-- **2026-10-05**: Merged pull requests #29 (`9b6a341`, prompt 06) and #30
-  (`25d8233`, the CI warm-up); CI run 112 passed on all three systems and
-  published `6.1.0-preview0003`. The deployed hooks match `main`.
 
 ## Stable capabilities
 

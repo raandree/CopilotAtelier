@@ -16,10 +16,10 @@ findings and six test gaps are fixed test-first (hash-gated registration
 delete, linear SessionStart pre-check inside the step cap, bounded registration
 reads, Uninstall holding the profile lock through its removal, link-aware
 working-tree guard). The two reported `Calibration.Delivery` cells are measured
-in the SDK runtime and Copilot CLI. The branch is deployed on Prox1 through
-Setup for criterion 22's manual compactions in
-`C:\Users\install\Documents\calibration-check`, which declares Kerberos and
-PowerShell DSC; their levels sit in the private profile, never in a workspace.
+in the SDK runtime and Copilot CLI. Criterion 22's manual compactions ran on
+Prox1 in `C:\Users\install\Documents\calibration-check` (branch deployed): the
+CLI passes; VS Code Local cannot show it, as Copilot Chat 0.68.0 runs no
+PreCompact hook for a manual `/compact`, only for an automatic compaction.
 Criterion 21's unpaid groundwork sits in the private kit: the runner's `arms`
 and `profile` fields and `Preview` mode, `evals-phase2.json` (8 draft cases),
 and `evals-phase1-guard.json`. Criterion 20 is not met and is back with
@@ -79,15 +79,10 @@ there (Decision 0028, *Returned to software-architect, second round*).
   linter entry point and the shipped checker code. Parse and PSScriptAnalyzer
   run in an owned child worker. `Markdown.NativeStructure` is `coverage=partial`
   and never stands in for markdownlint. 12 red, then 85/0/0.
-- **Skill health report (task 04).** Read-only `Get-CopilotAtelierSkillHealth`
-  with private import and measure helpers. The client-event contract is
-  verified, not asserted, and the report publishes *no reliable Skill-activation
-  contract verified for this implementation*. Missing telemetry is unknown, not
-  zero: output counts only through a validated provenance sidecar, and
-  disagreeing copies surface as `ConflictingRun`. Red 29 then 81/0.
-- **Tasks 02 and 03.** Installation profiles (`-InstallationProfile`,
-  `-IncludeSkill`/`-ExcludeSkill`; mandatory Skills stay) and the reviewed
-  learning inbox (append-only, hash-gated promotion); detail in `CHANGELOG.md`.
+- **Tasks 02 to 04.** Installation profiles (`-InstallationProfile`,
+  `-IncludeSkill`/`-ExcludeSkill`; mandatory Skills stay), the reviewed
+  learning inbox (append-only, hash-gated promotion), and the read-only Skill
+  health report (missing telemetry is unknown, not zero); see `CHANGELOG.md`.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -160,13 +155,15 @@ unproven — train reached 100 % while validation fell.
 ## Next step
 
 1. `software-architect` rules on the second-round return of Decision 0028:
-   the launch unit (TBD-5), criterion 20's two over-Budget cells, and the 2 s
-   per-call cost in VS Code on RAANDREE3. The owner runs the manual compactions
-   of criterion 22 (VS Code Local, then Copilot CLI after `/login`); collect the
-   evidence from the calibration state files and the CLI's `events.jsonl`,
-   then redeploy `main` on Prox1 with `Setup-CopilotSettings.ps1`. For
-   criterion 21, run `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on
-   RAANDREE3 (Prox1 has nothing new), replace the derived persistence stand-ins
+   the launch unit (TBD-5), criterion 20's two over-Budget cells, the 2 s
+   per-call cost in VS Code on RAANDREE3, and VS Code Local's missing
+   PreCompact for a manual compaction. Criterion 22's VS Code Local check
+   needs an automatic compaction (forced through
+   `github.copilot.chat.summarizeAgentConversationHistoryThreshold`); after
+   it, redeploy `main` on Prox1 with `Setup-CopilotSettings.ps1`. For
+   criterion 21, RAANDREE3 had no candidates since 2026-09-30, and the finder
+   matches confusion signals, not level statements; mine a heavily used
+   machine's full history, replace the derived persistence stand-ins
    with at least 6 real restatements per Position, add grader fixtures, define
    the offer and safety groups (the Decision names them only), and get the
    owner's approval and budget before any paid run.
