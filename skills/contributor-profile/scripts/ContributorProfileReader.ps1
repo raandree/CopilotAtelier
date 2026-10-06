@@ -785,8 +785,11 @@ function Test-ContributorPathInsideRepository
 {
     <#
         True when any ancestor directory of the path holds a .git directory or
-        file, which also covers worktrees and submodules. No Familiarity level
-        may land under a git working tree.
+        file, which also covers worktrees and submodules. With -ResolveLinks the
+        ancestors of every junction or symbolic link on the way count as well,
+        so a link cannot carry a write into a working tree; the writers pass it,
+        while the hooks' read stays one attribute-free walk. No Familiarity
+        level may land under a git working tree.
     #>
     [CmdletBinding()]
     [OutputType([System.Boolean])]
@@ -794,28 +797,99 @@ function Test-ContributorPathInsideRepository
     (
         [Parameter(Mandatory = $true)]
         [System.String]
-        $Path
+        $Path,
+
+        [Parameter()]
+        [System.Management.Automation.SwitchParameter]
+        $ResolveLinks
     )
 
-    $directory = [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($Path))
-    while (-not [System.String]::IsNullOrEmpty($directory))
+    $pending = [System.Collections.Generic.Queue[string]]::new()
+    $pending.Enqueue([System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($Path)))
+    $resolved = 0
+    while ($pending.Count -gt 0)
     {
-        $marker = [System.IO.Path]::Combine($directory, '.git')
-        if ([System.IO.Directory]::Exists($marker) -or [System.IO.File]::Exists($marker))
+        $directory = $pending.Dequeue()
+        while (-not [System.String]::IsNullOrEmpty($directory))
         {
-            return $true
-        }
+            $marker = [System.IO.Path]::Combine($directory, '.git')
+            if ([System.IO.Directory]::Exists($marker) -or [System.IO.File]::Exists($marker))
+            {
+                return $true
+            }
 
-        $parent = [System.IO.Path]::GetDirectoryName($directory)
-        if ($parent -eq $directory)
-        {
-            break
-        }
+            # The cap ends a cycle of links.
+            if ($ResolveLinks -and $resolved -lt 16)
+            {
+                $target = Get-ContributorLinkTarget -Path $directory
+                if ($target)
+                {
+                    $resolved++
+                    $pending.Enqueue($target)
+                }
+            }
 
-        $directory = $parent
+            $parent = [System.IO.Path]::GetDirectoryName($directory)
+            if ($parent -eq $directory)
+            {
+                break
+            }
+
+            $directory = $parent
+        }
     }
 
     return $false
+}
+
+function Get-ContributorLinkTarget
+{
+    <#
+        The full target path of a directory that is a junction or a symbolic
+        link, else $null. The reparse-point attribute is checked first, so an
+        ordinary directory costs one attribute query; a cloud placeholder is a
+        reparse point without a link target and yields $null.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.String])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $Path
+    )
+
+    try
+    {
+        $info = [System.IO.DirectoryInfo]::new($Path)
+        if (-not $info.Exists -or -not ($info.Attributes -band [System.IO.FileAttributes]::ReparsePoint))
+        {
+            return $null
+        }
+
+        $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if ($item.LinkType -ne 'Junction' -and $item.LinkType -ne 'SymbolicLink')
+        {
+            return $null
+        }
+
+        $target = [string] @($item.Target)[0]
+        if ([System.String]::IsNullOrWhiteSpace($target))
+        {
+            return $null
+        }
+
+        if (-not [System.IO.Path]::IsPathRooted($target))
+        {
+            $target = [System.IO.Path]::Combine([System.IO.Path]::GetDirectoryName($Path), $target)
+        }
+
+        return [System.IO.Path]::GetFullPath($target)
+    }
+    catch
+    {
+        return $null
+    }
 }
 
 function Test-ContributorFileLocal
@@ -1371,12 +1445,7 @@ function Get-ContributorCalibration
         return $result
     }
 
-    $result.Declared = Get-ContributorKnowledgeArea -WorkspacePath $WorkspacePath
-    if ($result.Declared.Count -eq 0)
-    {
-        return $result
-    }
-
+    # The cap covers the declaration read too, so a hostile projectbrief.md cannot stretch the step.
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
     $timedOut = {
         if ($watch.ElapsedMilliseconds -gt $TimeoutMilliseconds)
@@ -1389,6 +1458,17 @@ function Get-ContributorCalibration
         }
 
         return $false
+    }
+
+    $result.Declared = Get-ContributorKnowledgeArea -WorkspacePath $WorkspacePath
+    if ($result.Declared.Count -eq 0)
+    {
+        return $result
+    }
+
+    if (& $timedOut)
+    {
+        return $result
     }
 
     if ($null -eq $Location)

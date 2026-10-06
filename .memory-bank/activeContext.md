@@ -9,16 +9,20 @@ source: current task evidence
 
 ## Current focus
 
-Decision 0028 Amendment 1 (rulings A1 to A8) is implemented test-first on
-`ai/calibration-phase-2`: the new tests ran red against `b72ac98` in a scratch
-worktree and green on the change. Writes go only to a positively chosen target,
-with `-NewContributor`; `.NET` passes the area-name rule; a registration is
-owned through its record's hash and an outdated one is replaced; reconciliation
-never rewrites a record, `Get-` changes nothing, and Uninstall stops on a
-pending registration. The amended Meter ran twice on Prox1: every gated cell
-meets its Budget except SessionStart with one entry in VS Code's spawn, 0.53 to
-0.61 launch at p95 against Budget 0.5, reproduced and within Fail 1.0. That
-result goes back to `software-architect`. The branch is not pushed.
+Decision 0028 Amendment 1 (A1 to A8) is implemented on `ai/calibration-phase-2`
+(`b7e6502`, pushed by the owner). On 2026-10-06 an independent
+`security-reviewer` pass found no Critical, High, or Medium issue; its five Low
+findings and six test gaps are fixed test-first (hash-gated registration
+delete, linear SessionStart pre-check inside the step cap, bounded registration
+reads, Uninstall holding the profile lock through its removal, link-aware
+working-tree guard). The two reported `Calibration.Delivery` cells are measured
+in the SDK runtime and Copilot CLI. The branch is deployed on Prox1 through
+Setup for criterion 22's manual compactions in
+`C:\Users\install\Documents\calibration-check`; a level is saved there.
+Criterion 21's unpaid groundwork sits in the private kit: the runner's `arms`
+and `profile` fields and `Preview` mode, `evals-phase2.json` (8 draft cases),
+and `evals-phase1-guard.json`. Criterion 20 on Prox1 waits for
+`software-architect`; the owner is running the Meter on RAANDREE3.
 
 ## Previous focuses
 
@@ -151,19 +155,19 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. `software-architect` rules on the Prox1 result of criterion 20: SessionStart
-   added latency with one entry in VS Code's spawn is 0.53 to 0.61 launch at
-   p95 (p50 0.48 to 0.50), over Budget 0.5 in both runs and within Fail 1.0
-   (Decision 0028, *Latency Meter as amended*). Then: the amended Meter on
-   RAANDREE3 (`pwsh -NoProfile -File tests/Fixtures/Measure-CalibrationLatency.ps1`,
-   also TBD-5); the eval of criterion 21 (grow the private kit in
-   `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\` with Phase 2
-   groups and at least 6 persistence cases per Position, mined with
-   `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on RAANDREE3 and Prox1;
-   never commit the kit; runs are paid); and one manual compaction each in VS
-   Code Local and Copilot CLI (`/login` first). `review: on` is recommended
-   before a merge: a persistence format, five public commands, a hook on every
-   tool call, and deletion and replacement in the hooks folder. The 2026-09-30,
+1. `software-architect` rules on criterion 20 once RAANDREE3's Meter results
+   are in: on Prox1, SessionStart added latency with one entry in VS Code's
+   spawn is 0.53 to 0.61 launch at p95 (p50 0.48 to 0.50), over Budget 0.5 in
+   both runs and within Fail 1.0 (Decision 0028, *Latency Meter as amended*);
+   RAANDREE3 also answers TBD-5. The owner runs the manual compactions of
+   criterion 22 (VS Code Local, then Copilot CLI after `/login`); collect the
+   evidence from the calibration state files and the CLI's `events.jsonl`,
+   then redeploy `main` on Prox1 with `Setup-CopilotSettings.ps1`. For
+   criterion 21, run `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on
+   RAANDREE3 (Prox1 has nothing new), replace the derived persistence stand-ins
+   with at least 6 real restatements per Position, add grader fixtures, define
+   the offer and safety groups (the Decision names them only), and get the
+   owner's approval and budget before any paid run. The 2026-09-30,
    2026-10-06T1155Z, and 2026-10-06T1350Z Session handoffs are consumed.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.

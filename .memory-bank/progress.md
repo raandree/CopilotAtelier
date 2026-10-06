@@ -18,6 +18,14 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-06**: Addressed the open Phase 2 issues (`software-engineer`): an
+  independent `security-reviewer` pass of `main...b7e6502` found five Low
+  issues and six test gaps, all fixed test-first (red, then green); both
+  reported `Calibration.Delivery` cells are measured in the SDK runtime and
+  Copilot CLI (8 of 8); the branch is deployed on Prox1 for criterion 22's
+  manual compactions; criterion 21's runner, preview, and draft cases are
+  ready in the private kit, with no paid run.
+
 - **2026-10-06**: Implemented Decision 0028 Amendment 1 test-first on
   `ai/calibration-phase-2` (`software-engineer`): write selection with
   `-NewContributor`, `.NET`, registration ownership through the recorded hash
@@ -55,20 +63,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - **2026-10-05**: Merged pull requests #29 (`9b6a341`, prompt 06) and #30
   (`25d8233`, the CI warm-up); CI run 112 passed on all three systems and
   published `6.1.0-preview0003`. The deployed hooks match `main`.
-
-- **2026-10-04**: Fixed prompt 06 on `ai/hook-deny-reason`: Copilot SDK chats
-  show the guard's block reason. A model-free probe of the bundled runtime found
-  that on exit 2 it drops a PascalCase event's JSON deny that also carries
-  `hookSpecificOutput`; the guard now prints the top-level pair alone. The new
-  `tests/HookSdkRuntime.Tests.ps1` runs the shipped launcher and guard in that
-  runtime (red, then green). Full gate 2,542 passed, 0 failed; deployed, and
-  A2 and B2 then passed in new chats (sessions `d2788da5`, `874b1f34`).
-
-- **2026-10-04**: Fixed the clock restart on resume that the live checks found:
-  `Add-SessionContext.ps1` keeps a readable clock of the same session when
-  `sessionStart` arrives with `source: resume` (red, then 18 of 18). Corrected
-  the `[Unreleased]` changelog entry and the hooks README, which claimed the
-  SDK host reads the guard's reason on exit 2. Deployed 2026-10-04.
 
 ## Stable capabilities
 

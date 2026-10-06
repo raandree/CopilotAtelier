@@ -299,7 +299,11 @@ if (-not [string]::IsNullOrWhiteSpace($calibrationDirectory)) {
             }
 
             # Only a declaration with at least one bullet after it is worth the reader.
-            $declaresAreas = [Text.Encoding]::UTF8.GetString($briefBuffer, 0, $briefCount) -match '(?ms)^##[ \t]+Knowledge areas[ \t]*\r?$.*?^[-*+][ \t]+\S'
+            # Two linear scans: one lazy pattern from heading to bullet would
+            # backtrack quadratically over a file of repeated headings.
+            $briefText = [Text.Encoding]::UTF8.GetString($briefBuffer, 0, $briefCount)
+            $heading = [regex]::Match($briefText, '(?mi)^##[ \t]+Knowledge areas[ \t]*\r?$')
+            $declaresAreas = $heading.Success -and [regex]::IsMatch($briefText.Substring($heading.Index + $heading.Length), '(?m)^[-*+][ \t]+\S')
         }
 
         if ($declaresAreas) {

@@ -647,3 +647,40 @@ Describe 'The module commands agree with the hooks on the shared fixture set' -T
         }
     }
 }
+
+Describe 'SessionStart declaration check' -Tag 'Unit' {
+    BeforeAll {
+        $script:sessionStartScript = Join-Path -Path $script:hookRoot -ChildPath 'Add-SessionContext.ps1'
+
+        function script:Measure-SessionStart
+        {
+            <#
+                Runs the SessionStart hook in this process, so the measurement
+                holds the script's own work and no process start.
+            #>
+            param ([string] $Workspace, [string] $ClockRoot)
+
+            $payload = @{ hook_event_name = 'SessionStart'; session_id = [guid]::NewGuid().ToString(); cwd = $Workspace; source = 'new' } | ConvertTo-Json -Compress
+            $watch = [System.Diagnostics.Stopwatch]::StartNew()
+            $null = & $script:sessionStartScript -InputJson $payload -ClockRoot $ClockRoot
+            $watch.Stop()
+            $watch.Elapsed.TotalMilliseconds
+        }
+    }
+
+    It 'checks a projectbrief.md full of Knowledge areas headings without bullets in linear time' {
+        $root = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
+        $plain = New-ContributorTestWorkspace -Path (Join-Path -Path $root -ChildPath 'plain')
+        $hostile = Join-Path -Path $root -ChildPath 'hostile'
+        $null = New-Item -ItemType Directory -Path (Join-Path -Path $hostile -ChildPath '.memory-bank') -Force
+        # About 64 KB: every heading restarts a lazy search for a bullet that never comes.
+        [System.IO.File]::WriteAllText((Join-Path -Path $hostile -ChildPath '.memory-bank/projectbrief.md'), ("## Knowledge areas`n" * 3400), [System.Text.UTF8Encoding]::new($false))
+        $clockRoot = Join-Path -Path $root -ChildPath 'clock'
+
+        $null = Measure-SessionStart -Workspace $plain -ClockRoot $clockRoot
+        $plainBest = (1..3 | ForEach-Object -Process { Measure-SessionStart -Workspace $plain -ClockRoot $clockRoot } | Measure-Object -Minimum).Minimum
+        $hostileBest = (1..3 | ForEach-Object -Process { Measure-SessionStart -Workspace $hostile -ClockRoot $clockRoot } | Measure-Object -Minimum).Minimum
+
+        ($hostileBest - $plainBest) | Should -BeLessThan 300 -Because 'the check before the reader must stay linear in the declaration size'
+    }
+}

@@ -181,7 +181,7 @@ function Assert-ContributorWritablePath
         $Path
     )
 
-    if (Test-ContributorPathInsideRepository -Path $Path)
+    if (Test-ContributorPathInsideRepository -Path $Path -ResolveLinks)
     {
         throw ("'{0}' lies inside a git working tree; no Familiarity level may be written there (inside-repository). Nothing was written." -f $Path)
     }
@@ -479,8 +479,16 @@ function Read-ContributorRegistrationRecord
         return $null
     }
 
+    $unreadable = [pscustomobject] @{ Valid = $false; Operation = $null; State = $null; Sha256 = $null }
     try
     {
+        # A cloud placeholder is never opened, which would download it, and no record comes near 64 KB.
+        $info = [System.IO.FileInfo]::new($Location.RecordPath)
+        if (-not (Test-ContributorFileLocal -Attributes ([System.Int64] $info.Attributes)) -or $info.Length -gt (Get-ContributorProfileLimit).ProfileBytes)
+        {
+            return $unreadable
+        }
+
         $node = ConvertFrom-ContributorJson -Text ([System.IO.File]::ReadAllText($Location.RecordPath))
         $member = Get-ContributorNodeMember -Node $node -Allowed @('schemaVersion', 'operation', 'state', 'sha256', 'updatedUtc') -Where 'the registration record'
         $valid = $member['schemaVersion'].V -ceq '1' -and
@@ -497,7 +505,7 @@ function Read-ContributorRegistrationRecord
     }
     catch
     {
-        return [pscustomobject] @{ Valid = $false; Operation = $null; State = $null; Sha256 = $null }
+        return $unreadable
     }
 }
 
@@ -529,6 +537,11 @@ function Remove-ContributorRegistrationRecord
 
 function Get-ContributorRegistrationFileHash
 {
+    <#
+        The SHA-256 of the registration file, $null when there is none, or
+        'unreadable' for a cloud placeholder or a file over 64 KB, which is
+        never read and so matches no record.
+    #>
     [CmdletBinding()]
     [OutputType([System.String])]
     param ([Parameter(Mandatory = $true)] [System.Object] $Location)
@@ -536,6 +549,12 @@ function Get-ContributorRegistrationFileHash
     if (-not [System.IO.File]::Exists($Location.RegistrationPath))
     {
         return $null
+    }
+
+    $info = [System.IO.FileInfo]::new($Location.RegistrationPath)
+    if (-not (Test-ContributorFileLocal -Attributes ([System.Int64] $info.Attributes)) -or $info.Length -gt (Get-ContributorProfileLimit).ProfileBytes)
+    {
+        return 'unreadable'
     }
 
     return Get-ContributorSha256 -Bytes ([System.IO.File]::ReadAllBytes($Location.RegistrationPath))
@@ -629,8 +648,11 @@ function Remove-ContributorRegistration
     <#
         Deletes the registration in two phases, and only an owned file: one at
         the fixed path whose current SHA-256 equals the hash the record holds,
-        whichever shipped template it came from (ruling A5). The caller holds
-        the lock. Returns none, or the status that kept the file in place.
+        whichever shipped template it came from (ruling A5). The file is hashed
+        again after the delete record is written, so a file that changed in
+        between, such as one OneDrive delivered from another machine, is never
+        deleted. The caller holds the lock. Returns none, or the status that
+        kept the file in place.
     #>
     [CmdletBinding()]
     [OutputType([System.String])]
@@ -642,8 +664,21 @@ function Remove-ContributorRegistration
         return $status
     }
 
-    $fileHash = Get-ContributorRegistrationFileHash -Location $Location
-    Write-ContributorRegistrationRecord -Location $Location -Operation 'delete' -State 'pending' -Sha256 $fileHash
+    $recorded = (Read-ContributorRegistrationRecord -Location $Location).Sha256
+    Write-ContributorRegistrationRecord -Location $Location -Operation 'delete' -State 'pending' -Sha256 $recorded
+    $current = Get-ContributorRegistrationFileHash -Location $Location
+    if ($null -eq $current)
+    {
+        # Gone already: the deletion is finished.
+        Remove-ContributorRegistrationRecord -Location $Location
+        return 'none'
+    }
+
+    if ($current -cne $recorded)
+    {
+        return 'modified'
+    }
+
     [System.IO.File]::Delete($Location.RegistrationPath)
     Remove-ContributorRegistrationRecord -Location $Location
     return 'none'
@@ -706,29 +741,38 @@ function Sync-ContributorRegistration
 function Invoke-ContributorRegistrationUninstall
 {
     <#
-        Called by Uninstall-CopilotAtelier before it removes any file. Reads
-        only the registration record and the file it names, never a level:
-        takes the profile lock, reconciles, and removes an owned registration,
-        whichever template it came from. Throws, naming the file, when the
-        registration is pending, foreign, or modified or the lock is held,
-        because removing the deployed hook script would leave a registration
-        that warns on every tool call.
+        Called by Uninstall-CopilotAtelier before it removes any file. Takes the
+        profile lock, also when nothing is registered, and hands it to the
+        caller, who holds it until its removal is done and releases it with
+        Exit-ContributorRegistrationUninstall; so no writer can create a
+        registration while the hook scripts go, and a writer that waited finds
+        the script gone and registers nothing. Reconciles, then removes an owned
+        registration, whichever template it came from. Reads only the
+        registration record and the file it names, never a level. Throws, naming
+        the file, when the registration is pending, foreign, or modified or the
+        lock is held, because removing the deployed hook script would leave a
+        registration that warns on every tool call.
     #>
     [CmdletBinding()]
-    [OutputType([System.String])]
+    [OutputType([System.Management.Automation.PSCustomObject])]
     param ([Parameter(Mandatory = $true)] [System.Object] $Location)
 
-    if (-not ([System.IO.File]::Exists($Location.RecordPath) -or [System.IO.File]::Exists($Location.RegistrationPath)))
+    $handle = [pscustomobject] @{ Status = 'none'; Lock = $null; CreatedDirectory = $false; Location = $Location }
+    $registered = [System.IO.File]::Exists($Location.RecordPath) -or [System.IO.File]::Exists($Location.RegistrationPath)
+    if (-not $registered -and (Test-ContributorPathInsideRepository -Path $Location.ProfilePath -ResolveLinks))
     {
-        return 'none'
+        # No writer ever writes there, so nothing can appear while the scripts go.
+        return $handle
     }
 
+    $handle.CreatedDirectory = -not [System.IO.Directory]::Exists($Location.ContributorDirectory)
     try
     {
-        $lock = Enter-ContributorProfileLock -Location $Location
+        $handle.Lock = Enter-ContributorProfileLock -Location $Location
     }
     catch
     {
+        Exit-ContributorRegistrationUninstall -Handle $handle
         throw ("Uninstall stopped before removing anything: the contributor profile registration at '{0}' could not be reconciled. {1}" -f $Location.RegistrationPath, $_.Exception.Message)
     }
 
@@ -740,7 +784,8 @@ function Invoke-ContributorRegistrationUninstall
             $status = Remove-ContributorRegistration -Location $Location
             if ($status -eq 'none')
             {
-                return 'removed'
+                $handle.Status = 'removed'
+                return $handle
             }
         }
 
@@ -754,11 +799,35 @@ function Invoke-ContributorRegistrationUninstall
             throw ("Uninstall stopped before removing anything: the contributor profile registration at '{0}' is {1}. Removing the hook scripts would leave it warning on every tool call. Remove the file by hand if it is not yours, then run Uninstall-CopilotAtelier again." -f $Location.RegistrationPath, $status)
         }
 
-        return 'none'
+        return $handle
     }
-    finally
+    catch
     {
-        $lock.Dispose()
+        Exit-ContributorRegistrationUninstall -Handle $handle
+        throw
+    }
+}
+
+function Exit-ContributorRegistrationUninstall
+{
+    <#
+        Releases the profile lock that Invoke-ContributorRegistrationUninstall
+        took, and removes the contributor folder when that call created it for
+        the lock and it is still empty.
+    #>
+    [CmdletBinding()]
+    param ([Parameter(Mandatory = $true)] [System.Object] $Handle)
+
+    if ($null -ne $Handle.Lock)
+    {
+        $Handle.Lock.Dispose()
+        $Handle.Lock = $null
+    }
+
+    $directory = $Handle.Location.ContributorDirectory
+    if ($Handle.CreatedDirectory -and [System.IO.Directory]::Exists($directory) -and [System.IO.Directory]::GetFileSystemEntries($directory).Length -eq 0)
+    {
+        [System.IO.Directory]::Delete($directory, $false)
     }
 }
 

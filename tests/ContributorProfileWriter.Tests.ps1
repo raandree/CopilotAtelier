@@ -755,7 +755,18 @@ Describe 'Registration file' -Tag 'Unit' {
         {
             'the opt-out' { (Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -State 'Off' -Confirm:$false).Registration | Should -BeExactly 'none' }
             'Remove -RegistrationOnly' { (Remove-ContributorProfile -Location $location -RegistrationOnly -Confirm:$false).Removed | Should -BeExactly 'registration' }
-            'Uninstall' { Invoke-ContributorRegistrationUninstall -Location $location | Should -BeExactly 'removed' }
+            'Uninstall'
+            {
+                $handle = Invoke-ContributorRegistrationUninstall -Location $location
+                try
+                {
+                    $handle.Status | Should -BeExactly 'removed'
+                }
+                finally
+                {
+                    Exit-ContributorRegistrationUninstall -Handle $handle
+                }
+            }
         }
 
         Test-Path -LiteralPath $location.RegistrationPath | Should -BeFalse
@@ -782,7 +793,15 @@ Describe 'Registration file' -Tag 'Unit' {
         $wanted = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -KnowledgeArea 'Pester' -Level 'new' -Confirm:$false
         $unwanted = Set-ContributorProfile -Location $location -Contributor 'ada@example.com' -State 'Off' -Confirm:$false
         $uninstall = $null
-        try { $null = Invoke-ContributorRegistrationUninstall -Location $location } catch { $uninstall = $_.Exception.Message }
+        try
+        {
+            $handle = Invoke-ContributorRegistrationUninstall -Location $location
+            Exit-ContributorRegistrationUninstall -Handle $handle
+        }
+        catch
+        {
+            $uninstall = $_.Exception.Message
+        }
         $repair = $null
         if ($Expected -ne 'pending')
         {
@@ -864,6 +883,82 @@ Describe 'Registration file' -Tag 'Unit' {
         @($report.RegistrationConflictCopies | Sort-Object) | Should -Be @(@($named, $renamed) | Sort-Object)
         Test-Path -LiteralPath $named | Should -BeTrue
         Test-Path -LiteralPath $renamed | Should -BeTrue
+    }
+
+    It 'never deletes a registration that another machine swaps in after the ownership check' {
+        $location = New-WriterLocation -Name 'delete-swap'
+        Set-RegistrationView -Location $location -Record 'create-complete-current' -File 'current'
+
+        # The delete record is the last write before the file goes; the swap lands right after it.
+        Mock -CommandName Write-ContributorRegistrationRecord -ParameterFilter { $Operation -eq 'delete' } -MockWith {
+            $text = '{{"schemaVersion":1,"operation":"{0}","state":"{1}","sha256":"{2}","updatedUtc":"2026-10-06T09:00:00Z"}}' -f $Operation, $State, $Sha256
+            [System.IO.File]::WriteAllText($Location.RecordPath, $text, [System.Text.UTF8Encoding]::new($false))
+            [System.IO.File]::WriteAllText($Location.RegistrationPath, '{"hooks":{"PostToolUse":[]}}', [System.Text.UTF8Encoding]::new($false))
+        }
+
+        $status = Remove-ContributorRegistration -Location $location
+
+        $status | Should -BeExactly 'modified'
+        Get-FileText -Path $location.RegistrationPath | Should -BeExactly '{"hooks":{"PostToolUse":[]}}'
+        (Get-Content -LiteralPath $location.RecordPath -Raw | ConvertFrom-Json).sha256 | Should -BeExactly $script:templateHash
+    }
+
+    It 'never reads a registration record over 64 KB and leaves its registration alone' {
+        $location = New-WriterLocation -Name 'record-oversize'
+        Set-RegistrationView -Location $location -Record 'create-complete-current' -File 'current'
+        $padded = [System.IO.File]::ReadAllText($location.RecordPath).TrimEnd() + (' ' * 65536)
+        [System.IO.File]::WriteAllText($location.RecordPath, $padded, [System.Text.UTF8Encoding]::new($false))
+
+        Get-ContributorRegistrationStatus -Location $location | Should -BeExactly 'modified'
+    }
+
+    It 'never reads a registration file over 64 KB as owned' {
+        $location = New-WriterLocation -Name 'file-oversize'
+        $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes(([System.IO.File]::ReadAllText($script:templatePath).TrimEnd() + (' ' * 65536)))
+        [System.IO.File]::WriteAllBytes($location.RegistrationPath, $bytes)
+        Write-RegistrationRecord -Location $location -Operation 'create' -State 'complete' -Sha256 (Get-BytesSha256 -Bytes $bytes)
+
+        Get-ContributorRegistrationStatus -Location $location | Should -BeExactly 'modified'
+    }
+
+    It 'never opens a cloud placeholder of the <Which>' -Skip:(-not $script:isWindowsHost) -ForEach @(
+        @{ Which = 'record'; Expected = 'modified' }
+        @{ Which = 'registration file'; Expected = 'modified' }
+    ) {
+        $location = New-WriterLocation -Name ('placeholder-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+        Set-RegistrationView -Location $location -Record 'create-complete-current' -File 'current'
+        $path = if ($Which -eq 'record') { $location.RecordPath } else { $location.RegistrationPath }
+        [System.IO.File]::SetAttributes($path, [System.IO.FileAttributes]::Archive -bor [System.IO.FileAttributes]::Offline)
+
+        try
+        {
+            Get-ContributorRegistrationStatus -Location $location | Should -BeExactly $Expected
+        }
+        finally
+        {
+            [System.IO.File]::SetAttributes($path, [System.IO.FileAttributes]::Archive)
+        }
+    }
+
+    It 'holds the profile lock from the reconciliation until Uninstall releases it, also with nothing registered' {
+        $location = New-WriterLocation -Name 'uninstall-lock'
+        $directoryBefore = Test-Path -LiteralPath $location.ContributorDirectory
+
+        $handle = Invoke-ContributorRegistrationUninstall -Location $location
+        try
+        {
+            $handle.Status | Should -BeExactly 'none'
+            { Enter-ContributorProfileLock -Location $location -TimeoutMilliseconds 200 } | Should -Throw '*locked*'
+        }
+        finally
+        {
+            Exit-ContributorRegistrationUninstall -Handle $handle
+        }
+
+        $directoryBefore | Should -BeFalse
+        Test-Path -LiteralPath $location.ContributorDirectory | Should -BeFalse -Because 'Uninstall removes the contributor folder only it created'
+        $later = Enter-ContributorProfileLock -Location $location -TimeoutMilliseconds 200
+        $later.Dispose()
     }
 
     It 'reports an orphaned registration and removes it with -RegistrationOnly' {
@@ -1203,6 +1298,21 @@ Describe 'No Familiarity level lands under a git working tree' -Tag 'Unit' {
                 Where-Object -FilterScript { [System.IO.File]::ReadAllText($_.FullName) -match '"level"' }
         )
         $leaked.FullName | Should -BeNullOrEmpty
+    }
+
+    It 'refuses a destination that a junction or symbolic link puts inside a working tree' {
+        $repository = Join-Path -Path $TestDrive -ChildPath 'linked-repo'
+        $null = New-Item -ItemType Directory -Path (Join-Path -Path $repository -ChildPath '.git'), (Join-Path -Path $repository -ChildPath 'docs') -Force
+        $safe = Join-Path -Path $TestDrive -ChildPath 'linked-safe'
+        $null = New-Item -ItemType Directory -Path $safe -Force
+        $linkType = if ($script:isWindowsHost) { 'Junction' } else { 'SymbolicLink' }
+        $null = New-Item -ItemType $linkType -Path (Join-Path -Path $safe -ChildPath 'link') -Target (Join-Path -Path $repository -ChildPath 'docs')
+        $location = New-WriterLocation -Name 'linked-source'
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $location.ProfilePath
+
+        { Export-ContributorProfile -Location $location -Path (Join-Path -Path $safe -ChildPath 'link/exported.json') -Confirm:$false } | Should -Throw '*git working tree*'
+
+        Test-Path -LiteralPath (Join-Path -Path $repository -ChildPath 'docs/exported.json') | Should -BeFalse
     }
 }
 

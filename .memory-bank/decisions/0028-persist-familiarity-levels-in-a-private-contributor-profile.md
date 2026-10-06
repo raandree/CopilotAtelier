@@ -148,7 +148,7 @@ Still open, and not decided in code:
 |---|---|
 | 20 | Prox1, amended Meter: every gated cell within Budget except SessionStart with one entry in VS Code's spawn, over Budget in both runs and within Fail; returned to `software-architect`. RAANDREE3 not measured |
 | 21 | Not run: the private kit has no Phase 2 groups yet and its runs are paid; Amendment 1 is implemented, so it can now measure the amended design |
-| 22 | The manual compactions in VS Code Local and in Copilot CLI (after `/login`) are not done; the plugin-install and no-tool-call cells are not measured |
+| 22 | The manual compactions in VS Code Local and in Copilot CLI (after `/login`) are pending in a scratch workspace on Prox1, where the branch is deployed; the plugin-install and no-tool-call cells are measured (*Reported delivery cells*) |
 
 ### Latency Meter, 2026-10-06 on Prox1
 
@@ -416,6 +416,38 @@ PostToolUse p95 838 to 884 ms and 1,094 to 1,152 ms.
   ratios read higher than the Past lines divided by the guard, as ruling A1
   expected.
 - TBD-5 stays open: RAANDREE3 is not measured.
+
+### Reported delivery cells, 2026-10-06 on Prox1
+
+`tests/HookSdkRuntime.Tests.ps1` measures both cells of `Calibration.Delivery`
+that are reported, not gated, in the runtime VS Code bundles and in the
+standalone Copilot CLI, 8 of 8 passing. Its fixture gained a `send` step that
+the fake model answers without a tool call.
+
+- **Compaction, then no tool call:** the reply after a compaction receives no
+  levels, because the compaction dropped the SessionStart text and no
+  PostToolUse ran; the next successful tool call re-sends them.
+- **Plugin-only installation, compaction:** the shipped `hooks.json` under
+  `PLUGIN_ROOT` delivers the levels at session start from the
+  LocalApplicationData profile; after a compaction nothing re-sends them,
+  because no registration can exist without `~/.copilot/hooks`.
+
+### Independent security review, 2026-10-06
+
+`security-reviewer` reviewed `main...b7e6502` read-only: no Critical, High, or
+Medium finding; the sentence carries no workspace text, email, or path, the
+strict parser, the session-id path containment, the `git config` call, the
+creation race, and Uninstall's ordering were found sound, and the trifecta
+stays broken at leg 3. Its five Low findings and six test gaps were fixed
+test-first; every new test ran red first.
+
+| # | Finding | Resolution |
+|---|---|---|
+| 1 | A registration delete was not gated on the recorded hash, so a file swapped in after the ownership check would be deleted | The file is hashed again after the delete record is written; a mismatch leaves it as modified, and the record keeps the recorded hash |
+| 2 | The SessionStart pre-check backtracked quadratically, and the declaration read ran outside the 3 s step cap: a hostile `projectbrief.md` added 1.3 to 1.6 s | Two linear scans; the step's stopwatch starts before the declaration read |
+| 3 | `registration.json` and the registration file were read whole, without the 64 KB cap or the placeholder check | Neither is opened when it is a cloud placeholder or over 64 KB; such a record reads as invalid, such a file matches no record |
+| 4 | Uninstall decided that nothing was registered before it took the profile lock | Uninstall takes the lock also when nothing is registered and holds it until the hook scripts are removed; a writer that waited then finds the script gone and registers nothing; a contributor folder Uninstall had to create is removed again |
+| 5 | The working-tree guard did not follow junctions or symbolic links | Every writer resolves link targets on the path; the hooks' read keeps the literal walk, so session start pays nothing for it |
 
 ## Signed-off Design Concept
 

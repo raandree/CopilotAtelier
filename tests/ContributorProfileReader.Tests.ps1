@@ -512,6 +512,34 @@ Describe 'Calibration step' -Tag 'Unit' {
         $calibration.State | Should -BeExactly 'unreadable'
         $calibration.ReasonCode | Should -BeExactly 'unsupported-schema'
     }
+
+    It 'counts the declaration read against the step timeout' {
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $script:calibrationLocation.ProfilePath
+        Mock -CommandName Get-ContributorKnowledgeArea -MockWith {
+            Start-Sleep -Milliseconds 300
+            return , [System.String[]] @('Kerberos')
+        }
+
+        $calibration = Get-ContributorCalibration -WorkspacePath $script:workspace -Location $script:calibrationLocation -SkipGitForSingleEntry -TimeoutMilliseconds 100
+
+        $calibration.State | Should -BeExactly 'unreadable'
+        $calibration.ReasonCode | Should -BeExactly 'timeout'
+    }
+
+    It 'matches declared names to stored names across letter case and Unicode normalization, and names no other area' {
+        $stored = 'M' + [char]0x00FC + 'nchen'
+        $areas = '{"' + $stored + '":{"level":"new","updatedUtc":"2026-10-01T08:00:00Z"},"Kerberos":{"level":"expert","updatedUtc":"2026-10-01T08:00:00Z"}}'
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas $areas)) } -Path $script:calibrationLocation.ProfilePath
+        $workspace = New-ContributorTestWorkspace -Path (Join-Path -Path $TestDrive -ChildPath 'skew-workspace') -Area ('MU' + [char]0x0308 + 'NCHEN'), 'Pester'
+
+        $calibration = Get-ContributorCalibration -WorkspacePath $workspace -Location $script:calibrationLocation -SkipGitForSingleEntry
+        $sentence = Format-ContributorCalibrationSentence -Calibration $calibration
+
+        @($calibration.Levels | ForEach-Object -Process { '{0}={1}' -f $_.Name, $_.Level }) | Should -Be @($stored + '=new')
+        $calibration.UnratedCount | Should -Be 1
+        $sentence | Should -MatchExactly ([regex]::Escape('"' + $stored + '" new'))
+        $sentence | Should -Not -MatchExactly ('Kerberos|Pester|' + [regex]::Escape('M' + [char]0x00DC + 'NCHEN'))
+    }
 }
 
 Describe 'Calibration sentence' -Tag 'Unit' {
