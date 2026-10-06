@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-04
+last-verified: 2026-10-06
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,27 +9,26 @@ source: current task evidence
 
 ## Current focus
 
-Next: contributor calibration Phase 2 (Decision 0027), a design session with
-`software-architect` from the Session handoff in `.memory-bank/session/`
-(refreshed 2026-10-05), on `ai/calibration-phase-2`. Prompt 06 is closed:
-pull requests #29 (`9b6a341`) and #30 (`25d8233`) are merged, CI run 112 passed
-and published `6.1.0-preview0003` to GitHub Releases and the PowerShell
-Gallery, and the deployed hooks match `main`. The SDK runtime drops a
-PascalCase `preToolUse` deny that carries `hookSpecificOutput`; Decision 0016
-holds the probe matrix, and `tests/HookSdkRuntime.Tests.ps1` probes the runtime
-without a model through `session.rpc.tools.execute`.
-
-Pull request #27 is merged into `main` as `7a48abe` and published as
-`6.1.0-preview0001`; #19 is closed. So contributor calibration (Decision 0027)
-Phase 1 is on `main`; Phase 2 goes to `software-architect` through the Session
-handoff in `.memory-bank/session/`. The private behavior eval (17 real-chat
-cases, pinned `gpt-5.5` judge, 38 of 40 against human labels) scored 52.1%
-without the Instruction and 100% with it. `claude-opus-5` answers some English
-prompts in German under the eval's thin context, so arms are compared only
-when run concurrently. A parallel session also commits Memory Bank notes here.
+Contributor calibration Phase 2 is designed and signed off as Decision 0028
+(2026-10-06, `software-architect`, from the Session handoff of 2026-09-30). Next:
+`software-engineer` implements it on `ai/calibration-phase-2`, starting with the
+spike TBD-1 before increment 2. The spike checks three things: whether
+SessionStart context survives a compaction in VS Code Local and the SDK host,
+whether PostToolUse `additionalContext` reaches the model in the SDK runtime,
+and whether both hosts load a second hook file from `~/.copilot/hooks`.
+Acceptance criteria 1 to 25 in Decision 0028 are the contract. The per-call
+PostToolUse cost applies only to machines with an active Contributor profile.
+Grow the private eval kit with persistence cases mined from real restatements
+(`Find-CalibrationCandidates.ps1 -Since 2026-09-30` on RAANDREE3 and Prox1);
+never commit the kit.
 
 ## Previous focuses
 
+- **Prompt 06 close-out (#29 `9b6a341`, #30 `25d8233`).** CI run 112 published
+  `6.1.0-preview0003`. The SDK runtime drops a PascalCase `preToolUse` deny that
+  carries `hookSpecificOutput` (Decision 0016); `tests/HookSdkRuntime.Tests.ps1`
+  probes the runtime without a model. Phase 1 (#27, `7a48abe`) scored 52.1%
+  without the Instruction and 100% with it in the private behavior eval.
 - **Hook guard follow-ups (prompts 02, 05, 06; `d8cc6f5` to `fea564f`).** Ten
   reviews ended in an approval. The guard decides within about five seconds
   (1 MB parse, 20,000-field walk, 4 MB block) and errs toward blocking; the
@@ -160,10 +159,12 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. Start the Phase 2 `software-architect` chat from the refreshed handoff.
+1. Hand Decision 0028 to `software-engineer` and run the spike TBD-1 first.
    Grow the eval kit in `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\`
-   past 20 cases with `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on
-   RAANDREE3; never commit the kit.
+   past 20 cases, including at least 6 persistence cases per Position, with
+   `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on RAANDREE3 and Prox1;
+   never commit the kit. The 2026-09-30 Session handoff is consumed and can be
+   pruned.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.
 3. Optional: report upstream that the GitHub hooks reference describes the

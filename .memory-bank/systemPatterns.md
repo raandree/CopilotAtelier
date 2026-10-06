@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-30
+last-verified: 2026-10-06
 owner: software-engineer
 source: .memory-bank/decisions and source/
 ---
@@ -40,6 +40,7 @@ Durable relationships and the Decision record index; read a linked record only w
 | 25 | [Package specification completion as capability-isolated agents](decisions/0025-package-specification-completion-as-capability-isolated-agents.md) | Accepted | 2026-09-02 |
 | 26 | [Declare runtime tool names next to VS Code names](decisions/0026-declare-runtime-tool-names-next-to-vs-code-names.md) | Accepted | 2026-09-29 |
 | 27 | [Calibrate answers to the contributor](decisions/0027-calibrate-answers-to-the-contributor.md) | Accepted | 2026-09-30 |
+| 28 | [Persist Familiarity levels in a private Contributor profile](decisions/0028-persist-familiarity-levels-in-a-private-contributor-profile.md) | Accepted | 2026-10-06 |
 
 ## Live relationships
 

@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-04
+last-verified: 2026-10-06
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -17,6 +17,11 @@ Releases and the PowerShell Gallery (verified 2026-10-05). Incremental work is
 tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-10-06**: Signed off the contributor calibration Phase 2 Design Concept
+  as Decision 0028 (`software-architect`, 26 questions, all twelve categories).
+  An independent review's 2 Blockers and 5 Majors were fixed or ruled before
+  sign-off. Implementation goes to `software-engineer`, spike TBD-1 first.
 
 - **2026-10-05**: Merged pull requests #29 (`9b6a341`, prompt 06) and #30
   (`25d8233`, the CI warm-up); CI run 112 passed on all three systems and
@@ -96,9 +101,9 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Contributor calibration: the Phase 2 Design Concept with `software-architect`
-  (Session handoff), and growing the private eval past 20 real cases with a
-  `-Since 2026-09-30` search on RAANDREE3.
+- Contributor calibration: implement Decision 0028 with `software-engineer`
+  (spike TBD-1 first), and grow the private eval past 20 real cases with a
+  `-Since 2026-09-30` search on RAANDREE3 and Prox1.
 - `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
   workspace, so a subagent or parallel chat there shadows the parent's clock
   (2026-10-01: a 06:29 start; 2026-10-04, in one Copilot SDK chat: a 10:25 and
