@@ -175,15 +175,26 @@ incomplete. Nothing is pushed.
 
 Every agent pitches answers and questions at your familiarity with the knowledge
 area involved: `new`, `familiar`, or `expert`. It assumes `familiar` until you
-say otherwise. No familiarity level is written to a repository; a level lasts
-for the session, so state it again after a long conversation is compacted.
+say otherwise. A level you state lasts for the session. Save it in your private
+Contributor profile, outside every repository, and it applies in every later
+session of a workspace that declares that Knowledge area in
+`.memory-bank/projectbrief.md`, also after a long conversation is compacted.
 
 | You want | Type this |
 |---|---|
 | The last answer again, one level simpler | `/simpler` |
 | The last answer again, one level deeper | `/deeper` |
 | A level for one area | `I'm new to Kerberos` or `I know DSC well` |
+| That level in later sessions | Answer `yes` to the save offer, or run `Set-CopilotAtelierContributorProfile -KnowledgeArea Kerberos -Level new` |
+| What a workspace receives, and why | `Get-CopilotAtelierContributorProfile -WorkspacePath .` |
+| Saved levels no longer used | `Set-CopilotAtelierContributorProfile -State Off`, or `Remove-CopilotAtelierContributorProfile` |
 | The agent to decide a question you cannot judge | `not sure, you pick` |
+
+The profile syncs with the Canonical target through OneDrive; on a lab VM or in a
+container, copy it with `Export-` and `Import-CopilotAtelierContributorProfile`.
+A workspace that declares Knowledge areas offers a short interview once, which
+you can snooze or turn off. See the
+[`contributor-profile`](skills/contributor-profile/SKILL.md) Skill.
 
 Every technical question comes with a recommended answer. In `new` and
 `familiar` areas it also says why, what changes with another choice, and whether

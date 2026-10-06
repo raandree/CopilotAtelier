@@ -20,6 +20,11 @@
     COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS bounds injected context to
     1024-16384 characters (default 4096). Invalid values use the default.
     Long paths are omitted before lifecycle or safety guidance is shortened.
+
+    When the workspace declares Knowledge areas in .memory-bank/projectbrief.md,
+    one more sentence carries the contributor's saved Familiarity levels for
+    them, from the private Contributor profile (Decision record 0028). It has
+    the lowest budget priority and never shortens the lines above.
 .PARAMETER InputJson
     Hook payload as JSON. Defaults to reading standard input. Tests pass the
     payload directly so they do not depend on redirected input.
@@ -50,10 +55,11 @@ param(
 function Get-SessionClockPath {
     <#
         Resolves the clock file for a session. Duplicated verbatim in
-        Write-SessionClose.ps1: VS Code launches each hook by its own path, so a
-        shared helper would need the same fragile path probing that hooks.json
-        already carries. Both sides must derive the same name from the same
-        payload, so change them together.
+        Write-SessionClose.ps1, Write-CompactionCheckpoint.ps1, and
+        Add-FamiliarityContext.ps1: VS Code launches each hook by its own path,
+        so a shared helper would need the same fragile path probing that
+        hooks.json already carries. Every copy must derive the same name from
+        the same payload, so change them together.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -265,6 +271,56 @@ if ($additionalContext.Length -gt $contextLimit) {
 if ($additionalContext.Length -gt $contextLimit) {
     $line[3] = 'Close every reply with the measured Get-SessionElapsed.ps1 output in POST-FLIGHT. The reader is beside the SessionStart hook.'
     $additionalContext = $line -join ' '
+}
+
+<#
+    Contributor calibration, Decision record 0028: one data-only sentence with
+    the saved Familiarity levels for the Knowledge areas this workspace declares
+    in .memory-bank/projectbrief.md. It has the lowest budget priority, so it
+    gets only what the lines above leave and never shortens them. The reader
+    ships with the contributor-profile Skill, found beside this script in the
+    deployed and in the plugin layout, never through the payload. A workspace
+    without a declaration costs one bounded read and never reaches the profile
+    or git; any fault costs the sentence and nothing else.
+#>
+$calibrationDirectory = if ($payload) { [string]$payload.cwd } else { '' }
+if (-not [string]::IsNullOrWhiteSpace($calibrationDirectory)) {
+    try {
+        $briefPath = [IO.Path]::Combine($calibrationDirectory, '.memory-bank', 'projectbrief.md')
+        $declaresAreas = $false
+
+        if ([IO.File]::Exists($briefPath)) {
+            $briefStream = [IO.File]::OpenRead($briefPath)
+            try {
+                $briefBuffer = New-Object -TypeName 'System.Byte[]' -ArgumentList 65536
+                $briefCount = $briefStream.Read($briefBuffer, 0, $briefBuffer.Length)
+            } finally {
+                $briefStream.Dispose()
+            }
+
+            # Only a declaration with at least one bullet after it is worth the reader.
+            $declaresAreas = [Text.Encoding]::UTF8.GetString($briefBuffer, 0, $briefCount) -match '(?ms)^##[ \t]+Knowledge areas[ \t]*\r?$.*?^[-*+][ \t]+\S'
+        }
+
+        if ($declaresAreas) {
+            $readerPath = @(
+                [IO.Path]::Combine($PSScriptRoot, '..', '..', 'skills', 'contributor-profile', 'scripts', 'ContributorProfileReader.ps1')
+                [IO.Path]::Combine($PSScriptRoot, '..', '..', '..', 'skills', 'contributor-profile', 'scripts', 'ContributorProfileReader.ps1')
+            ) | Where-Object -FilterScript { [IO.File]::Exists($_) } | Select-Object -First 1
+
+            if ($readerPath) {
+                . $readerPath
+                $calibration = Get-ContributorCalibration -WorkspacePath $calibrationDirectory -SkipGitForSingleEntry
+                $calibrationSentence = Format-ContributorCalibrationSentence -Calibration $calibration -MaximumLength ($contextLimit - $additionalContext.Length - 1)
+
+                if ($calibrationSentence) {
+                    $additionalContext = $additionalContext + ' ' + $calibrationSentence
+                }
+            }
+        }
+    } catch {
+        Write-Debug -Message "Contributor calibration skipped: $($_.Exception.Message)"
+    }
 }
 
 $output = [ordered]@{

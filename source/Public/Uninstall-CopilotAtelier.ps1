@@ -20,6 +20,15 @@ function Uninstall-CopilotAtelier
             Recover an interrupted apply with the updated Install-CopilotAtelier
             before removal. Coordination does not lock cloud sync across machines.
 
+            The private Contributor profile in the Canonical target's contributor
+            folder is personal content and stays. Before any file is removed, the
+            registration file ~/.copilot/hooks/contributor-profile.json is
+            reconciled under the profile lock and removed when this module created
+            it unchanged. A foreign or modified registration, or a held lock,
+            stops the removal before anything changes and names the file,
+            because removing the hook scripts would leave it warning on every
+            tool call. Open chats keep the hooks they loaded until restarted.
+
         .PARAMETER TargetPath
             Explicit Canonical target. Defaults to the normal profile resolver,
             which fails instead of prompting when OneDrive selection is ambiguous.
@@ -62,6 +71,7 @@ function Uninstall-CopilotAtelier
     $preserved = [System.Collections.Generic.List[string]]::new()
     $planned = [System.Collections.Generic.List[object]]::new()
     $directories = [System.Collections.Generic.HashSet[string]]::new((Get-CopilotAtelierPathComparer -Path $path.TargetPath))
+    $registration = $null
 
     if ($null -eq $record -or $record.SchemaVersion -ne 1)
     {
@@ -111,6 +121,16 @@ function Uninstall-CopilotAtelier
             {
                 throw 'Deployment changed before removal. Retry with the current Deployment record.'
             }
+
+            <#
+                The contributor profile registration runs a deployed hook script
+                on every tool call, so it is reconciled before any file goes; a
+                registration that cannot be reconciled stops the removal here.
+                The profile itself is personal content and stays.
+            #>
+            . (Get-CopilotAtelierContributorProfileScriptPath)
+            $registration = Invoke-ContributorRegistrationUninstall -Location (Resolve-ContributorProfileLocation -UserHome $path.UserHome)
+
             foreach ($file in $planned)
             {
                 $destination = Join-Path -Path $path.TargetPath -ChildPath $file.Path
@@ -192,5 +212,6 @@ function Uninstall-CopilotAtelier
         RemovedFiles = @($removed)
         PreservedFiles = @($preserved)
         PlannedFiles = @($planned | ForEach-Object -Process { $_.Path })
+        ContributorRegistration = $registration
     }
 }

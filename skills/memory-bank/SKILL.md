@@ -155,7 +155,18 @@ the migration leaves them untouched.
 ## Acceptance criteria
 
 1. <Observable project outcome or `To confirm`>
+
+## Knowledge areas
+
+- <Optional: one field this project involves per bullet, such as Kerberos>
 ```
+
+`## Knowledge areas` is optional. Each bullet names one field, 1 to 48 letters,
+digits, single spaces, and `. + # / & ( ) -`, starting with a letter or a digit.
+The hooks read the first 16 valid bullets and inject each contributor's saved
+level for them from the private Contributor profile, never from this file. List
+names only; a level never belongs here. The `software-architect` Custom agent
+curates the list, and the `contributor-profile` Skill owns the levels.
 
 ### `productContext.md`
 

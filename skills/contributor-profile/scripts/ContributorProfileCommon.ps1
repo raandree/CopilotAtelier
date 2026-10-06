@@ -717,6 +717,60 @@ function Sync-ContributorRegistration
     return [pscustomobject] @{ Status = $status; Messages = $messages }
 }
 
+function Invoke-ContributorRegistrationUninstall
+{
+    <#
+        Called by Uninstall-CopilotAtelier before it removes any file. Reads
+        only the registration record and the file it names, never a level:
+        takes the profile lock, reconciles, and removes an unchanged
+        registration this module created. Throws, naming the file, when the
+        registration is foreign or modified or the lock is held, because
+        removing the deployed hook script would leave a registration that warns
+        on every tool call.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.String])]
+    param ([Parameter(Mandatory = $true)] [System.Object] $Location)
+
+    if (-not ([System.IO.File]::Exists($Location.RecordPath) -or [System.IO.File]::Exists($Location.RegistrationPath)))
+    {
+        return 'none'
+    }
+
+    try
+    {
+        $lock = Enter-ContributorProfileLock -Location $Location
+    }
+    catch
+    {
+        throw ("Uninstall stopped before removing anything: the contributor profile registration at '{0}' could not be reconciled. {1}" -f $Location.RegistrationPath, $_.Exception.Message)
+    }
+
+    try
+    {
+        $status = Invoke-ContributorRegistrationReconcile -Location $Location
+        if ($status -eq 'owned')
+        {
+            $status = Remove-ContributorRegistration -Location $Location
+            if ($status -eq 'none')
+            {
+                return 'removed'
+            }
+        }
+
+        if ($status -ne 'none')
+        {
+            throw ("Uninstall stopped before removing anything: the contributor profile registration at '{0}' is {1}. Removing the hook scripts would leave it warning on every tool call. Remove the file by hand if it is not yours, then run Uninstall-CopilotAtelier again." -f $Location.RegistrationPath, $status)
+        }
+
+        return 'none'
+    }
+    finally
+    {
+        $lock.Dispose()
+    }
+}
+
 # --- ContributorProfileCommon part 3 ---
 
 function Get-ContributorRegistrationStatus

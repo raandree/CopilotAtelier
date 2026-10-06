@@ -40,10 +40,11 @@ param(
 function Get-SessionClockPath {
     <#
         Resolves the clock file for a session. Duplicated verbatim in
-        Add-SessionContext.ps1: VS Code launches each hook by its own path, so a
-        shared helper would need the same fragile path probing that hooks.json
-        already carries. Both sides must derive the same name from the same
-        payload, so change them together.
+        Add-SessionContext.ps1, Write-CompactionCheckpoint.ps1, and
+        Add-FamiliarityContext.ps1: VS Code launches each hook by its own path,
+        so a shared helper would need the same fragile path probing that
+        hooks.json already carries. Every copy must derive the same name from
+        the same payload, so change them together.
     #>
     [CmdletBinding()]
     [OutputType([string])]

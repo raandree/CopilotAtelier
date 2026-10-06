@@ -78,7 +78,8 @@ passing the text on unexpanded.
 | [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank, injects the UTC timestamp, starts the session clock |
 | [`scripts/Write-SessionClose.ps1`](scripts/Write-SessionClose.ps1) | `Stop` | Advances the session clock's turn counter |
 | [`scripts/Get-SessionElapsed.ps1`](scripts/Get-SessionElapsed.ps1) | — | Agent-run reader that prints the Post-flight elapsed line |
-| [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated |
+| [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated, and counts the compaction for contributor calibration |
+| [`scripts/Add-FamiliarityContext.ps1`](scripts/Add-FamiliarityContext.ps1) | `PostToolUse` | Re-sends saved familiarity levels once after a compaction; registered only by `~/.copilot/hooks/contributor-profile.json` |
 
 ## Block-RemoteMutation
 
@@ -197,13 +198,24 @@ top-level `additionalContext` for the Copilot SDK host and Copilot CLI, and
 ignores the other's key, so dropping either one silently removes the context
 from that host's sessions.
 
+When the workspace declares Knowledge areas under `## Knowledge areas` in
+`.memory-bank/projectbrief.md`, one more sentence follows with the
+contributor's saved familiarity levels for them, read from the private
+Contributor profile of the [`contributor-profile`](../../skills/contributor-profile/SKILL.md)
+Skill. It is data only, built from a fixed template, the matched area names,
+and the level values; an alias, a path, or an unmatched name never appears in
+it. Without a declaration the hook neither reads the profile nor runs git.
+
 ### Session context budget
 
 Injected context defaults to a 4096-character limit. Set
 `COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS` to an integer from 1024 through
 16384 to change it; invalid values use the default. Oversized paths are omitted
 before any lifecycle guidance, and the clock still runs. This is a character
-budget for one hook, not a token count or a live context-window estimate.
+budget for one hook, not a token count or a live context-window estimate. The
+contributor-profile sentence has the lowest priority: it gets only what the
+other lines leave, giving up its unrated count, then trailing areas, then
+itself, and never shortens another line.
 
 There is no master-off profile: all four shipped hooks serve lifecycle or
 safety obligations. The context budget never disables remote-mutation checks.
@@ -233,6 +245,11 @@ predictable name there invites another local account to pre-create the path. The
 `<key>` is the payload's `session_id` with every character that could traverse a
 directory stripped, falling back to a hash of the working directory so two
 concurrent windows do not share one clock.
+
+Beside each clock sits `session-<key>.familiarity.json`, the calibration state
+of the same session: `compactions`, which `PreCompact` advances, and `injected`,
+which `Add-FamiliarityContext` records. No calibration hook ever rewrites the
+clock file, and `Get-SessionElapsed` never reads the state as a clock.
 
 ### Write-SessionClose
 
@@ -293,6 +310,33 @@ context. The user-visible half is `systemMessage`; the model-facing half is the
 compaction-recovery section of
 [`rules/preflight.instructions.md`](../rules/preflight.instructions.md),
 which survives because Instructions are re-sent with every request.
+
+It also advances `compactions` in the calibration state beside the session
+clock, in every workspace, under the lock that `Add-FamiliarityContext` takes.
+
+## Add-FamiliarityContext
+
+No host reruns `SessionStart` after a compaction, and the Copilot SDK host and
+Copilot CLI drop its context when they compact, so saved familiarity levels
+would silently revert to `familiar`. This `PostToolUse` hook re-sends them once,
+on the first successful tool call after a compaction.
+
+`hooks.json` does not register it. The `contributor-profile` Skill writes
+`~/.copilot/hooks/contributor-profile.json`, a fixed template with the same
+three launchers, while an entry on this machine is on and rates a Knowledge
+area, and removes it when none does. Only machines with an active profile pay
+the per-call cost, about 0.6 s in VS Code and 0.85 s in the Copilot SDK host.
+Hosts load hook files when a session starts, so a change affects later sessions;
+an open chat keeps calling the script, which then finds nothing to send.
+
+The common path reads `session_id` from the head of the payload, where both
+hosts put it ahead of every tool field, and one small state file, then exits.
+When a compaction is unanswered, it parses the payload for `cwd`, rechecks the
+profile so an opt-out takes effect at once, and emits the matched levels under
+both host keys, ending with `Re-sent after a compaction; make no offers in this
+session.` It records the answered count by compare-and-set under the state
+lock, so a newer compaction is never lost. It never emits `decision`, never
+exits `2`, and exits `0` on every path.
 
 ## Verifying the hooks load
 

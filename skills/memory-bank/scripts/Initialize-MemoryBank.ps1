@@ -105,6 +105,12 @@ To confirm from repository evidence.
 ## Acceptance criteria
 
 1. To confirm.
+
+## Knowledge areas
+
+Optional. List the fields this project involves, one per bullet, such as
+Kerberos. Each contributor's saved Familiarity level for a listed area reaches
+every session. Delete this section when it is not needed.
 '@
     'productContext.md' = @'
 ---

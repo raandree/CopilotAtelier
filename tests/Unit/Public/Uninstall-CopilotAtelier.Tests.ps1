@@ -1,7 +1,38 @@
 BeforeAll {
     $script:projectPath = Convert-Path -LiteralPath (Join-Path $PSScriptRoot '../../..')
     . (Join-Path $script:projectPath 'tests/Helpers/DeploymentProfile.ps1')
+    . (Join-Path $script:projectPath 'tests/Helpers/ContributorProfileFixture.ps1')
     Import-CopilotAtelierTestModule -ProjectPath $script:projectPath
+
+    $script:emptyGitConfig = Join-Path $TestDrive 'empty.gitconfig'
+    Set-Content -LiteralPath $script:emptyGitConfig -Value '' -Encoding ascii
+    $script:gitIsolation = @{ GIT_CONFIG_GLOBAL = $script:emptyGitConfig; GIT_CONFIG_NOSYSTEM = '1' }
+
+    function script:Get-OwnedFileState
+    {
+        param ([string] $TargetPath)
+
+        @(Get-ChildItem -LiteralPath $TargetPath -Recurse -File -Force |
+                Where-Object -FilterScript { $_.FullName -notmatch '[\\/]contributor[\\/]' } |
+                ForEach-Object -Process { '{0}:{1}' -f $_.FullName, (Get-FileHash -LiteralPath $_.FullName).Hash })
+    }
+
+    function script:Set-TestLevel
+    {
+        $folder = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $folder -Force | Out-Null
+        Push-Location -LiteralPath $folder
+        try
+        {
+            Use-ContributorEnvironment -Variable $script:gitIsolation -ScriptBlock {
+                $null = Set-CopilotAtelierContributorProfile -KnowledgeArea 'Kerberos' -Level 'new' -Confirm:$false
+            }
+        }
+        finally
+        {
+            Pop-Location
+        }
+    }
 }
 
 Describe 'Uninstall-CopilotAtelier' -Tag 'Unit' {
@@ -132,5 +163,90 @@ Describe 'Uninstall-CopilotAtelier' -Tag 'Unit' {
     It 'Should reject a filesystem root even during a preview' {
         { Uninstall-CopilotAtelier -TargetPath ([IO.Path]::GetPathRoot($TestDrive)) -WhatIf } |
             Should -Throw -ExpectedMessage '*filesystem root*'
+    }
+}
+
+Describe 'Uninstall-CopilotAtelier with a contributor profile' -Tag 'Unit' {
+    BeforeEach {
+        $script:profile = New-CopilotAtelierTestProfile -Root (Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))) -ProjectPath $script:projectPath
+        $null = Install-CopilotAtelier -ContentPath $script:profile.ContentPath -SkipCopilotCliEnvironment -Confirm:$false
+        $script:contributorFolder = Join-Path $script:profile.TargetPath 'contributor'
+        $script:registrationPath = Join-Path $script:profile.CopilotRoot 'hooks/contributor-profile.json'
+    }
+
+    AfterEach {
+        Restore-CopilotAtelierTestProfile -Original $script:profile.Original
+    }
+
+    It 'Should remove an unchanged registration first and keep the profile as personal content' {
+        Set-TestLevel
+        Test-Path -LiteralPath $script:registrationPath | Should -BeTrue
+        $profilePath = Join-Path $script:contributorFolder 'profile.json'
+        $profileHash = (Get-FileHash -LiteralPath $profilePath).Hash
+
+        # Uninstall reads only the registration record, so a lock on the profile cannot stop it.
+        $lock = [System.IO.FileStream]::new($profilePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+        try
+        {
+            $result = Uninstall-CopilotAtelier -Confirm:$false
+        }
+        finally
+        {
+            $lock.Dispose()
+        }
+
+        $result.ContributorRegistration | Should -Be 'removed'
+        Test-Path -LiteralPath (Join-Path $script:contributorFolder 'registration.json') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $script:profile.TargetPath 'hooks/scripts/Add-FamiliarityContext.ps1') | Should -BeFalse
+        (Get-FileHash -LiteralPath $profilePath).Hash | Should -Be $profileHash
+    }
+
+    It 'Should stop before removing anything when a foreign registration exists' {
+        Set-Content -LiteralPath $script:registrationPath -Value '{"hooks":{}}' -Encoding ascii
+        $before = Get-OwnedFileState -TargetPath $script:profile.TargetPath
+
+        { Uninstall-CopilotAtelier -Confirm:$false } | Should -Throw -ExpectedMessage '*stopped before removing anything*contributor-profile.json*foreign*'
+
+        Get-OwnedFileState -TargetPath $script:profile.TargetPath | Should -Be $before
+    }
+
+    It 'Should stop before removing anything while another writer holds the profile lock' {
+        Set-TestLevel
+        $before = Get-OwnedFileState -TargetPath $script:profile.TargetPath
+        $lock = [System.IO.FileStream]::new((Join-Path $script:contributorFolder 'profile.lock'), [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+
+        try
+        {
+            { Uninstall-CopilotAtelier -Confirm:$false } | Should -Throw -ExpectedMessage '*stopped before removing anything*locked*'
+        }
+        finally
+        {
+            $lock.Dispose()
+        }
+
+        Get-OwnedFileState -TargetPath $script:profile.TargetPath | Should -Be $before
+        Test-Path -LiteralPath $script:registrationPath | Should -BeTrue
+    }
+
+    It 'Should leave the contributor folder unread and unchanged on reinstall and repair' {
+        Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path (Join-Path $script:contributorFolder 'profile.json')
+        Set-Content -LiteralPath (Join-Path $script:contributorFolder 'registration.json') -Value 'record' -Encoding ascii
+        $before = @(Get-ChildItem -LiteralPath $script:contributorFolder -File | ForEach-Object -Process { '{0}:{1}' -f $_.Name, (Get-FileHash -LiteralPath $_.FullName).Hash })
+        $locks = foreach ($name in 'profile.json', 'registration.json')
+        {
+            [System.IO.FileStream]::new((Join-Path $script:contributorFolder $name), [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+        }
+
+        try
+        {
+            { Install-CopilotAtelier -ContentPath $script:profile.ContentPath -SkipCopilotCliEnvironment -Confirm:$false } | Should -Not -Throw
+            { Install-CopilotAtelier -ContentPath $script:profile.ContentPath -SkipCopilotCliEnvironment -Repair -Confirm:$false } | Should -Not -Throw
+        }
+        finally
+        {
+            $locks | ForEach-Object -Process { $_.Dispose() }
+        }
+
+        @(Get-ChildItem -LiteralPath $script:contributorFolder -File | ForEach-Object -Process { '{0}:{1}' -f $_.Name, (Get-FileHash -LiteralPath $_.FullName).Hash }) | Should -Be $before
     }
 }

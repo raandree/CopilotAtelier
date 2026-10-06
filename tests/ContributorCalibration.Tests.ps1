@@ -169,12 +169,59 @@ Describe 'Familiarity levels stay out of the Memory Bank' -Tag 'Unit' {
             Should -Match '(?i)never record a contributor''s familiarity levels'
     }
 
+    It 'the projectbrief template declares Knowledge areas by name only, with no placeholder bullet' {
+        $script = Get-RepositoryText -RelativePath 'skills/memory-bank/scripts/Initialize-MemoryBank.ps1'
+        $template = [regex]::Match($script, '(?s)''projectbrief\.md'' = @''(.*?)''@').Groups[1].Value
+
+        $template | Should -Match '(?m)^## Knowledge areas\r?$'
+        $template | Should -Not -Match '(?ms)^## Knowledge areas.*^- ' -Because 'a placeholder bullet would pass the area-name rule and declare an area'
+    }
+
     It 'the Glossary defines <Term> as a Canonical term' -ForEach @(
         @{ Term = 'Knowledge area' }
         @{ Term = 'Familiarity level' }
     ) {
         Get-RepositoryText -RelativePath '.memory-bank/glossary.md' |
             Should -Match ('(?m)^\| {0} \|' -f [regex]::Escape($Term))
+    }
+}
+
+Describe 'Contributor profile offers' -Tag 'Unit' {
+    It 'the Instruction treats profile levels as stated and carries the save-offer rule' {
+        $instruction = Get-RepositoryText -RelativePath 'com.github.copilot/rules/contributor-calibration.instructions.md'
+
+        $instruction | Should -Match 'Levels in a contributor-profile sentence count as stated'
+        $instruction | Should -Match 'offer once per declared area to save it with the `contributor-profile` Skill'
+        $instruction | Should -Match 'after a re-sent sentence, offer nothing'
+    }
+
+    It '/<Name> carries the save-offer line' -ForEach @(@{ Name = 'simpler' }, @{ Name = 'deeper' }) {
+        $prompt = Get-RepositoryText -RelativePath "com.github.copilot/commands/$Name.prompt.md"
+
+        $prompt | Should -Match 'received a contributor-profile sentence and the area is declared there'
+        $prompt | Should -Match '`Save Kerberos = (new|expert) to your profile\? \(yes / no\)`'
+    }
+
+    It 'Pre-flight names the profile state as counts only' {
+        $preflight = Get-RepositoryText -RelativePath 'com.github.copilot/rules/preflight.instructions.md'
+
+        $preflight | Should -Match '`profile: 3 levels, 2 unrated`'
+        $preflight | Should -Match '`profile: unreadable \(invalid-json\)`'
+        $preflight | Should -Match '`profile: none`'
+    }
+
+    It 'rating and save questions offer no delegation option, and a delegated reply saves nothing' {
+        $skill = Get-RepositoryText -RelativePath 'skills/contributor-profile/SKILL.md'
+
+        $skill | Should -Match 'they offer no\s+`not sure, you pick` option'
+        $skill | Should -Match 'writes that phrase gets skip or\s+no'
+    }
+
+    It 'a sentence re-sent after a compaction suppresses every offer' {
+        $skill = Get-RepositoryText -RelativePath 'skills/contributor-profile/SKILL.md'
+
+        $skill | Should -Match '`Re-sent after a compaction; make no offers in this session\.`'
+        $skill | Should -Match 'make no interview, save, or unreadable-profile offer'
     }
 }
 
