@@ -78,9 +78,11 @@ fixed or ruled, as recorded below.
 
 ## Confirmation
 
-Pending implementation by `software-engineer`. The signed-off Acceptance
-criteria 1 to 25 below are the contract; the spike TBD-1 runs before increment
-2. Implementation records its evidence here: the eval results against
+Implemented by `software-engineer` on 2026-10-06 except as recorded below:
+criteria 20 to 22 are open, and five questions are returned to
+`software-architect`. The signed-off Acceptance criteria 1 to 25 below are the
+contract; the spike TBD-1 ran before increment 2. Implementation records its
+evidence here: the eval results against
 `Calibration.Persistence` and `Calibration.PhaseOneGuard`, the
 `Calibration.Delivery` matrix, and the latency Meter on Prox1 and RAANDREE3.
 
@@ -119,6 +121,117 @@ The spike adds three implementation facts:
   Local). `Add-FamiliarityContext.ps1` must find `session_id` and `cwd` without
   parsing a large payload in full.
 - `tests/HookSdkRuntime.Tests.ps1` guards these host facts in both runtimes.
+
+### Implementation, 2026-10-06 on Prox1
+
+Increments 2 to 5 are built test-first on `ai/calibration-phase-2`. Pester
+covers criteria 1 to 19 and 23 to 25; criteria 13 and 14 are tested as text,
+and their behavior waits for the eval. The SDK runtime probe of criterion 22
+passes in the bundled runtime and in Copilot CLI 1.0.92: *Contributor levels
+delivered by* in `tests/HookSdkRuntime.Tests.ps1` runs the shipped hooks, the
+registration template, and the Skill in the deployed layout against the
+recording model. The levels appear in the `sessionStart` `hook.end` event and
+in the first request; nothing is added to a tool result before a compaction;
+the levels return in the first tool result after a forced compaction.
+
+Still open, and not decided in code:
+
+| Criterion | State |
+|---|---|
+| 20 | Fails on Prox1, see the Meter below; RAANDREE3 not measured |
+| 21 | Not run: the private kit has no Phase 2 groups yet, its runs are paid, and it should measure the design that survives the questions below |
+| 22 | The manual compactions in VS Code Local and in Copilot CLI (after `/login`) are not done; the plugin-install and no-tool-call cells are not measured |
+
+### Latency Meter, 2026-10-06 on Prox1
+
+`tests/Fixtures/Measure-CalibrationLatency.ps1` implements the Meter: the
+working tree's scripts in the deployed layout under a scratch home, each host's
+exact spawn with process start included (VS Code: `powershell.exe -Command`
+around the `windows` command; SDK host: `pwsh -c` around the `powershell`
+command), two warm-up and ten measured runs per cell, and the push guard on a
+benign tool as the same-day proxy. Four runs on Prox1, an 8-vCPU virtual
+machine at 1 % background load, in milliseconds, p95 with p50 in brackets:
+
+| Cell | VS Code spawn | SDK spawn | Budget | Fail |
+|---|---|---|---|---|
+| SessionStart added: declared areas and a profile | +349 to +380 (+344 to +371) | +189 to +330 (+286 to +309) | +100 | +250 |
+| SessionStart added: declared areas, no profile | +164 to +184 (+166 to +171) | +50 to +80 (+127 to +150) | +100 | +250 |
+| PostToolUse, nothing pending | 793 to 901 | 1,007 to 1,154 | 600 / 900 | 1,000 |
+| Proxy: push guard, benign tool | 855 to 868 | 1,060 to 1,077 | n/a | n/a |
+
+The proxy measured p95 576 ms and 846 ms on 2026-10-05, so Prox1 ran 26 % (SDK)
+to 50 % (VS Code) slower on 2026-10-06 than when the budgets were set. The
+SessionStart baseline measured p95 831 to 847 ms (VS Code) and 1,049 to 1,188 ms
+(SDK), not the 334 ms and 512 ms recorded as Past, which were evidently taken
+another way; only the added milliseconds compare.
+
+- **SessionStart.AddedLatency fails.** VS Code is above Fail in all four runs,
+  the SDK spawn in three by p95 and in all four by p50. A workspace that
+  declares areas still pays +164 to +184 ms in VS Code without any profile,
+  because the reader must look before it can report the unrated count.
+- **PostToolUse.CallLatency is over Budget in both spawns and above Fail in the
+  SDK spawn**, by 7 to 154 ms. The hook costs about 5 % less than the same-day
+  proxy at p50: the cost is the shared launcher on that day's machine, not the
+  script, whose common path reads the payload head, runs one regex, and checks
+  one file.
+
+Cause of the SessionStart cost, attributed in process under Windows PowerShell
+after the launcher's own warm-up: dot-sourcing the reader 18 ms, the Knowledge
+areas 80, the location rule 40, the repository check 8, the JSON parse 62, the
+schema validation 84, the entry selection 4, the sentence 22, and about 100 more
+in the first full calibration call. A third run of the whole step in the same
+process costs 10 ms, and the parser costs 66 ms on `{}` but 2 ms on its third
+run. The time is the first execution of about 4,600 syntax-tree nodes in a fresh
+process, spread over about 20 constructs at 1 to 9 ms each, not the work. Local
+tuning, such as loops for pipelines and fewer first-use constructs, is worth an
+estimated 30 to 40 ms, short of either line.
+
+Scaled by the same-day proxy ratio, 0.67 (VS Code) and 0.79 (SDK), the
+2026-10-05 machine would show about +245 ms and +235 ms for SessionStart, just
+under Fail and 2.4 times Budget, and about 550 ms and 830 ms for PostToolUse,
+within Budget. That is an estimate: the ratio comes from spawn cost, and the
+reader's cold cost need not scale the same way. With ten runs, p95 is the
+slowest run, so one slow baseline run moved an SDK result from +288 (p50) to
++189 (p95); the Meter prints both.
+
+### Returned to software-architect
+
+Results that contradict the signed-off concept go back to `software-architect`;
+none is redesigned in code.
+
+1. **SessionStart.AddedLatency fails.** Options: re-baseline Budget and Fail,
+   since the cost is paid once per session rather than per call; a validated
+   digest beside the profile that every writer maintains and the hook reads
+   when the profile's length and write time match, with the full reader as
+   fallback, which adds a private artifact with deletion, export, and drift
+   consequences; a lighter launcher for every hook under Decision 0016, which
+   costs more than the reader adds; local tuning, 30 to 40 ms and not enough
+   alone; or fallback A at session start.
+2. **PostToolUse.CallLatency misses Budget, and Fail in the SDK spawn,** while
+   costing less than the same-day proxy. Options: state the Meter relative to a
+   same-day proxy; fallback A, as the concept prescribes when B1 misses its
+   budget; or re-baseline.
+3. **Context.SentenceSize cannot hold for every profile.** The fixed template
+   makes the worst case 1,118 characters at session start and 1,178 re-sent,
+   for 16 names of 48 characters at `familiar`;
+   `tests/ContributorProfileReader.Tests.ps1` pins both. Raise the budget or
+   shorten the template.
+4. **The deletion rule blocks a template change.** A registration is deleted
+   only when its hash equals the current template's, so the first release that
+   changes the template leaves every owned registration undeletable,
+   `-RegistrationOnly` included. Option: also accept a file whose hash equals
+   the recorded one.
+5. **The area-name rule rejects `.NET`,** because a name must start with a
+   letter or a digit. Loosening is safe later.
+
+Where the concept is silent, the code interprets it as follows, for
+confirmation: combining marks may follow the first character; stored names must
+already be trimmed and in NFC; all seven entry fields are required; `Set-`
+without `-Contributor` selects by the identity rule, creates an entry when no
+entry matches and none is the default, and fails without a git identity when
+several entries exist; `-SnoozeInterview` exists only on the Skill script;
+`Set-` takes paired `-KnowledgeArea` and `-Level` arrays for one preview and one
+write; the first tool call after a compaction is the first successful one.
 
 ## Signed-off Design Concept
 
