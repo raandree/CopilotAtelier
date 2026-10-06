@@ -149,8 +149,10 @@ working tree's scripts in the deployed layout under a scratch home, each host's
 exact spawn with process start included (VS Code: `powershell.exe -Command`
 around the `windows` command; SDK host: `pwsh -c` around the `powershell`
 command), two warm-up and ten measured runs per cell, and the push guard on a
-benign tool as the same-day proxy. Four runs on Prox1, an 8-vCPU virtual
-machine at 1 % background load, in milliseconds, p95 with p50 in brackets:
+benign tool as the same-day proxy. Four runs of the Meter and its prototype on
+Prox1, an 8-vCPU virtual machine at 1 % background load, the no-profile cell in
+the last two and the proxy in the last three; milliseconds at p95, with p50 in
+brackets for the added latency:
 
 | Cell | VS Code spawn | SDK spawn | Budget | Fail |
 |---|---|---|---|---|

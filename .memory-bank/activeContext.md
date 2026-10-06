@@ -9,21 +9,25 @@ source: current task evidence
 
 ## Current focus
 
-Contributor calibration Phase 2 is designed and signed off as Decision 0028
-(2026-10-06, `software-architect`, from the Session handoff of 2026-09-30). Next:
-`software-engineer` implements it on `ai/calibration-phase-2`, starting with the
-spike TBD-1 before increment 2. The spike checks three things: whether
-SessionStart context survives a compaction in VS Code Local and the SDK host,
-whether PostToolUse `additionalContext` reaches the model in the SDK runtime,
-and whether both hosts load a second hook file from `~/.copilot/hooks`.
-Acceptance criteria 1 to 25 in Decision 0028 are the contract. The per-call
-PostToolUse cost applies only to machines with an active Contributor profile.
-Grow the private eval kit with persistence cases mined from real restatements
-(`Find-CalibrationCandidates.ps1 -Since 2026-09-30` on RAANDREE3 and Prox1);
-never commit the kit.
+Contributor calibration Phase 2 (Decision 0028) is implemented test-first on
+`ai/calibration-phase-2` through `b026161`: the profile core and five commands,
+the SessionStart sentence for `## Knowledge areas`, re-injection after a
+compaction through the PostToolUse registration, Uninstall reconciliation, and
+the offer text. The SDK delivery probe passes in the bundled runtime and Copilot
+CLI. Five results contradict the signed-off concept and went back to
+`software-architect` in the record's Confirmation: SessionStart.AddedLatency
+fails on Prox1 (+349 to +380 ms p95 in the VS Code spawn, Fail +250);
+PostToolUse.CallLatency misses Budget, and Fail in the SDK spawn, although it
+costs less than the same-day push-guard proxy; Context.SentenceSize cannot hold
+for 16 long names; the deletion rule blocks a template change; and the
+area-name rule rejects `.NET`. Criteria 20 to 22 stay open until the architect
+rules. The branch is not pushed.
 
 ## Previous focuses
 
+- **Phase 2 design (Decision 0028, `b568c8c`).** Signed off 2026-10-06 after 26
+  questions; the per-call PostToolUse cost applies only to machines with an
+  active Contributor profile.
 - **Prompt 06 close-out (#29 `9b6a341`, #30 `25d8233`).** CI run 112 published
   `6.1.0-preview0003`. The SDK runtime drops a PascalCase `preToolUse` deny that
   carries `hookSpecificOutput` (Decision 0016); `tests/HookSdkRuntime.Tests.ps1`
@@ -69,25 +73,19 @@ never commit the kit.
   contract verified for this implementation*. Missing telemetry is unknown, not
   zero: output counts only through a validated provenance sidecar, and
   disagreeing copies surface as `ConflictingRun`. Red 29 then 81/0.
-- **Reviewed learning inbox (task 03).** An on-demand, project-scoped review
-  queue whose store sits outside the routed base and the deployed tree. A
-  selected artifact is an untrusted observation, never a directive; one content
-  rule runs at intake and again at promotion, which is append-only and hash-gated
-  on `-Approve` plus the preview SHA-256. Red 18 of 62 then 62/0/0.
+- **Reviewed learning inbox (task 03).** A project-scoped review queue outside
+  the routed base; artifacts are untrusted observations, and promotion is
+  append-only and hash-gated on `-Approve`.
 - **Installation profiles (task 02).** `-InstallationProfile` plus
   `-IncludeSkill`/`-ExcludeSkill` on Install, Update, and Setup, with
   `Get-CopilotAtelierProfile`. Only Skills are selectable; `memory-bank`,
   `long-running-job-monitor`, and `agent-security-review` are mandatory because
   deployed Instructions and shipped agents load them by name. The selection is
   an additive optional `Selection` field inside schema 1.
-- **Footprint reporting (task 01), CI run 34061934611, and Agent Plugins 1.0.**
-  `Get-CopilotAtelierFootprint` reports potential loading contingent on
-  discovery, guards every mapped root, and fails closed on ambiguous
-  frontmatter. The CI fix landed at `35fa926` and the deployment review's M1-M5
-  and L1-L6 at `5acb69d` with zero Blocker or Major findings, per-ID detail in
-  `assessment-log.md`. VS Code documents all four Copilot-only component paths
-  under `com.github.copilot/`, so only the accepted cross-type-link mismatch
-  remains open against Decision 0023.
+- **Footprint reporting (task 01) and Agent Plugins 1.0.**
+  `Get-CopilotAtelierFootprint` reports potential loading and fails closed on
+  ambiguous frontmatter; only the accepted cross-type-link mismatch remains
+  open against Decision 0023 (review detail in `assessment-log.md`).
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -159,11 +157,15 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. Hand Decision 0028 to `software-engineer` and run the spike TBD-1 first.
-   Grow the eval kit in `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\`
-   past 20 cases, including at least 6 persistence cases per Position, with
+1. `software-architect` rules on the five questions in Decision 0028's
+   Confirmation, starting with the two latency budgets, from the return Session
+   handoff. Then: the eval of criterion 21 (grow the private kit in
+   `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\` with Phase 2
+   groups and at least 6 persistence cases per Position, mined with
    `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on RAANDREE3 and Prox1;
-   never commit the kit. The 2026-09-30 Session handoff is consumed and can be
+   never commit the kit), `tests/Fixtures/Measure-CalibrationLatency.ps1` on
+   RAANDREE3, and one manual compaction each in VS Code Local and Copilot CLI
+   (`/login` first). The 2026-09-30 Session handoff is consumed and can be
    pruned.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.

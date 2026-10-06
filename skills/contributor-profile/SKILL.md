@@ -166,7 +166,8 @@ different areas. The `software-architect` Custom agent curates the list.
 exists exactly while an entry on this machine is on and rates an area; Set,
 Import, and Remove create and remove it. Hosts load hook files when a session
 starts, so a change affects sessions started afterwards. While it exists, every
-tool call costs about 0.6 s more in VS Code and 0.85 s in the Copilot SDK host.
+successful tool call costs about 0.6 to 1 s more, depending on the machine and
+the host.
 
 The writers never overwrite or delete a registration they did not create or one
 that changed after they wrote it; they name it instead. When the profile is

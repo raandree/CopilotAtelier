@@ -18,6 +18,16 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-06**: Implemented Decision 0028 test-first on `ai/calibration-phase-2`
+  (`dc6c26a` to `b026161`, `software-engineer`): the spike TBD-1, the profile
+  core and five commands, the SessionStart sentence, re-injection after a
+  compaction, Uninstall reconciliation, and the offers. The SDK delivery probe
+  passes in both runtimes. The latency Meter fails SessionStart.AddedLatency on
+  Prox1 (+349 to +380 ms p95) and misses PostToolUse.CallLatency, so five
+  questions went back to `software-architect`. Fixed a test leak of a
+  calibration state file into the real per-user data folder. Full gate 2,987
+  passed, 0 failed.
+
 - **2026-10-06**: Signed off the contributor calibration Phase 2 Design Concept
   as Decision 0028 (`software-architect`, 26 questions, all twelve categories).
   An independent review's 2 Blockers and 5 Majors were fixed or ruled before
@@ -59,23 +69,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   published `6.1.0-preview0001`. Closed #19, the API key question. Only `main`
   and the merged `copilot/dgthths` remain on GitHub.
 
-- **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
-  `main` (`d8cc6f5` to `fea564f`). The post-release review found the push guard
-  only warning in VS Code Local chats on Windows (Blocker, fixed); nine
-  re-reviews fixed every Blocker and Major test-first (SEC-13 to SEC-33,
-  assessment log), and the last approved. The guard decides within about 5 s,
-  the override cannot reach a hook from an agent terminal, and the SDK host
-  got its own `powershell` launcher. Full gate of the merge (`634546e`): 2,536
-  passed, 0 failed.
-
-- **2026-10-02**: The version now rises only from Conventional Commit markers
-  (`31042ea`, `bd60b7a`), approved by an independent review; `main` was then
-  merged into `ai/contributor-calibration` (`e0955fb`).
-
-- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake (`bff3ac4`):
-  the heartbeat state is renamed over atomically, also on Windows PowerShell
-  5.1; torn reads fell from 2 to 94 per run to none in 18.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -101,9 +94,11 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Contributor calibration: implement Decision 0028 with `software-engineer`
-  (spike TBD-1 first), and grow the private eval past 20 real cases with a
-  `-Since 2026-09-30` search on RAANDREE3 and Prox1.
+- Contributor calibration: `software-architect` rules on the five questions in
+  Decision 0028's Confirmation, latency budgets first. Then criterion 21's eval
+  with Phase 2 groups, the private kit grown past 20 real cases (`-Since
+  2026-09-30` on RAANDREE3 and Prox1), the Meter on RAANDREE3, and one manual
+  compaction each in VS Code Local and Copilot CLI.
 - `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
   workspace, so a subagent or parallel chat there shadows the parent's clock
   (2026-10-01: a 06:29 start; 2026-10-04, in one Copilot SDK chat: a 10:25 and

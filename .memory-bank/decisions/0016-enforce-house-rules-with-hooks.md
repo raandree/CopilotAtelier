@@ -204,7 +204,7 @@ Consequences:
   passed A2 (Copilot SDK, 13:18 UTC) and B2 (Local, 13:24 UTC, `Tool execution
   denied: Blocked by Copilot Atelier: …`).
 
-## Revision, 2026-10-06: context after a compaction, PostToolUse, and a second file
+## Revision, 2026-10-06: context after a compaction, PostToolUse, a second file, and launch cost
 
 The spike TBD-1 of [Decision 0028](0028-persist-familiarity-levels-in-a-private-contributor-profile.md)
 drove the bundled runtime and the standalone Copilot CLI 1.0.92 against a fake
@@ -224,6 +224,14 @@ the method and the per-host table. For this record:
 - Every `*.json` in the user hooks folder loads for sessions started after the
   file exists; an open session neither gains a new file nor loses a deleted one.
 - `tests/HookSdkRuntime.Tests.ps1` asserts these facts in both runtimes.
+- Launching a hook costs p95 about 0.86 s through VS Code's spawn and 1.07 s
+  through the SDK host's on Prox1 (the push guard on a benign tool, 2026-10-06;
+  576 ms and 846 ms on 2026-10-05), almost all of it the outer shell and the
+  launcher's own PowerShell. A script's cold code adds roughly 0.07 ms per
+  syntax-tree node it runs for the first time in that process, so Decision
+  0028's profile reader, about 4,600 nodes, adds about 0.35 s. Keep the common
+  path of a hook small; `tests/Fixtures/Measure-CalibrationLatency.ps1` measures
+  it.
 
 ## Confirmation
 
