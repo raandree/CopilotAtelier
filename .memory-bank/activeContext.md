@@ -157,16 +157,17 @@ unproven — train reached 100 % while validation fell.
 1. `software-architect` rules on the second-round return of Decision 0028:
    the launch unit (TBD-5), criterion 20's two over-Budget cells, the 2 s
    per-call cost in VS Code on RAANDREE3, and VS Code Local's missing
-   PreCompact for a manual compaction. Criterion 22's VS Code Local check
-   needs an automatic compaction (forced through
-   `github.copilot.chat.summarizeAgentConversationHistoryThreshold`); after
-   it, redeploy `main` on Prox1 with `Setup-CopilotSettings.ps1`. For
-   criterion 21, RAANDREE3 had no candidates since 2026-09-30, and the finder
-   matches confusion signals, not level statements; mine a heavily used
-   machine's full history, replace the derived persistence stand-ins
-   with at least 6 real restatements per Position, add grader fixtures, define
-   the offer and safety groups (the Decision names them only), and get the
-   owner's approval and budget before any paid run.
+   PreCompact for a manual compaction. Criterion 22's VS Code Local retest is
+   set up: the scratch workspace sets
+   `github.copilot.chat.summarizeAgentConversationHistoryThreshold` to 70,000
+   tokens to force an automatic compaction; after it, redeploy `main` on Prox1
+   with `Setup-CopilotSettings.ps1`. For criterion 21, the private finder now
+   also flags level statements (strength `level`, 60 self-checks), but Prox1's
+   whole history holds none and RAANDREE3 had no candidate since 2026-09-30;
+   mine a heavily used machine's full history, replace the derived persistence
+   stand-ins with at least 6 real restatements per Position, add grader
+   fixtures, define the offer and safety groups (the Decision names them only),
+   and get the owner's approval and budget before any paid run.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.
 3. Optional: report upstream that the GitHub hooks reference describes the
