@@ -20,6 +20,7 @@ Pitch every answer and question at the contributor's familiarity level in the kn
 - A request in the current prompt ("explain simpler", "skip the basics") overrides the level for that answer.
 - Always show the precise term, even at `new`. When a plain-language translation cannot be made accurate, ask the precise question with its meaning.
 - Never write a familiarity level to the Memory Bank, a commit, or any other repository file.
+- Levels in a contributor-profile sentence count as stated. When a level changes in a session that received such a sentence, offer once per declared area to save it with the `contributor-profile` Skill; after a re-sent sentence, offer nothing.
 
 ## Questions
 
