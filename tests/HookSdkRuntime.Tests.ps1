@@ -50,6 +50,24 @@ BeforeDiscovery {
     }
 
     $script:runtimeAvailable = $script:isWindowsPlatform -and $script:nodeAvailable -and [bool]$script:sdkPackageRoot
+    $script:pwshAvailable = [bool](Get-Command -Name 'pwsh' -CommandType Application -ErrorAction SilentlyContinue)
+
+    # The bundled runtime always; a standalone Copilot CLI too when one is installed.
+    $script:conversationRuntimes = @(@{ Runtime = 'the runtime that VS Code bundles'; RuntimePath = ''; PackageRoot = $script:sdkPackageRoot })
+    if ($script:isWindowsPlatform) {
+        $cliPath = @(
+            Get-Command -Name 'copilot' -CommandType Application -ErrorAction SilentlyContinue |
+                Where-Object -FilterScript { $_.Source -like '*.exe' } |
+                Select-Object -ExpandProperty Source
+            if ($env:LOCALAPPDATA) {
+                Get-ChildItem -Path (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Microsoft\WinGet\Packages\GitHub.Copilot_*\copilot.exe') -ErrorAction SilentlyContinue |
+                    Select-Object -ExpandProperty FullName
+            }
+        ) | Select-Object -First 1
+        if ($cliPath) {
+            $script:conversationRuntimes += @{ Runtime = 'the standalone Copilot CLI'; RuntimePath = $cliPath; PackageRoot = $script:sdkPackageRoot }
+        }
+    }
 }
 
 Describe 'PreToolUse guard in the Copilot SDK runtime' -Tag 'Integration' -Skip:(-not $script:runtimeAvailable) -ForEach @(
@@ -165,5 +183,185 @@ Describe 'PreToolUse guard in the Copilot SDK runtime' -Tag 'Integration' -Skip:
         $result.preToolUseHookCount | Should -BeGreaterOrEqual 1
         $result.resultType | Should -Not -Be 'denied' -Because $result.textResultForLlm
         $result.textResultForLlm | Should -Not -Match 'preToolUse hook'
+    }
+}
+
+<#
+    Decision record 0028 re-sends contributor familiarity levels after a
+    compaction through a PostToolUse hook that a second file in the user hooks
+    folder registers. Fixtures/Invoke-CopilotSdkConversation.mjs drives real
+    sessions against a fake, local model and records every request the runtime
+    sends to it, so these cases read what a model would read. Probe hooks log
+    their input and print distinct top-level and hookSpecificOutput markers.
+    Only the host facts that design rests on are asserted.
+#>
+Describe 'Hook context carriers in <Runtime>' -Tag 'Integration' -Skip:(-not ($script:runtimeAvailable -and $script:pwshAvailable)) -ForEach $script:conversationRuntimes {
+    BeforeAll {
+        $utf8 = [Text.UTF8Encoding]::new($false)
+        $runRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
+        $copilotHome = Join-Path -Path $runRoot -ChildPath 'copilot-home'
+        $hookDirectory = Join-Path -Path $copilotHome -ChildPath 'hooks'
+        $script:workspace = Join-Path -Path $runRoot -ChildPath 'workspace'
+        $script:logDirectory = Join-Path -Path $runRoot -ChildPath 'hook-log'
+        $null = New-Item -ItemType Directory -Path $hookDirectory, $script:workspace, $script:logDirectory -Force
+
+        $probeHook = Join-Path -Path $runRoot -ChildPath 'probe-hook.ps1'
+        [IO.File]::WriteAllText($probeHook, @'
+param([string]$Name, [string]$LogDirectory, [string]$Mode)
+$payload = [Console]::In.ReadToEnd()
+$count = @(Get-ChildItem -LiteralPath $LogDirectory -Filter "$Name-*.json").Count
+[IO.File]::WriteAllText((Join-Path -Path $LogDirectory -ChildPath ('{0}-{1:D3}.json' -f $Name, $count)), $payload)
+$output = switch ($Mode) {
+    'session' { '{"additionalContext":"SS-TOP-MARKER","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"SS-NESTED-MARKER"}}' }
+    'post' { '{"additionalContext":"PTU-TOP-MARKER","hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"PTU-NESTED-MARKER"}}' }
+    default { '{}' }
+}
+[Console]::Out.Write($output)
+exit 0
+'@, $utf8)
+
+        function New-ProbeHookEntry ([string] $Name, [string] $Mode) {
+            $line = 'pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -Name {1} -LogDirectory "{2}" -Mode {3}' -f $probeHook, $Name, $script:logDirectory, $Mode
+            [ordered]@{ type = 'command'; timeout = 20; command = $line; powershell = $line }
+        }
+
+        [IO.File]::WriteAllText(
+            (Join-Path -Path $hookDirectory -ChildPath 'hooks.json'),
+            (@{ hooks = [ordered]@{ SessionStart = @(New-ProbeHookEntry -Name 'SS' -Mode 'session'); PreCompact = @(New-ProbeHookEntry -Name 'PC' -Mode 'none') } } | ConvertTo-Json -Depth 6),
+            $utf8
+        )
+        $registrationPath = Join-Path -Path $hookDirectory -ChildPath 'contributor-profile.json'
+        $registration = @{ hooks = @{ PostToolUse = @(New-ProbeHookEntry -Name 'PTU' -Mode 'post') } } | ConvertTo-Json -Depth 6
+
+        $steps = @(
+            @{ op = 'newSession' }                                                    # 0 session 1 starts without the second file
+            @{ op = 'send'; prompt = 'turn A1' }                                      # 1
+            @{ op = 'writeFile'; path = $registrationPath; content = $registration }  # 2
+            @{ op = 'send'; prompt = 'turn A2' }                                      # 3
+            @{ op = 'disconnect' }                                                    # 4
+            @{ op = 'newSession' }                                                    # 5 session 2 starts with it
+            @{ op = 'send'; prompt = 'turn B1' }                                      # 6
+            @{ op = 'compact' }                                                       # 7
+            @{ op = 'send'; prompt = 'turn B2' }                                      # 8
+            @{ op = 'removeFile'; path = $registrationPath }                          # 9
+            @{ op = 'send'; prompt = 'turn B3' }                                      # 10
+            @{ op = 'disconnect' }                                                    # 11
+        )
+
+        $startInfo = [Diagnostics.ProcessStartInfo]::new(
+            (Get-Command -Name 'node' -CommandType Application | Select-Object -First 1 -ExpandProperty Source)
+        )
+        foreach ($argument in @(
+                (Join-Path -Path $PSScriptRoot -ChildPath 'Fixtures\Invoke-CopilotSdkConversation.mjs')
+                $PackageRoot
+                $copilotHome
+                $script:workspace
+                $RuntimePath
+            )) {
+            $startInfo.Arguments += ' "' + $argument + '"'
+        }
+
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.WorkingDirectory = $script:workspace
+        $startInfo.RedirectStandardInput = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+        $startInfo.StandardOutputEncoding = $utf8
+        $startInfo.StandardErrorEncoding = $utf8
+
+        $process = [Diagnostics.Process]::Start($startInfo)
+        try {
+            $outputTask = $process.StandardOutput.ReadToEndAsync()
+            $errorTask = $process.StandardError.ReadToEndAsync()
+            $inputBytes = $utf8.GetBytes((ConvertTo-Json -InputObject $steps -Depth 5 -Compress))
+            $process.StandardInput.BaseStream.Write($inputBytes, 0, $inputBytes.Length)
+            $process.StandardInput.Close()
+
+            # The fixture stops itself after 600 seconds; this only catches a stuck node.
+            if (-not $process.WaitForExit(660000)) {
+                $process.Kill()
+                throw 'Invoke-CopilotSdkConversation.mjs did not exit within 660 seconds.'
+            }
+
+            $process.WaitForExit()
+            if ($process.ExitCode -ne 0) {
+                throw ('Invoke-CopilotSdkConversation.mjs exited with {0}: {1}' -f $process.ExitCode, $errorTask.Result)
+            }
+
+            $script:conversation = $outputTask.Result | ConvertFrom-Json
+        } finally {
+            $process.Dispose()
+        }
+
+        $script:sessionIds = @($script:conversation.steps | Where-Object -Property op -EQ -Value 'newSession' | ForEach-Object -Process { $_.sessionId })
+        $script:postToolUseEnds = @(
+            $script:conversation.events | Where-Object -FilterScript { $_.type -eq 'hook.end' -and $_.hookType -eq 'postToolUse' -and $_.output.additionalContext }
+        )
+
+        function Get-ProbePayload ([string] $Name) {
+            Get-ChildItem -LiteralPath $script:logDirectory -Filter "$Name-*.json" | Sort-Object -Property Name | ForEach-Object -Process {
+                Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            }
+        }
+
+        function Get-ToolMessage ([int] $Step) {
+            foreach ($request in @($script:conversation.requests | Where-Object -Property step -EQ -Value $Step)) {
+                $request.messages | Where-Object -Property role -EQ -Value 'tool'
+            }
+        }
+    }
+
+    It 'shows the model only the top-level SessionStart context' {
+        $first = @($script:conversation.requests | Where-Object -Property step -EQ -Value 6)[0]
+        $text = ($first.messages | ForEach-Object -Process { $_.text }) -join "`n"
+
+        $text | Should -Match 'SS-TOP-MARKER'
+        $text | Should -Not -Match 'SS-NESTED-MARKER'
+    }
+
+    It 'does not load a hook file that appears after the session started' {
+        @($script:postToolUseEnds | Where-Object -Property session -EQ -Value 1).Count | Should -Be 0
+        @(Get-ToolMessage -Step 3).text -join "`n" | Should -Not -Match 'PTU-'
+    }
+
+    It 'loads every hook file in the user hooks folder when a session starts' {
+        @($script:postToolUseEnds | Where-Object -Property step -EQ -Value 6).Count | Should -Be 1
+    }
+
+    It 'shows the model the top-level PostToolUse context in the tool result, beside a hookSpecificOutput copy' {
+        $toolText = @(Get-ToolMessage -Step 6).text -join "`n"
+
+        $toolText | Should -Match 'PTU-TOP-MARKER'
+        $toolText | Should -Not -Match 'PTU-NESTED-MARKER'
+    }
+
+    It 'carries PostToolUse context to the model on the first tool call after a compaction' {
+        $compaction = @($script:conversation.steps | Where-Object -Property op -EQ -Value 'compact')[0]
+        $afterCompaction = @($script:conversation.requests | Where-Object -Property step -EQ -Value 8)
+
+        $compaction.success | Should -BeTrue
+        $compaction.messagesRemoved | Should -BeGreaterThan 0
+        $afterCompaction[0].messages.role | Should -Not -Contain 'tool'
+        @(Get-ToolMessage -Step 8).text -join "`n" | Should -Match 'PTU-TOP-MARKER'
+    }
+
+    It 'keeps running a hook file that was removed during the session' {
+        @($script:postToolUseEnds | Where-Object -Property step -EQ -Value 10).Count | Should -Be 1
+    }
+
+    It 'gives PreCompact, SessionStart, and PostToolUse the same session id and cwd' {
+        $sessionStart = @(Get-ProbePayload -Name 'SS')[1]
+        $preCompact = @(Get-ProbePayload -Name 'PC')
+        $postToolUse = @(Get-ProbePayload -Name 'PTU')
+
+        $preCompact.Count | Should -Be 1
+        $postToolUse.Count | Should -Be 3
+        $sessionStart.session_id | Should -BeExactly $script:sessionIds[1]
+        foreach ($payload in @($preCompact) + $postToolUse) {
+            $payload.session_id | Should -BeExactly $sessionStart.session_id
+            $payload.cwd | Should -BeExactly $sessionStart.cwd
+        }
+        $sessionStart.cwd | Should -BeExactly $script:workspace
     }
 }

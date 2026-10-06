@@ -84,6 +84,42 @@ criteria 1 to 25 below are the contract; the spike TBD-1 runs before increment
 `Calibration.Persistence` and `Calibration.PhaseOneGuard`, the
 `Calibration.Delivery` matrix, and the latency Meter on Prox1 and RAANDREE3.
 
+### Spike TBD-1, 2026-10-06 on Prox1
+
+`tests/Fixtures/Invoke-CopilotSdkConversation.mjs` drove real sessions of the
+runtime that VS Code `07f806f999` bundles (SDK 1.0.15-preview.4) and of the
+standalone Copilot CLI 1.0.92 against a fake, local OpenAI-compatible model that
+recorded every request, which is exactly what a model reads. A scratch
+`COPILOT_HOME` held `hooks/hooks.json` (SessionStart, PreCompact) and, from a
+chosen step on, `hooks/contributor-profile.json` (PostToolUse). Probe hooks
+logged their input and printed different top-level and `hookSpecificOutput`
+markers, and `session.rpc.history.compact` forced each compaction. VS Code Local
+was read from its documentation, its built-in Copilot extension, and its hook
+log.
+
+| Question | VS Code Local | SDK host | Copilot CLI |
+|---|---|---|---|
+| Does the first SessionStart text survive a compaction? | Not expected: the extension renders it once, into the first turn's user message, and summarization replaces old turns; criterion 22's manual check confirms | No: it is a separate user message, and the compaction keeps only the user's own messages plus the summary | No, identical |
+| Does PostToolUse `additionalContext` reach the model? | Documented; the extension reads only `hookSpecificOutput.additionalContext` | Yes, only the top-level key, appended to the tool result after `Additional guidance from postToolUse hooks:`, also on the first tool call after a compaction; a `hookSpecificOutput` copy in the same object is ignored | Yes, identical |
+| Is a second `*.json` in the user hooks folder loaded, and when? | Documented as `~/.copilot/hooks/*.json`; one hook ran per event although `chat.hookFilesLocations` names the same folder; reload timing not verified | Yes, by sessions started after it exists; a session started before never runs it; a session that loaded it keeps running it after the file is deleted | Yes, identical |
+| Does PreCompact fire? | Decision 0021 | Yes, `manual` here and `auto` in three earlier sessions on Prox1 | Yes |
+
+No finding contradicts the signed-off concept. The SessionStart text never
+survives a compaction in the SDK host or Copilot CLI, so the PostToolUse hook is
+the sole carrier after every compaction there, which is the effect TBD-1 named.
+The spike adds three implementation facts:
+
+- PostToolUse fires only for a successful tool result, in every host; a failure
+  runs `PostToolUseFailure`. The first tool call after a compaction therefore
+  means the first successful one, and the compare-and-set counter already
+  covers a failed call in between.
+- Every PostToolUse payload carries `session_id` and `cwd`, equal to those of
+  SessionStart and PreCompact in the same session, plus the whole tool result
+  (`tool_result` in the SDK host and Copilot CLI, `tool_response` in VS Code
+  Local). `Add-FamiliarityContext.ps1` must find `session_id` and `cwd` without
+  parsing a large payload in full.
+- `tests/HookSdkRuntime.Tests.ps1` guards these host facts in both runtimes.
+
 ## Signed-off Design Concept
 
 Signed off by the repository owner in chat on 2026-10-06, after an interview

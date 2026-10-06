@@ -1,9 +1,9 @@
 ---
 status: accepted
 date: 2026-07-28
-last-verified: 2026-10-04
+last-verified: 2026-10-06
 owner: software-engineer
-source: VS Code 1.130 agent customization docs; GitHub Copilot hooks configuration reference (2026-09-29); VS Code build 07f806f999 sources and a process capture (2026-10-02); session logs of the 2026-10-02 live checks; a model-free probe of the bundled Copilot SDK runtime (2026-10-04)
+source: VS Code 1.130 agent customization docs; GitHub Copilot hooks configuration reference (2026-09-29); VS Code build 07f806f999 sources and a process capture (2026-10-02); session logs of the 2026-10-02 live checks; a model-free probe of the bundled Copilot SDK runtime (2026-10-04); fake-model conversations with the bundled runtime and Copilot CLI 1.0.92 (2026-10-06)
 ---
 
 # Enforce house rules with hooks, not prose alone
@@ -203,6 +203,27 @@ Consequences:
   with, but the launcher resolves the guard on every call. New chats then
   passed A2 (Copilot SDK, 13:18 UTC) and B2 (Local, 13:24 UTC, `Tool execution
   denied: Blocked by Copilot Atelier: …`).
+
+## Revision, 2026-10-06: context after a compaction, PostToolUse, and a second file
+
+The spike TBD-1 of [Decision 0028](0028-persist-familiarity-levels-in-a-private-contributor-profile.md)
+drove the bundled runtime and the standalone Copilot CLI 1.0.92 against a fake
+local model and read every request it received. Its Confirmation section holds
+the method and the per-host table. For this record:
+
+- The SDK host and Copilot CLI place the `SessionStart` context in a separate
+  user message, and a compaction drops it: the summary keeps only the user's
+  own messages. Every line `Add-SessionContext` injects, including the session
+  clock path and the never-push reminder, is gone after a compaction in those
+  hosts. The Instructions re-sent with every request still carry the rules.
+- `PostToolUse` fires only after a successful tool result. The SDK host appends
+  the top-level `additionalContext` to the tool result and ignores a
+  `hookSpecificOutput` copy; VS Code Local reads only
+  `hookSpecificOutput.additionalContext`. One object carrying both keys serves
+  both hosts.
+- Every `*.json` in the user hooks folder loads for sessions started after the
+  file exists; an open session neither gains a new file nor loses a deleted one.
+- `tests/HookSdkRuntime.Tests.ps1` asserts these facts in both runtimes.
 
 ## Confirmation
 
