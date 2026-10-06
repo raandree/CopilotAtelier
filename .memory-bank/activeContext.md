@@ -9,22 +9,25 @@ source: current task evidence
 
 ## Current focus
 
-Contributor calibration Phase 2 (Decision 0028) is implemented test-first on
-`ai/calibration-phase-2` through `b026161`: the profile core and five commands,
-the SessionStart sentence for `## Knowledge areas`, re-injection after a
-compaction through the PostToolUse registration, Uninstall reconciliation, and
-the offer text. The SDK delivery probe passes in the bundled runtime and Copilot
-CLI. Five results contradict the signed-off concept and went back to
-`software-architect` in the record's Confirmation: SessionStart.AddedLatency
-fails on Prox1 (+349 to +380 ms p95 in the VS Code spawn, Fail +250);
-PostToolUse.CallLatency misses Budget, and Fail in the SDK spawn, although it
-costs less than the same-day push-guard proxy; Context.SentenceSize cannot hold
-for 16 long names; the deletion rule blocks a template change; and the
-area-name rule rejects `.NET`. Criteria 20 to 22 stay open until the architect
-rules. The branch is not pushed.
+Decision 0028 Amendment 1 is signed off (2026-10-06, `software-architect`):
+rulings A1 to A8 answer the five returned questions, the seven
+interpretations, and an independent review of the draft. Latency now counts in
+same-day launches of a fixed no-op hook over 20 paired replicates
+(SessionStart Budget 0.5 and Fail 1.0 launch, PostToolUse 1.1 and 1.25); the
+sentence Budget [worst] is 1,200; a registration is owned through its record
+and recorded hash, and an outdated one is replaced; `.NET` passes the
+area-name rule from the first release; writes go only to a positively chosen
+target, with a new `-NewContributor`; and nothing infers from a half-synced
+record and registration file, so Uninstall stops on it. `software-engineer`
+implements A1 to A8 test-first on `ai/calibration-phase-2`, then criteria 20 to
+22. The branch is not pushed.
 
 ## Previous focuses
 
+- **Phase 2 implementation (`dc6c26a` to `279c07e`).** Built test-first; the
+  SDK delivery probe passes in both runtimes. The latency Meter failed both
+  budgets on Prox1 (+349 to +380 ms p95 SessionStart in the VS Code spawn), and
+  five results went back to `software-architect`; ruled in Amendment 1.
 - **Phase 2 design (Decision 0028, `b568c8c`).** Signed off 2026-10-06 after 26
   questions; the per-call PostToolUse cost applies only to machines with an
   active Contributor profile.
@@ -82,10 +85,6 @@ rules. The branch is not pushed.
   `long-running-job-monitor`, and `agent-security-review` are mandatory because
   deployed Instructions and shipped agents load them by name. The selection is
   an additive optional `Selection` field inside schema 1.
-- **Footprint reporting (task 01) and Agent Plugins 1.0.**
-  `Get-CopilotAtelierFootprint` reports potential loading and fails closed on
-  ambiguous frontmatter; only the accepted cross-type-link mismatch remains
-  open against Decision 0023 (review detail in `assessment-log.md`).
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -157,15 +156,17 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. `software-architect` rules on the five questions in Decision 0028's
-   Confirmation, starting with the two latency budgets, from the return Session
-   handoff. Then: the eval of criterion 21 (grow the private kit in
+1. `software-engineer` implements Decision 0028 Amendment 1 (A1 to A8)
+   test-first from the Session handoff `handoff-2026-10-06T1350Z.md`: the
+   amended Meter, `.NET`, registration ownership and replacement, the
+   partial-view rule, the write-selection rule with `-NewContributor`, and the
+   sentence budget. Then: the eval of criterion 21 (grow the private kit in
    `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\` with Phase 2
    groups and at least 6 persistence cases per Position, mined with
    `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on RAANDREE3 and Prox1;
-   never commit the kit), `tests/Fixtures/Measure-CalibrationLatency.ps1` on
-   RAANDREE3, and one manual compaction each in VS Code Local and Copilot CLI
-   (`/login` first). The 2026-09-30 Session handoff is consumed and can be
+   never commit the kit), the amended Meter on RAANDREE3 (also TBD-5), and one
+   manual compaction each in VS Code Local and Copilot CLI (`/login` first).
+   The 2026-09-30 and 2026-10-06T1155Z Session handoffs are consumed and can be
    pruned.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.

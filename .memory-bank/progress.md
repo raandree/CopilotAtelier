@@ -18,6 +18,15 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-06**: Signed off Decision 0028 Amendment 1 (`software-architect`):
+  rulings A1 to A8 on the five questions implementation returned, the seven
+  interpretations, and a `rubber-duck` review of the draft (2 Blockers and 2
+  Majors resolved, a re-review's Major fixed). Latency counts in no-op hook
+  launches: SessionStart Budget 0.5 and Fail 1.0, PostToolUse 1.1 and 1.25;
+  `.NET` passes; registrations are owned through the recorded hash; writes go
+  only to a positively chosen target; a half-synced registration is pending.
+  Handed back to `software-engineer`.
+
 - **2026-10-06**: Implemented Decision 0028 test-first on `ai/calibration-phase-2`
   (`dc6c26a` to `b026161`, `software-engineer`): the spike TBD-1, the profile
   core and five commands, the SessionStart sentence, re-injection after a
@@ -56,19 +65,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   guard overran its 5-second limit and blocked a benign command. The launcher
   integration block now warms it up once, unasserted.
 
-- **2026-10-02**: Live checks after the deploy (VS Code 1.140.0, SDK
-  1.0.15-preview.4), verified against the session logs on 2026-10-04. A1 and
-  B1 to B3 passed: SessionStart context once per chat in both hosts, measured
-  clocks, and Local blocks the probe with the full reason, also with the
-  override set in the agent's terminal. A2 failed: the SDK denied the probe,
-  but the model read only `hook exited with code 2` (fixed 2026-10-04).
-
-- **2026-10-02**: Pushed `main` and merged pull request #27 (contributor
-  calibration Phase 1, with review finding F-03 closed and
-  `docs/SECURITY-REVIEW.md`) as `7a48abe`; CI run 37058264901 passed and
-  published `6.1.0-preview0001`. Closed #19, the API key question. Only `main`
-  and the merged `copilot/dgthths` remain on GitHub.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -94,11 +90,11 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Contributor calibration: `software-architect` rules on the five questions in
-  Decision 0028's Confirmation, latency budgets first. Then criterion 21's eval
-  with Phase 2 groups, the private kit grown past 20 real cases (`-Since
-  2026-09-30` on RAANDREE3 and Prox1), the Meter on RAANDREE3, and one manual
-  compaction each in VS Code Local and Copilot CLI.
+- Contributor calibration: `software-engineer` implements Decision 0028
+  Amendment 1 (A1 to A8). Then criterion 21's eval with Phase 2 groups, the
+  private kit grown past 20 real cases (`-Since 2026-09-30` on RAANDREE3 and
+  Prox1), the amended Meter on RAANDREE3 (TBD-5), and one manual compaction
+  each in VS Code Local and Copilot CLI.
 - `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
   workspace, so a subagent or parallel chat there shadows the parent's clock
   (2026-10-01: a 06:29 start; 2026-10-04, in one Copilot SDK chat: a 10:25 and

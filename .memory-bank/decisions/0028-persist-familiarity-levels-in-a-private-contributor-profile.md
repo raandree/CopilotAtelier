@@ -3,7 +3,7 @@ status: accepted
 date: 2026-10-06
 last-verified: 2026-10-06
 owner: software-architect
-source: software-architect Design Concept interview 2026-10-05 to 2026-10-06 and sign-off 2026-10-06; Decision record 0027; hook host references (VS Code, GitHub, Claude Code), fetched during the interview
+source: software-architect Design Concept interview 2026-10-05 to 2026-10-06 and sign-off 2026-10-06; amendment interview 2026-10-06 (rulings A1 to A7); Decision record 0027; hook host references (VS Code, GitHub, Claude Code), fetched during the interview
 supersedes: none
 ---
 
@@ -45,8 +45,9 @@ as the fallback on every other machine.
   workspace declares in `.memory-bank/projectbrief.md` and the profile rates, as
   one data-only sentence with the lowest context-budget priority.
 - After a compaction, a PostToolUse hook re-sends the levels once, on the first
-  tool call after the PreCompact hook advanced a counter. Its hook file exists
-  only while the machine's profile has an active entry with levels.
+  successful tool call after the PreCompact hook advanced a counter *(A7)*. Its
+  hook file exists only while the machine's profile has an active entry with
+  levels.
 - A new `contributor-profile` Skill and five
   `*-CopilotAtelierContributorProfile` commands share one implementation for
   the interview, saving, opt-out, deletion, export, import, and diagnosis.
@@ -59,9 +60,14 @@ fixed or ruled, as recorded below.
 
 ## Consequences
 
-- On a machine with an active profile, every tool call in a session started
-  while the registration exists costs about 0.6 s (VS Code) or 0.85 s (SDK
-  host) more. Machines without a profile pay nothing.
+- On a machine with an active profile, every successful tool call in a session
+  started while the registration exists costs about one more hook launch, as
+  much as the push guard: 0.8 to 0.9 s through VS Code's spawn and 1.0 to
+  1.15 s through the SDK host's on Prox1 on 2026-10-06, a day it ran 26 to
+  50 % slower than the one before. Machines without a profile pay nothing
+  *(A1, A3)*.
+- A session in a workspace that declares Knowledge areas starts up to half a
+  hook launch later, about 0.35 s in VS Code on Prox1 *(A1, A2)*.
 - After a compaction, plugin-only installs and a reply that makes no tool call
   receive no levels; Claude Code gets the portable Skill only. These gaps are
   measured and reported, not gated.
@@ -79,9 +85,11 @@ fixed or ruled, as recorded below.
 ## Confirmation
 
 Implemented by `software-engineer` on 2026-10-06 except as recorded below:
-criteria 20 to 22 are open, and five questions are returned to
-`software-architect`. The signed-off Acceptance criteria 1 to 25 below are the
-contract; the spike TBD-1 ran before increment 2. Implementation records its
+criteria 20 to 22 are open. The five questions it returned to
+`software-architect` were ruled on the same day (*Rulings, 2026-10-06*), and
+Amendment 1 applies the rulings to the concept. The signed-off Acceptance
+criteria 1 to 25 below, as amended, are the contract; the spike TBD-1 ran
+before increment 2. Implementation records its
 evidence here: the eval results against
 `Calibration.Persistence` and `Calibration.PhaseOneGuard`, the
 `Calibration.Delivery` matrix, and the latency Meter on Prox1 and RAANDREE3.
@@ -199,7 +207,8 @@ slowest run, so one slow baseline run moved an SDK result from +288 (p50) to
 ### Returned to software-architect
 
 Results that contradict the signed-off concept go back to `software-architect`;
-none is redesigned in code.
+none is redesigned in code. All five, and the interpretations after them, are
+ruled in the next section.
 
 1. **SessionStart.AddedLatency fails.** Options: re-baseline Budget and Fail,
    since the cost is paid once per session rather than per call; a validated
@@ -235,6 +244,111 @@ several entries exist; `-SnoozeInterview` exists only on the Skill script;
 `Set-` takes paired `-KnowledgeArea` and `-Level` arrays for one preview and one
 write; the first tool call after a compaction is the first successful one.
 
+### Rulings, 2026-10-06
+
+`software-architect` and the repository owner ruled on the five questions and
+the seven interpretations in one interview at named-subset depth: seven
+questions, then three more after an independent review of the draft (A1
+refined, A7 revised, A8 added), each decided on the recommended option. The
+questions behind A5, A6, the revised A7, and A8 offered no
+`not sure, you pick`, because they govern deletion in the hooks folder, a
+persisted injection control, whose entry a write changes, and when Uninstall
+may remove scripts; no answer was delegated. Amendment 1 applies the rulings
+to the concept below and marks every amended passage with its tag.
+
+| # | Question | Ruling |
+|---|---|---|
+| A1 | Latency unit | Both latency requirements count in launches of a fixed no-op hook through the same launcher and spawn; the push guard is reported beside it. Each of 20 replicates runs every cell back to back in rotated order, ratios are taken per replicate before the p95, thresholds are inclusive, and a verdict above Budget or Fail counts only when a second Meter run reproduces it (refined after review) |
+| A2 | SessionStart.AddedLatency fails | Re-baselined to Budget 0.5 and Fail 1.0 launch; the design stays; a two-entry profile, where git runs, is reported, not gated |
+| A3 | PostToolUse.CallLatency misses | Budget 1.1 and Fail 1.25 launch; fallback A applies only when B1 reaches Fail on Prox1 or RAANDREE3 |
+| A4 | Context.SentenceSize | Budget [worst] 1,200 for both sentences; the template stays |
+| A5 | Deletion rule | A registration is owned through the record and the recorded hash, whatever template it came from; the next writer replaces an owned file from an earlier template |
+| A6 | `.NET` | A name may start with `.` directly followed by a letter or a digit, from the first release |
+| A7 | Interpretations | 1 to 3 and 5 to 7 confirmed; 4 replaced by the write-selection rule: a write goes only to a positively chosen target, and `-NewContributor` creates a contributor's own entry (revised after review) |
+| A8 | OneDrive sync order (review) | Nothing infers from a partial view: a create record without its file stays pending, Uninstall stops on it, and only `-RegistrationOnly` clears it; a delete record without its file is finished; reconciliation never rewrites a record; the two-machine race is documented |
+
+Reasons:
+
+- **A1.** Prox1 ran 26 % (SDK) to 50 % (VS Code) slower on 2026-10-06 than on
+  2026-10-05, so the millisecond gates failed on machine load. The scaled
+  estimate for 2026-10-05 divides by the proxy ratio, so it cannot show that
+  the reader's cost tracks machine speed; that stays an Assumption, which
+  RAANDREE3 tests (TBD-5). The review then showed that the push guard's own
+  work, which grew through prompts 02 to 06, would move both ratios, and that
+  the difference of two independently sampled p95 values is not the p95 of
+  the added time; hence the no-op unit and the paired replicates. The Past
+  lines divide the ranges above by the push guard; against the no-op unit the
+  ratios read higher by the guard's own work, about 5 % of a launch at p50,
+  and the next Meter run replaces them.
+- **A2.** The signed-off Past, 334 ms and 512 ms total, is withdrawn: the Meter
+  measures 831 to 847 ms and 1,049 to 1,188 ms for the same baseline, so the
+  +100 ms Budget rested on a level that no Meter run reproduces. The cost is
+  the reader's first execution in a fresh process, paid once per chat, only in
+  workspaces that declare Knowledge areas, by contributors who accept one
+  launch on every tool call. Rejected: a validated digest beside the profile,
+  a second private file that every writer keeps in step, for an estimated 150
+  to 200 ms that still leaves the 0.2-launch floor of reading the declaration;
+  and fallback A at session start, which gives up the deterministic delivery
+  of Q10 for a tool call plus a model round trip.
+- **A3.** The hook's common path reads the payload head, runs one regex, and
+  checks one file, and it cost 5 % less than the same-day push guard at p50.
+  Invoking fallback A for a miss caused by machine load would delete tested
+  code, so it is reserved for a Fail-level result.
+- **A4.** The worst case is a constant of the fixed template and the caps, and
+  the template's framing (data only, treat them as stated levels, the
+  offer-suppressing suffix) is a security control that the eval has not yet
+  measured. The extra 100 characters cost about 25 tokens, once per session
+  and once per compaction.
+- **A5.** Requiring the current template's hash stranded every owned
+  registration at the first template change: opt-out could not remove it,
+  `-RegistrationOnly` refused, and Uninstall stopped on every machine with a
+  profile. Ownership through the recorded hash is the Deployment record's rule
+  for Owned files. The dropped condition protected nothing that matters: only
+  a process running as the contributor can write the record, and such a
+  process can delete the file directly, which is also why a shipped list of
+  released template hashes was rejected. Known limit: an outdated registration
+  keeps its old launcher until the next profile write, so a template fix
+  reaches a machine at that write; `Get-` reports it until then.
+- **A6.** Loosening is not safe after the first release. Schema 1 rejects a
+  whole profile over one name, so a release that accepted `.NET` later would
+  make every machine still on an older release that syncs the same profile
+  reject it as `invalid-schema` and lose every level; any later loosening needs
+  schema 2. Only a leading `.` is admitted: a leading `-` reads as a parameter
+  when an agent builds a command line without quotes, and no other punctuation
+  leads a real Knowledge area name.
+- **A7.** The identity rule's single-entry and default fallbacks are harmless
+  for reading, but on a shared lab account they would write one person's level
+  into another person's entry, also when git reports no email. Without
+  `-NewContributor`, a new person on a shared account could reach no entry of
+  their own: `-Contributor` selects only existing entries, and Import needs an
+  exported file. The Skill asks once per session when the target is unclear,
+  which on a machine without a git email, such as Prox1, costs one question
+  per session.
+- **A8.** On OneDrive machines the registration record and
+  `hooks/contributor-profile.json` both live in the synced Canonical target
+  and arrive in any order. Reconciliation read a record without its file as
+  nothing registered, deleted the record, and let Uninstall remove the scripts
+  under a registration still on its way, the outcome the stop rule exists to
+  prevent; that gap predates Amendment 1. Machine-scoped repair, a record field
+  naming the writing machine, and a distributed journal with generation IDs and
+  tombstones were rejected as more machinery than a sync race of seconds
+  warrants. Known limit: two machines that act before either has synced can
+  leave a conflict copy in the hooks folder, or after an Uninstall a
+  registration whose scripts are gone; `Get-` names the file to delete.
+
+Independent review of the draft, a `rubber-duck` review on 2026-10-06, and its
+re-review of the revision, which confirmed findings 1 to 5 resolved, found no
+new Blocker, and added finding 6:
+
+| # | Severity | Finding | Resolution |
+|---|---|---|---|
+| 1 | Blocker | The record and the registration file sync through OneDrive in any order, and reconciliation inferred nothing registered from a record without its file | Ruling A8 |
+| 2 | Blocker | A7 still wrote to the only entry without a git email, and a new person on a shared account could create no entry | A7 revised: positively chosen targets and `-NewContributor` |
+| 3 | Major | The difference of two p95 values is not the p95 of the added time | A1 refined: paired replicates, inclusive thresholds, a reproduced verdict |
+| 4 | Major | The push guard's own work sat inside the unit | A1 refined: a fixed no-op hook as the unit |
+| 5 | Minor | Missing tags and Amendment log entries | Fixed |
+| 6 | Major | A `-NewContributor` entry beside others, without a git email, was unreachable by the hooks, and `-NewContributor` with `-Contributor` was undefined | Fixed as the re-review proposed: a reachable alias or `-Default` is required, and the two parameters exclude each other |
+
 ## Signed-off Design Concept
 
 Signed off by the repository owner in chat on 2026-10-06, after an interview
@@ -244,8 +358,9 @@ Q25 plus the follow-up Q10b), most carrying three to six sub-decisions, and one
 security ruling after review (R1). No answer was delegated with
 `not sure, you pick`, and the override log is empty. The text below is the
 signed-off concept, verbatim apart from its title, its draft status header, the
-sign-off annotations on the rating-question ruling and TBD-4, and the sign-off
-record.
+sign-off annotations on the rating-question ruling and TBD-4, the sign-off
+record, and Amendment 1: rulings A1 to A8 of 2026-10-06, marked in place with
+their tag and listed in the *Amendment log* before *Sign-off*.
 
 ## Purpose
 
@@ -261,8 +376,9 @@ The promise, and its stated limits:
 - **New session:** every host that runs the SessionStart hook (VS Code Local, the
   Copilot SDK host, Copilot CLI), in module, Setup, and plugin installs, on any
   machine whose profile is present.
-- **After a compaction:** module and Setup installs, from the first tool call
-  after the compaction. In a workspace with declared Knowledge areas there is
+- **After a compaction:** module and Setup installs, from the first successful
+  tool call after the compaction *(A7)*. In a workspace with declared Knowledge
+  areas there is
   always a Memory Bank, and Pre-flight's compaction recovery re-reads it with
   tool calls, so the levels normally return before the next reply.
 - **Not covered, measured and reported:** plugin-only installs after a
@@ -293,7 +409,7 @@ installation profile (that names the `-InstallationProfile` Skill selection).
 8. One sentence in the `contributor-calibration` Instruction, one line each in
    `/simpler` and `/deeper`, and one clause in Pre-flight step 8. The
    compaction-recovery list gains no step, because re-injection is hook-driven.
-9. `Uninstall-CopilotAtelier` removes an unchanged registration file; the
+9. `Uninstall-CopilotAtelier` removes an owned registration file *(A5)*; the
    `contributor-profile` Skill joins the mandatory Skills.
 10. Glossary, hooks README, README, CHANGELOG, Decision record 0028.
 11. Eval cases in the private kit and Pester gates in the repository.
@@ -319,7 +435,7 @@ to select hooks.
 |---|---|---|
 | Contributor (every module and plugin user, Q2) | Owns their entry; rates, saves, opts out, deletes | States a level once; self-assessment stays private |
 | Repository owner (raandree) | Maintains the code; reference scenario | OneDrive machines plus AutomatedLab/Proxmox VMs such as Prox1 (`install` account, no OneDrive, unsynced Canonical target) |
-| Several people on one shared lab account | Each imports their own entry | The right entry is selected; another person's levels never block theirs |
+| Several people on one shared lab account | Each imports their own entry or creates one with `-NewContributor` *(A7)* | The right entry is selected; another person's levels never block theirs |
 | Project maintainers | Declare Knowledge areas in `projectbrief.md` | The areas their project involves get calibrated |
 | Custom agents and the default agent | Consume the sentence; run the Skill | Deterministic levels, no extra questions |
 | `software-architect` | Curates the projectbrief Knowledge areas | One owner for the declaration |
@@ -371,16 +487,20 @@ remote is a machine without the folder; there is no path override.
 | `areas.<name>.level` | `new`, `familiar`, or `expert` | Exact lowercase |
 | `areas.<name>.updatedUtc` | ISO 8601 UTC | No future-date check (Q16) |
 
-No free-text field exists: no notes, no language, no nationality. Any unknown
-property, wrong type, unknown level, other schema version, exceeded cap,
-case-only duplicate area name, or name that breaks the area-name rule rejects
-the whole file.
+No free-text field exists: no notes, no language, no nationality. Every field
+is required, `interviewSnoozedUntilUtc` as `null` when unset *(A7)*. Any
+unknown property, missing field, wrong type, unknown level, other schema
+version, exceeded cap, case-only duplicate area name, or name that breaks the
+area-name rule rejects the whole file.
 
 **Area-name rule (Q16)**, identical in the profile and in `projectbrief.md`: 1 to
 48 characters after trimming and Unicode NFC normalization; letters of any
-script, digits, single spaces, and `. + # / & ( ) -`; starts with a letter or a
-digit. Matching is case-insensitive (invariant culture) and exact; `DSC` and
-`PowerShell DSC` are different areas.
+script with their combining marks, digits, single spaces, and
+`. + # / & ( ) -`; starts with a letter, a digit, or a `.` directly followed by
+a letter or a digit, so `.NET` passes *(A6)*. A stored name is already trimmed
+and in NFC, so two stored spellings never differ only by whitespace or
+normalization *(A7)*. Matching is case-insensitive (invariant culture) and
+exact; `DSC` and `PowerShell DSC` are different areas.
 
 ### Identity rule (Q6)
 
@@ -425,7 +545,8 @@ Reason codes, a fixed set: `not-local`, `too-large`, `invalid-json`,
 - `Write-CompactionCheckpoint.ps1` increments `compactions` in that file,
   creating it when absent, with an atomic replace.
 - `Add-FamiliarityContext.ps1`, registered only by the registration file, reads
-  the file on every tool call. When `compactions` exceeds `injected`, it emits
+  the file on every successful tool call; PostToolUse does not fire for a
+  failed one *(A7)*. When `compactions` exceeds `injected`, it emits
   the re-sent sentence under both host keys (top-level `additionalContext` and
   `hookSpecificOutput.additionalContext`), then records `injected` as the
   `compactions` value it read: a compare-and-set, so a stale write can never
@@ -454,21 +575,36 @@ Ownership follows the Deployment record's pattern:
 
 1. The writer takes the profile lock, then writes a pending registration record
    (`<contributor folder>/registration.json`) naming the operation, before it
-   creates or deletes the file; it records the file's SHA-256 and completes the
-   record afterwards. The next writer, `Get-`, or Uninstall reconciles a pending
-   record against the observed file.
-2. A file is deleted only when all three hold: it sits at the fixed path, the
-   record says this writer created it, and its current SHA-256 equals both the
-   recorded hash and the shipped template's hash.
-3. A file at the fixed path without a record is never overwritten or deleted,
+   creates, replaces, or deletes the file; it records the file's SHA-256 and
+   completes the record afterwards. Reconciliation compares the record with the
+   observed file, never infers from a partial view, and never rewrites a
+   record *(A8)*: a create record, pending or complete, whose file is absent is
+   pending, because on OneDrive machines the file may still be on its way; a
+   delete record whose file is absent is finished and may be cleared; a file
+   that matches the recorded hash is owned. A pending registration is reported
+   by `Get-`, left alone by writers, a stop for Uninstall, and cleared only by
+   `Remove-CopilotAtelierContributorProfile -RegistrationOnly`, which confirms
+   first.
+2. A file is owned when all three hold: it sits at the fixed path, the record
+   says this writer created it, and its current SHA-256 equals the recorded
+   hash, whichever shipped template it came from. Only an owned file is ever
+   deleted or replaced *(A5)*.
+3. A writer that finds an owned file whose bytes differ from the current
+   template replaces it with the current template under the same two-phase
+   record, for example as a delete followed by a create, so a launcher fix
+   reaches every registration at the next write. On the machine that performs
+   it, every crash point of a replacement ends owned, outdated, pending, or
+   none, never modified, and `Get-` reports an owned file from an earlier
+   template as outdated *(A5, A8)*.
+4. A file at the fixed path without a record is never overwritten or deleted,
    even when its bytes match the template; the writer reports it.
-4. `Uninstall-CopilotAtelier` takes the same lock and reconciles the registration
+5. `Uninstall-CopilotAtelier` takes the same lock and reconciles the registration
    before it removes any file. When the registration cannot be reconciled (a
-   modified file, a foreign file, or a held lock), Uninstall stops before
-   removing anything and names the file, because removing the Owned script would
-   leave a hook that warns on every tool call. It reads only the record, never
-   levels.
-5. No release payload may ship `hooks/contributor-profile.json`.
+   modified file, a foreign file, a pending registration *(A8)*, or a held
+   lock), Uninstall stops before removing anything and names the file, because
+   removing the Owned script would leave a hook that warns on every tool call.
+   It reads only the record, never levels.
+6. No release payload may ship `hooks/contributor-profile.json`.
 
 **Load timing.** VS Code and the SDK host load hook files when a session starts,
 and an open chat keeps what it loaded. Creating, removing, or repairing the
@@ -484,11 +620,21 @@ machine is on and rates an area.
 **Repair.** When the profile is deleted by hand, unreadable, or of an
 unsupported schema while a registration remains, `Get-` reports an orphaned
 registration, and `Remove-CopilotAtelierContributorProfile -RegistrationOnly`
-removes it under the deletion rule above.
+removes it under the ownership rule above, whatever template it came from
+*(A5)*. The same command clears a pending registration that never settles,
+such as one left by a crash between the record and the file *(A8)*.
 
 Known limit: a plugin-only install has no `~/.copilot/hooks/scripts`, so the
 registration cannot resolve the script. Plugin-only users get SessionStart
 levels but no re-injection after a compaction.
+
+Known limit *(A8)*: on machines that share a OneDrive Canonical target, two
+machines that act before either has synced can leave a conflict copy of the
+registration in the hooks folder, which the hosts load as a second hook, or,
+when one of them runs Uninstall, a registration whose scripts are gone, which
+warns on every tool call. No local check can see an operation that has not
+synced. `Get-` lists the conflict copy or the orphaned registration and names
+the file to delete.
 
 ### Offers (Q11, Q12, Q15)
 
@@ -526,14 +672,35 @@ example `profile: 3 levels, 2 unrated`, `profile: unreadable (invalid-json)`, or
 
 | Command | Behavior |
 |---|---|
-| `Get-CopilotAtelierContributorProfile [-WorkspacePath] [-ShowAliases]` | Location, synced or this machine only, selected entry and why, levels, the exact sentence for the workspace, possible conflict copies, an orphaned or pending registration; aliases masked (`r***@contoso.com`) unless `-ShowAliases` |
-| `Set-CopilotAtelierContributorProfile` | `-KnowledgeArea`/`-Level`, `-State On\|Off`, `-AddAlias`/`-RemoveAlias`, `-Default`; manages the registration file |
+| `Get-CopilotAtelierContributorProfile [-WorkspacePath] [-ShowAliases]` | Location, synced or this machine only, selected entry and why, levels, the exact sentence for the workspace, possible conflict copies of the profile and of the registration *(A8)*, an orphaned, pending, or outdated registration *(A5, A8)*; aliases masked (`r***@contoso.com`) unless `-ShowAliases` |
+| `Set-CopilotAtelierContributorProfile` | Paired `-KnowledgeArea` and `-Level` arrays for one preview and one write, unequal lengths failing before any write *(A7)*; `-State On\|Off`, `-AddAlias`/`-RemoveAlias`, `-Default`; `-NewContributor` creates the caller's own entry *(A7)*; manages the registration file |
 | `Export-CopilotAtelierContributorProfile -Path [-Contributor]` | Writes a schema-1 file; refuses a destination inside a git working tree |
 | `Import-CopilotAtelierContributorProfile -Path` | Strict validation, then merge; `-WhatIf` previews |
-| `Remove-CopilotAtelierContributorProfile [-Contributor] [-RegistrationOnly]` | Deletes an entry, the file, or only an orphaned registration; `ConfirmImpact = 'High'`; removes a registration only under the deletion rule |
+| `Remove-CopilotAtelierContributorProfile [-Contributor] [-RegistrationOnly]` | Deletes an entry, the file, or only an orphaned or pending registration *(A8)*; `ConfirmImpact = 'High'`; removes a registration file only under the ownership rule *(A5)* |
 
 `-Contributor` accepts an `id` or an alias and must resolve to exactly one entry;
 anything else fails before any write.
+
+**Write selection (A7):** a write that changes one entry, through `Set-` or
+the Skill script's interview, save, and opt-out, goes only to a positively
+chosen target: the entry `-Contributor` names; else the entry whose alias
+matches the git email; else a new entry, either the first one when no profile
+exists or one that `-NewContributor` creates. `-NewContributor` excludes
+`-Contributor` and gives the entry a new `id`. Because the hooks reach an
+entry only by alias, as the only entry, or as the default, a new entry beside
+others must be reachable: it takes the git email as its first alias, or the
+alias that `-AddAlias` gives in the same call, or becomes the default through
+`-Default`; without one of them it fails before any write and explains that
+the hooks select entries by git email. It also fails when its alias already
+belongs to an entry, and at the 16-entry cap; when its only alias is not the
+email git reports here, its preview says that the hooks reach it only where
+git reports that alias. Every other case, a single entry with no git email
+included, writes nothing and names `-Contributor`, `-NewContributor`, and
+Import. When the target is unclear, the Skill asks once per session, offering
+the contributor's entry, a new entry of their own, or Import, and uses the
+answer for the rest of the session. The identity rule still governs what the
+hooks read. The snooze is set only by the Skill script's `-SnoozeInterview`,
+which the interview's *not now* runs; the five commands do not expose it.
 
 **Merge (Q14):** an imported entry matches the local entry with the same `id`,
 else the one entry that shares an alias with it. When its aliases point to two
@@ -595,31 +762,68 @@ Fail: below 51 of 51
 
 Tag: SessionStart.AddedLatency
 Type: Resource Requirement
-Scale: Added milliseconds at p95 for the session-start hook under [Host spawn].
-Meter: 10 warm runs through the host's exact spawn, process start included,
-       on Prox1 and RAANDREE3; recorded in Decision record 0028.
-Past [VS Code spawn, Prox1]: p95 334 ms total <- measured 2026-10-05
-Past [SDK spawn, Prox1]: p95 512 ms total <- measured 2026-10-05
-Budget: +100 ms <- Interview Q18
-Fail: +250 ms <- Interview Q18
+Scale: p95 over paired replicates of the session-start hook's added time, in
+       no-op hook launches, under [Host spawn] and [Profile: one entry, none,
+       two entries]. Each replicate's value is the time with declared areas
+       minus the time without a declaration, divided by that replicate's
+       launch of a fixed no-op hook through the same launcher and spawn. (A1)
+Meter: tests/Fixtures/Measure-CalibrationLatency.ps1: 2 warm-up replicates,
+       then 20 measured replicates, each running the baseline, every subject,
+       the no-op hook, and the push guard back to back in rotated order
+       through the host's exact spawn, process start included; nearest-rank
+       p95; on Prox1 and RAANDREE3; recorded in Decision record 0028. A value
+       at or below Budget meets it, a value above Fail fails, and a verdict
+       above Budget or Fail counts only when a second Meter run reproduces it.
+       The push guard is reported, not used as the unit. (A1)
+Past [VS Code spawn, Prox1, one entry]: 0.40 to 0.44 launch (+349 to +380 ms)
+Past [SDK spawn, Prox1, one entry]: 0.18 to 0.31 launch (+189 to +330 ms)
+Past [VS Code spawn, Prox1, none]: 0.19 to 0.21 launch (+164 to +184 ms)
+Past [SDK spawn, Prox1, none]: 0.05 to 0.08 launch (+50 to +80 ms)
+       <- Meter, four runs on 2026-10-06, divided by the push guard, ranges
+       not paired; the first run of the amended Meter replaces them
+Budget [one entry, none]: 0.5 launch <- Ruling A2, 2026-10-06
+Fail [one entry, none]: 1.0 launch <- Ruling A2, 2026-10-06
+Report, not gate: [two entries], where the identity rule runs git <- Ruling A2
+Rationale: Paid once per chat, only where a workspace declares Knowledge
+       areas, by contributors who accept one launch per tool call (Q20). At
+       Fail the hook costs a whole extra launch; fallback A costs more, a tool
+       call plus a model round trip.
+Assumption: The reader's cold cost scales with the launch cost, both being
+       cold PowerShell start-up; RAANDREE3 tests it (TBD-5).
+Risk: A lighter shared launcher shrinks the unit and raises this ratio without
+       any regression; re-run the Meter and re-baseline when a launcher in
+       hooks.json changes.
+Authority: Repository owner
 
 Tag: PostToolUse.CallLatency
 Type: Resource Requirement
-Scale: Milliseconds at p95 for one non-injecting tool-call hook under [Host spawn].
+Scale: p95 over paired replicates of one non-injecting PostToolUse hook's
+       time divided by the same replicate's no-op hook launch, under
+       [Host spawn]. (A1)
 Meter: As SessionStart.AddedLatency.
-Past [proxy: push guard, benign tool, VS Code spawn, Prox1]: p95 576 ms <- measured 2026-10-05
-Past [proxy, SDK spawn, Prox1]: p95 846 ms <- measured 2026-10-05
-Budget [VS Code spawn]: 600 ms; [SDK spawn]: 900 ms <- Interview Q18
-Fail: above 1,000 ms <- Interview Q18
+Past [VS Code spawn, Prox1]: 0.91 to 1.05 launch (793 to 901 ms)
+Past [SDK spawn, Prox1]: 0.94 to 1.09 launch (1,007 to 1,154 ms)
+       <- Meter, four runs on 2026-10-06, divided by the push guard, ranges
+       not paired; the first run of the amended Meter replaces them
+Budget: 1.1 launch <- Ruling A3, 2026-10-06
+Fail: 1.25 launch <- Ruling A3, 2026-10-06
+Rationale: The common path reads the payload head, runs one regex, and checks
+       one file, so it costs barely more than a no-op launch, within the
+       Meter's noise; above 1.25 the script's own work has become significant.
 Assumption: Only machines with a profile that is on pay it (Q20).
+Authority: Repository owner
 
 Tag: Context.SentenceSize
 Type: Resource Requirement
-Scale: Characters of the calibration sentence.
-Meter: Pester fixtures for the worst case (16 names of 48 characters) and a
-       typical case (5 areas).
+Scale: Characters of the calibration sentence at [Position: session start,
+       re-sent after a compaction].
+Meter: Pester fixtures for the worst case (16 names of 48 characters at
+       familiar) and a typical case (5 areas).
 Past: 0; existing context 615 of 4,096 <- measured 2026-10-05
-Budget [worst]: 1,100; [typical]: 300 <- Interview Q9, Q18
+Past [worst, fixed template]: 1,118 at session start, 1,178 re-sent
+       <- tests/ContributorProfileReader.Tests.ps1, 2026-10-06
+Budget [worst, either Position]: 1,200 <- Ruling A4, 2026-10-06
+Budget [typical]: 300 <- Interview Q9, Q18
 
 Tag: Instruction.Size
 Type: Resource Requirement
@@ -660,7 +864,8 @@ column rates them from 0.0 to 1.0.
 
 The architect recommended A on cost. The contributor chose B1 for deterministic,
 hook-driven delivery; Q20 then limited its per-call cost to machines with a
-profile that is on. A remains the fallback if B1 misses its latency budget.
+profile that is on. A remains the fallback if B1 reaches the Fail level of
+`PostToolUse.CallLatency` on Prox1 or RAANDREE3 *(A3)*.
 
 ### Location (Q4)
 
@@ -672,11 +877,12 @@ would add a sixth Discovery link to create, verify, remove, and reconcile.
 
 | Choice | Reversibility |
 |---|---|
-| Schema 1 fields (including `id` and global alias uniqueness) and the area-name rule | Loosening later is safe; tightening breaks existing files |
+| Schema 1 fields (including `id` and global alias uniqueness) and the area-name rule | Tightening breaks existing files. Loosening is safe only for old files read by new code: an older release rejects a profile that uses the looser rule as `invalid-schema`, so after the first release any loosening needs schema 2 *(A6)* |
 | Location under `contributor/` | Movable only with a migration step |
 | Five public command names | Public API; renaming needs deprecation aliases |
 | `## Knowledge areas` in `projectbrief.md` | Moving it later touches every project's Memory Bank |
 | Registration file name, reserved in payloads | Changing it needs a migration of existing registrations |
+| Registration ownership through the recorded hash | A template change needs no migration: the next writer replaces each owned registration *(A5)* |
 
 ### Delivery increments
 
@@ -711,8 +917,12 @@ would add a sixth Discovery link to create, verify, remove, and reconcile.
 | Calibration state file missing or unreadable | PreCompact creates it; when it cannot, no re-injection after that compaction |
 | Two calibration hooks write the state file at once | Atomic replace and compare-and-set; at worst a duplicate sentence, never a lost compaction or a clobbered clock |
 | Ambiguous or over-cap import | Import refuses the whole file and writes nothing |
-| Crash between the registration record and the file | The pending record is reconciled by the next writer, `Get-`, or Uninstall |
+| Crash between the registration record and the file | A delete record without its file is cleared; a create record without its file stays pending, Uninstall stops on it, and `-RegistrationOnly` clears it *(A8)* |
+| Record and registration file arriving through OneDrive in either order | Pending, foreign, or modified until both arrive; nothing acts on the partial view, and Uninstall stops on it *(A8)* |
+| Two machines sharing the Canonical target act before either syncs | A conflict copy in the hooks folder, or after an Uninstall a registration whose scripts are gone; documented, reported by `Get-`, repaired by deleting the named file *(A8)* |
 | Foreign or modified registration file | Never overwritten or deleted; reported; Uninstall stops before removing anything |
+| Owned registration from an earlier template | `Get-` reports it as outdated; the next writer replaces it; opt-out, `Remove- -RegistrationOnly`, and Uninstall delete it *(A5)* |
+| A write without a positively chosen target | Nothing is written; the command names `-Contributor`, `-NewContributor`, and Import, and the Skill asks once per session *(A7)* |
 | Registration left behind by a deleted or unreadable profile | `Get-` reports it; `Remove- -RegistrationOnly` removes it |
 | Registration script unresolvable in an open session | Launcher exits `1`, a warning, until the chat restarts; Uninstall reconciles first |
 | Any hook fault | Exit `0`, session never blocked, profile never written by a hook |
@@ -728,7 +938,14 @@ would add a sixth Discovery link to create, verify, remove, and reconcile.
 - One person with several emails or `includeIf` folders: aliases.
 - A workspace without a Memory Bank or declared areas: nothing is read or run.
 - Unicode names such as `Mietrecht` pass; quotes, backticks, `; = < > * _`, and
-  control characters fail.
+  control characters fail. `.NET` passes; `.`, `..`, and `. NET` fail *(A6)*.
+- A second person on a shared account whose git email matches no entry, or who
+  has none: the hooks still read by the identity rule, but a write needs a
+  positively chosen target, and `-NewContributor` creates their own entry
+  without a prior export. The hooks reach that entry only through a git email
+  that differs from the other person's, for example through `includeIf`, or
+  as the default; where both share one git identity, the identity rule cannot
+  tell them apart *(A7)*.
 - Machines with skewed clocks: the fast clock wins merges for a while;
   documented, not rejected.
 - Multi-root workspace: the payload's `cwd` only.
@@ -757,9 +974,10 @@ Controls:
 - `Get-` masks aliases by default, because agent-run output enters the model's
   context.
 - Export and every writer refuse a destination inside a git working tree.
-- The registration file is a fixed template at a fixed path, deleted only when
-  the record, the recorded hash, and the shipped template's hash all agree; a
-  record can never redirect a deletion.
+- The registration file is a fixed template at a fixed path, deleted or
+  replaced only when the record and the recorded hash agree, and a replacement
+  writes only the current shipped template; a record can never redirect a
+  deletion *(A5)*.
 - The edit-approval guidance for hook scripts extends to
   `skills/contributor-profile/scripts/`.
 
@@ -806,10 +1024,11 @@ exists only in sessions started while a registration file exists.
   the machine is on and rates an area. Levels are kept; opting back in restores
   them.
 - `Remove-CopilotAtelierContributorProfile` deletes an entry, the file, or only
-  an orphaned registration, the registration under the deletion rule.
+  an orphaned or pending registration, the registration under the ownership
+  rule *(A5, A8)*.
 - `Uninstall-CopilotAtelier` keeps the profile as personal content, reconciles
-  and removes an unchanged registration first, and stops before removing
-  anything when it cannot. Open chats must be restarted afterwards, as for every
+  and removes an owned registration first, whatever template it came from
+  *(A5)*, and stops before removing anything when it cannot. Open chats must be restarted afterwards, as for every
   shipped hook.
 - A release rollback leaves profile files unused and harmless; an unknown
   schema version degrades to familiar.
@@ -820,7 +1039,8 @@ exists only in sessions started while a registration file exists.
    path for one fixture set, following the location rule.
 2. Every schema violation in a shared fixture set (at least one per rule) yields
    no levels and exactly one reason code in every entry point; a valid fixture
-   yields identical levels in every entry point.
+   yields identical levels in every entry point. The set holds `.NET` as a
+   valid name and `.`, `..`, and `. NET` as invalid ones *(A6)*.
 3. No hook output contains file bytes other than matched area names and level
    values, and never an email, a path, or an unmatched workspace name.
 4. A profile path with a `.git` ancestor yields `inside-repository`, and every
@@ -842,11 +1062,19 @@ exists only in sessions started while a registration file exists.
     the newer compaction; no calibration hook rewrites the session clock file;
     neither hook emits `decision` or exits `2`.
 11. The registration file exists exactly while an entry is on and rates at
-    least one area and matches the shipped template byte for byte. Its record
-    is written as pending before the file changes and reconciled after a
-    simulated crash at each step. A file is deleted only when the fixed path,
-    the record, the recorded hash, and the template's hash all agree; a foreign
-    or modified file is reported and never touched.
+    least one area. A file this writer creates matches the shipped template
+    byte for byte, and the next writer replaces an owned file from an earlier
+    template with the current one. Its record is written as pending before the
+    file changes and reconciled after a simulated crash at each step, the
+    steps of a replacement included, to owned, outdated, pending, or none,
+    never to modified. A file is deleted or replaced only when the fixed path,
+    the record, and the recorded hash agree; a foreign or modified file is
+    reported and never touched. A test that changes the template proves that
+    opt-out, `-RegistrationOnly`, and Uninstall still remove an owned
+    registration *(A5)*. A test delivers the record and the file in every
+    order a second machine can see them through OneDrive, and proves that no
+    reconciliation rewrites a record, no writer acts on the partial view, and
+    Uninstall stops on it *(A8)*.
 12. No release payload contains `hooks/contributor-profile.json`.
 13. The `contributor-calibration` Instruction carries the save-offer rule within
     4,096 characters and 60 lines; `/simpler` and `/deeper` carry the save-offer
@@ -858,7 +1086,13 @@ exists only in sessions started while a registration file exists.
     QA suite; every writing command supports `-WhatIf`; Remove- uses
     `ConfirmImpact = 'High'`; Get- masks aliases unless `-ShowAliases`;
     `-Contributor` that does not resolve to exactly one entry fails before any
-    write.
+    write. Every writer follows the write-selection rule, with one test per
+    branch: a single entry without a git email, and an unmatched git email,
+    write nothing without a positively chosen target; `-NewContributor`
+    creates a second entry without a prior export, the identity rule selects
+    it in a later session, and it fails without a reachable alias or
+    `-Default` and together with `-Contributor`. Unequal `-KnowledgeArea` and
+    `-Level` arrays fail before any write *(A7)*.
 16. Import applies every merge rule, with one fixture per rule, and refuses the
     whole file, writing nothing, for an ambiguous match, a duplicated alias, or
     a cap overflow.
@@ -869,8 +1103,11 @@ exists only in sessions started while a registration file exists.
     Uninstall reads only the registration record, takes the profile lock,
     reconciles the registration before removing any file, and stops with the
     file named when it cannot.
-20. The latency budgets hold on Prox1 and RAANDREE3 per the Meter, recorded in
-    Decision record 0028.
+20. The latency budgets hold on Prox1 and RAANDREE3 per the Meter as amended:
+    no-op hook launches as the unit, 20 paired replicates in rotated order,
+    inclusive thresholds, and a verdict above Budget or Fail reproduced in a
+    second run; the two-entry cell and the push guard are reported, and the
+    results are recorded in Decision record 0028 *(A1 to A3)*.
 21. Eval: `Calibration.Persistence` 100 % pass^3 at each Position; Phase 1 51 of
     51 with a sentence present; the offer and safety groups meet the same gates
     (TBD-4, resolved at sign-off).
@@ -895,6 +1132,7 @@ exists only in sessions started while a registration file exists.
 | TBD-2 | What OneDrive names a conflict copy | software-engineer, observed once on two machines | None; only `profile.json` is read |
 | TBD-3 | Exact wording of the Instruction, Pre-flight, and Prompt sentences within the caps | software-engineer, measured by the eval | Wording only |
 | TBD-4 | Gates for the offer and safety eval groups | Resolved at sign-off: equal to `Calibration.Persistence` | Measurement only |
+| TBD-5 | Does the reader's cold cost scale with the launch cost across machines, the Assumption under `SessionStart.AddedLatency`? | software-engineer, the RAANDREE3 Meter run | Whether one hook launch is a fair unit on both machines; if not, back to software-architect (A1) |
 
 Delegated answers: none.
 
@@ -912,9 +1150,33 @@ A `rubber-duck` review of the first draft, completed on 2026-10-06, reported:
 | 6 | Major | The residual trifecta and the unenforced approval boundary were rated Low | Ruling R1: kept Low by the contributor, with the argument recorded under Security |
 | 7 | Major | One person's opt-out cannot remove the per-call cost on a shared account; no repair for a stranded registration | Fixed: the claim is narrowed in Rollback; `Get-` reports and `Remove- -RegistrationOnly` repairs |
 
+## Amendment log
+
+Amendment 1, 2026-10-06: rulings A1 to A8. A1 to A7 answer the questions
+that implementation returned; the refined A1, the revised A7, and A8 answer
+the independent review of the draft. The reasons are under
+*Rulings, 2026-10-06* in the Confirmation.
+
+| Ruling | Passages amended |
+|---|---|
+| A1 | `SessionStart.AddedLatency` and `PostToolUse.CallLatency`: Scale, Meter, Past; Consequences; criterion 20; Open questions: TBD-5 |
+| A2 | `SessionStart.AddedLatency`: Budget, Fail, Report, Rationale, Assumption, Risk; Consequences; criterion 20 |
+| A3 | `PostToolUse.CallLatency`: Budget, Fail, Rationale; Compaction coverage: the fallback condition; Consequences; criterion 20 |
+| A4 | `Context.SentenceSize`: Scale, Past, Budget |
+| A5 | Scope 9; Registration file: ownership, replacement, repair; Commands: `Get-`, `Remove-`; Failure modes; Durable choices; Security; Rollback; criterion 11 |
+| A6 | Area-name rule; Durable choices; Edge cases; criterion 2 |
+| A7 | Decision outcome; Purpose; Stakeholders; Schema 1; area-name rule; PostToolUse re-injection; Commands: `Set-`, write selection, snooze; Failure modes; Edge cases; criterion 15 |
+| A8 | Registration file: reconciliation, replacement, Uninstall, repair, known limit; Commands: `Get-`, `Remove-`; Failure modes; Rollback; criterion 11 |
+
 ## Sign-off
 
 - [x] The user read this document end to end.
 - [x] The user accepted every section, including the ruling on rating and save
   questions and the TBD-4 gates.
+- [x] The user typed `SIGNED OFF` in chat on 2026-10-06.
+
+Amendment 1:
+
+- [x] The user read the Amendment log and every passage it marks.
+- [x] The user accepted rulings A1 to A8.
 - [x] The user typed `SIGNED OFF` in chat on 2026-10-06.
