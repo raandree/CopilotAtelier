@@ -1237,8 +1237,21 @@ Describe 'Write-CompactionCheckpoint' -Tag 'Unit' {
     BeforeEach {
         $script:workspace = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
         $script:memoryBank = Join-Path $script:workspace '.memory-bank'
+        $script:clockRoot = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $script:memoryBank -Force | Out-Null
         Set-Content -LiteralPath (Join-Path $script:memoryBank 'index.md') -Value '# Memory bank index'
+
+        function script:Invoke-CompactHook {
+            param(
+                [Parameter(Mandatory)]
+                [AllowEmptyString()]
+                [string]$Payload
+            )
+
+            # PreCompact advances the calibration counter beside the session
+            # clock, so every run pins the clock root; the real one is the user's.
+            script:Invoke-Hook -ScriptPath $script:compactScript -Payload $Payload -ExtraArgument @('-ClockRoot', $script:clockRoot)
+        }
 
         function script:New-CompactPayload {
             param(
@@ -1268,7 +1281,7 @@ Describe 'Write-CompactionCheckpoint' -Tag 'Unit' {
     }
 
     It 'writes a checkpoint under .memory-bank/session when a Memory Bank exists' {
-        $result = script:Invoke-Hook -ScriptPath $script:compactScript -Payload (script:New-CompactPayload)
+        $result = script:Invoke-CompactHook -Payload (script:New-CompactPayload)
 
         $result.ExitCode | Should -Be 0 -Because $result.Output
         $checkpoint = script:Get-Checkpoint
@@ -1276,8 +1289,16 @@ Describe 'Write-CompactionCheckpoint' -Tag 'Unit' {
         $checkpoint.Name | Should -Match '^compaction-\d{4}-\d{2}-\d{2}T\d{6}Z\.md$'
     }
 
+    It 'advances the calibration counter only under the clock root it is given' {
+        script:Invoke-CompactHook -Payload (script:New-CompactPayload) | Out-Null
+
+        $statePath = Join-Path $script:clockRoot 'session-session-123.familiarity.json'
+        Test-Path -LiteralPath $statePath | Should -BeTrue
+        (Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json).compactions | Should -Be 1
+    }
+
     It 'records the trigger and a resume protocol the next context can act on' {
-        script:Invoke-Hook -ScriptPath $script:compactScript -Payload (script:New-CompactPayload) | Out-Null
+        script:Invoke-CompactHook -Payload (script:New-CompactPayload) | Out-Null
         $content = Get-Content -LiteralPath (script:Get-Checkpoint).FullName -Raw
 
         $content | Should -Match 'auto'
@@ -1286,7 +1307,7 @@ Describe 'Write-CompactionCheckpoint' -Tag 'Unit' {
     }
 
     It 'emits the common output contract as valid JSON' {
-        $result = script:Invoke-Hook -ScriptPath $script:compactScript -Payload (script:New-CompactPayload)
+        $result = script:Invoke-CompactHook -Payload (script:New-CompactPayload)
         $parsed = $result.Output | ConvertFrom-Json
 
         $parsed.continue | Should -BeTrue
@@ -1297,9 +1318,7 @@ Describe 'Write-CompactionCheckpoint' -Tag 'Unit' {
         $bare = Join-Path $TestDrive 'bare'
         New-Item -ItemType Directory -Path $bare -Force | Out-Null
 
-        $result = script:Invoke-Hook `
-            -ScriptPath $script:compactScript `
-            -Payload (script:New-CompactPayload -WorkingDirectory $bare)
+        $result = script:Invoke-CompactHook -Payload (script:New-CompactPayload -WorkingDirectory $bare)
 
         $result.ExitCode | Should -Be 0 -Because $result.Output
         Test-Path -LiteralPath (Join-Path $bare '.memory-bank') |
@@ -1314,7 +1333,7 @@ Describe 'Write-CompactionCheckpoint' -Tag 'Unit' {
             session_id = 'session-123'
         } | ConvertTo-Json -Depth 5 -Compress
 
-        script:Invoke-Hook -ScriptPath $script:compactScript -Payload $payload | Out-Null
+        script:Invoke-CompactHook -Payload $payload | Out-Null
         $content = Get-Content -LiteralPath (script:Get-Checkpoint).FullName -Raw
 
         # The checkpoint is read back by an agent, so payload values are data.
@@ -1322,7 +1341,7 @@ Describe 'Write-CompactionCheckpoint' -Tag 'Unit' {
     }
 
     It 'never blocks compaction when the payload is unreadable' {
-        $result = script:Invoke-Hook -ScriptPath $script:compactScript -Payload 'not json at all'
+        $result = script:Invoke-CompactHook -Payload 'not json at all'
 
         $result.ExitCode | Should -Be 0 -Because $result.Output
     }
