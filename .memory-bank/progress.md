@@ -18,6 +18,12 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-06**: Recorded the RAANDREE3 latency Meter in Decision 0028: criterion
+  20 is not met, with one cell over Budget and within Fail on each machine, and
+  TBD-5 is answered no: RAANDREE3's VS Code launch costs 2.4 times Prox1's, so
+  the launch unit does not transfer across machines, and a hook costs about 2 s
+  per tool call there. Returned to `software-architect` (second round).
+
 - **2026-10-06**: Addressed the open Phase 2 issues (`software-engineer`): an
   independent `security-reviewer` pass of `main...b7e6502` found five Low
   issues and six test gaps, all fixed test-first (red, then green); both
@@ -57,8 +63,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - **2026-10-06**: Signed off the contributor calibration Phase 2 Design Concept
   as Decision 0028 (`software-architect`, 26 questions, all twelve categories).
-  An independent review's 2 Blockers and 5 Majors were fixed or ruled before
-  sign-off. Implementation goes to `software-engineer`, spike TBD-1 first.
 
 - **2026-10-05**: Merged pull requests #29 (`9b6a341`, prompt 06) and #30
   (`25d8233`, the CI warm-up); CI run 112 passed on all three systems and

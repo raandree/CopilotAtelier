@@ -82,7 +82,7 @@ Durable relationships and the Decision record index; read a linked record only w
     links, and hashes do not provide a transaction or sandbox. A record and a file that sync separately are pending while half arrived, never inferred. A write goes only to a positively chosen target; only reads fall back to a single or default entry.
 - Remove verified Discovery links non-recursively, dangling Unix links too. Make POSIX filename fixtures with .NET path APIs; `Join-Path` normalizes.
 - Hooks enforce unconditional rules; Instructions carry judgement calls. VS Code runs `windows`, the Copilot SDK host `powershell`, else `command`; every
-    branch must work on every OS it can reach without `HOME` or `$`. Prove a host's hook contract in its own runtime (`session.rpc.tools.execute`), not from its docs. State hook latency in same-day launches of a no-op hook over paired replicates, never in absolute milliseconds (0028).
+    branch must work on every OS it can reach without `HOME` or `$`. Prove a host's hook contract in its own runtime (`session.rpc.tools.execute`), not from its docs. State hook latency in same-day launches of a no-op hook over paired replicates, never in absolute milliseconds (0028); that unit cancels load on one machine only, because launch and script costs diverge across machines and editions (TBD-5).
 - CI preserves hidden ownership metadata and canonical temporary paths. Nested
     Node runners clear `NODE_TEST_CONTEXT` and prove tests ran; external checks fail closed and baselines shrink.
     Deduplicate only an exact-head PR, never a stale one. Cancel topic/PR runs,

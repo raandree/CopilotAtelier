@@ -43,11 +43,12 @@
     Whole Meter runs whose verdicts merge: a verdict above Budget or Fail
     counts only when every run reproduces it.
 .EXAMPLE
-    pwsh -NoProfile -File tests/Fixtures/Measure-CalibrationLatency.ps1 |
-        Format-Table -AutoSize
+    pwsh -NoProfile -Command '& ./tests/Fixtures/Measure-CalibrationLatency.ps1 | Format-Table -AutoSize'
 
     Runs the Meter twice on this machine and prints every run and the
-    reproduced verdicts.
+    reproduced verdicts as one table. Format inside the Meter's process: a
+    parent shell receives a child's output as text, which Format-Table cannot
+    lay out.
 .NOTES
     Windows only: the VS Code spawn is the Windows one. Not run by the test
     suite; record its results in Decision record 0028. A change to a launcher

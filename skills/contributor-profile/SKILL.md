@@ -197,8 +197,8 @@ curates the list.
 exists exactly while an entry on this machine is on and rates an area; Set,
 Import, and Remove create and remove it. Hosts load hook files when a session
 starts, so a change affects sessions started afterwards. While it exists, every
-successful tool call costs about one more hook launch, 0.6 to 1.2 s depending
-on the machine and the host.
+successful tool call costs about one more hook launch, 0.8 to 2 s depending on
+the machine and the host.
 
 The writers own a registration through its record and the hash the record
 holds, whichever template wrote it, and replace one from an earlier template

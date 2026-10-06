@@ -21,8 +21,11 @@ Setup for criterion 22's manual compactions in
 `C:\Users\install\Documents\calibration-check`; a level is saved there.
 Criterion 21's unpaid groundwork sits in the private kit: the runner's `arms`
 and `profile` fields and `Preview` mode, `evals-phase2.json` (8 draft cases),
-and `evals-phase1-guard.json`. Criterion 20 on Prox1 waits for
-`software-architect`; the owner is running the Meter on RAANDREE3.
+and `evals-phase1-guard.json`. Criterion 20 is not met and is back with
+`software-architect`: one cell over Budget and within Fail on each machine
+(Prox1 VS Code SessionStart, RAANDREE3 SDK PostToolUse), and TBD-5 answered no,
+because RAANDREE3's VS Code launch is 2.4 times Prox1's and a hook costs 2 s
+there (Decision 0028, *Returned to software-architect, second round*).
 
 ## Previous focuses
 
@@ -155,20 +158,17 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. `software-architect` rules on criterion 20 once RAANDREE3's Meter results
-   are in: on Prox1, SessionStart added latency with one entry in VS Code's
-   spawn is 0.53 to 0.61 launch at p95 (p50 0.48 to 0.50), over Budget 0.5 in
-   both runs and within Fail 1.0 (Decision 0028, *Latency Meter as amended*);
-   RAANDREE3 also answers TBD-5. The owner runs the manual compactions of
-   criterion 22 (VS Code Local, then Copilot CLI after `/login`); collect the
+1. `software-architect` rules on the second-round return of Decision 0028:
+   the launch unit (TBD-5), criterion 20's two over-Budget cells, and the 2 s
+   per-call cost in VS Code on RAANDREE3. The owner runs the manual compactions
+   of criterion 22 (VS Code Local, then Copilot CLI after `/login`); collect the
    evidence from the calibration state files and the CLI's `events.jsonl`,
    then redeploy `main` on Prox1 with `Setup-CopilotSettings.ps1`. For
    criterion 21, run `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on
    RAANDREE3 (Prox1 has nothing new), replace the derived persistence stand-ins
    with at least 6 real restatements per Position, add grader fixtures, define
    the offer and safety groups (the Decision names them only), and get the
-   owner's approval and budget before any paid run. The 2026-09-30,
-   2026-10-06T1155Z, and 2026-10-06T1350Z Session handoffs are consumed.
+   owner's approval and budget before any paid run.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.
 3. Optional: report upstream that the GitHub hooks reference describes the

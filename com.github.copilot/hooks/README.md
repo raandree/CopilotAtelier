@@ -325,8 +325,9 @@ on the first successful tool call after a compaction.
 `~/.copilot/hooks/contributor-profile.json`, a fixed template with the same
 three launchers, while an entry on this machine is on and rates a Knowledge
 area, and removes it when none does. Only machines with an active profile pay
-the per-call cost, about one more hook launch per successful tool call, as much
-as the push guard: 0.6 to 1.2 s depending on the machine and the host.
+the per-call cost, about one more hook launch per successful tool call,
+slightly less than the push guard: 0.8 to 2 s, depending on the machine and
+the host (Decision record 0028 has the measurements).
 Hosts load hook files when a session starts, so a change affects later sessions;
 an open chat keeps calling the script, which then finds nothing to send.
 

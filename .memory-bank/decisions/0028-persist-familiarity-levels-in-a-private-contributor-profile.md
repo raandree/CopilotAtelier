@@ -146,7 +146,7 @@ Still open, and not decided in code:
 
 | Criterion | State |
 |---|---|
-| 20 | Prox1, amended Meter: every gated cell within Budget except SessionStart with one entry in VS Code's spawn, over Budget in both runs and within Fail; returned to `software-architect`. RAANDREE3 not measured |
+| 20 | Not met: one gated cell over Budget and within Fail on each machine, reproduced (Prox1: SessionStart with one entry in VS Code's spawn; RAANDREE3: PostToolUse in the SDK host's spawn), and TBD-5 answered no; returned to `software-architect` (*Returned to software-architect, second round*) |
 | 21 | Not run: the private kit has no Phase 2 groups yet and its runs are paid; Amendment 1 is implemented, so it can now measure the amended design |
 | 22 | The manual compactions in VS Code Local and in Copilot CLI (after `/login`) are pending in a scratch workspace on Prox1, where the branch is deployed; the plugin-install and no-tool-call cells are measured (*Reported delivery cells*) |
 
@@ -415,7 +415,73 @@ PostToolUse p95 838 to 884 ms and 1,094 to 1,152 ms.
 - The push guard costs 1.11 to 1.26 launches, so against the no-op unit the
   ratios read higher than the Past lines divided by the guard, as ruling A1
   expected.
-- TBD-5 stays open: RAANDREE3 is not measured.
+- TBD-5 needed the RAANDREE3 run, recorded in the next section.
+
+### Latency Meter on RAANDREE3, 2026-10-06
+
+The owner ran the Meter of the pushed head `b7e6502` on RAANDREE3: two runs of
+2 warm-up and 20 measured replicates each. Later commits change a few dozen
+statements on the measured paths. p95 of the paired per-replicate ratios, in
+no-op hook launches, run 1 and run 2:
+
+| Cell | VS Code spawn | SDK spawn | Budget | Fail | Reproduced verdict |
+|---|---|---|---|---|---|
+| SessionStart added, one entry | 0.27, 0.38 | 0.43, 0.71 | 0.5 | 1.0 | Within budget; the SDK spawn's over-budget run 2 was not reproduced |
+| SessionStart added, no profile | 0.12, 0.16 | 0.21, 0.28 | 0.5 | 1.0 | Within budget |
+| SessionStart added, two entries (reported) | 0.36, 0.51 | 0.55, 0.84 | n/a | n/a | n/a |
+| PostToolUse, nothing pending | 1.05, 1.06 | 1.11, 1.25 | 1.1 | 1.25 | VS Code within budget; SDK over budget in both runs, within Fail |
+| Push guard, benign tool (reported) | 1.16, 1.13 | 1.14, 1.31 | n/a | n/a | n/a |
+
+The no-op launch measured p50 1,916 to 1,973 ms through VS Code's spawn and
+1,039 to 1,144 ms through the SDK host's. Run 2 was the noisier one: its VS Code
+no-op read p95 2,424 ms against p50 1,973.
+
+- **Criterion 20 does not hold.** One gated cell is over Budget on each
+  machine, reproduced and within Fail: SessionStart with one entry in VS Code's
+  spawn on Prox1, and PostToolUse in the SDK host's spawn on RAANDREE3, whose
+  run 2 read 1.25 launch, at the Fail level but not above it. Fallback A,
+  reserved for a Fail-level result (A3), does not apply.
+- **TBD-5: no.** The reader's cold cost does not scale with the launch cost
+  across machines. Against Prox1, RAANDREE3's no-op launch costs 2.4 to 2.5
+  times as much through VS Code's spawn and 1.0 to 1.1 times through the SDK
+  host's, while the reader's added time is 1.1 to 1.4 times in both, estimated
+  as the difference of the medians the Meter prints (one entry minus no
+  declaration). Launch cost and script cost diverge by machine and edition, so
+  the same reader reads 0.48 to 0.50 launch at p50 on Prox1 and 0.25 to 0.26 on
+  RAANDREE3 in VS Code's spawn.
+- **In milliseconds,** an active profile adds about 2.0 s to every successful
+  tool call in VS Code on RAANDREE3 (PostToolUse p50 1,975 to 2,029 ms),
+  beside the push guard's 2.1 to 2.2 s; the Consequences state 0.8 to 0.9 s,
+  measured on Prox1. Every hook in VS Code's spawn starts two Windows
+  PowerShell processes, VS Code's own and the one the `windows` launcher
+  starts. Why Windows PowerShell starts 2.4 times slower on RAANDREE3 than on
+  Prox1, while PowerShell 7 does not, was not investigated.
+
+### Returned to software-architect, second round
+
+Three results go back; none is redesigned in code.
+
+1. **The launch unit does not transfer across machines (TBD-5).** Options: keep
+   it and gate per machine, so the machine with the cheapest launch binds; gate
+   the calibration step's own time, normalized by a frozen reference script run
+   cold through the same spawn, and report the hook's full time beside it,
+   leaving the launcher to Decision 0016; or return to milliseconds measured on
+   an idle machine, with the no-op launch as the load check. The engineer
+   recommends the second: its unit is the same kind of work as the measured
+   cost, so it should cancel machine speed and load; it needs a new Meter cell
+   and a re-baseline.
+2. **Criterion 20 has two reproduced over-Budget cells, both within Fail.**
+   Their verdicts depend on the unit, so rule 1 first. Prox1's VS Code cell
+   needs about 25 to 90 ms less at p95, against the 30 to 40 ms that local
+   tuning was estimated to save. PostToolUse's common path is already minimal:
+   it costs less than the push guard in every cell, and RAANDREE3's SDK cell is
+   within Budget at p50 (1.06 to 1.08).
+3. **The per-call cost on RAANDREE3 is 2.4 times what the Consequences state.**
+   Options: accept it and restate the Consequences per machine; a one-process
+   `windows` launcher under Decision 0016, which would cut every hook's cost,
+   the push guard's included, but is measured on neither machine and must keep
+   the cross-shell guarantees of `tests/HookLauncher.Tests.ps1`; or fallback A
+   for VS Code only.
 
 ### Reported delivery cells, 2026-10-06 on Prox1
 
@@ -884,6 +950,14 @@ Past [SDK spawn, Prox1, two entries]: 0.44 to 0.49 launch
        <- amended Meter, two runs on 2026-10-06, p95 of 20 paired
        replicates; the no-op launch measured p50 778 to 790 ms (VS Code) and
        1,014 to 1,042 ms (SDK)
+Past [VS Code spawn, RAANDREE3, one entry]: 0.27 to 0.38 launch (p50 0.25 to 0.26)
+Past [SDK spawn, RAANDREE3, one entry]: 0.43 to 0.71 launch (p50 0.37 to 0.38)
+Past [VS Code spawn, RAANDREE3, none]: 0.12 to 0.16 launch (p50 0.10)
+Past [SDK spawn, RAANDREE3, none]: 0.21 to 0.28 launch (p50 0.18 to 0.19)
+Past [VS Code spawn, RAANDREE3, two entries]: 0.36 to 0.51 launch
+Past [SDK spawn, RAANDREE3, two entries]: 0.55 to 0.84 launch
+       <- amended Meter of b7e6502, two runs on 2026-10-06; the no-op launch
+       measured p50 1,916 to 1,973 ms (VS Code) and 1,039 to 1,144 ms (SDK)
 Budget [one entry, none]: 0.5 launch <- Ruling A2, 2026-10-06
 Fail [one entry, none]: 1.0 launch <- Ruling A2, 2026-10-06
 Report, not gate: [two entries], where the identity rule runs git <- Ruling A2
@@ -909,6 +983,10 @@ Past [SDK spawn, Prox1]: 1.08 to 1.10 launch (1,094 to 1,152 ms)
        <- amended Meter, two runs on 2026-10-06, p95 of 20 paired
        replicates; the push guard read 1.18 to 1.26 (VS Code) and 1.11 to
        1.16 (SDK) launch
+Past [VS Code spawn, RAANDREE3]: 1.05 to 1.06 launch (2,067 to 2,198 ms)
+Past [SDK spawn, RAANDREE3]: 1.11 to 1.25 launch (1,155 to 1,389 ms)
+       <- amended Meter of b7e6502, two runs on 2026-10-06; the push guard
+       read 1.13 to 1.16 (VS Code) and 1.14 to 1.31 (SDK) launch
 Budget: 1.1 launch <- Ruling A3, 2026-10-06
 Fail: 1.25 launch <- Ruling A3, 2026-10-06
 Rationale: The common path reads the payload head, runs one regex, and checks
