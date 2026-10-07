@@ -1,9 +1,9 @@
 ---
-status: accepted
+status: amended and accepted
 date: 2026-10-06
-last-verified: 2026-10-06
+last-verified: 2026-10-07
 owner: software-architect
-source: software-architect Design Concept interview 2026-10-05 to 2026-10-06 and sign-off 2026-10-06; amendment interview 2026-10-06 (rulings A1 to A7); Decision record 0027; hook host references (VS Code, GitHub, Claude Code), fetched during the interview
+source: software-architect Design Concept interview 2026-10-05 to 2026-10-06 and sign-off 2026-10-06; amendment interview 2026-10-06 (rulings A1 to A7); Amendment 2 rulings 2026-10-07 (A9 to A13), signed off by the repository owner in chat on 2026-10-07; Decision record 0027; hook host references (VS Code, GitHub, Claude Code), fetched during the interview
 supersedes: none
 ---
 
@@ -61,16 +61,36 @@ fixed or ruled, as recorded below.
 ## Consequences
 
 - On a machine with an active profile, every successful tool call in a session
-  started while the registration exists costs about one more hook launch, as
-  much as the push guard: 0.8 to 0.9 s through VS Code's spawn and 1.0 to
-  1.15 s through the SDK host's on Prox1 on 2026-10-06, a day it ran 26 to
-  50 % slower than the one before. Machines without a profile pay nothing
-  *(A1, A3)*.
-- A session in a workspace that declares Knowledge areas starts up to half a
-  hook launch later, about 0.35 s in VS Code on Prox1 *(A1, A2)*.
-- After a compaction, plugin-only installs and a reply that makes no tool call
-  receive no levels; Claude Code gets the portable Skill only. These gaps are
-  measured and reported, not gated.
+  started while the registration exists costs one more hook launch. That launch
+  is the shared hook launcher's cost, not this design's: it is what the push
+  guard costs on the same machine, and it varies by machine and shell edition
+  far more than by anything here. Measured on 2026-10-06: 0.84 to 0.88 s
+  through VS Code's spawn and 1.09 to 1.15 s through the SDK host's on Prox1;
+  2.07 to 2.20 s and 1.16 to 1.39 s on RAANDREE3, where Windows PowerShell
+  starts about 2.4 times slower than on Prox1 for reasons this design did not
+  investigate. The calibration script's own share is about 70 to 120 ms on both
+  machines, and up to 290 ms in the noisiest SDK run. Machines without a
+  profile pay nothing *(A1, A3, A11)*.
+- A session in a workspace that declares Knowledge areas starts later by about
+  0.41 to 0.49 s (Prox1, VS Code), 0.35 to 0.48 s (Prox1, SDK), 0.52 to 0.75 s
+  (RAANDREE3, VS Code), and 0.45 to 0.81 s (RAANDREE3, SDK), measured
+  2026-10-06 *(A1, A2, A11)*.
+- After a compaction, the levels return at the first successful tool call where
+  PreCompact runs, and within one turn where it does not, which is VS Code
+  Local for manual and background compactions. Plugin-only installs and a reply
+  that makes no tool call before the next turn still receive nothing; Claude
+  Code gets the portable Skill only. These gaps are measured and reported, not
+  gated *(A12)*.
+- Backstop re-sends add calibration text to a long session, bounded at 12,000
+  characters for all Positions together, about 3,000 tokens. A session reaching
+  that bound makes no further backstop re-sends; compaction re-sends continue
+  up to a second ceiling of 60,000 characters *(A12)*.
+- A tool call that actually re-sends costs more than one that does not, because
+  the hook re-reads the declaration and the profile: the work measured at p95
+  +0.41 to +0.49 s on Prox1 and +0.52 to +0.75 s on RAANDREE3 through VS Code's
+  spawn. Before A12 that was paid once per compaction; now it is paid at most
+  once per turn, and at most once per 5 minutes. It is reported per machine and
+  spawn, not gated *(A12)*.
 - A hostile workspace can declare up to 16 common area names to get the
   matching levels into its session. That risk, and the unenforced approval of
   an agent-run write, are accepted as Low by ruling R1.
@@ -460,7 +480,9 @@ no-op read p95 2,424 ms against p50 1,973.
 ### Returned to software-architect, second round
 
 Five results go back, the last two from the compaction checks and the eval
-preparation; none is redesigned in code.
+preparation; none is redesigned in code. All five are ruled in
+*Rulings, 2026-10-07* below (A9 to A13); this section stays as the question
+those rulings answer.
 
 1. **The launch unit does not transfer across machines (TBD-5).** Options: keep
    it and gate per machine, so the machine with the cheapest launch binds; gate
@@ -610,6 +632,235 @@ test-first; every new test ran red first.
 | 4 | Uninstall decided that nothing was registered before it took the profile lock | Uninstall takes the lock also when nothing is registered and holds it until the hook scripts are removed; a writer that waited then finds the script gone and registers nothing; a contributor folder Uninstall had to create is removed again |
 | 5 | The working-tree guard did not follow junctions or symbolic links | Every writer resolves link targets on the path; the hooks' read keeps the literal walk, so session start pays nothing for it |
 
+### Rulings, 2026-10-07
+
+`software-architect` and the repository owner ruled on the five results of the
+second round in one pass at named-subset depth — purpose, inputs and outputs,
+failure modes, edge cases, rollback, non-goals — because these are contained
+changes to a signed-off concept: no new system, no new public contract, and no
+new persisted schema beyond three fields in an existing private per-session
+state file. An independent `security-reviewer` pass then reviewed the draft,
+and its twelve findings are folded into the text below. The questions behind A9
+and A12 offered a `not sure, you pick` option; A10, A11, and A13 follow from
+them or restate measured fact, and no answer was delegated. Nothing here
+authorizes an irreversible, destructive, or security-relevant action. Amendment
+2 applies the rulings to the concept below and marks every amended passage with
+its tag.
+
+| # | Question | Ruling |
+|---|---|---|
+| A9 | The launch unit does not transfer across machines (TBD-5) | Both latency requirements change unit: the calibration step's own time, in **frozen reference scripts** run cold through the same launcher and spawn, each measured as a paired difference against the no-op hook in the same replicate. The hook's full wall-clock time and the no-op launch are reported in milliseconds beside it. The launcher itself is Decision 0016's, not this record's |
+| A10 | Criterion 20 has two reproduced over-Budget cells | Both verdicts are **withdrawn, not waived**: they are artefacts of the unit A9 retires. Every launch-unit Past line becomes history and binds nothing. Criterion 20 re-opens and is decided by one re-baseline run under A9's rule. No code tuning is ordered; fallback A stays un-invoked, because no cell reached Fail |
+| A11 | The per-call cost on RAANDREE3 is 2.4 times the Consequences | **Restate the Consequences per machine and per spawn**, as measured ranges with the machine, spawn and date named, and attribute the cost to the shared hook launcher rather than to the calibration script. The one-process `windows` launcher is **not** adopted here: it is a Decision 0016 change to a launcher the push guard shares, measured on neither machine, and it would re-baseline every level in this record. Fallback A for VS Code only is rejected |
+| A12 | VS Code Local runs no PreCompact for a manual or a background compaction | Add a **backstop re-send** to the existing PostToolUse hook, triggered by a new turn **or** 5 minutes since the last injection, whichever comes first, bounded by a session character budget that the hook enforces itself. The trigger reads counters that shipped hooks already maintain, so the common path performs no new write. Every writer of the per-session state file preserves all five fields, and an injection is emitted only after its own state write has succeeded under the lock. `UserPromptSubmit` is rejected. The Purpose is narrowed to what this delivers: first successful tool call where PreCompact runs, within one turn where it does not |
+| A13 | `Calibration.Persistence` cannot be measured from real restatements | Accept **derived cases, topped up with owner-reviewed synthetic ones**, at an unchanged count of at least 6 per Position, with at least 3 `real-derived` per Position, every case carrying a `provenance` field, and at least one case per Familiarity level per Position. `provenance` carries an opaque local digest, never a history name, path, or message text, and every derived case passes the existing redaction step. The Goal and Fail levels do not move. The weakened evidence is recorded as a named limitation |
+
+Reasons:
+
+- **A9.** A hook's wall-clock time sums two cost families that scale
+  differently: process start-up, which varies enormously by machine and shell
+  edition — RAANDREE3 starts Windows PowerShell about 2.4 times slower than
+  Prox1, while PowerShell 7 does not — and cold script execution, which barely
+  varies, the reader's own added time being only 1.1 to 1.4 times Prox1's on
+  RAANDREE3. Both tags measured the second family and divided by the first, so
+  the quotient was a property of the machine's shell start-up speed rather than
+  of the design, and both failures are already visible in the evidence: the
+  cheapest-launch machine binds, the same reader reading 0.48 to 0.50 launch at
+  p50 on Prox1 and 0.25 to 0.26 on RAANDREE3 through the same VS Code spawn;
+  and a slow launch hides a heavy script, which is worse than a false alarm
+  because nothing reports it. Rejected: keeping the unit and gating per
+  machine, which preserves the defect and lets the fleet's fastest machine set
+  the line for every machine; and milliseconds on an idle machine with the
+  no-op launch as a load check, which reintroduces the load sensitivity A1 was
+  created to remove — Prox1 ran 26 to 50 % slower on 2026-10-06 than on
+  2026-10-05 — because a load check is a precondition that tells you to discard
+  a run, not what the run means. Dividing cold script time by cold script time
+  cancels machine speed, shell edition, and load to first order, both terms
+  moving together, and leaves the launcher's cost with Decision 0016, which
+  owns it, states that a lighter launcher raises every ratio without any
+  regression, and already requires a re-baseline here when a launcher in
+  `hooks.json` changes. The new unit's transfer is verified, not assumed: the
+  old Assumption was carried for weeks and then falsified, so the re-baseline
+  rule makes the reference script's own cross-machine ratio a checkable output
+  of the run (TBD-6).
+- **A10.** The two cells are 0.53 to 0.61 against Budget 0.5, and 1.11 to 1.25
+  against Budget 1.1, the second clearing its Budget by one per cent in run 1
+  and by fourteen per cent in the noisier run 2. Neither tells us anything
+  about the design once A9 removes the denominator that produced them.
+  Withdrawing is not waiving: the cells are not declared acceptable, they are
+  declared unmeasured, and criterion 20 re-opens until the re-baseline run
+  decides it. The launch-unit Past lines stay in the Confirmation as the
+  evidence for A9 and bind nothing. No tuning is ordered: the 30 to 40 ms of
+  local tuning was costed against a line that no longer exists, and tuning code
+  to reach a threshold that the same amendment is redefining is the failure
+  mode A1's reason warned about. Tuning remains available and is explicitly
+  deferred; if the re-baseline run lands close to its Budget, it is the first
+  lever, not a redesign. Fallback A stays un-invoked, because A3 reserved it
+  for a Fail-level result on Prox1 or RAANDREE3 and no cell reached Fail under
+  any unit — which must be stated, because the 1.25 reading sits exactly on the
+  old Fail level and reads like a trigger.
+- **A11.** The Consequences stated one machine's number as though it were
+  universal and are wrong about RAANDREE3 by a factor of 2.4; the fix for an
+  inaccurate disclosure is an accurate disclosure. The cost is not this
+  design's to spend: almost all of it is the shared hook launcher starting two
+  PowerShell processes, which the push guard pays identically on the same
+  machine, this record's script accounting for roughly 70 to 120 ms of it. The
+  contributor already accepted it in Q20 in the correct currency, one hook
+  launch per tool call on machines with an active profile, and the level that
+  matters is gated elsewhere, so restating a sentence leaves nothing unguarded.
+  The one-process `windows` launcher is rejected for this record and
+  recommended as separate work: it changes a launcher that the push guard
+  shares, and Decision 0016 records that a launcher exit-code defect previously
+  degraded the push guard to a warning in VS Code Local, a Blocker in
+  post-release review; it must preserve `tests/HookLauncher.Tests.ps1`'s
+  cross-shell guarantees (`cmd.exe`, `sh`, an outer PowerShell, `HOME` unset)
+  and the exit-code contract across both hosts; it is measured on neither
+  machine, so adopting it here would trade a known cost for an unknown one; and
+  Decision 0016 already states that such a change re-baselines every level in
+  this record, which would invalidate the re-baseline A9 orders, in the same
+  release. It is nonetheless the largest single improvement available — it
+  would cut every hook on Windows, the push guard included — and belongs in its
+  own Decision record against Decision 0016, with its own Meter run and the
+  cross-shell tests as its gate; that is not a dependency of this release.
+  Fallback A for VS Code only is rejected: it would fork the delivery design by
+  host, reduce `Calibration.Delivery` coverage in the host most sessions use,
+  and trade deterministic hook delivery for a tool call plus a model round
+  trip, for a cost the contributor accepted and without the Fail-level result
+  A3 reserved it for.
+- **A12.** The Purpose promises levels after a compaction in module and Setup
+  installs, and in VS Code Local that promise does not hold for a manual or a
+  background compaction, which are the common cases; only the rare foreground
+  fallback runs PreCompact. The owner ruled out asking VS Code for a change, so
+  the only question is which project-controlled signal replaces it.
+  `UserPromptSubmit` is rejected: it adds a hook launch to every prompt for
+  every profile user, about 0.8 s on Prox1 and 2 s on RAANDREE3 in VS Code
+  before the reader's time, a cost the owner never accepted because Q20 scoped
+  it to tool calls, and it fires only at prompt boundaries, so it misses a
+  compaction partway through a turn — exactly the VS Code Local background case
+  the evidence recorded. A count of tool calls is the right idea with the wrong
+  mechanism: it would turn today's read-only common path into a
+  read-modify-write under a lock, on the hot path, in the very requirement that
+  the first two returned questions are about, and add lock contention for
+  parallel tool calls. Two counters that shipped hooks already maintain give
+  the same trigger for free: `turns` in the session clock file, written by
+  `Write-SessionClose.ps1` at every Stop, which criterion 10 permits reading
+  and forbids only rewriting; and the last injection's timestamp, which the
+  calibration hook records in `session-<key>.familiarity.json`, a file it
+  already reads on every call and writes only when it injects. So the trigger
+  is a new turn, or 5 minutes since the last injection, whichever comes first:
+  the turn leg gives a deterministic promise in the unit the contributor
+  perceives, at most one reply going uncalibrated, and the time leg is the
+  fallback in any host where Stop does not fire. The common path gains exactly
+  one small file read and no write. This realizes option B2 of the *Compaction
+  coverage* table — impact 95 % ± 5, credibility 0.5, "more tokens" its only
+  recorded downside — without the `UserPromptSubmit` launch B2 was assumed to
+  need. The inject path's cost moves and must therefore be measured: it
+  re-reads the declaration and the profile, the work measured at p95 +412 to
+  +493 ms on Prox1 and +517 to +750 ms on RAANDREE3 through VS Code's spawn,
+  and A12 moves it from once per compaction to once per turn plus the 5-minute
+  leg, while `PostToolUse.CallLatency`'s Scale deliberately excludes it. The
+  Meter therefore gains a reported inject-path cell and the Consequences name
+  the per-turn cost; it is reported rather than gated because it is the same
+  reader the session-start tag already gates, and gating it twice would make
+  one tuning decision answerable to two thresholds. The token cost is bounded
+  by construction rather than by hope: backstop re-sends stop at 12,000
+  characters of calibration text, about 3,000 tokens, roughly 5 % of the
+  ~60,000-token base prompt this record measured and 1.5 % of a 200,000-token
+  window. Compaction re-sends count toward that total but are never suppressed
+  by it — the promise wins, the backstop yields — and carry a ceiling of their
+  own at 60,000 characters, because they are otherwise unbounded in principle:
+  the record documents a real session with 99 background compactions, above
+  which the session is outside the design's envelope. Without these bounds the
+  backstop would feed the context pressure that causes compactions in the first
+  place. Six details are correctness issues rather than preferences, the first
+  two being defects an independent review found in the first version of this
+  ruling: every writer of the state file preserves all five fields, because
+  both existing writers emit a hardcoded two-field object and would otherwise
+  reset the character budget and re-arm the backstop at every compaction; an
+  injection is emitted only after its own state write succeeded, because the
+  backstop's two legs are standing conditions and an unrecorded injection would
+  re-fire on every later call while `characters` never advanced; the time leg
+  is armed only from the first turn boundary, the turn leg being already safe
+  at turn 1; the backstop is gated on a seeded `lastInjectionUtc` rather than
+  on the state file existing, because `Write-CompactionCheckpoint.ps1` creates
+  that file unconditionally; a resumed session merges rather than initializes,
+  because `Add-SessionContext.ps1` preserves the clock on `source: resume` and
+  can meet an existing state file; and the backstop suffix must neither lie,
+  since a compaction suffix on a turn where nothing compacted would be false in
+  text the model treats as stated fact, nor cost characters, so it is 59
+  characters, exactly as long as the compaction suffix. The Purpose is narrowed
+  to the truth, because a promise the mechanism cannot keep is worse than a
+  stated limit.
+- **A13.** The finder searched three whole histories, 2,706 user messages, and
+  found at most 5 usable restatements: 3 state a level, all `new`, one already
+  an approved Phase 1 case; 2 are one-answer overrides, which the Instruction
+  treats differently and which carry no durable level. None is at `expert`. A
+  Meter that demands 6 real restatements per Position against a population of 3
+  cannot be satisfied, and the shortage is structural, because Phase 2 exists
+  precisely to remove the need to restate, so the population shrinks rather
+  than grows. Lowering the count is rejected: fewer samples widen the
+  confidence interval on a 100 % pass^3 Goal, the one place this design cannot
+  afford noise. Synthetic-only is rejected: it would let the authors choose
+  both the question and the answer, with nothing anchoring the set to how the
+  contributor actually writes. Derived cases are the honest middle. A derived
+  case takes a real restatement verbatim and moves the stated level out of the
+  message and into the profile sentence, everything else unchanged — the
+  cleanest A/B this design could ask for, the level's source being the only
+  variable, and exactly what Phase 2 claims to do. The same derived case is
+  valid at both Positions, because a Position describes where the sentence sits
+  in context and not what the contributor wrote, so 3 real restatements yield 3
+  `real-derived` cases per Position. The discipline that makes the set
+  trustworthy: a `provenance` field on every case; at least 3 `real-derived`
+  per Position, so the set stays anchored; and at least one case per
+  Familiarity level per Position, because `new`, `familiar`, and `expert` drive
+  different rows of the Instruction's table while the real population is
+  entirely `new`. The discipline that keeps it private, this being the only
+  place in Amendment 2 where data lands somewhere it was not before:
+  `provenance` on a derived case carries an opaque local digest, a salted hash
+  of the source message stable enough to re-derive locally, and never a history
+  name, a file path, a session identifier, or message text, because a field
+  that names where a real chat message came from would undo the anonymization
+  the eval pipeline already performs; a derived case passes the existing
+  redaction step before it becomes a case, as `docs/SECURITY-REVIEW.md` already
+  records for the history searcher and the runner; and the eval kit stays
+  outside every git working tree, under the same refusal criteria 4 and 24
+  impose on the profile, its location recorded here (TBD-8), because placing
+  the kit out of review scope is a statement about review effort and not a
+  licence to let chat excerpts land in a repository. The overlap with the
+  approved Phase 1 case is intentional and allowed, the Phase 2 instance
+  differing in the one variable under test; it must not be counted twice toward
+  `Calibration.PhaseOneGuard`, whose 51 of 51 stays its own set. The limitation
+  is recorded rather than smoothed over: a Meter fed partly by authored cases
+  is weaker evidence than one fed entirely by observed behaviour, and the owner
+  accepted that trade in signing A13.
+
+An independent `security-reviewer` pass over the draft of this amendment,
+2026-10-07, read-only against this record, the four hook scripts, and
+`docs/SECURITY-REVIEW.md`, returned **approve with changes, no Blocker**: no
+new security boundary is crossed by A12, the lethal trifecta stays broken at
+leg 3, and the three new state fields carry no level, email, path, or workspace
+text. The Majors were correctness and accounting defects in the first version
+of the draft, all resolved in the text above:
+
+| # | Severity | Finding | Resolution |
+|---|---|---|---|
+| 1 | Major | Both existing writers emit a hardcoded two-field state object, so a PreCompact write would erase the three new fields, reset the character budget, and re-arm the backstop at every compaction | Fixed: every writer preserves all five fields, with a criterion-10 test that a PreCompact after a backstop injection leaves them intact |
+| 2 | Major | The save path returns without writing on a 5 s lock timeout. The backstop's legs are standing conditions, so an unrecorded injection would re-fire on every later call while `characters` never advanced — the bound failing on exactly the path it exists for | Fixed: the inject path takes the lock, re-reads, re-decides, writes, and only then emits; a failed write emits nothing. `characters` is a monotonic maximum under compare-and-set |
+| 3 | Major | The inject path re-reads the declaration and profile — the +412 to +750 ms step — and A12 moves it from once per compaction to once per turn, while the amended Scale excludes it by construction. Gated nowhere, reported nowhere | Fixed: a reported inject-path Meter cell, the per-turn cost named in the Consequences, and criterion 29 |
+| 4 | Major | The re-baseline rule was not mechanical: "worst reproduced p95" was undefined between max-across-runs and the reproduced value, the report-only `[two entries]` cell was not excluded, and the 1.5 factor was below the 1.65 spread it cited | Fixed: `w` is the maximum over gated cells of each cell's lower run; the factor is 1.75, stated as needing to exceed the spread |
+| 5 | Major | A13 would put verbatim real messages plus a history and message identifier into the eval kit, whose location the record never states, while criteria 4 and 24 impose a working-tree refusal on the profile | Fixed: `provenance` carries an opaque local digest only, derived cases pass the existing redaction step, the kit is placed outside every git working tree, criterion 28 and TBD-8 added |
+| 6 | Minor | A resumed session meets an existing state file, which "initialise when it injects" would reset, losing a pending compaction re-send | Fixed: seed when absent, merge otherwise, `compactions` and `injected` untouched |
+| 7 | Minor | The stated reason for seeding `lastTurn` was wrong — the turn leg is already safe at turn 1; the real turn-1 duplication risk is the time leg, armed from session start | Fixed: reason corrected, time leg armed from the first turn boundary |
+| 8 | Minor | "No state file, no backstop" does not survive a compaction, because PreCompact creates the file unconditionally | Fixed: the gate is a seeded `lastInjectionUtc`, not file existence |
+| 9 | Minor | `Context.SessionBudget`'s Gist was falsified by its own Fail line; compaction re-sends alone could reach ~116,000 characters in the documented 99-compaction session | Fixed: Gist names the exemption, and a 60,000-character second ceiling bounds it |
+| 10 | Minor | A10 conflated two runs: 1.11 is run 1 at one per cent over, while the noisier run 2 read 1.25, fourteen per cent over | Fixed; the withdrawal stands on A9's reasoning either way |
+| 11 | Minor | Criterion 14 was unamended and bound offer suppression only to the compaction Position, which A4 classified as a security control | Fixed: criterion 14 extended to every re-send Position |
+| 12 | Minor | The backstop sentence was never printed, and its suffix was 12 characters longer, putting the worst case at ~1,190 against Budget 1,200 | Fixed: the sentence is printed in the Outputs table, and the suffix shortened to 59 characters so the worst case stays at 1,178 |
+
+The reviewer confirmed that every figure quoted from this record's measurement
+tables reproduces faithfully, that no amended criterion contradicts an
+unamended one, and that criteria 22 and 25 stay coherent with A12.
+
 ## Signed-off Design Concept
 
 Signed off by the repository owner in chat on 2026-10-06, after an interview
@@ -620,8 +871,9 @@ security ruling after review (R1). No answer was delegated with
 `not sure, you pick`, and the override log is empty. The text below is the
 signed-off concept, verbatim apart from its title, its draft status header, the
 sign-off annotations on the rating-question ruling and TBD-4, the sign-off
-record, and Amendment 1: rulings A1 to A8 of 2026-10-06, marked in place with
-their tag and listed in the *Amendment log* before *Sign-off*.
+record, Amendment 1: rulings A1 to A8 of 2026-10-06, and Amendment 2: rulings
+A9 to A13 of 2026-10-07, each marked in place with its tag and listed in the
+*Amendment log* before *Sign-off*.
 
 ## Purpose
 
@@ -637,14 +889,17 @@ The promise, and its stated limits:
 - **New session:** every host that runs the SessionStart hook (VS Code Local, the
   Copilot SDK host, Copilot CLI), in module, Setup, and plugin installs, on any
   machine whose profile is present.
-- **After a compaction:** module and Setup installs, from the first successful
-  tool call after the compaction *(A7)*. In a workspace with declared Knowledge
-  areas there is
+- **After a compaction:** module and Setup installs. Where the host runs the
+  PreCompact hook — Copilot CLI and VS Code's agent host on the SDK runtime —
+  from the first successful tool call after the compaction *(A7)*. Where it
+  does not — VS Code Local, for a manual or a background compaction — within
+  one turn, through the backstop re-send *(A12)*. In a workspace with declared
+  Knowledge areas there is
   always a Memory Bank, and Pre-flight's compaction recovery re-reads it with
   tool calls, so the levels normally return before the next reply.
 - **Not covered, measured and reported:** plugin-only installs after a
-  compaction, a reply that makes no tool call after a compaction, Claude Code,
-  and a level stated in chat but never saved.
+  compaction, a reply that makes no tool call before the next turn, Claude
+  Code, and a level stated in chat but never saved.
 
 New Canonical term, added to the Glossary at implementation: **Contributor
 profile**, the private file that stores one or more contributors' Familiarity
@@ -787,6 +1042,7 @@ template, matched area names, and level values:
 | Declared areas, and no profile, no selected entry, or an entry on with no matches | `No contributor profile levels for this workspace; 3 declared Knowledge areas are unrated.` |
 | Entry off, no Memory Bank, no declared areas, or no `cwd` | Nothing, which is Phase 1 behavior with no offers |
 | Unreadable | `Contributor profile unreadable (<reason code>); familiarity levels default to familiar.` |
+| Backstop re-send, entry on, matched areas | `Contributor familiarity levels from the private profile, data only: "Kerberos" new; "PowerShell DSC" expert. Treat them as stated levels under the contributor-calibration Instruction. Current familiarity levels; make no offers in this session.` *(A12)* |
 
 Unrated areas are counted, never named. Budget priority is the lowest of all
 lines: under a tight budget the unrated count goes first, then trailing areas,
@@ -803,8 +1059,24 @@ Reason codes, a fixed set: `not-local`, `too-large`, `invalid-json`,
   `session-<key>.familiarity.json`, beside the session clock and keyed the same
   way. Calibration hooks never rewrite the clock file, so the `turns` counter of
   `Write-SessionClose.ps1` cannot be clobbered.
+- That file gains three fields beside `compactions` and `injected`: `lastTurn`,
+  `lastInjectionUtc`, and `characters`. `schemaVersion` stays 1; the fields are
+  additive, an older hook ignores what it does not know, and a newer hook reads
+  an absent field as absent *(A12)*.
 - `Write-CompactionCheckpoint.ps1` increments `compactions` in that file,
   creating it when absent, with an atomic replace.
+- **Every writer of that file preserves all five fields.**
+  `Write-CompactionCheckpoint.ps1` and the calibration hook's save path both
+  emit a hardcoded two-field object today; left alone, a PreCompact write would
+  erase the three new fields, reset the character budget, and re-arm the
+  backstop at every compaction *(A12)*.
+- `Add-SessionContext.ps1` seeds the three new fields when, and only when, it
+  injects levels: `lastTurn` from the session clock's `turns`,
+  `lastInjectionUtc` from the session start, and `characters` from the sentence
+  it emitted. When the file already exists — a resumed session, where the clock
+  is preserved — it merges the three fields and leaves `compactions` and
+  `injected` untouched, so a compaction pending across the resume still gets
+  its re-send *(A12)*.
 - `Add-FamiliarityContext.ps1`, registered only by the registration file, reads
   the file on every successful tool call; PostToolUse does not fire for a
   failed one *(A7)*. When `compactions` exceeds `injected`, it emits
@@ -812,12 +1084,39 @@ Reason codes, a fixed set: `not-local`, `too-large`, `invalid-json`,
   `hookSpecificOutput.additionalContext`), then records `injected` as the
   `compactions` value it read: a compare-and-set, so a stale write can never
   erase a newer compaction. Otherwise it writes nothing.
-- The **re-sent sentence** carries the matched levels only, without the unrated
-  count, and ends with the fixed suffix `Re-sent after a compaction; make no
-  offers in this session.`, so a compaction never repeats the interview, save,
-  or unreadable-profile offers. It rechecks the profile on every injection, so
-  an opt-out or deletion takes effect at once even in a session that loaded the
-  registration earlier.
+- It re-sends when **either** `compactions` exceeds `injected` (the compaction
+  re-send, unchanged), **or** the session clock's `turns` exceeds `lastTurn`,
+  **or** more than 5 minutes have passed since `lastInjectionUtc` — the last
+  two being the backstop. It reads the session clock file and never writes it,
+  as criterion 10 requires *(A12)*.
+- The backstop fires only when `lastInjectionUtc` is seeded, which only
+  `Add-SessionContext.ps1` does and only when it injected levels. File
+  existence is not the gate: `Write-CompactionCheckpoint.ps1` creates the file
+  unconditionally, without any profile or declaration check *(A12)*.
+- The time leg is armed only from the first turn boundary onward, so a first
+  tool call more than 5 minutes into turn 1 cannot duplicate the SessionStart
+  sentence. The turn leg is already safe at turn 1, because SessionStart writes
+  `turns = 0` and only the Stop hook advances it *(A12)*.
+- **The common path writes nothing and takes no lock.** The inject path takes
+  the lock first, re-reads the state, re-decides, writes, and only then emits;
+  a failed or timed-out write emits nothing on that call. Without that order a
+  5-second lock timeout would leave a standing backstop condition unrecorded,
+  re-firing on every later call while `characters` never advanced.
+  `characters` accumulates as a monotonic maximum under the same
+  compare-and-set as the existing counters, so parallel tool calls cannot
+  undercount it *(A12)*.
+- A backstop re-send is suppressed once `characters` reaches 12,000. A
+  compaction re-send is never suppressed below 60,000 and counts toward
+  `characters`; above 60,000 the hook emits nothing of either kind and reports
+  the session as out of envelope *(A12)*.
+- Both re-sends carry the matched levels only, without the unrated count, and
+  both recheck the profile on every injection, so an opt-out or deletion takes
+  effect at once even in a session that loaded the registration earlier. The
+  compaction re-send ends with the fixed suffix `Re-sent after a compaction;
+  make no offers in this session.` and the backstop re-send with `Current
+  familiarity levels; make no offers in this session.`, 59 characters each, so
+  no re-send repeats the interview, save, or unreadable-profile offers and the
+  worst case stays at the measured 1,178 *(A12)*.
 - It never emits `decision`, never exits `2`, and every path exits `0` except a
   launcher that cannot resolve the script, which exits `1` as lifecycle hooks
   do.
@@ -988,12 +1287,27 @@ Stakeholder: Contributor
 Scale: Percent of eval samples in which a level saved earlier shapes the reply
        without the contributor restating it, with the sentence at [Position]:
        session start, or after a tool result following a compaction.
-Meter: Persistence cases in the private eval kit, at least 6 per Position,
-       mined from real restatements; K = 3; pinned gpt-5.5 judge; compared arms
-       run together.
+Meter: Persistence cases in the private eval kit, at least 6 per Position;
+       K = 3; pinned gpt-5.5 judge; compared arms run together. Every case
+       carries a provenance field: real-derived, with the stated level moved
+       out of the message and into the profile sentence and nothing else
+       changed; or synthetic-reviewed, authored and reviewed by the owner,
+       with the gap it fills recorded. A real-derived case identifies its
+       source only by an opaque local digest, never by a history name, a
+       path, a session identifier, or message text, and passes the existing
+       redaction step before it becomes a case. At least 3 real-derived per
+       Position, and at least one case per Familiarity level per Position. A
+       case shared with the Phase 1 set counts once there and once here; the
+       two sets stay separate. The kit lives outside every git working tree,
+       under the refusal criteria 4 and 24 impose on the profile. (A13)
 Past [Phase 1]: 0 % <- Decision 0027, CAL-09 (levels are session-scoped)
 Goal [Phase 2 release, each Position]: 100 % pass^3 <- Interview Q1, 2026-10-05
 Fail: below 90 % of samples <- Interview Q1
+Limitation: Three whole histories, 2,706 user messages, yield at most 3
+       usable real restatements, all at `new`; Phase 2 removes the need to
+       restate, so the population shrinks rather than grows. A set fed partly
+       by authored cases is weaker evidence than one fed entirely by observed
+       behaviour. Accepted with A13. (A13)
 Authority: Repository owner
 
 Tag: Calibration.Delivery
@@ -1024,83 +1338,126 @@ Fail: below 51 of 51
 Tag: SessionStart.AddedLatency
 Type: Resource Requirement
 Scale: p95 over paired replicates of the session-start hook's added time, in
-       no-op hook launches, under [Host spawn] and [Profile: one entry, none,
-       two entries]. Each replicate's value is the time with declared areas
-       minus the time without a declaration, divided by that replicate's
-       launch of a fixed no-op hook through the same launcher and spawn. (A1)
-Meter: tests/Fixtures/Measure-CalibrationLatency.ps1: 2 warm-up replicates,
-       then 20 measured replicates, each running the baseline, every subject,
-       the no-op hook, and the push guard back to back in rotated order
-       through the host's exact spawn, process start included; nearest-rank
-       p95; on Prox1 and RAANDREE3; recorded in Decision record 0028. A value
-       at or below Budget meets it, a value above Fail fails, and a verdict
-       above Budget or Fail counts only when a second Meter run reproduces it.
-       The push guard is reported, not used as the unit. (A1)
-Past [VS Code spawn, Prox1, one entry]: 0.53 to 0.61 launch (p50 0.48 to 0.50)
-Past [SDK spawn, Prox1, one entry]: 0.35 to 0.45 launch (p50 0.31)
-Past [VS Code spawn, Prox1, none]: 0.25 to 0.39 launch (p50 0.20 to 0.21)
-Past [SDK spawn, Prox1, none]: 0.18 to 0.27 launch (p50 0.15 to 0.16)
-Past [VS Code spawn, Prox1, two entries]: 0.65 to 0.85 launch
-Past [SDK spawn, Prox1, two entries]: 0.44 to 0.49 launch
-       <- amended Meter, two runs on 2026-10-06, p95 of 20 paired
-       replicates; the no-op launch measured p50 778 to 790 ms (VS Code) and
-       1,014 to 1,042 ms (SDK)
-Past [VS Code spawn, RAANDREE3, one entry]: 0.27 to 0.38 launch (p50 0.25 to 0.26)
-Past [SDK spawn, RAANDREE3, one entry]: 0.43 to 0.71 launch (p50 0.37 to 0.38)
-Past [VS Code spawn, RAANDREE3, none]: 0.12 to 0.16 launch (p50 0.10)
-Past [SDK spawn, RAANDREE3, none]: 0.21 to 0.28 launch (p50 0.18 to 0.19)
-Past [VS Code spawn, RAANDREE3, two entries]: 0.36 to 0.51 launch
-Past [SDK spawn, RAANDREE3, two entries]: 0.55 to 0.84 launch
-       <- amended Meter of b7e6502, two runs on 2026-10-06; the no-op launch
-       measured p50 1,916 to 1,973 ms (VS Code) and 1,039 to 1,144 ms (SDK)
-Budget [one entry, none]: 0.5 launch <- Ruling A2, 2026-10-06
-Fail [one entry, none]: 1.0 launch <- Ruling A2, 2026-10-06
-Report, not gate: [two entries], where the identity rule runs git <- Ruling A2
+       frozen reference scripts, under [Host spawn] and [Profile: one entry,
+       none, two entries]. In each replicate the added time is the time with
+       declared areas minus the time without a declaration, and the unit is
+       the same replicate's frozen reference script time minus that
+       replicate's no-op hook time, both through the same launcher and
+       spawn. (A9)
+Meter: tests/Fixtures/Measure-CalibrationLatency.ps1, gaining two cells —
+       the frozen reference script, and the PostToolUse inject path: 2
+       warm-up replicates, then 20 measured replicates, each running the
+       baseline, every subject, the no-op hook, the frozen reference script,
+       the inject path, and the push guard back to back in rotated order
+       through the host's exact spawn, process start included;
+       nearest-rank p95; on Prox1 and RAANDREE3; recorded in Decision record
+       0028. A value at or below Budget meets it, a value above Fail fails,
+       and a verdict above Budget or Fail counts only when a second Meter run
+       reproduces it. The hook's full wall-clock time, the no-op launch, the
+       frozen reference script's own time, and the push guard are reported in
+       milliseconds per machine and spawn, not used as levels. (A9)
+Past: withdrawn (A10). The launch-unit readings of 2026-10-06 on Prox1 and
+       RAANDREE3 stay under Confirmation as the evidence for A9 and bind
+       nothing. The first run under this Meter sets Past.
+Budget [one entry, none]: set by the re-baseline rule (A9)
+Fail [one entry, none]: 2 x Budget (A9)
+Stop line: the calibration step's own p95 above 1,000 ms on either machine
+       means the design, not the unit, is the problem; return to
+       software-architect rather than re-baselining. Measured worst under the
+       old unit: about 812 ms. (A9)
+Report, not gate: [two entries], where the identity rule runs git (A2); the
+       absolute milliseconds of every cell (A11)
 Rationale: Paid once per chat, only where a workspace declares Knowledge
-       areas, by contributors who accept one launch per tool call (Q20). At
-       Fail the hook costs a whole extra launch; fallback A costs more, a tool
-       call plus a model round trip.
-Assumption: The reader's cold cost scales with the launch cost, both being
-       cold PowerShell start-up; RAANDREE3 tests it (TBD-5).
-Risk: A lighter shared launcher shrinks the unit and raises this ratio without
-       any regression; re-run the Meter and re-baseline when a launcher in
-       hooks.json changes.
+       areas, by contributors who accept one launch per tool call (Q20). The
+       unit is cold script execution, the same kind of work as the measured
+       cost, so machine speed, shell edition and load cancel to first order.
+       The launcher's own cost belongs to Decision 0016.
+Assumption: The frozen reference script's cold cost scales across machines
+       and spawns the same way the calibration step's does. The re-baseline
+       rule checks this directly (TBD-6); it is not carried as belief. (A9)
+Risk: Changing the frozen reference script's bytes changes every ratio in
+       this record. It is hash-pinned by a test; a change re-baselines both
+       latency tags in the same commit.
 Authority: Repository owner
 
 Tag: PostToolUse.CallLatency
 Type: Resource Requirement
-Scale: p95 over paired replicates of one non-injecting PostToolUse hook's
-       time divided by the same replicate's no-op hook launch, under
-       [Host spawn]. (A1)
+Scale: p95 over paired replicates of the calibration PostToolUse hook's own
+       script time, in frozen reference scripts, under [Host spawn]. In each
+       replicate the script time is the hook's time minus that replicate's
+       no-op hook time, and the unit is the same replicate's frozen reference
+       script time minus that replicate's no-op hook time, both through the
+       same launcher and spawn. Measured on the common path, with the
+       backstop trigger evaluated and nothing injected. (A9, A12)
 Meter: As SessionStart.AddedLatency.
-Past [VS Code spawn, Prox1]: 1.09 to 1.12 launch (838 to 884 ms)
-Past [SDK spawn, Prox1]: 1.08 to 1.10 launch (1,094 to 1,152 ms)
-       <- amended Meter, two runs on 2026-10-06, p95 of 20 paired
-       replicates; the push guard read 1.18 to 1.26 (VS Code) and 1.11 to
-       1.16 (SDK) launch
-Past [VS Code spawn, RAANDREE3]: 1.05 to 1.06 launch (2,067 to 2,198 ms)
-Past [SDK spawn, RAANDREE3]: 1.11 to 1.25 launch (1,155 to 1,389 ms)
-       <- amended Meter of b7e6502, two runs on 2026-10-06; the push guard
-       read 1.13 to 1.16 (VS Code) and 1.14 to 1.31 (SDK) launch
-Budget: 1.1 launch <- Ruling A3, 2026-10-06
-Fail: 1.25 launch <- Ruling A3, 2026-10-06
-Rationale: The common path reads the payload head, runs one regex, and checks
-       one file, so it costs barely more than a no-op launch, within the
-       Meter's noise; above 1.25 the script's own work has become significant.
+Past: withdrawn (A10); the 2026-10-06 launch-unit readings stay as evidence.
+Budget: set by the re-baseline rule (A9)
+Fail: 2 x Budget (A9)
+Stop line: the hook's own script p95 above 400 ms on either machine returns
+       to software-architect. Measured worst under the old unit: about
+       290 ms, in the noisiest SDK run. (A9)
+Report, not gate: the hook's full wall-clock time per machine and spawn,
+       beside the push guard's on the same machine (A11); the inject path —
+       a call on which the hook re-reads the declaration and the profile and
+       emits a sentence — as its own cell, in the same unit and in
+       milliseconds, because A12 moves that work from once per compaction to
+       once per turn (A12)
+Rationale: The common path reads the payload head, runs one regex, reads the
+       per-session state file, and reads the session clock file, so it costs
+       barely more than a no-op launch. Fallback A applies only when this
+       requirement reaches Fail on Prox1 or RAANDREE3 under the unit in force
+       (A3, as re-expressed by A9); it has not been reached under any unit.
 Assumption: Only machines with a profile that is on pay it (Q20).
 Authority: Repository owner
 
 Tag: Context.SentenceSize
 Type: Resource Requirement
 Scale: Characters of the calibration sentence at [Position: session start,
-       re-sent after a compaction].
+       re-sent after a compaction, re-sent by the backstop]. (A12)
 Meter: Pester fixtures for the worst case (16 names of 48 characters at
-       familiar) and a typical case (5 areas).
+       familiar) and a typical case (5 areas), at every Position.
 Past: 0; existing context 615 of 4,096 <- measured 2026-10-05
 Past [worst, fixed template]: 1,118 at session start, 1,178 re-sent
        <- tests/ContributorProfileReader.Tests.ps1, 2026-10-06
-Budget [worst, either Position]: 1,200 <- Ruling A4, 2026-10-06
+Past [worst, backstop]: 1,178, the backstop suffix being 59 characters, the
+       same length as the compaction suffix (A12)
+Budget [worst, any Position]: 1,200 <- Ruling A4, extended to the backstop
+       Position by A12
 Budget [typical]: 300 <- Interview Q9, Q18
+
+Tag: Context.SessionBudget
+Type: Resource Requirement
+Gist: Backstop re-sends never become the context pressure they mitigate, and
+      compaction re-sends, which are exempt from that bound, stay under a
+      second and far higher ceiling.
+Scale: Characters of calibration text injected into one session's context,
+       all Positions together.
+Meter: A Pester fixture driving a session past each bound with the worst-case
+       profile, asserting that backstop re-sends stop at the first, that
+       compaction re-sends continue past it, and that nothing of either kind
+       is emitted past the second.
+Past: 1,118 at most <- Phase 2 before A12, one sentence per session plus one
+       per compaction
+Budget [backstop re-sends]: 12,000 characters for all Positions together,
+       enforced by the hook itself (A12)
+Budget [ceiling, every Position]: 60,000 characters, above which the hook
+       emits nothing further and the session is reported as out of envelope
+       (A12)
+Fail: any backstop re-send after 12,000, any compaction re-send suppressed
+       below 60,000, or any injection at all above 60,000 (A12)
+Rationale: 12,000 characters is about 3,000 tokens: 5 per cent of the
+       ~60,000-token base prompt this record measured, 1.5 per cent of a
+       200,000-token window. At the typical 300-character sentence it allows
+       about 39 re-sends; at the 1,178-character worst case, about 10. The
+       exemption needs its own ceiling because compaction re-sends are
+       unbounded in principle: the record documents a real session with 99
+       background compactions over 3 h 42 min, which at the worst-case
+       sentence would reach about 116,000 characters. In practice the existing
+       compare-and-set collapses every compaction since the last injection
+       into a single re-send, so reaching 60,000 needs a tool call between
+       compactions almost every time. Above that the session is already
+       outside the design's envelope.
+Authority: Repository owner
 
 Tag: Instruction.Size
 Type: Resource Requirement
@@ -1113,6 +1470,58 @@ Budget: 4,096 characters, 60 lines, caps not raised <- Interview Q18
 Conditions (Q18): profile at most 64 KB, 16 entries, 8 aliases, and 200 areas
 per entry; `projectbrief.md` read up to 64 KB and 16 bullets; calibration step
 within 3 s; git within 2 s.
+
+### The frozen reference script (A9)
+
+`tests/Fixtures/Invoke-ReferenceHook.ps1`, beside the Meter, never shipped:
+
+- reads standard input exactly as the no-op hook does, then parses that
+  payload with `ConvertFrom-Json`, matches one regular expression against it,
+  and tests one file path — the same primitives the shipped hooks use;
+- then executes a fixed block of straight-line cold code sized to about 4,000
+  syntax-tree nodes, so that its own time is the same kind and order of work as
+  the calibration step's. Decision 0016's figure of roughly 0.07 ms per
+  first-executed node puts that near 280 ms on Prox1, against a reader measured
+  at 412 to 493 ms there;
+- is **frozen**: a test pins its SHA-256, and a change to its bytes
+  re-baselines both latency tags in the same commit. This is the same
+  discipline the no-op hook already carries ("Keep it fixed; changing it
+  changes every ratio").
+
+### The re-baseline rule (A9)
+
+Applied once, by the engineer, in the first Meter run under the new unit, on
+both machines and both spawns. It is deliberately mechanical so that it needs
+no further architect round:
+
+1. Record the frozen reference script's own time in milliseconds per machine
+   and spawn as a new Past line. It is the unit's calibration and must be
+   published, not buried in a ratio.
+2. Let `w` be the maximum, across the **gated cells only**, of each cell's
+   **lower** of its two runs. Gated means `[one entry]` and `[none]` for
+   `SessionStart.AddedLatency`, and the common-path cell for
+   `PostToolUse.CallLatency`. The `[two entries]` cell, the inject-path cell,
+   the push guard, and every absolute-millisecond figure are reported and
+   never enter `w`. Taking the lower of the two runs is what "reproduced"
+   means in this record: a level counts only when both runs reach it.
+3. `Budget` = the smallest multiple of 0.25 that is at least `1.75 x w`.
+   `Fail` = `2 x Budget`.
+4. The 1.75 factor must **exceed** the Meter's own run-to-run spread, because
+   `w` is taken from the lower run while the Budget must still hold on the
+   higher one. The widest pair in the 2026-10-06 runs moved 0.43 to 0.71, a
+   factor of 1.65; typical pairs moved by 1.1 to 1.3. Any factor at or below
+   1.65 would fail the noisier run by construction.
+5. **Unit transfer check (TBD-6).** Let `r` be the frozen reference script's
+   RAANDREE3 time divided by its Prox1 time, per spawn, and `s` the same ratio
+   for the measured step. When `r` and `s` differ by more than 1.3 times in
+   either direction, the unit has not cancelled machine speed: record both and
+   return to software-architect. Do not set a Budget from a unit that failed
+   this check.
+6. **Stop lines.** Above the absolute stop line in either tag, return to
+   software-architect instead of re-baselining. A re-baseline that only ever
+   moves the line to wherever the code already sits is not a Meter.
+7. Record the computed Budget, Fail, and the run that produced them in the
+   Confirmation, together with the reference script's hash.
 
 ## Design options and recommendation
 
@@ -1160,6 +1569,15 @@ would add a sixth Discovery link to create, verify, remove, and reconcile.
 | `## Knowledge areas` in `projectbrief.md` | Moving it later touches every project's Memory Bank |
 | Registration file name, reserved in payloads | Changing it needs a migration of existing registrations |
 | Registration ownership through the recorded hash | A template change needs no migration: the next writer replaces each owned registration *(A5)* |
+| A9, the latency unit and the frozen reference script | **Fully reversible.** A Meter and a test fixture; nothing ships. Reverting means re-running the Meter under the old unit. The frozen script's bytes are the only thing that must not drift silently, and a test pins them |
+| A10, withdrawing the two verdicts | **Fully reversible.** A record change; criterion 20 re-opens and is decided by the next run |
+| A11, restating the Consequences | **Fully reversible.** Documentation of measured fact. The rejected one-process launcher stays available as separate work against Decision 0016 |
+| A12, the backstop re-send | **Reversible in code, with one durable edge.** The trigger, the bound, and the suffix are a hook change, revertible in one commit. The three new fields in `session-<key>.familiarity.json` are the durable part: the file is private, per-session, recreated every session, and read only by these hooks, so an older hook reading a newer file ignores unknown fields and a newer hook reading an older file sees them absent and treats the session as freshly started. No migration, no user-visible artefact |
+| A13, eval case provenance | **Fully reversible.** The eval kit is private and versioned; cases can be re-mined or replaced. The `provenance` field makes a later purge of synthetic cases a filter rather than an archaeology exercise |
+
+Amendment 2 changes no schema, public command, persistence format, or
+dependency decision: the five public command names, the profile schema 1, and
+the registration contract are untouched *(A9 to A13)*.
 
 ### Delivery increments
 
@@ -1178,6 +1596,44 @@ would add a sixth Discovery link to create, verify, remove, and reconcile.
 5. **Offers:** Instruction sentence, Prompt lines, interview and save flows.
 6. **Measurement:** eval groups 1 to 4, the delivery matrix, the latency Meter,
    live proofs.
+7. **Amendment 2 (A9 to A13):** what implementation builds or measures next,
+   in this order, because each step's result feeds the next.
+   1. **A9 — build the unit.** Add `tests/Fixtures/Invoke-ReferenceHook.ps1`,
+      hash-pin it, and add its cell and the inject-path cell to
+      `Measure-CalibrationLatency.ps1` in the rotated order beside the no-op
+      hook. Add the absolute-milliseconds reporting for every cell.
+   2. **A12 — build the backstop,** test-first, in this order because the first
+      two items are defects an independent review found in the draft: make
+      every state-file writer preserve all five fields; move the injection
+      behind a successful locked state write; then the three fields, the
+      SessionStart seeding and resume merge, the dual trigger with the time leg
+      armed from the first turn boundary, the seeded-`lastInjectionUtc` gate,
+      the 12,000 and 60,000 bounds, and the 59-character backstop suffix. Do
+      this before the re-baseline, because it changes the PostToolUse common
+      path that step 3 measures.
+   3. **A9, A10 — re-baseline.** Run the amended Meter twice on Prox1 and twice
+      on RAANDREE3. Apply the re-baseline rule exactly: publish the reference's
+      own milliseconds, take `w` from the gated cells as each cell's lower run,
+      run the unit transfer check (TBD-6), compute Budget and Fail, and check
+      both stop lines. Record everything in the Confirmation. Return to
+      `software-architect` only if TBD-6 fails or a stop line is crossed.
+   4. **A11 — restate the Consequences and the Purpose** with the amended text,
+      and open a separate Decision record proposing the one-process `windows`
+      launcher against Decision 0016, with `tests/HookLauncher.Tests.ps1` and
+      the push guard's exit-code contract as its gate. Do not implement it in
+      this release.
+   5. **A12 — re-measure delivery.** Extend the `Calibration.Delivery` matrix
+      with the VS Code Local backstop cell, answer TBD-7, and perform the
+      manual compaction check in VS Code Local that criterion 22 now requires.
+   6. **A13 — rebuild the persistence set.** Record the eval kit's location and
+      prove the working-tree refusal (TBD-8), add `provenance` with an opaque
+      digest to every case, derive 3 cases per Position from the real
+      restatements through the existing redaction step, author the synthetic
+      top-up for `familiar` and `expert`, submit the synthetic cases to the
+      owner for review, and re-run the eval.
+   7. **Close out.** Criteria 10, 14, 20, 21, 22, and 26 to 29 all move
+      together; none of them is done until the re-baseline and the eval are
+      recorded here.
 
 ## Failure modes
 
@@ -1203,6 +1659,14 @@ would add a sixth Discovery link to create, verify, remove, and reconcile.
 | Registration left behind by a deleted or unreadable profile | `Get-` reports it; `Remove- -RegistrationOnly` removes it |
 | Registration script unresolvable in an open session | Launcher exits `1`, a warning, until the chat restarts; Uninstall reconciles first |
 | Any hook fault | Exit `0`, session never blocked, profile never written by a hook |
+| Session clock file missing or unreadable at a PostToolUse call | The turn signal is unavailable; the 5-minute signal alone drives the backstop; no error, nothing written *(A12)* |
+| `turns` never advances in a host | The 5-minute signal alone drives the backstop; recovery is within 5 minutes rather than one turn *(A12)* |
+| A session reaches the 12,000-character bound | Backstop re-sends stop for the rest of the session; compaction re-sends continue; nothing is reported to the model *(A12)* |
+| A session reaches the 60,000-character ceiling | No injection of either kind for the rest of the session; the condition is recorded in the state file and reported by `Get-` *(A12)* |
+| The state write fails or the lock times out on an inject path | Nothing is emitted on that call; the backstop re-evaluates on the next one, so no condition is lost and none re-fires unrecorded *(A12)* |
+| A resumed session meets an existing state file | The three new fields are merged, `compactions` and `injected` are left alone, and a compaction pending across the resume still gets its re-send *(A12)* |
+| A compaction in a session where SessionStart injected nothing | `Write-CompactionCheckpoint.ps1` still creates the state file, but `lastInjectionUtc` is unseeded, so no backstop fires and no profile is read *(A12)* |
+| An agent with file tools writes a high `turns` into the session clock | Backstop re-sends fire more often, bounded by the 12,000-character budget; a frozen `turns` disables the turn leg only, leaving the 5-minute leg. Both are degradations, not escalations *(A12)* |
 
 ## Edge cases
 
@@ -1276,6 +1740,29 @@ at most 16 self-assessed preferences. A trust list would close residual 1 but
 would record which projects the contributor works in, which Q17 rejected;
 out-of-band confirmation would close residual 2 at one manual step per save.
 
+**R1 revisited under A12,** because R1's reasoning was partly frequency-based
+and A12 changes the frequency. The accepted Low risk is unchanged in reach: the
+sentence names only Knowledge areas present in **both** the workspace's
+`projectbrief.md` and the contributor's private profile, so a hostile workspace
+still learns nothing it did not already name, and repetition cannot widen a set
+the contributor owns. What A12 changes is **salience**: a guessed name now
+appears up to about 10 times in a worst-case session and about 39 in a typical
+one, late in context, instead of once plus once per compaction. The strict
+area-name grammar — no quotes, backticks, `; = < > * _`, or control characters
+— keeps every repetition inside the quoted, data-only framing, and the
+offer-suppressing suffix is carried at every Position by criterion 14, so the
+increase is quantitative rather than a new capability. The risk stays Low on
+that basis, now stated in terms of salience rather than of a single injection
+*(A12)*.
+
+The lethal trifecta stays broken at leg 3. The hook layer gains exactly one
+additional **read** of a local file whose path is derived through the same
+sanitiser as every other session-keyed path: no network call, no new tool, no
+repository code executed, no new traversal surface. An agent with file tools
+that writes the session clock can force more re-sends or freeze the turn leg;
+both are bounded degradations under `Context.SessionBudget`, not escalations,
+and neither moves private data outward *(A12)*.
+
 ## Performance
 
 See `SessionStart.AddedLatency`, `PostToolUse.CallLatency`,
@@ -1332,12 +1819,28 @@ exists only in sessions started while a registration file exists.
    degrades in the stated order without shortening any existing line.
 9. Without declared areas, the SessionStart hook neither reads the profile nor
    runs git.
-10. PreCompact increments `compactions` in the calibration state file; the first
-    PostToolUse after it emits the re-sent sentence under both host keys and
-    records `injected` by compare-and-set; other calls emit nothing; a test that
-    interleaves a stale PostToolUse write with a newer PreCompact never loses
-    the newer compaction; no calibration hook rewrites the session clock file;
-    neither hook emits `decision` or exits `2`.
+10. PreCompact increments `compactions` in the calibration state file; the
+    first PostToolUse after it emits the re-sent sentence under both host keys
+    and records `injected` by compare-and-set. A backstop re-send is emitted on
+    the first successful tool call after the session clock's `turns` advances,
+    or after 5 minutes since `lastInjectionUtc` once the first turn boundary
+    has passed, carrying the backstop suffix and never the compaction suffix.
+    Every writer of the state file preserves all five fields, proved by a test
+    in which a PreCompact write follows a backstop injection and leaves
+    `lastTurn`, `lastInjectionUtc` and `characters` intact. SessionStart seeds
+    the three new fields only when it injects, and merges rather than resets
+    them when the file already exists; an unseeded `lastInjectionUtc`, not an
+    absent file, is what stops the backstop, proved by a test in which
+    PreCompact creates the file in a session that injected nothing. The common
+    path writes nothing and takes no lock; the inject path takes the lock,
+    re-reads, re-decides, writes, and only then emits, and a failed or
+    timed-out write emits nothing on that call. `characters` accumulates as a
+    monotonic maximum under compare-and-set. Backstop re-sends stop at 12,000
+    characters while compaction re-sends continue, and nothing of either kind
+    is emitted above 60,000. Other calls emit nothing; a test that interleaves
+    a stale PostToolUse write with a newer PreCompact never loses the newer
+    compaction; no calibration hook rewrites the session clock file; neither
+    hook emits `decision` or exits `2` *(A12)*.
 11. The registration file exists exactly while an entry is on and rates at
     least one area. A file this writer creates matches the shipped template
     byte for byte, and the next writer replaces an owned file from an earlier
@@ -1357,8 +1860,9 @@ exists only in sessions started while a registration file exists.
     4,096 characters and 60 lines; `/simpler` and `/deeper` carry the save-offer
     line; Pre-flight step 8 names profile counts only.
 14. Rating and save questions offer no `not sure, you pick`, and a delegated
-    reply saves nothing; the re-sent sentence after a compaction carries no
-    unrated count and suppresses every offer for the rest of the session.
+    reply saves nothing; **every** re-sent sentence, at the compaction Position
+    and at the backstop Position alike, carries no unrated count and suppresses
+    every offer for the rest of the session *(A12)*.
 15. The five commands have comment-based help and unit tests that satisfy the
     QA suite; every writing command supports `-WhatIf`; Remove- uses
     `ConfirmImpact = 'High'`; Get- masks aliases unless `-ShowAliases`;
@@ -1380,19 +1884,27 @@ exists only in sessions started while a registration file exists.
     Uninstall reads only the registration record, takes the profile lock,
     reconciles the registration before removing any file, and stops with the
     file named when it cannot.
-20. The latency budgets hold on Prox1 and RAANDREE3 per the Meter as amended:
-    no-op hook launches as the unit, 20 paired replicates in rotated order,
-    inclusive thresholds, and a verdict above Budget or Fail reproduced in a
-    second run; the two-entry cell and the push guard are reported, and the
-    results are recorded in Decision record 0028 *(A1 to A3)*.
-21. Eval: `Calibration.Persistence` 100 % pass^3 at each Position; Phase 1 51 of
-    51 with a sentence present; the offer and safety groups meet the same gates
-    (TBD-4, resolved at sign-off).
-22. `Calibration.Delivery`: every cell inside the promise delivers the sentence,
-    and the two reported cells are measured and recorded. The SDK runtime probe
-    shows the PostToolUse `additionalContext` reaching the model and the
-    `sessionStart` `hook.end` event carrying the sentence; one manual
-    compaction each in VS Code Local and Copilot CLI shows the re-injection.
+20. The latency levels hold on Prox1 and RAANDREE3 per the Meter as amended:
+    frozen reference scripts as the unit, 20 paired replicates in rotated
+    order, inclusive thresholds, and a verdict above Budget or Fail reproduced
+    in a second run. The re-baseline rule is applied once and its Budget, Fail,
+    the reference script's hash, and its own milliseconds per machine and spawn
+    are recorded in Decision record 0028. The unit transfer check passes. The
+    two-entry cell, the push guard, and every cell's absolute milliseconds are
+    reported *(A9, A10, A11)*.
+21. Eval: `Calibration.Persistence` 100 % pass^3 at each Position, over a set
+    of at least 6 cases per Position with at least 3 `real-derived` and at
+    least one case per Familiarity level, every case carrying its provenance;
+    Phase 1 51 of 51 with a sentence present, counted over its own set; the
+    offer and safety groups meet the same gates (TBD-4, resolved at sign-off)
+    *(A13)*.
+22. `Calibration.Delivery`: every cell inside the promise delivers the
+    sentence, and the reported cells are measured and recorded. The SDK runtime
+    probe shows the PostToolUse `additionalContext` reaching the model and the
+    `sessionStart` `hook.end` event carrying the sentence. One manual
+    compaction in Copilot CLI shows the PreCompact-driven re-injection; one
+    manual compaction in VS Code Local shows the backstop re-injection within
+    one turn, with no PreCompact having run *(A12)*.
 23. The Glossary defines Contributor profile; the hooks README, README, and
     CHANGELOG describe the change; Decision record 0028 is accepted and indexed.
 24. A test runs every writer against a temporary git repository and proves that
@@ -1400,6 +1912,22 @@ exists only in sessions started while a registration file exists.
 25. Every script that derives the session clock path (SessionStart, Stop,
     PreCompact, PostToolUse, and the elapsed reader) derives the same path for
     one shared fixture set.
+26. The frozen reference script's bytes are pinned by a test, and a change to
+    them fails that test until both latency tags are re-baselined in the same
+    commit *(A9)*.
+27. `Context.SessionBudget` holds: a fixture driving a session past 12,000
+    characters proves that backstop re-sends stop and compaction re-sends do
+    not, and a fixture driving it past 60,000 proves that neither kind is
+    emitted and that the condition is recorded *(A12)*.
+28. No persistence eval case records a history name, a path, a session
+    identifier, or source message text: `provenance` on a `real-derived` case
+    carries only an opaque local digest, and every derived case passes the
+    existing redaction step. The eval kit's location is recorded in this record
+    and lies outside every git working tree, proved by the same working-tree
+    refusal criteria 4 and 24 apply to the profile *(A13)*.
+29. The reported cells are produced and recorded: the inject path's own time in
+    the new unit and in milliseconds, per machine and spawn, beside the common
+    path's *(A12, A11)*.
 
 ## Open questions
 
@@ -1409,7 +1937,10 @@ exists only in sessions started while a registration file exists.
 | TBD-2 | What OneDrive names a conflict copy | software-engineer, observed once on two machines | None; only `profile.json` is read |
 | TBD-3 | Exact wording of the Instruction, Pre-flight, and Prompt sentences within the caps | software-engineer, measured by the eval | Wording only |
 | TBD-4 | Gates for the offer and safety eval groups | Resolved at sign-off: equal to `Calibration.Persistence` | Measurement only |
-| TBD-5 | Does the reader's cold cost scale with the launch cost across machines, the Assumption under `SessionStart.AddedLatency`? | software-engineer, the RAANDREE3 Meter run | Whether one hook launch is a fair unit on both machines; if not, back to software-architect (A1) |
+| TBD-5 | Closed: **no.** The reader's cold cost does not scale with the launch cost across machines. A9 retires the launch unit | — | Closed by the RAANDREE3 run |
+| TBD-6 | Does the frozen reference script's cold cost scale across machines and spawns the same way the calibration step's does? | software-engineer, the re-baseline run, step 5 of the rule | Whether the new unit cancels machine speed; if not, back to software-architect |
+| TBD-7 | Does `turns` advance in every host that runs the Stop hook? | software-engineer, measured in the delivery matrix | Whether VS Code Local recovers within one turn or within 5 minutes |
+| TBD-8 | Where does the private eval kit live, and does it satisfy the working-tree refusal? | software-engineer, recorded before the persistence set is rebuilt | Whether chat excerpts can reach a repository |
 
 Delegated answers: none.
 
@@ -1445,6 +1976,20 @@ the independent review of the draft. The reasons are under
 | A7 | Decision outcome; Purpose; Stakeholders; Schema 1; area-name rule; PostToolUse re-injection; Commands: `Set-`, write selection, snooze; Failure modes; Edge cases; criterion 15 |
 | A8 | Registration file: reconciliation, replacement, Uninstall, repair, known limit; Commands: `Get-`, `Remove-`; Failure modes; Rollback; criterion 11 |
 
+Amendment 2, 2026-10-07: rulings A9 to A13, answering the five results that
+implementation returned in the second round, with twelve findings from an
+independent review of the draft folded in. The reasons are under
+*Rulings, 2026-10-07* in the Confirmation.
+
+| Ruling | Passages amended |
+|---|---|
+| A9 | `SessionStart.AddedLatency` and `PostToolUse.CallLatency`: Scale, Meter, Past, Budget, Fail, Stop line, Rationale, Assumption, Risk; the frozen reference script and the re-baseline rule; Delivery increments; criterion 20; new criterion 26; Open questions: TBD-5 closed, TBD-6 added |
+| A10 | `SessionStart.AddedLatency` and `PostToolUse.CallLatency`: Past withdrawn; criterion 20; the fallback A condition under `PostToolUse.CallLatency` |
+| A11 | Consequences; `SessionStart.AddedLatency` and `PostToolUse.CallLatency`: Report, not gate; new criterion 29; the one-process launcher recommended to Decision 0016 |
+| A12 | Purpose; Consequences; Outputs: PostToolUse re-injection and the sentence table; `Context.SentenceSize`: Scale, Past, Budget; new `Context.SessionBudget`; Security: R1 revisited; Failure modes; criteria 10, 14 and 22; new criteria 27 and 29; Open questions: TBD-7 added |
+| A13 | `Calibration.Persistence`: Meter, Limitation; criterion 21; new criterion 28; Open questions: TBD-8 added |
+| A9 to A13 | Durable choices and their reversibility; Delivery increments: the build order for implementation |
+
 ## Sign-off
 
 - [x] The user read this document end to end.
@@ -1457,3 +2002,11 @@ Amendment 1:
 - [x] The user read the Amendment log and every passage it marks.
 - [x] The user accepted rulings A1 to A8.
 - [x] The user typed `SIGNED OFF` in chat on 2026-10-06.
+
+Amendment 2:
+
+- [x] The repository owner read the amendment end to end.
+- [x] The repository owner accepted rulings A9 to A13, choosing
+  "Accept all four (Recommended)" for the four decisions behind them.
+- [x] The repository owner signed it off in chat on 2026-10-07, relayed through
+  `software-engineer`, which dispatched `software-architect` to record it.

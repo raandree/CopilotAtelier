@@ -18,6 +18,15 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-07**: Signed off Decision 0028 Amendment 2 (`software-architect`
+  as a subagent of `software-engineer`; the owner accepted all four
+  decisions): rulings A9 to A13 replace the launch unit with a frozen
+  reference script, withdraw criterion 20's two verdicts, restate the hook
+  cost per machine, add a bounded per-turn backstop re-send for VS Code
+  Local, and allow derived and reviewed synthetic persistence cases. An
+  independent `security-reviewer` pass found no Blocker; its 12 findings are
+  resolved in the text. Nothing is implemented yet.
+
 - **2026-10-07**: VS Code Local runs no PreCompact for a background
   compaction either (Copilot Chat 0.68.0), found when a 70,000-token threshold
   set for the retest made one prompt loop through 2,001 requests and 99
@@ -29,16 +38,12 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   files now state its version. Both gaps returned to `software-architect`
   (questions 4 and 5).
 
-- **2026-10-06**: Recorded criterion 22's manual compactions in Decision 0028:
-  Copilot CLI re-sends the levels after `/compact` with a real model; VS Code
-  Local cannot, because Copilot Chat 0.68.0 runs no PreCompact hook for a
-  manual compaction (fourth question returned to `software-architect`).
-
-- **2026-10-06**: Recorded the RAANDREE3 latency Meter in Decision 0028: criterion
-  20 is not met, with one cell over Budget and within Fail on each machine, and
-  TBD-5 is answered no: RAANDREE3's VS Code launch costs 2.4 times Prox1's, so
-  the launch unit does not transfer across machines, and a hook costs about 2 s
-  per tool call there. Returned to `software-architect` (second round).
+- **2026-10-06**: Recorded the RAANDREE3 latency Meter and criterion 22's
+  manual compactions in Decision 0028: criterion 20 is not met, with one cell
+  over Budget and within Fail on each machine; TBD-5 is answered no, because
+  RAANDREE3's VS Code launch costs 2.4 times Prox1's; Copilot CLI re-sends the
+  levels after `/compact`, and VS Code Local cannot. Returned to
+  `software-architect` (second round).
 
 - **2026-10-06**: Addressed the open Phase 2 issues (`software-engineer`): an
   independent `security-reviewer` pass of `main...b7e6502` found five Low

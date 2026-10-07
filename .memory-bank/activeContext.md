@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-06
+last-verified: 2026-10-07
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,25 +9,23 @@ source: current task evidence
 
 ## Current focus
 
-Decision 0028 Amendment 1 (A1 to A8) is implemented on `ai/calibration-phase-2`
-(`b7e6502`, pushed by the owner). On 2026-10-06 an independent
-`security-reviewer` pass found no Critical, High, or Medium issue; its five Low
-findings and six test gaps are fixed test-first (hash-gated registration
-delete, linear SessionStart pre-check inside the step cap, bounded registration
-reads, Uninstall holding the profile lock through its removal, link-aware
-working-tree guard). The two reported `Calibration.Delivery` cells are measured
-in the SDK runtime and Copilot CLI. Criterion 22's manual compactions ran on
-Prox1 in `C:\Users\install\Documents\calibration-check` (branch deployed): the
-CLI passes; VS Code Local cannot show it, as Copilot Chat 0.68.0 runs no
-PreCompact hook for a manual or a background compaction. VS Code's agent host
-re-sent the levels after three automatic compactions, and the model saw them.
-Criterion 21's unpaid groundwork sits in the private kit: the runner's `arms`
-and `profile` fields and `Preview` mode, `evals-phase2.json` (8 draft cases),
-and `evals-phase1-guard.json`. Criterion 20 is not met and is back with
-`software-architect`: one cell over Budget and within Fail on each machine
-(Prox1 VS Code SessionStart, RAANDREE3 SDK PostToolUse), and TBD-5 answered no,
-because RAANDREE3's VS Code launch is 2.4 times Prox1's and a hook costs 2 s
-there (Decision 0028, *Returned to software-architect, second round*).
+Decision 0028 **Amendment 2 (A9 to A13) is signed off** by the owner in chat on
+2026-10-07 and recorded in the Decision record (*Rulings, 2026-10-07*, the
+Amendment log, and Sign-off): frozen reference scripts replace the launch unit,
+the two over-Budget verdicts are withdrawn rather than waived so criterion 20
+re-opens, the Consequences are restated per machine and spawn, a backstop
+re-send on a new turn or 5 minutes closes VS Code Local's missing PreCompact
+under a 12,000 and 60,000 character budget, and the persistence set takes
+derived plus owner-reviewed synthetic cases with an opaque `provenance` digest.
+Twelve findings of an independent `security-reviewer` pass over the draft are
+resolved in the text. None of it is implemented yet. Amendment 1 (A1 to A8)
+stays implemented on `ai/calibration-phase-2` (`b7e6502`, pushed by the owner),
+with the 2026-10-06 security pass's five Low findings and six test gaps fixed
+test-first. Criterion 22's manual compactions ran on Prox1: the CLI passes;
+VS Code Local cannot show the PreCompact path, which is what A12 replaces.
+Criterion 21's unpaid groundwork sits in the private kit (the runner's `arms`
+and `profile` fields and `Preview` mode, `evals-phase2.json` with 8 draft
+cases, and `evals-phase1-guard.json`) and is rebuilt under A13.
 
 ## Previous focuses
 
@@ -155,20 +153,21 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. `software-architect` rules on the second-round return of Decision 0028
-   (five questions): the launch unit (TBD-5), criterion 20's two over-Budget
-   cells, the 2 s per-call cost in VS Code on RAANDREE3, VS Code Local running
-   no PreCompact for a manual or background compaction, and persistence cases
-   that no machine's history can supply. The owner ruled out asking VS Code
-   for a change; only options inside the project's control count. On
-   2026-10-07 the engineer dispatched `software-architect` as a subagent that
-   proposes rulings, and brings the owner's decisions back to it. Never set
-   the summarization threshold below about 1.3 times the base prompt
+1. `software-engineer` implements Amendment 2 in the build order the Decision
+   record now carries (*Delivery increments*, item 7): build the frozen
+   reference script and the two new Meter cells (A9); build the backstop
+   test-first, starting with the five-field state write and the
+   write-before-emit order (A12); re-baseline the Meter twice on Prox1 and
+   twice on RAANDREE3, applying the re-baseline rule and the TBD-6 transfer
+   check (A9, A10); restate the Consequences and open a separate record for the
+   one-process `windows` launcher against Decision 0016 (A11); extend the
+   delivery matrix with the VS Code Local backstop cell and answer TBD-7 (A12);
+   rebuild the persistence set with provenance, recording the eval kit's
+   location (TBD-8) and getting the owner's approval and budget before any paid
+   run (A13). Criteria 10, 14, 20, 21, 22, and 26 to 29 close together. Never
+   set the summarization threshold below about 1.3 times the base prompt
    (*Compactions*). Redeploy `main` on Prox1 with `Setup-CopilotSettings.ps1`
-   once the owner closes the checks. For criterion 21, build the persistence
-   cases as ruled, add grader fixtures, define the offer and safety groups
-   (the Decision names them only), and get the owner's approval and budget
-   before any paid run.
+   once the owner closes the checks.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.
 3. Optional: report upstream that the GitHub hooks reference describes the
