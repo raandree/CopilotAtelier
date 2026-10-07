@@ -491,7 +491,8 @@ preparation; none is redesigned in code.
    VS Code Local's alone. Options: report it as a measured gap, like a reply
    that makes no tool call, and ask VS Code to run PreCompact on every
    compaction; or detect a compaction from VS Code's chat-session storage,
-   which is undocumented. The engineer recommends the first.
+   which is undocumented. The engineer recommends the first; on 2026-10-07 the
+   owner chose it and files an issue with VS Code.
 5. **`Calibration.Persistence` cannot be measured from real restatements.**
    Its Meter needs at least 6 per Position, mined from real restatements.
    Prox1's full history (619 user messages) holds no level statement, with the
