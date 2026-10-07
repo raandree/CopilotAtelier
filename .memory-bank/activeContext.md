@@ -9,25 +9,29 @@ source: current task evidence
 
 ## Current focus
 
-Decision 0028 **Amendment 2 (A9 to A13) is signed off** by the owner in chat on
-2026-10-07 and recorded in the Decision record (*Rulings, 2026-10-07*, the
-Amendment log, and Sign-off): frozen reference scripts replace the launch unit,
-the two over-Budget verdicts are withdrawn rather than waived so criterion 20
-re-opens, the Consequences are restated per machine and spawn, a backstop
-re-send on a new turn or 5 minutes closes VS Code Local's missing PreCompact
-under a 12,000 and 60,000 character budget, and the persistence set takes
-derived plus owner-reviewed synthetic cases with an opaque `provenance` digest.
-Twelve findings of an independent `security-reviewer` pass over the draft are
-resolved in the text. None of it is implemented yet. Amendment 1 (A1 to A8)
-stays implemented on `ai/calibration-phase-2` (`b7e6502`, pushed by the owner),
-with the 2026-10-06 security pass's five Low findings and six test gaps fixed
-test-first. Criterion 22's manual compactions ran on Prox1: the CLI passes;
-VS Code Local cannot show the PreCompact path, which is what A12 replaces.
-Criterion 21's unpaid groundwork sits in the private kit (the runner's `arms`
-and `profile` fields and `Preview` mode, `evals-phase2.json` with 8 draft
-cases, and `evals-phase1-guard.json`) and is rebuilt under A13.
+Decision 0028 **Amendment 2, steps 7.1 and 7.2, is built** on
+`ai/calibration-phase-2` (2026-10-07), test-first: the frozen reference script
+(4,002 nodes, SHA-256 `269b070a…d798`, pinned in `Get-CalibrationMeterBudget`),
+the amended Meter (reference, inject-path, and armed common-path cells, step
+milliseconds, stop lines, `unit unmeasurable`), and the A12 backstop re-send in
+the three calibration hooks, which share verbatim state helpers that keep all
+five fields and record before they emit. Criteria 10, 14, 26, and 27 have
+tests in both editions; the full gate passed 3,138 tests once Decision 0028's
+`status` was `accepted` again (`61ce515` had broken it). The Prox1 half of the
+re-baseline ran and stopped on the unit (Confirmation, *Amendment 2
+implemented*): through the launcher the reference script costs about 80 ms,
+not the intended 280 ms, and one VS Code replicate in 20 lost it to launch
+jitter, so that run has no ratio; both stop lines are clear (at most 550 ms and
+232 ms). Four questions went to `software-architect` in the Confirmation; the
+fourth, resizing the reference script, blocks step 3. The one-process launcher
+(A11) is open work in `progress.md`, because Decision records here are
+accepted or superseded.
 
 ## Previous focuses
+
+- **Amendment 2 rulings (`61ce515`).** A9 to A13, signed off 2026-10-07: frozen
+  reference scripts, the two verdicts withdrawn, per-machine Consequences, the
+  bounded backstop, and derived plus reviewed synthetic persistence cases.
 
 - **Amendment 1 rulings (`b72ac98`).** `software-architect` and the owner ruled
   A1 to A8 on the five returned questions and seven interpretations; latency
@@ -78,10 +82,6 @@ cases, and `evals-phase1-guard.json`) and is rebuilt under A13.
   linter entry point and the shipped checker code. Parse and PSScriptAnalyzer
   run in an owned child worker. `Markdown.NativeStructure` is `coverage=partial`
   and never stands in for markdownlint. 12 red, then 85/0/0.
-- **Tasks 02 to 04.** Installation profiles (`-InstallationProfile`,
-  `-IncludeSkill`/`-ExcludeSkill`; mandatory Skills stay), the reviewed
-  learning inbox (append-only, hash-gated promotion), and the read-only Skill
-  health report (missing telemetry is unknown, not zero); see `CHANGELOG.md`.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -153,21 +153,21 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. `software-engineer` implements Amendment 2 in the build order the Decision
-   record now carries (*Delivery increments*, item 7): build the frozen
-   reference script and the two new Meter cells (A9); build the backstop
-   test-first, starting with the five-field state write and the
-   write-before-emit order (A12); re-baseline the Meter twice on Prox1 and
-   twice on RAANDREE3, applying the re-baseline rule and the TBD-6 transfer
-   check (A9, A10); restate the Consequences and open a separate record for the
-   one-process `windows` launcher against Decision 0016 (A11); extend the
-   delivery matrix with the VS Code Local backstop cell and answer TBD-7 (A12);
-   rebuild the persistence set with provenance, recording the eval kit's
-   location (TBD-8) and getting the owner's approval and budget before any paid
-   run (A13). Criteria 10, 14, 20, 21, 22, and 26 to 29 close together. Never
-   set the summarization threshold below about 1.3 times the base prompt
-   (*Compactions*). Redeploy `main` on Prox1 with `Setup-CopilotSettings.ps1`
-   once the owner closes the checks.
+1. `software-architect` answers the four questions in Decision 0028's
+   Confirmation (*Amendment 2 implemented*). Question 4, resizing the frozen
+   reference script to its intended 280 ms, blocks the re-baseline: do not run
+   the Meter on RAANDREE3 before it is ruled. Then `software-engineer` resizes
+   and re-pins the script, reruns the Meter twice on Prox1, and the owner runs
+   it twice on RAANDREE3
+   (`pwsh -Command "& tests/Fixtures/Measure-CalibrationLatency.ps1 | Format-Table -AutoSize"`);
+   the re-baseline rule then sets Budget and Fail from both machines (TBD-6
+   transfer check, both stop lines), written into `Get-CalibrationMeterBudget`
+   and the record in one commit. Then the VS Code Local backstop cell and its
+   manual compaction (criterion 22, TBD-7), and A13 (TBD-8, owner review,
+   approval and budget before any paid eval). Never set the summarization
+   threshold below about 1.3 times the base prompt (*Compactions*). Redeploy
+   `main` on Prox1 with `Setup-CopilotSettings.ps1` once the owner closes the
+   checks.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.
 3. Optional: report upstream that the GitHub hooks reference describes the

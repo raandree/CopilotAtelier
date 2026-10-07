@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-06
+last-verified: 2026-10-07
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -17,6 +17,15 @@ Releases and the PowerShell Gallery (verified 2026-10-05). Incremental work is
 tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-10-07**: Built Decision 0028 Amendment 2 steps 1 and 2 test-first
+  (`software-engineer`): the frozen reference script and amended Meter (A9),
+  and the backstop re-send in the three calibration hooks (A12), criteria 10,
+  14, 26, and 27 tested in both editions; the full gate passed 3,138 tests
+  after Decision 0028's `status` was restored. The Prox1 Meter ran and stopped
+  on the unit: about 80 ms through the launcher, lost to jitter in one VS Code
+  replicate, with both stop lines clear. Four questions returned to
+  `software-architect`.
 
 - **2026-10-07**: Signed off Decision 0028 Amendment 2 (`software-architect`
   as a subagent of `software-engineer`; the owner accepted all four
@@ -53,15 +62,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   manual compactions; criterion 21's runner, preview, and draft cases are
   ready in the private kit, with no paid run.
 
-- **2026-10-06**: Implemented Decision 0028 test-first on
-  `ai/calibration-phase-2` (`dc6c26a` to `b026161`, `software-engineer`),
-  after its sign-off the same day, then Amendment 1 (rulings A1 to A8, signed
-  off by `software-architect` after a `rubber-duck` review): write selection
-  with `-NewContributor`, `.NET`, registration ownership through the recorded
-  hash, the read-only `Get-`, the sentence budget, and the amended Meter. The
-  Meter's two runs on Prox1 met every Budget except SessionStart with one
-  entry in VS Code's spawn: returned to `software-architect`.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -87,12 +87,21 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Contributor calibration: `software-architect` rules on criterion 20's Prox1
-  result (SessionStart with one entry in VS Code's spawn over Budget, within
-  Fail). Then the amended Meter on RAANDREE3 (TBD-5), criterion 21's paid eval
-  with Phase 2 groups and the private kit grown past 20 real cases
-  (`-Since 2026-09-30` on RAANDREE3 and Prox1), and one manual compaction each
-  in VS Code Local and Copilot CLI.
+- Contributor calibration, Decision 0028 Amendment 2: `software-architect`
+  answers four questions recorded in the Confirmation (the never-advancing
+  `turns` failure mode, `Get-` reporting above 60,000, one `w` or one per tag,
+  and resizing the reference script); the fourth blocks the re-baseline, so no
+  RAANDREE3 Meter run before it. Then the re-baseline on both machines (TBD-6
+  transfer check, both stop lines); one manual compaction in VS Code Local
+  proves the backstop within one turn (criterion 22, TBD-7); A13 rebuilds the
+  persistence set (TBD-8, owner review of synthetic cases, approval and budget
+  before any paid eval).
+- One-process `windows` launcher (ruling A11): separate work against Decision
+  0016, kept here because Decision records here are accepted or superseded.
+  Adopt only if `tests/HookLauncher.Tests.ps1` passes unchanged (`cmd.exe`,
+  `sh`, an outer PowerShell, `HOME` unset), a deny still exits `2` and blocks
+  in both hosts, a Meter run on Prox1 and RAANDREE3 shows the saving, and
+  Decision 0028's levels are re-baselined in the same change.
 - `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
   workspace, so a subagent or parallel chat there shadows the parent's clock
   (2026-10-01: a 06:29 start; 2026-10-04, in one Copilot SDK chat: a 10:25 and

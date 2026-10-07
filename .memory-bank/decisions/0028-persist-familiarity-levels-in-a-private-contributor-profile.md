@@ -1,5 +1,5 @@
 ---
-status: amended and accepted
+status: accepted
 date: 2026-10-06
 last-verified: 2026-10-07
 owner: software-architect
@@ -860,6 +860,148 @@ of the draft, all resolved in the text above:
 The reviewer confirmed that every figure quoted from this record's measurement
 tables reproduces faithfully, that no amended criterion contradicts an
 unamended one, and that criteria 22 and 25 stay coherent with A12.
+
+### Amendment 2 implemented, 2026-10-07 on Prox1
+
+`software-engineer` built steps 1 and 2 of *Delivery increments* item 7
+test-first on `ai/calibration-phase-2` and ran the Prox1 half of step 3. Every
+new test of new behavior failed for its expected reason before the code
+existed. The four tests that guard against an over-eager backstop passed
+against the old hook, which never fired one, so each was shown instead to fail
+against a deliberately broken hook before the hook was restored. The full gate
+passed 3,138 tests; its one failure was this record's own `status`, which commit
+`61ce515` had set to a value the Memory Bank routing test does not allow, now
+`accepted` again.
+
+**A9, the unit.** `tests/Fixtures/Invoke-ReferenceHook.ps1` reads standard
+input as the no-op hook does, parses it with `ConvertFrom-Json`, matches one
+regular expression, tests one path, and runs 24 groups of straight-line code:
+4,002 syntax-tree nodes, with no loop and no function. Its SHA-256 over its LF
+text, `269b070a3964a2b51129dade3c63b1e412528928280c52d17421a613a1d4d798`, is
+pinned beside the levels in `Get-CalibrationMeterBudget`, so a change to the
+script fails `tests/CalibrationMeter.Tests.ps1` until the pin and the levels
+change in the same commit (criterion 26), and the Meter refuses to run on an
+unpinned script. The Meter gains the reference cell, the inject-path cell, a
+common-path cell that starts from an armed session with nothing due, every
+cell's step in milliseconds, both stop lines, and a reproduced row per gated
+cell that names its lower run. Ruling A10's withdrawal shows as
+`no level (A10)`. `tests/Helpers/CalibrationMeter.ps1` carries steps 2, 3, and
+5 of the re-baseline rule as tested functions.
+
+The reference script's own time is about half the estimate: about 130 ms on
+Prox1 in both editions, 118 to 135 ms in Windows PowerShell and 105 to 149 ms
+in PowerShell 7, from 10 alternating pairs after 2 warm-up pairs, launched
+directly rather than through a host spawn. Decision 0016's 0.07 ms per node
+predicted 280 ms; straight-line code runs at about 0.033 ms per node, and the
+reader's nodes are heavier. The rule publishes the measured value as Past, so
+the estimate binds nothing, but a smaller unit carries relatively more launch
+jitter: a smoke run without warm-up met a replicate whose reference script
+finished before its no-op hook. The Meter now reports such a run as
+`unit unmeasurable`, with its milliseconds, instead of dividing by it.
+
+**A12, the backstop.** Built in the record's order. First, all three writers,
+`Write-CompactionCheckpoint.ps1`, the PostToolUse save path, and the new
+SessionStart seed, share `Read-CalibrationState`, `Save-CalibrationState`, and
+`Enter-CalibrationStateLock`, copied verbatim and held together by a drift
+test, so every write keeps all five fields. Second, the inject path takes the
+lock, reads again, decides again, writes, and only then emits; a lock held past
+its timeout emits nothing. Then the SessionStart seed and the resume merge, the
+two signals with the 5-minute signal armed from the first turn boundary, the
+seeded `lastInjectionUtc` gate, both bounds, and the 59-character suffix
+through `Format-ContributorCalibrationSentence -Backstop`. Criteria 10, 14,
+and 27 each have a test in both editions.
+
+Choices made within the text, for `software-architect` to confirm:
+
+- `lastInjectionUtc` is the time of the injection. For a new session that is
+  the session start; a resumed session's recorded start can be hours old and
+  would fire the 5-minute signal at once.
+- A re-send that finds nothing to send, after an opt-out, is still recorded,
+  so the standing condition does not reread the profile on every call.
+- The calibration step runs before the lock, because the reader can take
+  seconds and PreCompact waits only 5 s for it. The locked decision never turns
+  a backstop into a compaction re-send; a compaction counted meanwhile gets its
+  own re-send on the next call, and the compaction answered is the count read
+  before the step, as the stale-write test requires.
+- A bound suppresses once `characters` reaches it, so the last re-send before a
+  bound can cross it by one sentence, at most 1,178 characters.
+- Above 60,000 the record of the condition is the state file itself:
+  `characters` at or above 60,000, with the unanswered compactions left in
+  `compactions`.
+- The state file and the clock's `turns` are read with one pattern per field,
+  not `ConvertFrom-Json`, whose module load cost the armed common path about
+  100 ms when the hook was launched alone. Launched alone, the armed path still
+  costs 59 to 78 ms more than the unarmed one (10 pairs per edition on Prox1);
+  through the launcher, which has already loaded that module, the whole armed
+  common path is 108 to 118 ms at p50 (step 3 below), within the 70 to 120 ms
+  the unarmed path cost on 2026-10-06. A malformed file still reads as
+  unreadable.
+
+**The Meter's session files.** The Meter's note that a host spawn cannot
+redirect LocalApplicationData was wrong. Both editions resolve it through
+`USERPROFILE`, and Windows PowerShell falls back to the temp directory when the
+folder is missing; 143 clocks of earlier Meter runs had collected there. The
+Meter now creates `AppData\Local` in each scratch home, and the stray clocks
+are deleted.
+
+**Step 4.** The Consequences and the Purpose already carry the amended text.
+The separate Decision record for the one-process `windows` launcher cannot be
+filed as proposed, because a record here is accepted or superseded
+(`tests/MemoryBankRouting.Tests.ps1`). The proposal and its four gates are
+recorded as open work in `progress.md` until the owner accepts it, when it
+becomes a record of its own against Decision 0016.
+
+**Step 3 on Prox1, 2026-10-07.** Two runs of the amended Meter, 20 replicates
+after 2 warm-up replicates each, on an idle machine. Steps over the no-op hook
+in milliseconds, p50 and p95, per spawn:
+
+| Cell | VS Code spawn | SDK spawn |
+|---|---|---|
+| No-op launch, absolute p50 | 775 to 777 | 1,015 to 1,019 |
+| Frozen reference script, the unit | 76 to 84; 97 to 111 | 84 to 89; 115 to 120 |
+| SessionStart, one entry, added | 450 to 455; 482 to 550 | 367 to 370; 390 to 500 |
+| SessionStart, no profile, added | 186 to 193; 209 to 301 | 161 to 163; 184 to 188 |
+| PostToolUse, common path, armed | 108 to 111; 124 to 232 | 117 to 118; 155 to 158 |
+| PostToolUse, inject path | 565 to 566; 612 to 681 | 478 to 491; 505 to 541 |
+| Push guard, benign tool | 106 to 107; 145 to 159 | 91 to 100; 124 to 128 |
+
+Both stop lines are clear in every run: the SessionStart step reaches at most
+550 ms against 1,000, and the PostToolUse common path at most 232 ms against
+400. The SDK spawn's gated ratios reproduce within the rule's spread, p95 6.21
+to 6.95 for one entry, 2.43 to 3.45 for no profile, and 1.65 to 2.30 for the
+common path. The VS Code spawn's first run has no ratio at all: in 1 of its 20
+replicates the reference script finished no slower than the no-op hook, so the
+rule has no lower run for any VS Code cell. Through the launcher the reference
+script's own time is about 80 ms, less than launched alone, because the
+launcher has already loaded the modules its `ConvertFrom-Json` and
+`Select-Object` would load. A unit that small sits inside the launch's jitter.
+Nothing here points at the design; it points at the unit's size. The Meter was
+not run on RAANDREE3, and should not be until question 4 is ruled, because a
+resized unit invalidates any run made before it.
+
+**Questions for software-architect.** None of them blocks steps 1 and 2;
+question 4 blocks step 3.
+
+1. *Failure modes* says that where `turns` never advances, the 5-minute signal
+   alone drives the backstop. Criterion 10 and the Outputs arm that signal only
+   from the first turn boundary, which such a host never reaches. Built:
+   criterion 10, with the 5-minute signal alone only where the clock is
+   missing or unreadable, as the row above it says. Recommended: correct the
+   row, unless the arming should change.
+2. *Failure modes* says `Get-` reports a session above 60,000. Neither the
+   Commands table nor any criterion carries it, so it is not built.
+   Recommended: drop the clause, or amend `Get-` and add a criterion.
+3. The re-baseline rule takes `w` as the maximum across the gated cells. One
+   `w` for both tags would give `PostToolUse.CallLatency` a Budget set by
+   SessionStart's much larger step, which its common path could never reach.
+   Recommended: one `w` per tag, as each tag carries its own Budget line.
+4. The frozen reference script is sized at about 4,000 nodes so that its own
+   time is near 280 ms, the order of the calibration step. Measured through
+   the launcher it is about 80 ms, and the VS Code spawn lost a run to it.
+   Recommended: size the script so that its own time through the launcher is
+   near the intended 280 ms on Prox1, about three to four times today's fixed
+   block, with the hash pin moving in the same commit; no level exists yet, so
+   nothing else is re-baselined. Then run step 3 again on both machines.
 
 ## Signed-off Design Concept
 
