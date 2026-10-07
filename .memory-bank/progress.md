@@ -23,9 +23,11 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   set for the retest made one prompt loop through 2,001 requests and 99
   compactions; the threshold is removed. VS Code's agent host (SDK runtime)
   re-sent the levels after each of three automatic compactions, and the model
-  noticed them unprompted. RZ1VPFWEB200's 475 messages hold no level
-  statement; the private finder's files now state its version. Both gaps
-  returned to `software-architect` (questions 4 and 5).
+  noticed them unprompted. The owner ruled out asking VS Code for a change.
+  Three machines' whole histories (2,706 messages) add 2 real level
+  statements, both `new`, to the approved Phase 1 cases; the private finder's
+  files now state its version. Both gaps returned to `software-architect`
+  (questions 4 and 5).
 
 - **2026-10-06**: Recorded criterion 22's manual compactions in Decision 0028:
   Copilot CLI re-sends the levels after `/compact` with a real model; VS Code

@@ -488,22 +488,46 @@ preparation; none is redesigned in code.
    The Purpose promises levels after a compaction in module and Setup
    installs; in VS Code Local that does not hold in practice. VS Code's agent
    host, which runs the SDK runtime, does run it and re-sends, so the gap is
-   VS Code Local's alone. Options: report it as a measured gap, like a reply
-   that makes no tool call, and ask VS Code to run PreCompact on every
-   compaction; or detect a compaction from VS Code's chat-session storage,
-   which is undocumented. The engineer recommends the first; on 2026-10-07 the
-   owner chose it and files an issue with VS Code.
+   VS Code Local's alone. On 2026-10-07 the owner ruled out asking VS Code for
+   a change: only options inside this project's control count. Copilot Chat
+   0.68.0's code shows what such an option can use:
+   - SessionStart's `additionalContext` is frozen into the first turn's user
+     message, which later turns replay; it is not part of the system prompt.
+   - A compaction replaces every user message it summarizes with the summary,
+     the current turn's included when it compacts partway through a turn; the
+     levels survive only when the summary repeats them.
+   - A `UserPromptSubmit` hook's `additionalContext` joins the same per-turn
+     message, so it would restore the levels at every new prompt without
+     PreCompact. No `UserPromptSubmit` hook is registered today, so it adds a
+     launch to every prompt for profile users: about 0.8 s on Prox1 and 2 s on
+     RAANDREE3 in VS Code, before the reader's time.
+   - Partway through a turn, only PostToolUse output after the summary can
+     carry the sentence. PostToolUse already runs on every tool call for
+     profile users, but needs a re-send trigger that does not depend on
+     PreCompact, such as a count of tool calls since the last send.
+
+   Options: keep it as a reported gap, like a reply that makes no tool call;
+   re-send at every prompt through `UserPromptSubmit`; re-send through
+   PostToolUse every N tool calls; or both. The engineer recommends the
+   PostToolUse count: it adds no launch and recovers within N tool calls, at
+   the sentence's tokens and the reader's time on every Nth call, and it
+   leaves the reported gap for a reply that makes no tool call.
 5. **`Calibration.Persistence` cannot be measured from real restatements.**
    Its Meter needs at least 6 per Position, mined from real restatements.
-   Prox1's full history (619 user messages) holds no level statement, with the
-   finder extended to flag them. RZ1VPFWEB200's (475) held none in a run 18
-   minutes after the extension, though its files cannot prove the finder
-   version; RAANDREE3's full history was searched only before the extension,
-   and its approved Phase 1 cases hold three, two of them in one area. Phase 2
-   itself removes the need to restate. Options: accept persistence cases
-   derived from real cases, with the stated level moved into the profile
-   sentence; accept owner-reviewed synthetic cases; or lower the count. The
-   engineer recommends derived cases, topped up with reviewed synthetic ones.
+   The finder, extended to flag level statements, has searched three whole
+   histories, 2,706 user messages. Prox1's (619) holds none, and
+   RZ1VPFWEB200's (475) held none in a run 18 minutes after the extension,
+   though its files cannot prove the finder version. RAANDREE3's (1,612, a
+   version 2 run on 2026-10-07) flags 6: 3 state a level, all `new` and in
+   three areas, one of them already an approved Phase 1 case; 2 ask for a
+   shorter or a longer answer, which the Instruction treats as a one-answer
+   override; 1 is not about a Knowledge area. With the three in the approved
+   Phase 1 cases, at most 5 real restatements exist, and RAANDREE3's run holds
+   none at `expert`. Phase 2 itself removes the need to restate. Options:
+   accept persistence cases derived from real cases, with the stated level
+   moved into the profile sentence; accept owner-reviewed synthetic cases; or
+   lower the count. The engineer recommends derived cases, topped up with
+   reviewed synthetic ones for `expert`.
 
 ### Compactions, 2026-10-06 on Prox1
 

@@ -159,15 +159,16 @@ unproven — train reached 100 % while validation fell.
    (five questions): the launch unit (TBD-5), criterion 20's two over-Budget
    cells, the 2 s per-call cost in VS Code on RAANDREE3, VS Code Local running
    no PreCompact for a manual or background compaction, and persistence cases
-   that no machine's history can supply. The owner chose to report the VS Code
-   Local gap upstream and files the issue text drafted in the private kit
-   (`vscode-precompact-issue-draft.md`). Never set the summarization threshold
-   below about 1.3 times the base prompt (*Compactions*). Redeploy `main` on
-   Prox1 with `Setup-CopilotSettings.ps1` once the owner closes the checks. For
-   criterion 21, run the current finder on RAANDREE3's full history; then
-   build the persistence cases as ruled, add grader fixtures, define the offer
-   and safety groups (the Decision names them only), and get the owner's
-   approval and budget before any paid run.
+   that no machine's history can supply. The owner ruled out asking VS Code
+   for a change; only options inside the project's control count. On
+   2026-10-07 the engineer dispatched `software-architect` as a subagent that
+   proposes rulings, and brings the owner's decisions back to it. Never set
+   the summarization threshold below about 1.3 times the base prompt
+   (*Compactions*). Redeploy `main` on Prox1 with `Setup-CopilotSettings.ps1`
+   once the owner closes the checks. For criterion 21, build the persistence
+   cases as ruled, add grader fixtures, define the offer and safety groups
+   (the Decision names them only), and get the owner's approval and budget
+   before any paid run.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.
 3. Optional: report upstream that the GitHub hooks reference describes the
