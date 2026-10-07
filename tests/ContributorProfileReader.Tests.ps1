@@ -614,18 +614,34 @@ Describe 'Calibration sentence' -Tag 'Unit' {
         Format-ContributorCalibrationSentence -Calibration (New-TestCalibration -State $State -Unrated 2 -Reason 'invalid-json') -ReSent | Should -BeExactly ''
     }
 
+    It 'builds the backstop re-send from matched levels only, with a suffix that suppresses every offer and claims no compaction' {
+        Format-ContributorCalibrationSentence -Calibration (New-TestCalibration -State 'levels' -Level 'Kerberos=new', 'PowerShell DSC=expert' -Unrated 2) -Backstop |
+            Should -BeExactly ($script:prefix + '"Kerberos" new; "PowerShell DSC" expert. ' + $script:treat + ' Current familiarity levels; make no offers in this session.')
+    }
+
+    It 'sends nothing at the backstop Position for <State>' -ForEach @(@{ State = 'unrated' }, @{ State = 'unreadable' }, @{ State = 'off' }) {
+        Format-ContributorCalibrationSentence -Calibration (New-TestCalibration -State $State -Unrated 2 -Reason 'invalid-json') -Backstop | Should -BeExactly ''
+    }
+
+    It 'refuses to build a sentence for both re-send Positions at once' {
+        { Format-ContributorCalibrationSentence -Calibration (New-TestCalibration -State 'levels' -Level 'Kerberos=new') -ReSent -Backstop } |
+            Should -Throw -ErrorId 'AmbiguousParameterSet,Format-ContributorCalibrationSentence'
+    }
+
     It 'keeps a typical sentence of five areas within 300 characters (Context.SentenceSize)' {
         $typical = New-TestCalibration -State 'levels' -Level 'Kerberos=new', 'PowerShell DSC=expert', 'Active Directory=familiar', 'Pester=expert' -Unrated 1
 
         (Format-ContributorCalibrationSentence -Calibration $typical).Length | Should -BeLessOrEqual 300
     }
 
-    It 'keeps the worst case of 16 names of 48 characters within 1,200 at either Position (Context.SentenceSize)' {
+    It 'keeps the worst case of 16 names of 48 characters within 1,200 at every Position (Context.SentenceSize)' {
         <#
-            Ruling A4 of Decision record 0028: Budget [worst, either Position]
-            is 1,200 characters and the template stays. With every level
-            familiar, the longest level word, the fixed template measured 1,118
-            at session start and 1,178 re-sent on 2026-10-06.
+            Ruling A4 of Decision record 0028: Budget [worst, any Position] is
+            1,200 characters and the template stays. With every level familiar,
+            the longest level word, the fixed template measured 1,118 at
+            session start and 1,178 re-sent on 2026-10-06. Ruling A12 gives the
+            backstop a suffix exactly as long as the compaction suffix, 59
+            characters, so its worst case is 1,178 too.
         #>
         $longNames = 1..16 | ForEach-Object -Process { ('Area {0:D2} ' -f $_) + ('x' * 40) }
         $worst = New-TestCalibration -State 'levels' -Level ($longNames | ForEach-Object -Process { "$_=familiar" }) -Unrated 0
@@ -633,6 +649,9 @@ Describe 'Calibration sentence' -Tag 'Unit' {
         $longNames[0].Length | Should -Be 48
         (Format-ContributorCalibrationSentence -Calibration $worst).Length | Should -BeLessOrEqual 1200
         (Format-ContributorCalibrationSentence -Calibration $worst -ReSent).Length | Should -BeLessOrEqual 1200
+        (Format-ContributorCalibrationSentence -Calibration $worst -Backstop).Length | Should -Be (Format-ContributorCalibrationSentence -Calibration $worst -ReSent).Length
+        'Re-sent after a compaction; make no offers in this session.'.Length | Should -Be 59
+        'Current familiarity levels; make no offers in this session.'.Length | Should -Be 59
     }
 
     It 'never carries an address, a path, or an unmatched declared name' {

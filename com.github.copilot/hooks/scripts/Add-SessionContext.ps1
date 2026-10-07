@@ -24,7 +24,10 @@
     When the workspace declares Knowledge areas in .memory-bank/projectbrief.md,
     one more sentence carries the contributor's saved Familiarity levels for
     them, from the private Contributor profile (Decision record 0028). It has
-    the lowest budget priority and never shortens the lines above.
+    the lowest budget priority and never shortens the lines above. When it
+    carries levels, the hook also arms the PostToolUse backstop re-send: it
+    seeds lastTurn, lastInjectionUtc, and characters in the session's
+    calibration state, merging into the state a resumed session already has.
 .PARAMETER InputJson
     Hook payload as JSON. Defaults to reading standard input. Tests pass the
     payload directly so they do not depend on redirected input.
@@ -119,6 +122,168 @@ function Get-SessionClockPath {
     return [IO.Path]::Combine($Root, "session-$key.json")
 }
 
+function Read-CalibrationState {
+    <#
+        Reads session-<key>.familiarity.json, the per-session calibration
+        state. Duplicated verbatim, with Save-CalibrationState and
+        Enter-CalibrationStateLock, in Add-SessionContext.ps1,
+        Write-CompactionCheckpoint.ps1, and Add-FamiliarityContext.ps1, for the
+        reason Get-SessionClockPath gives; change the copies together. A
+        missing file reads as a fresh state and a missing field as absent:
+        lastTurn and lastInjectionUtc stay $null until SessionStart seeds them,
+        and characters reads 0. An unreadable file throws, unless
+        -ReplaceUnreadable asks for a fresh state instead. Only these hooks
+        write the file, as one flat object, so a pattern per field reads it:
+        ConvertFrom-Json would load a module on the PostToolUse common path
+        and double its cost.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StatePath,
+
+        [Parameter()]
+        [switch]$ReplaceUnreadable
+    )
+
+    $fresh = [pscustomobject]@{
+        Compactions = 0
+        Injected = 0
+        LastTurn = $null
+        LastInjectionUtc = $null
+        Characters = 0
+    }
+
+    if (-not [IO.File]::Exists($StatePath)) {
+        return $fresh
+    }
+
+    try {
+        $text = [IO.File]::ReadAllText($StatePath)
+
+        if ($text -notmatch '\A\s*\{[^{}]*\}\s*\z') {
+            throw 'The calibration state is not one flat JSON object.'
+        }
+
+        $field = @{}
+        foreach ($match in [regex]::Matches($text, '"([A-Za-z]+)"\s*:\s*("[^"\\]*"|[^,}\s]+)')) {
+            if (-not $field.ContainsKey($match.Groups[1].Value)) {
+                $field[$match.Groups[1].Value] = $match.Groups[2].Value
+            }
+        }
+
+        $state = [pscustomobject]@{
+            Compactions = 0
+            Injected = 0
+            LastTurn = $null
+            LastInjectionUtc = $null
+            Characters = 0
+        }
+
+        foreach ($name in 'compactions', 'injected', 'lastTurn', 'characters') {
+            if ($null -ne $field[$name] -and $field[$name] -ne 'null') {
+                $state.$name = [Math]::Max(0, [int]::Parse($field[$name], [Globalization.NumberStyles]::AllowLeadingSign, [Globalization.CultureInfo]::InvariantCulture))
+            }
+        }
+
+        $stamp = $field['lastInjectionUtc']
+        if ($null -ne $stamp -and $stamp -ne 'null') {
+            if ($stamp -notmatch '\A"(.+)"\z') {
+                throw 'lastInjectionUtc is not a timestamp.'
+            }
+
+            $state.LastInjectionUtc = [datetimeoffset]::Parse($Matches[1], [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal).UtcDateTime
+        }
+
+        return $state
+    } catch {
+        if (-not $ReplaceUnreadable) {
+            throw
+        }
+
+        Write-Debug -Message "Unreadable calibration state replaced: $($_.Exception.Message)"
+        return $fresh
+    }
+}
+
+function Save-CalibrationState {
+    <#
+        Writes every field of the calibration state with an atomic replace,
+        under the state lock the caller holds. An absent lastTurn or
+        lastInjectionUtc stays absent, so only SessionStart can arm the
+        backstop. Duplicated verbatim; see Read-CalibrationState.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StatePath,
+
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$State
+    )
+
+    $text = '{"schemaVersion":1,"compactions":' + [int]$State.Compactions + ',"injected":' + [int]$State.Injected
+
+    if ($null -ne $State.LastTurn) {
+        $text += ',"lastTurn":' + [int]$State.LastTurn
+    }
+
+    if ($null -ne $State.LastInjectionUtc) {
+        $text += ',"lastInjectionUtc":"' + ([datetime]$State.LastInjectionUtc).ToUniversalTime().ToString('o', [Globalization.CultureInfo]::InvariantCulture) + '"'
+    }
+
+    $text += ',"characters":' + [int]$State.Characters + '}'
+    $temporary = $StatePath + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+
+    try {
+        [IO.File]::WriteAllText($temporary, $text, [Text.UTF8Encoding]::new($false))
+
+        if ([IO.File]::Exists($StatePath)) {
+            [IO.File]::Replace($temporary, $StatePath, [System.Management.Automation.Language.NullString]::Value)
+        } else {
+            [IO.File]::Move($temporary, $StatePath)
+        }
+    } finally {
+        if ([IO.File]::Exists($temporary)) {
+            try {
+                [IO.File]::Delete($temporary)
+            } catch {
+                Write-Debug -Message "Temporary calibration state left behind: $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
+function Enter-CalibrationStateLock {
+    <#
+        Opens the lock every writer of the calibration state takes, waiting up
+        to 5 seconds, and returns $null when another hook still holds it.
+        Duplicated verbatim; see Read-CalibrationState.
+    #>
+    [CmdletBinding()]
+    [OutputType([IO.FileStream])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StatePath
+    )
+
+    $lockPath = [IO.Path]::ChangeExtension($StatePath, '.lock')
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+
+    while ($true) {
+        try {
+            return [IO.FileStream]::new($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 1, [IO.FileOptions]::DeleteOnClose)
+        } catch {
+            if ($watch.ElapsedMilliseconds -ge 5000) {
+                return $null
+            }
+
+            Start-Sleep -Milliseconds 50
+        }
+    }
+}
+
 if ([string]::IsNullOrEmpty($InputJson)) {
     # Decode explicitly: Windows PowerShell would otherwise use the console input
     # encoding, which mangles non-ASCII payloads that pwsh reads as UTF-8.
@@ -190,6 +355,8 @@ $startedUtc = (Get-Date).ToUniversalTime()
     that cannot be read, or that names no start, is replaced as before.
 #>
 try {
+    $clockPath = $null
+    $clockTurns = 0
     $clockPath = Get-SessionClockPath `
         -SessionId ([string]$payload.session_id) `
         -WorkingDirectory $workingDirectory `
@@ -206,10 +373,12 @@ try {
 
                 if ($recordedStartUtc -le $startedUtc) {
                     $resumedStartUtc = $recordedStartUtc
+                    $clockTurns = [Math]::Max(0, [int]$recorded.turns)
                 }
             }
         } catch {
             $resumedStartUtc = $null
+            $clockTurns = 0
         }
     }
 
@@ -319,6 +488,39 @@ if (-not [string]::IsNullOrWhiteSpace($calibrationDirectory)) {
 
                 if ($calibrationSentence) {
                     $additionalContext = $additionalContext + ' ' + $calibrationSentence
+
+                    <#
+                        Arm the backstop re-send of Add-FamiliarityContext.ps1
+                        (Decision record 0028, A12), only where levels went
+                        out: the unrated, unreadable, and omitted sentences
+                        carry none. A resumed session merges into its state, so
+                        a compaction pending across the resume keeps its
+                        re-send. lastInjectionUtc is this injection's time,
+                        the session start of a new session. A fault leaves the
+                        backstop unarmed and costs nothing else.
+                    #>
+                    if ($calibration.State -eq 'levels' -and $clockPath -and
+                        $calibrationSentence.StartsWith('Contributor familiarity levels from the private profile')) {
+                        try {
+                            $statePath = [IO.Path]::ChangeExtension($clockPath, '.familiarity.json')
+                            $null = [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($statePath))
+                            $stateLock = Enter-CalibrationStateLock -StatePath $statePath
+
+                            if ($null -ne $stateLock) {
+                                try {
+                                    $state = Read-CalibrationState -StatePath $statePath -ReplaceUnreadable
+                                    $state.LastTurn = $clockTurns
+                                    $state.LastInjectionUtc = [DateTime]::UtcNow
+                                    $state.Characters = $state.Characters + $calibrationSentence.Length
+                                    Save-CalibrationState -StatePath $statePath -State $state
+                                } finally {
+                                    $stateLock.Dispose()
+                                }
+                            }
+                        } catch {
+                            Write-Debug -Message "Backstop re-send not armed: $($_.Exception.Message)"
+                        }
+                    }
                 }
             }
         }

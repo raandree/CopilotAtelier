@@ -129,6 +129,84 @@ BeforeAll {
         Join-Path -Path $Fixture.ClockRoot -ChildPath ('session-{0}.familiarity.json' -f $Fixture.SessionId)
     }
 
+    $script:sessionStart = Join-Path -Path $script:hookRoot -ChildPath 'Add-SessionContext.ps1'
+    $script:preCompact = Join-Path -Path $script:hookRoot -ChildPath 'Write-CompactionCheckpoint.ps1'
+    $script:postToolUse = Join-Path -Path $script:hookRoot -ChildPath 'Add-FamiliarityContext.ps1'
+    $script:stop = Join-Path -Path $script:hookRoot -ChildPath 'Write-SessionClose.ps1'
+
+    function script:Invoke-Event
+    {
+        <#
+            Runs one lifecycle hook of the fixture's session in the edition the
+            calling Describe names in $Executable.
+        #>
+        param ($Fixture, [string] $Event, [hashtable] $Override = @{}, [string] $Source = 'new')
+
+        $script = switch ($Event)
+        {
+            'SessionStart' { $script:sessionStart }
+            'PreCompact' { $script:preCompact }
+            'PostToolUse' { $script:postToolUse }
+            'Stop' { $script:stop }
+        }
+
+        $payload = @{ hook_event_name = $Event; session_id = $Fixture.SessionId; cwd = $Fixture.Workspace }
+        if ($Event -eq 'PreCompact') { $payload.trigger = 'manual'; $payload.custom_instructions = '' }
+        if ($Event -eq 'PostToolUse') { $payload.tool_name = 'view'; $payload.tool_input = @{ path = 'x' }; $payload.tool_result = @{ result_type = 'success'; text_result_for_llm = ('y' * 5000) } }
+        if ($Event -eq 'SessionStart') { $payload.source = $Source }
+        if ($Event -eq 'Stop') { $payload.stop_hook_active = $false }
+
+        $environment = $Fixture.Environment.Clone()
+        foreach ($name in $Override.Keys) { $environment[$name] = $Override[$name] }
+
+        Invoke-Hook -Executable $Executable -Script $script -Payload $payload -Environment $environment -Argument '-ClockRoot', $Fixture.ClockRoot
+    }
+
+    function script:Get-State
+    {
+        param ($Fixture)
+
+        Get-Content -LiteralPath (Get-StatePath -Fixture $Fixture) -Raw | ConvertFrom-Json
+    }
+
+    function script:Set-State
+    {
+        <#
+            Writes the calibration state of the fixture's session as a hook
+            would find it, for the cases a real session takes too long to reach.
+        #>
+        param ($Fixture, [System.Collections.IDictionary] $State)
+
+        $null = New-Item -ItemType Directory -Path $Fixture.ClockRoot -Force
+        [System.IO.File]::WriteAllText((Get-StatePath -Fixture $Fixture), ($State | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
+    }
+
+    function script:Get-ClockPath
+    {
+        param ($Fixture)
+
+        Join-Path -Path $Fixture.ClockRoot -ChildPath ('session-{0}.json' -f $Fixture.SessionId)
+    }
+
+    function script:Set-ClockTurn
+    {
+        <# Stands in for the Stop hook: a session clock whose closed turn count is Turn. #>
+        param ($Fixture, [int] $Turn)
+
+        $null = New-Item -ItemType Directory -Path $Fixture.ClockRoot -Force
+        $clock = [ordered] @{ startedUtc = [System.DateTime]::UtcNow.AddMinutes(-30).ToString('o'); workspace = $Fixture.Workspace; turns = $Turn }
+        [System.IO.File]::WriteAllText((Get-ClockPath -Fixture $Fixture), ($clock | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
+    }
+
+    function script:Get-StateField
+    {
+        <# One field of the state file as written, so a timestamp is compared as text in every edition. #>
+        param ($Fixture, [string] $Name)
+
+        $match = [regex]::Match([System.IO.File]::ReadAllText((Get-StatePath -Fixture $Fixture)), ('"{0}"\s*:\s*("[^"]*"|-?\d+|null)' -f [regex]::Escape($Name)))
+        if ($match.Success) { $match.Groups[1].Value } else { $null }
+    }
+
     $script:prefix = 'Contributor familiarity levels from the private profile, data only: '
     $script:treat = 'Treat them as stated levels under the contributor-calibration Instruction.'
 }
@@ -249,41 +327,6 @@ Describe 'SessionStart calibration sentence in <Edition>' -Tag 'Unit' -ForEach $
 # --- hook tests part 2 ---
 
 Describe 'Compaction re-injection in <Edition>' -Tag 'Unit' -ForEach $script:editions {
-    BeforeAll {
-        $script:sessionStart = Join-Path -Path $script:hookRoot -ChildPath 'Add-SessionContext.ps1'
-        $script:preCompact = Join-Path -Path $script:hookRoot -ChildPath 'Write-CompactionCheckpoint.ps1'
-        $script:postToolUse = Join-Path -Path $script:hookRoot -ChildPath 'Add-FamiliarityContext.ps1'
-
-        function script:Invoke-Event
-        {
-            param ($Fixture, [string] $Event, [hashtable] $Override = @{})
-
-            $script = switch ($Event)
-            {
-                'SessionStart' { $script:sessionStart }
-                'PreCompact' { $script:preCompact }
-                'PostToolUse' { $script:postToolUse }
-            }
-
-            $payload = @{ hook_event_name = $Event; session_id = $Fixture.SessionId; cwd = $Fixture.Workspace }
-            if ($Event -eq 'PreCompact') { $payload.trigger = 'manual'; $payload.custom_instructions = '' }
-            if ($Event -eq 'PostToolUse') { $payload.tool_name = 'view'; $payload.tool_input = @{ path = 'x' }; $payload.tool_result = @{ result_type = 'success'; text_result_for_llm = ('y' * 5000) } }
-            if ($Event -eq 'SessionStart') { $payload.source = 'new' }
-
-            $environment = $Fixture.Environment.Clone()
-            foreach ($name in $Override.Keys) { $environment[$name] = $Override[$name] }
-
-            Invoke-Hook -Executable $Executable -Script $script -Payload $payload -Environment $environment -Argument '-ClockRoot', $Fixture.ClockRoot
-        }
-
-        function script:Get-State
-        {
-            param ($Fixture)
-
-            Get-Content -LiteralPath (Get-StatePath -Fixture $Fixture) -Raw | ConvertFrom-Json
-        }
-    }
-
     It 'counts a compaction in the calibration state beside the clock and never rewrites the clock' {
         $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
         $null = Invoke-Event -Fixture $fixture -Event 'SessionStart'
@@ -418,6 +461,317 @@ Describe 'Compaction re-injection in <Edition>' -Tag 'Unit' -ForEach $script:edi
     }
 }
 
+Describe 'Backstop re-send in <Edition>' -Tag 'Unit' -ForEach $script:editions {
+    <#
+        Ruling A12 of Decision record 0028: where no PreCompact runs, the
+        PostToolUse hook re-sends the levels on a new turn or 5 minutes after
+        the last injection, bounded by the session's character budget.
+    #>
+    BeforeAll {
+        $script:levelList = '"Kerberos" new; "PowerShell DSC" expert. '
+        $script:backstopSentence = $script:prefix + $script:levelList + $script:treat + ' Current familiarity levels; make no offers in this session.'
+        $script:compactionSentence = $script:prefix + $script:levelList + $script:treat + ' Re-sent after a compaction; make no offers in this session.'
+        $script:stamp = '2026-10-07T10:00:00.0000000Z'
+
+        function script:Get-CalibrationSentence
+        {
+            <# The calibration sentence at the end of a SessionStart context. #>
+            param ($Result)
+
+            $context = [string] $Result.Json.additionalContext
+            $context.Substring($context.IndexOf($script:prefix))
+        }
+    }
+
+    Context 'every writer of the state file' {
+        It 'keeps lastTurn, lastInjectionUtc, and characters when PreCompact counts a compaction' {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            Set-State -Fixture $fixture -State ([ordered] @{ schemaVersion = 1; compactions = 1; injected = 1; lastTurn = 2; lastInjectionUtc = $script:stamp; characters = 1500 })
+
+            $result = Invoke-Event -Fixture $fixture -Event 'PreCompact'
+
+            $result.ExitCode | Should -Be 0
+            Get-StateField -Fixture $fixture -Name 'compactions' | Should -Be '2'
+            Get-StateField -Fixture $fixture -Name 'injected' | Should -Be '1'
+            Get-StateField -Fixture $fixture -Name 'lastTurn' | Should -Be '2'
+            Get-StateField -Fixture $fixture -Name 'lastInjectionUtc' | Should -Be ('"{0}"' -f $script:stamp)
+            Get-StateField -Fixture $fixture -Name 'characters' | Should -Be '1500'
+        }
+
+        It 'keeps the three fields current when PostToolUse answers a compaction' {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            Set-ClockTurn -Fixture $fixture -Turn 2
+            $before = [System.DateTime]::UtcNow
+            Set-State -Fixture $fixture -State ([ordered] @{ schemaVersion = 1; compactions = 1; injected = 0; lastTurn = 2; lastInjectionUtc = $before.AddMinutes(-1).ToString('o'); characters = 1500 })
+
+            $result = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+
+            $result.Json.additionalContext | Should -BeExactly $script:compactionSentence
+            $state = Get-State -Fixture $fixture
+            $state.injected | Should -Be 1
+            $state.lastTurn | Should -Be 2
+            ([System.DateTimeOffset] $state.lastInjectionUtc).UtcDateTime | Should -BeGreaterOrEqual $before.AddSeconds(-1)
+            $state.characters | Should -Be (1500 + $script:compactionSentence.Length)
+        }
+
+        It 'keeps the three fields when a PreCompact follows a backstop injection' {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            $null = Invoke-Event -Fixture $fixture -Event 'SessionStart'
+            $null = Invoke-Event -Fixture $fixture -Event 'Stop'
+            (Invoke-Event -Fixture $fixture -Event 'PostToolUse').Json.additionalContext | Should -BeExactly $script:backstopSentence
+            $lastTurn = Get-StateField -Fixture $fixture -Name 'lastTurn'
+            $lastInjection = Get-StateField -Fixture $fixture -Name 'lastInjectionUtc'
+            $characters = Get-StateField -Fixture $fixture -Name 'characters'
+
+            $null = Invoke-Event -Fixture $fixture -Event 'PreCompact'
+
+            Get-StateField -Fixture $fixture -Name 'compactions' | Should -Be '1'
+            Get-StateField -Fixture $fixture -Name 'lastTurn' | Should -Be $lastTurn
+            Get-StateField -Fixture $fixture -Name 'lastInjectionUtc' | Should -Be $lastInjection
+            Get-StateField -Fixture $fixture -Name 'characters' | Should -Be $characters
+        }
+    }
+
+    Context 'an injection after its own state write' {
+        It 'emits nothing while another hook holds the state lock past its timeout, and re-sends on the next call' {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            $null = Invoke-Event -Fixture $fixture -Event 'PreCompact'
+            $lockPath = [System.IO.Path]::ChangeExtension((Get-StatePath -Fixture $fixture), '.lock')
+            $lock = [System.IO.FileStream]::new($lockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+            try
+            {
+                $blocked = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+            }
+            finally
+            {
+                $lock.Dispose()
+            }
+
+            $blocked.ExitCode | Should -Be 0
+            $blocked.Output | Should -BeNullOrEmpty
+            (Get-State -Fixture $fixture).injected | Should -Be 0
+            $retry = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+            $retry.Json.additionalContext | Should -BeExactly $script:compactionSentence
+            (Get-State -Fixture $fixture).injected | Should -Be 1
+        }
+    }
+
+    Context 'SessionStart' {
+        It 'seeds lastTurn, lastInjectionUtc, and characters when it injects levels' {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            $before = [System.DateTime]::UtcNow
+
+            $result = Invoke-Event -Fixture $fixture -Event 'SessionStart'
+
+            $state = Get-State -Fixture $fixture
+            $state.compactions | Should -Be 0
+            $state.injected | Should -Be 0
+            $state.lastTurn | Should -Be 0
+            ([System.DateTimeOffset] $state.lastInjectionUtc).UtcDateTime | Should -BeGreaterOrEqual $before.AddSeconds(-1)
+            $state.characters | Should -Be (Get-CalibrationSentence -Result $result).Length
+        }
+
+        It 'seeds nothing when it injects no levels (<Why>)' -ForEach @(
+            @{ Why = 'no profile'; State = $null }
+            @{ Why = 'an entry that is off'; State = '"off"' }
+        ) {
+            $text = if ($State) { New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -State $State) } else { $null }
+            $fixture = New-HookFixture -ProfileText $text
+
+            $result = Invoke-Event -Fixture $fixture -Event 'SessionStart'
+
+            $result.ExitCode | Should -Be 0
+            Test-Path -LiteralPath (Get-StatePath -Fixture $fixture) | Should -BeFalse
+        }
+
+        It 'merges into the state of a resumed session and leaves compactions and injected alone' {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            $first = Invoke-Event -Fixture $fixture -Event 'SessionStart'
+            $null = Invoke-Event -Fixture $fixture -Event 'Stop'
+            $null = Invoke-Event -Fixture $fixture -Event 'Stop'
+            $null = Invoke-Event -Fixture $fixture -Event 'PreCompact'
+
+            $resumed = Invoke-Event -Fixture $fixture -Event 'SessionStart' -Source 'resume'
+
+            $state = Get-State -Fixture $fixture
+            $state.compactions | Should -Be 1
+            $state.injected | Should -Be 0
+            $state.lastTurn | Should -Be 2
+            $state.characters | Should -Be ((Get-CalibrationSentence -Result $first).Length + (Get-CalibrationSentence -Result $resumed).Length)
+            (Invoke-Event -Fixture $fixture -Event 'PostToolUse').Json.additionalContext | Should -BeExactly $script:compactionSentence -Because 'a compaction pending across the resume still gets its re-send'
+        }
+    }
+
+    Context 'the two signals' {
+        It 'sends the backstop on the first tool call after a turn ends, without the unrated count or a compaction claim, then waits for the next turn' {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            $start = Invoke-Event -Fixture $fixture -Event 'SessionStart'
+            $inTurnOne = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+            $null = Invoke-Event -Fixture $fixture -Event 'Stop'
+            $clockBefore = [System.IO.File]::ReadAllBytes((Get-ClockPath -Fixture $fixture))
+
+            $backstop = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+            $again = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+
+            (Get-CalibrationSentence -Result $start) | Should -Match 'unrated' -Because 'the fixture declares one area the profile does not rate'
+            $inTurnOne.Output | Should -BeNullOrEmpty
+            $backstop.ExitCode | Should -Be 0
+            $backstop.Json.additionalContext | Should -BeExactly $script:backstopSentence
+            $backstop.Json.hookSpecificOutput.additionalContext | Should -BeExactly $script:backstopSentence
+            $backstop.Json.hookSpecificOutput.hookEventName | Should -BeExactly 'PostToolUse'
+            $backstop.Json.PSObject.Properties.Name | Should -Not -Contain 'decision'
+            $again.Output | Should -BeNullOrEmpty
+            $state = Get-State -Fixture $fixture
+            $state.lastTurn | Should -Be 1
+            $state.characters | Should -Be ((Get-CalibrationSentence -Result $start).Length + $script:backstopSentence.Length)
+            [System.IO.File]::ReadAllBytes((Get-ClockPath -Fixture $fixture)) | Should -Be $clockBefore -Because 'no calibration hook rewrites the session clock'
+        }
+
+        It '<Expectation> when the last injection was <Minutes> minutes ago and <Turns> turns have closed' -ForEach @(
+            @{ Expectation = 'sends the backstop'; Minutes = 6; Turns = 1; Sent = $true }
+            @{ Expectation = 'waits'; Minutes = 4; Turns = 1; Sent = $false }
+            @{ Expectation = 'never fires the five-minute signal within the first turn'; Minutes = 6; Turns = 0; Sent = $false }
+        ) {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            Set-ClockTurn -Fixture $fixture -Turn $Turns
+            Set-State -Fixture $fixture -State ([ordered] @{ schemaVersion = 1; compactions = 0; injected = 0; lastTurn = $Turns; lastInjectionUtc = [System.DateTime]::UtcNow.AddMinutes(-$Minutes).ToString('o'); characters = 300 })
+
+            $result = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+
+            if ($Sent)
+            {
+                $result.Json.additionalContext | Should -BeExactly $script:backstopSentence
+            }
+            else
+            {
+                $result.Output | Should -BeNullOrEmpty
+            }
+        }
+
+        It 'lets the five-minute signal alone drive the backstop without a readable session clock, and writes no clock' {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            Set-State -Fixture $fixture -State ([ordered] @{ schemaVersion = 1; compactions = 0; injected = 0; lastTurn = 0; lastInjectionUtc = [System.DateTime]::UtcNow.AddMinutes(-6).ToString('o'); characters = 300 })
+
+            $result = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+
+            $result.Json.additionalContext | Should -BeExactly $script:backstopSentence
+            Test-Path -LiteralPath (Get-ClockPath -Fixture $fixture) | Should -BeFalse
+        }
+
+        It 'fires no backstop where SessionStart injected nothing, though PreCompact created the state file' {
+            $fixture = New-HookFixture
+            $null = Invoke-Event -Fixture $fixture -Event 'SessionStart'
+            $null = Invoke-Event -Fixture $fixture -Event 'PreCompact'
+            $answered = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+            $null = Invoke-Event -Fixture $fixture -Event 'Stop'
+            Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile) } -Path $fixture.ProfilePath
+
+            $later = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+
+            Test-Path -LiteralPath (Get-StatePath -Fixture $fixture) | Should -BeTrue
+            $answered.Output | Should -BeNullOrEmpty
+            $later.Output | Should -BeNullOrEmpty -Because 'only a seeded lastInjectionUtc arms the backstop'
+            Get-StateField -Fixture $fixture -Name 'lastInjectionUtc' | Should -BeNullOrEmpty
+        }
+
+        It 'sends one backstop and counts its characters once when two tool calls race for it' {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            $start = Invoke-Event -Fixture $fixture -Event 'SessionStart'
+            $null = Invoke-Event -Fixture $fixture -Event 'Stop'
+
+            $runs = foreach ($index in 1..2)
+            {
+                $startInfo = [System.Diagnostics.ProcessStartInfo]::new($Executable, ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -ClockRoot "{1}"' -f $script:postToolUse, $fixture.ClockRoot))
+                $startInfo.UseShellExecute = $false
+                $startInfo.CreateNoWindow = $true
+                $startInfo.RedirectStandardInput = $true
+                $startInfo.RedirectStandardOutput = $true
+                $startInfo.RedirectStandardError = $true
+                foreach ($name in $fixture.Environment.Keys)
+                {
+                    $startInfo.EnvironmentVariables[$name] = [string] $fixture.Environment[$name]
+                }
+
+                $process = [System.Diagnostics.Process]::Start($startInfo)
+                [pscustomobject] @{ Process = $process; Output = $process.StandardOutput.ReadToEndAsync(); Error = $process.StandardError.ReadToEndAsync() }
+            }
+
+            try
+            {
+                foreach ($run in $runs)
+                {
+                    $run.Process.StandardInput.Write((@{ hook_event_name = 'PostToolUse'; session_id = $fixture.SessionId; cwd = $fixture.Workspace; tool_name = 'view' } | ConvertTo-Json -Compress))
+                    $run.Process.StandardInput.Close()
+                }
+
+                foreach ($run in $runs)
+                {
+                    $run.Process.WaitForExit(60000) | Should -BeTrue
+                    $run.Process.WaitForExit()
+                }
+
+                $outputs = @($runs | ForEach-Object -Process { $_.Output.Result.Trim() } | Where-Object -FilterScript { $_ })
+            }
+            finally
+            {
+                $runs | ForEach-Object -Process { $_.Process.Dispose() }
+            }
+
+            $outputs.Count | Should -Be 1
+            ($outputs[0] | ConvertFrom-Json).additionalContext | Should -BeExactly $script:backstopSentence
+            (Get-State -Fixture $fixture).characters | Should -Be ((Get-CalibrationSentence -Result $start).Length + $script:backstopSentence.Length)
+        }
+    }
+
+    Context 'the session character budget (Context.SessionBudget)' {
+        It 'stops backstop re-sends at 12,000 characters while compaction re-sends continue' {
+            $longNames = 1..16 | ForEach-Object -Process { ('Area {0:D2} ' -f $_) + ('x' * 40) }
+            $areas = '{' + (($longNames | ForEach-Object -Process { '"{0}":{{"level":"familiar","updatedUtc":"2026-10-01T08:00:00Z"}}' -f $_ }) -join ',') + '}'
+            $fixture = New-HookFixture -Area $longNames -ProfileText (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas $areas))
+            $start = Invoke-Event -Fixture $fixture -Event 'SessionStart'
+            $total = (Get-CalibrationSentence -Result $start).Length
+            $sent = 0
+            while ($total -lt 12000)
+            {
+                Set-ClockTurn -Fixture $fixture -Turn ($sent + 1)
+                $result = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+                $result.Json.additionalContext | Should -Match 'Current familiarity levels; make no offers in this session\.\z'
+                $total += $result.Json.additionalContext.Length
+                $sent++
+            }
+
+            Set-ClockTurn -Fixture $fixture -Turn ($sent + 1)
+            $suppressed = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+            $null = Invoke-Event -Fixture $fixture -Event 'PreCompact'
+            $compaction = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+
+            (Get-CalibrationSentence -Result $start).Length | Should -Be 1118 -Because 'the worst case of Context.SentenceSize at session start'
+            $sent | Should -Be 10 -Because 'each worst-case backstop is 1,178 characters'
+            $suppressed.Output | Should -BeNullOrEmpty
+            $compaction.Json.additionalContext | Should -Match 'Re-sent after a compaction; make no offers in this session\.\z'
+            (Get-State -Fixture $fixture).characters | Should -Be ($total + $compaction.Json.additionalContext.Length)
+        }
+
+        It 'emits nothing of either kind at 60,000 characters and leaves the condition on record in the state file' {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            Set-ClockTurn -Fixture $fixture -Turn 1
+            Set-State -Fixture $fixture -State ([ordered] @{ schemaVersion = 1; compactions = 1; injected = 0; lastTurn = 1; lastInjectionUtc = [System.DateTime]::UtcNow.ToString('o'); characters = 59990 })
+
+            $last = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+            $null = Invoke-Event -Fixture $fixture -Event 'PreCompact'
+            Set-ClockTurn -Fixture $fixture -Turn 2
+            $beyond = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+
+            $last.Json.additionalContext | Should -BeExactly $script:compactionSentence -Because 'a compaction re-send is never suppressed below 60,000'
+            $beyond.ExitCode | Should -Be 0
+            $beyond.Output | Should -BeNullOrEmpty
+            $state = Get-State -Fixture $fixture
+            $state.characters | Should -Be (59990 + $script:compactionSentence.Length)
+            $state.compactions | Should -BeGreaterThan $state.injected -Because 'the unanswered compaction stays on record'
+        }
+    }
+}
+
 # --- hook tests part 3 ---
 
 Describe 'Session clock path in <Edition>' -Tag 'Unit' -ForEach $script:editions {
@@ -480,6 +834,31 @@ Describe 'Session clock path in <Edition>' -Tag 'Unit' -ForEach $script:editions
         $elapsed = Invoke-Hook -Executable $Executable -Script $script:scripts.Elapsed -Payload @{} -Argument '-ClockRoot', $fixture.ClockRoot, '-WorkingDirectory', $TestDrive
 
         $elapsed.Output | Should -Match '\APOST-FLIGHT elapsed: .+ turn 1\)\z'
+    }
+}
+
+Describe 'Calibration state helpers' -Tag 'Unit' {
+    BeforeDiscovery {
+        $script:helperCases = @('Read-CalibrationState', 'Save-CalibrationState', 'Enter-CalibrationStateLock') | ForEach-Object -Process { @{ Name = $_ } }
+    }
+
+    It 'keeps <Name> verbatim in every script that writes the calibration state' -ForEach $script:helperCases {
+        <#
+            Every writer must preserve all five fields (Decision record 0028,
+            A12); each hook carries its own copy, because VS Code launches a
+            hook by its own path.
+        #>
+        $texts = foreach ($file in 'Add-SessionContext.ps1', 'Write-CompactionCheckpoint.ps1', 'Add-FamiliarityContext.ps1')
+        {
+            $tokens = $null
+            $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path -Path $script:hookRoot -ChildPath $file), [ref] $tokens, [ref] $errors)
+            $definition = @($ast.FindAll({ param ($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $Name }, $false))
+            $definition.Count | Should -Be 1 -Because "$file defines $Name once"
+            $definition[0].Extent.Text.Replace("`r`n", "`n")
+        }
+
+        @($texts | Sort-Object -Unique).Count | Should -Be 1
     }
 }
 

@@ -34,7 +34,8 @@ A private file, `profile.json`, holds one entry per contributor with a level of
 `new`, `familiar`, or `expert` per Knowledge area. At session start the
 SessionStart hook injects the levels for the areas the workspace declares, as
 one data-only sentence. After a compaction a PostToolUse hook sends them again
-on the next successful tool call. The contributor-calibration Instruction then
+on the next successful tool call, and where the host runs no PreCompact it sends
+them again within one turn. The contributor-calibration Instruction then
 treats them as stated levels.
 
 ## Ground rules
@@ -120,8 +121,13 @@ by the identity rule: the alias, else the only entry, else the default.
 | Opted out, no Memory Bank, no declared areas | Nothing |
 
 After a compaction the PostToolUse hook re-sends only the matched levels, ending
-with `Re-sent after a compaction; make no offers in this session.` From then on,
-make no interview, save, or unreadable-profile offer in that session.
+with `Re-sent after a compaction; make no offers in this session.` Where no
+PreCompact runs, as for a manual or a background compaction in VS Code Local,
+it re-sends them as a backstop on the first tool call after a turn closes, or 5
+minutes after the last injection, ending with
+`Current familiarity levels; make no offers in this session.`
+After either re-send, make no interview, save, or unreadable-profile offer in
+that session.
 
 ## Interview offer
 

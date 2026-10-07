@@ -79,7 +79,7 @@ passing the text on unexpanded.
 | [`scripts/Write-SessionClose.ps1`](scripts/Write-SessionClose.ps1) | `Stop` | Advances the session clock's turn counter |
 | [`scripts/Get-SessionElapsed.ps1`](scripts/Get-SessionElapsed.ps1) | — | Agent-run reader that prints the Post-flight elapsed line |
 | [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated, and counts the compaction for contributor calibration |
-| [`scripts/Add-FamiliarityContext.ps1`](scripts/Add-FamiliarityContext.ps1) | `PostToolUse` | Re-sends saved familiarity levels once after a compaction; registered only by `~/.copilot/hooks/contributor-profile.json` |
+| [`scripts/Add-FamiliarityContext.ps1`](scripts/Add-FamiliarityContext.ps1) | `PostToolUse` | Re-sends saved familiarity levels after a compaction and, where no `PreCompact` runs, within one turn; registered only by `~/.copilot/hooks/contributor-profile.json` |
 
 ## Block-RemoteMutation
 
@@ -247,9 +247,12 @@ directory stripped, falling back to a hash of the working directory so two
 concurrent windows do not share one clock.
 
 Beside each clock sits `session-<key>.familiarity.json`, the calibration state
-of the same session: `compactions`, which `PreCompact` advances, and `injected`,
-which `Add-FamiliarityContext` records. No calibration hook ever rewrites the
-clock file, and `Get-SessionElapsed` never reads the state as a clock.
+of the same session: `compactions`, which `PreCompact` advances; `injected`,
+which `Add-FamiliarityContext` records; and `lastTurn`, `lastInjectionUtc`, and
+`characters`, which `SessionStart` seeds when it injects levels and
+`Add-FamiliarityContext` advances with each re-send. Every writer keeps all five
+fields. No calibration hook ever rewrites the clock file, and
+`Get-SessionElapsed` never reads the state as a clock.
 
 ### Write-SessionClose
 
@@ -318,8 +321,17 @@ clock, in every workspace, under the lock that `Add-FamiliarityContext` takes.
 
 No host reruns `SessionStart` after a compaction, and the Copilot SDK host and
 Copilot CLI drop its context when they compact, so saved familiarity levels
-would silently revert to `familiar`. This `PostToolUse` hook re-sends them once,
-on the first successful tool call after a compaction.
+would silently revert to `familiar`. This `PostToolUse` hook re-sends them on
+the first successful tool call after a compaction that `PreCompact` counted.
+
+VS Code Local runs no `PreCompact` for a manual or a background compaction, so
+the hook also re-sends the levels as a backstop: on the first successful tool
+call after a turn closes, or more than 5 minutes after the last injection once
+the first turn has closed. Only a session whose `SessionStart` injected levels
+is armed for it. Backstop re-sends stop once the session has received 12,000
+characters of calibration text, about 3,000 tokens; compaction re-sends continue
+up to 60,000, above which the session is outside the design's envelope and
+nothing more is sent.
 
 `hooks.json` does not register it. The `contributor-profile` Skill writes
 `~/.copilot/hooks/contributor-profile.json`, a fixed template with the same
@@ -339,20 +351,28 @@ no longer matches it. On a OneDrive Canonical target the record and the file
 sync in either order; a record whose file has not arrived is pending, and
 nothing, including `Uninstall-CopilotAtelier`, acts on it until both are there.
 
-Latency is stated in launches of a fixed no-op hook through the same launcher
-and spawn, not in milliseconds:
+Latency is stated in frozen reference scripts: a hook's own time over a fixed
+no-op hook, divided by the own time of a fixed reference script, all three
+through the same launcher and spawn, so machine speed and shell edition cancel.
 [`tests/Fixtures/Measure-CalibrationLatency.ps1`](../../tests/Fixtures/Measure-CalibrationLatency.ps1)
-measures it. A change to a launcher in `hooks.json` changes that unit, so re-run
-the Meter and re-baseline Decision record 0028's latency levels then.
+measures it, and a test pins the reference script's SHA-256. A change to a
+launcher in `hooks.json` or to the reference script changes the measurement, so
+re-run the Meter and re-baseline Decision record 0028's latency levels then.
 
 The common path reads `session_id` from the head of the payload, where both
-hosts put it ahead of every tool field, and one small state file, then exits.
-When a compaction is unanswered, it parses the payload for `cwd`, rechecks the
-profile so an opt-out takes effect at once, and emits the matched levels under
-both host keys, ending with `Re-sent after a compaction; make no offers in this
-session.` It records the answered count by compare-and-set under the state
-lock, so a newer compaction is never lost. It never emits `decision`, never
-exits `2`, and exits `0` on every path.
+hosts put it ahead of every tool field, one small state file and, in an armed
+session, the turn count of the session clock, then exits without writing or
+locking anything. When a re-send is due, it parses the payload for `cwd` and
+rechecks the profile so an opt-out takes effect at once. It then takes the
+state lock, reads the state again, decides again, and records the injection
+before it emits the matched levels under both host keys, so a re-send that
+could not be recorded is never sent and cannot repeat on every later call. A
+compaction re-send ends with
+`Re-sent after a compaction; make no offers in this session.` and a backstop
+re-send with `Current familiarity levels; make no offers in this session.` It
+records the answered compaction count by compare-and-set, so a newer
+compaction is never lost. It never emits `decision`, never exits `2`, and
+exits `0` on every path.
 
 ## Verifying the hooks load
 

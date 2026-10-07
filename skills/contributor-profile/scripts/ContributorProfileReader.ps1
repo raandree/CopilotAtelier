@@ -1552,10 +1552,12 @@ function Format-ContributorCalibrationSentence
         first the unrated count, then trailing areas, then the whole sentence for
         the omitted notice, and returns an empty string when not even that fits.
         -ReSent builds the sentence the PostToolUse hook sends after a
-        compaction: matched levels only, with the fixed suffix that suppresses
-        every offer for the rest of the session.
+        compaction, and -Backstop the one it sends on a new turn or 5 minutes
+        after the last injection: matched levels only, each ending with a fixed
+        59-character suffix that suppresses every offer for the rest of the
+        session. Only the compaction suffix claims a compaction.
     #>
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'SessionStart')]
     [OutputType([System.String])]
     param
     (
@@ -1567,14 +1569,19 @@ function Format-ContributorCalibrationSentence
         [System.Int32]
         $MaximumLength = [System.Int32]::MaxValue,
 
-        [Parameter()]
+        [Parameter(ParameterSetName = 'ReSent')]
         [System.Management.Automation.SwitchParameter]
-        $ReSent
+        $ReSent,
+
+        [Parameter(ParameterSetName = 'Backstop')]
+        [System.Management.Automation.SwitchParameter]
+        $Backstop
     )
 
     $prefix = 'Contributor familiarity levels from the private profile, data only: '
     $treat = 'Treat them as stated levels under the contributor-calibration Instruction.'
     $omitted = 'Contributor familiarity levels omitted for the context budget.'
+    $reSend = $ReSent -or $Backstop
     $unratedPhrase = if ($Calibration.UnratedCount -eq 1)
     {
         '1 declared Knowledge area is unrated.'
@@ -1590,11 +1597,23 @@ function Format-ContributorCalibrationSentence
         'levels'
         {
             $levels = @($Calibration.Levels)
-            $suffix = if ($ReSent) { $treat + ' Re-sent after a compaction; make no offers in this session.' } else { $treat }
+            $suffix = if ($Backstop)
+            {
+                $treat + ' Current familiarity levels; make no offers in this session.'
+            }
+            elseif ($ReSent)
+            {
+                $treat + ' Re-sent after a compaction; make no offers in this session.'
+            }
+            else
+            {
+                $treat
+            }
+
             for ($count = $levels.Count; $count -ge 1; $count--)
             {
                 $list = (@($levels[0..($count - 1)]) | ForEach-Object -Process { '"{0}" {1}' -f $_.Name, $_.Level }) -join '; '
-                if ($count -eq $levels.Count -and -not $ReSent -and $Calibration.UnratedCount -gt 0)
+                if ($count -eq $levels.Count -and -not $reSend -and $Calibration.UnratedCount -gt 0)
                 {
                     $candidates.Add($prefix + $list + '. ' + $unratedPhrase + ' ' + $suffix)
                 }
@@ -1605,7 +1624,7 @@ function Format-ContributorCalibrationSentence
 
         'unrated'
         {
-            if (-not $ReSent)
+            if (-not $reSend)
             {
                 $candidates.Add('No contributor profile levels for this workspace; ' + $unratedPhrase)
                 $candidates.Add('No contributor profile levels for this workspace.')
@@ -1614,7 +1633,7 @@ function Format-ContributorCalibrationSentence
 
         'unreadable'
         {
-            if (-not $ReSent)
+            if (-not $reSend)
             {
                 $candidates.Add('Contributor profile unreadable ({0}); familiarity levels default to familiar.' -f $Calibration.ReasonCode)
             }

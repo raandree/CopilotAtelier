@@ -223,6 +223,13 @@ Describe 'Contributor profile offers' -Tag 'Unit' {
         $skill | Should -Match '`Re-sent after a compaction; make no offers in this session\.`'
         $skill | Should -Match 'make no interview, save, or unreadable-profile offer'
     }
+
+    It 'a backstop re-send suppresses every offer too, without claiming a compaction' {
+        $skill = Get-RepositoryText -RelativePath 'skills/contributor-profile/SKILL.md'
+
+        $skill | Should -Match '`Current familiarity levels; make no offers in this session\.`'
+        $skill | Should -Match 'After either re-send, make no interview, save, or unreadable-profile offer'
+    }
 }
 
 Describe 'No Customization trades safety for a familiarity level' -Tag 'Unit' {

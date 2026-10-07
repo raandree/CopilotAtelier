@@ -1,26 +1,37 @@
 <#
 .SYNOPSIS
-    PostToolUse hook that re-sends the contributor's familiarity levels once
-    after a compaction.
+    PostToolUse hook that re-sends the contributor's familiarity levels after a
+    compaction, and as a backstop on a new turn or 5 minutes later.
 .DESCRIPTION
     No host reruns SessionStart after a compaction, and the Copilot SDK host and
     Copilot CLI drop its context when they compact. The PreCompact hook counts
     each compaction in session-<key>.familiarity.json beside the session clock;
     this hook answers it on the next successful tool call (Decision record 0028).
+    VS Code Local runs no PreCompact for a manual or a background compaction, so
+    the hook also re-sends the levels as a backstop on the first successful tool
+    call after a turn closes, or more than 5 minutes after the last injection
+    once the first turn has closed (ruling A12). Only a session whose SessionStart
+    injected levels is armed for the backstop: it seeds lastInjectionUtc.
 
     The registration file ~/.copilot/hooks/contributor-profile.json loads this
     hook only while a Contributor profile on this machine has an entry that is
     on and rates a Knowledge area, and it runs after every successful tool call.
-    The common path therefore stays short: it finds session_id near the start
-    of the payload, where both hosts put it ahead of every tool field, reads the
-    small state file, and exits when no compaction is unanswered.
+    The common path therefore stays short and writes nothing: it finds
+    session_id near the start of the payload, where both hosts put it ahead of
+    every tool field, reads the small state file and, in an armed session, the
+    turn count of the session clock, and exits when nothing is due.
 
-    When one is, it parses the payload for cwd, rechecks the profile, so an
-    opt-out or a deletion takes effect at once, and emits the matched levels
-    once under both host keys. The sentence carries no unrated count and ends
-    with a suffix that suppresses every offer for the rest of the session. It
-    then records the compaction it answered by compare-and-set under the state
-    lock that PreCompact also takes, so a newer compaction is never lost.
+    When a re-send is due, it parses the payload for cwd and rechecks the
+    profile, so an opt-out or a deletion takes effect at once. It then takes the
+    state lock that PreCompact also takes, re-reads the state, decides again,
+    records the injection, and only then emits the matched levels under both
+    host keys, so an injection that could not be recorded is never sent and
+    cannot re-fire. The sentence carries no unrated count and ends with a suffix
+    that suppresses every offer for the rest of the session. The compaction it
+    answers is recorded by compare-and-set, so a newer compaction is never lost.
+    Backstop re-sends stop once the session has received 12,000 characters of
+    calibration text; compaction re-sends continue up to 60,000, above which
+    nothing is sent.
 .PARAMETER InputJson
     Hook payload as JSON. Defaults to reading standard input. Tests pass the
     payload directly so they do not depend on redirected input.
@@ -29,10 +40,11 @@
     the per-user application data location. Tests override it.
 .NOTES
     Never emits decision and never exits 2: every path exits 0, so this hook can
-    only add context, never block or change a tool call. Writes one JSON object
-    that serves both hosts: a top-level additionalContext, which the Copilot SDK
-    host and Copilot CLI read, and hookSpecificOutput.additionalContext, which
-    the VS Code Local harness reads.
+    only add context, never block or change a tool call. It reads the session
+    clock and never writes it. Writes one JSON object that serves both hosts: a
+    top-level additionalContext, which the Copilot SDK host and Copilot CLI
+    read, and hookSpecificOutput.additionalContext, which the VS Code Local
+    harness reads.
 #>
 
 [CmdletBinding()]
@@ -116,53 +128,227 @@ function Get-SessionClockPath {
 }
 
 function Read-CalibrationState {
-    param([Parameter(Mandatory = $true)] [string]$StatePath)
+    <#
+        Reads session-<key>.familiarity.json, the per-session calibration
+        state. Duplicated verbatim, with Save-CalibrationState and
+        Enter-CalibrationStateLock, in Add-SessionContext.ps1,
+        Write-CompactionCheckpoint.ps1, and Add-FamiliarityContext.ps1, for the
+        reason Get-SessionClockPath gives; change the copies together. A
+        missing file reads as a fresh state and a missing field as absent:
+        lastTurn and lastInjectionUtc stay $null until SessionStart seeds them,
+        and characters reads 0. An unreadable file throws, unless
+        -ReplaceUnreadable asks for a fresh state instead. Only these hooks
+        write the file, as one flat object, so a pattern per field reads it:
+        ConvertFrom-Json would load a module on the PostToolUse common path
+        and double its cost.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StatePath,
 
-    $state = [IO.File]::ReadAllText($StatePath) | ConvertFrom-Json -ErrorAction Stop
-    return [pscustomobject]@{
-        Compactions = [Math]::Max(0, [int]$state.compactions)
-        Injected = [Math]::Max(0, [int]$state.injected)
+        [Parameter()]
+        [switch]$ReplaceUnreadable
+    )
+
+    $fresh = [pscustomobject]@{
+        Compactions = 0
+        Injected = 0
+        LastTurn = $null
+        LastInjectionUtc = $null
+        Characters = 0
+    }
+
+    if (-not [IO.File]::Exists($StatePath)) {
+        return $fresh
+    }
+
+    try {
+        $text = [IO.File]::ReadAllText($StatePath)
+
+        if ($text -notmatch '\A\s*\{[^{}]*\}\s*\z') {
+            throw 'The calibration state is not one flat JSON object.'
+        }
+
+        $field = @{}
+        foreach ($match in [regex]::Matches($text, '"([A-Za-z]+)"\s*:\s*("[^"\\]*"|[^,}\s]+)')) {
+            if (-not $field.ContainsKey($match.Groups[1].Value)) {
+                $field[$match.Groups[1].Value] = $match.Groups[2].Value
+            }
+        }
+
+        $state = [pscustomobject]@{
+            Compactions = 0
+            Injected = 0
+            LastTurn = $null
+            LastInjectionUtc = $null
+            Characters = 0
+        }
+
+        foreach ($name in 'compactions', 'injected', 'lastTurn', 'characters') {
+            if ($null -ne $field[$name] -and $field[$name] -ne 'null') {
+                $state.$name = [Math]::Max(0, [int]::Parse($field[$name], [Globalization.NumberStyles]::AllowLeadingSign, [Globalization.CultureInfo]::InvariantCulture))
+            }
+        }
+
+        $stamp = $field['lastInjectionUtc']
+        if ($null -ne $stamp -and $stamp -ne 'null') {
+            if ($stamp -notmatch '\A"(.+)"\z') {
+                throw 'lastInjectionUtc is not a timestamp.'
+            }
+
+            $state.LastInjectionUtc = [datetimeoffset]::Parse($Matches[1], [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal).UtcDateTime
+        }
+
+        return $state
+    } catch {
+        if (-not $ReplaceUnreadable) {
+            throw
+        }
+
+        Write-Debug -Message "Unreadable calibration state replaced: $($_.Exception.Message)"
+        return $fresh
     }
 }
 
-function Set-CalibrationAnswered {
+function Save-CalibrationState {
     <#
-        Compare-and-set under the state lock: records the compaction count this
-        call answered, never lowers a count, and keeps any compaction that
-        PreCompact recorded in the meantime.
+        Writes every field of the calibration state with an atomic replace,
+        under the state lock the caller holds. An absent lastTurn or
+        lastInjectionUtc stays absent, so only SessionStart can arm the
+        backstop. Duplicated verbatim; see Read-CalibrationState.
     #>
+    [CmdletBinding()]
     param(
-        [Parameter(Mandatory = $true)] [string]$StatePath,
-        [Parameter(Mandatory = $true)] [int]$Answered
+        [Parameter(Mandatory = $true)]
+        [string]$StatePath,
+
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$State
+    )
+
+    $text = '{"schemaVersion":1,"compactions":' + [int]$State.Compactions + ',"injected":' + [int]$State.Injected
+
+    if ($null -ne $State.LastTurn) {
+        $text += ',"lastTurn":' + [int]$State.LastTurn
+    }
+
+    if ($null -ne $State.LastInjectionUtc) {
+        $text += ',"lastInjectionUtc":"' + ([datetime]$State.LastInjectionUtc).ToUniversalTime().ToString('o', [Globalization.CultureInfo]::InvariantCulture) + '"'
+    }
+
+    $text += ',"characters":' + [int]$State.Characters + '}'
+    $temporary = $StatePath + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+
+    try {
+        [IO.File]::WriteAllText($temporary, $text, [Text.UTF8Encoding]::new($false))
+
+        if ([IO.File]::Exists($StatePath)) {
+            [IO.File]::Replace($temporary, $StatePath, [System.Management.Automation.Language.NullString]::Value)
+        } else {
+            [IO.File]::Move($temporary, $StatePath)
+        }
+    } finally {
+        if ([IO.File]::Exists($temporary)) {
+            try {
+                [IO.File]::Delete($temporary)
+            } catch {
+                Write-Debug -Message "Temporary calibration state left behind: $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
+function Enter-CalibrationStateLock {
+    <#
+        Opens the lock every writer of the calibration state takes, waiting up
+        to 5 seconds, and returns $null when another hook still holds it.
+        Duplicated verbatim; see Read-CalibrationState.
+    #>
+    [CmdletBinding()]
+    [OutputType([IO.FileStream])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StatePath
     )
 
     $lockPath = [IO.Path]::ChangeExtension($StatePath, '.lock')
-    $lock = $null
     $watch = [Diagnostics.Stopwatch]::StartNew()
 
-    while ($null -eq $lock) {
+    while ($true) {
         try {
-            $lock = [IO.FileStream]::new($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 1, [IO.FileOptions]::DeleteOnClose)
+            return [IO.FileStream]::new($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 1, [IO.FileOptions]::DeleteOnClose)
         } catch {
             if ($watch.ElapsedMilliseconds -ge 5000) {
-                # The answer goes unrecorded, so the next call re-sends once
-                # more; a duplicate sentence is the accepted cost.
-                return
+                return $null
             }
 
             Start-Sleep -Milliseconds 50
         }
     }
+}
+
+function Read-SessionTurn {
+    <#
+        The closed-turn count that the Stop hook keeps in the session clock.
+        Read, never written: no calibration hook rewrites the clock. Returns
+        $null when the clock is missing or unreadable. A pattern reads the one
+        number, for the reason Read-CalibrationState gives; a JSON string
+        escapes every quote it holds, so the workspace path cannot fake it.
+    #>
+    [CmdletBinding()]
+    [OutputType([Nullable[int]])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ClockPath
+    )
 
     try {
-        $current = Read-CalibrationState -StatePath $StatePath
-        $text = '{{"schemaVersion":1,"compactions":{0},"injected":{1}}}' -f $current.Compactions, [Math]::Max($current.Injected, $Answered)
-        $temporary = $StatePath + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
-        [IO.File]::WriteAllText($temporary, $text, [Text.UTF8Encoding]::new($false))
-        [IO.File]::Replace($temporary, $StatePath, [System.Management.Automation.Language.NullString]::Value)
-    } finally {
-        $lock.Dispose()
+        $match = [regex]::Match([IO.File]::ReadAllText($ClockPath), '"turns"\s*:\s*(\d+)\s*[,}]')
+
+        if (-not $match.Success) {
+            return $null
+        }
+
+        return [Math]::Max(0, [int]::Parse($match.Groups[1].Value, [Globalization.CultureInfo]::InvariantCulture))
+    } catch {
+        return $null
     }
+}
+
+function Test-BackstopDue {
+    <#
+        The backstop's two signals, ruling A12: a turn has closed since the
+        last injection, or more than 5 minutes have passed since it. Only a
+        lastInjectionUtc that SessionStart seeded arms it, and it stops once
+        the session has received 12,000 characters of calibration text. The
+        5-minute signal waits for the first turn boundary, so a long first turn
+        cannot repeat the SessionStart sentence; without a readable session
+        clock it is the only signal.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$State,
+
+        [Parameter()]
+        [Nullable[int]]$Turns,
+
+        [Parameter(Mandatory = $true)]
+        [datetime]$NowUtc
+    )
+
+    if ($null -eq $State.LastInjectionUtc -or $State.Characters -ge 12000) {
+        return $false
+    }
+
+    if ($null -ne $Turns -and $null -ne $State.LastTurn -and $Turns -gt $State.LastTurn) {
+        return $true
+    }
+
+    return (($null -eq $Turns -or $Turns -ge 1) -and ($NowUtc - $State.LastInjectionUtc).TotalSeconds -gt 300)
 }
 
 try {
@@ -210,17 +396,40 @@ try {
     }
 
     $state = Read-CalibrationState -StatePath $statePath
-    if ($state.Compactions -le $state.Injected) {
+    $nowUtc = [DateTime]::UtcNow
+    $turns = $null
+    $kind = $null
+
+    # At 60,000 characters the session is outside the design's envelope, which
+    # its characters field records: nothing of either kind is sent any more.
+    if ($state.Characters -lt 60000) {
+        if ($state.Compactions -gt $state.Injected) {
+            $kind = 'compaction'
+        } elseif ($null -ne $state.LastInjectionUtc -and $state.Characters -lt 12000) {
+            $turns = Read-SessionTurn -ClockPath $clockPath
+
+            if (Test-BackstopDue -State $state -Turns $turns -NowUtc $nowUtc) {
+                $kind = 'backstop'
+            }
+        }
+    }
+
+    if (-not $kind) {
         exit 0
+    }
+
+    if ($kind -eq 'compaction') {
+        $turns = Read-SessionTurn -ClockPath $clockPath
     }
 
     if ($null -eq $payload) {
         $payload = $InputJson | ConvertFrom-Json -ErrorAction Stop
     }
 
-    # Never the spawn directory: no cwd means no calibration.
+    # Never the spawn directory: no cwd means no calibration. Read before the
+    # lock: the reader may take seconds, and PreCompact waits for the lock.
     $workspace = [string]$payload.cwd
-    $sentence = ''
+    $calibration = $null
 
     if (-not [string]::IsNullOrWhiteSpace($workspace)) {
         $readerPath = @(
@@ -231,14 +440,64 @@ try {
         if ($readerPath) {
             . $readerPath
             $calibration = Get-ContributorCalibration -WorkspacePath $workspace -SkipGitForSingleEntry
-            $sentence = Format-ContributorCalibrationSentence -Calibration $calibration -ReSent
         }
     }
 
-    # Recorded even with nothing to re-send, so later calls stay on the short path.
-    Set-CalibrationAnswered -StatePath $statePath -Answered $state.Compactions
+    $lock = Enter-CalibrationStateLock -StatePath $statePath
 
-    if ($sentence) {
+    if ($null -eq $lock) {
+        # Nothing recorded, so nothing is sent: the next call decides again.
+        exit 0
+    }
+
+    $sentence = ''
+    $recorded = $false
+
+    try {
+        # Decide again on the state as it is now: a parallel call may have
+        # answered, and PreCompact may have counted another compaction.
+        $current = Read-CalibrationState -StatePath $statePath
+        $due = $false
+
+        if ($kind -eq 'compaction') {
+            $due = $current.Characters -lt 60000 -and $state.Compactions -gt $current.Injected
+        } else {
+            $due = Test-BackstopDue -State $current -Turns $turns -NowUtc $nowUtc
+        }
+
+        if ($due) {
+            if ($null -ne $calibration) {
+                $sentence = if ($kind -eq 'compaction') {
+                    Format-ContributorCalibrationSentence -Calibration $calibration -ReSent
+                } else {
+                    Format-ContributorCalibrationSentence -Calibration $calibration -Backstop
+                }
+            }
+
+            # Recorded even with nothing to send, so later calls stay on the
+            # short path. Only the compactions read before the calibration step
+            # count as answered, so a newer one still gets its own re-send.
+            if ($kind -eq 'compaction') {
+                $current.Injected = [Math]::Max($current.Injected, $state.Compactions)
+            }
+
+            if ($null -ne $current.LastInjectionUtc) {
+                $current.LastInjectionUtc = $nowUtc
+
+                if ($null -ne $turns) {
+                    $current.LastTurn = $turns
+                }
+            }
+
+            $current.Characters = $current.Characters + $sentence.Length
+            Save-CalibrationState -StatePath $statePath -State $current
+            $recorded = $true
+        }
+    } finally {
+        $lock.Dispose()
+    }
+
+    if ($recorded -and $sentence) {
         [ordered]@{
             additionalContext = $sentence
             hookSpecificOutput = [ordered]@{

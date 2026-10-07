@@ -111,71 +111,196 @@ function Get-SessionClockPath {
     return [IO.Path]::Combine($Root, "session-$key.json")
 }
 
+function Read-CalibrationState {
+    <#
+        Reads session-<key>.familiarity.json, the per-session calibration
+        state. Duplicated verbatim, with Save-CalibrationState and
+        Enter-CalibrationStateLock, in Add-SessionContext.ps1,
+        Write-CompactionCheckpoint.ps1, and Add-FamiliarityContext.ps1, for the
+        reason Get-SessionClockPath gives; change the copies together. A
+        missing file reads as a fresh state and a missing field as absent:
+        lastTurn and lastInjectionUtc stay $null until SessionStart seeds them,
+        and characters reads 0. An unreadable file throws, unless
+        -ReplaceUnreadable asks for a fresh state instead. Only these hooks
+        write the file, as one flat object, so a pattern per field reads it:
+        ConvertFrom-Json would load a module on the PostToolUse common path
+        and double its cost.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StatePath,
+
+        [Parameter()]
+        [switch]$ReplaceUnreadable
+    )
+
+    $fresh = [pscustomobject]@{
+        Compactions = 0
+        Injected = 0
+        LastTurn = $null
+        LastInjectionUtc = $null
+        Characters = 0
+    }
+
+    if (-not [IO.File]::Exists($StatePath)) {
+        return $fresh
+    }
+
+    try {
+        $text = [IO.File]::ReadAllText($StatePath)
+
+        if ($text -notmatch '\A\s*\{[^{}]*\}\s*\z') {
+            throw 'The calibration state is not one flat JSON object.'
+        }
+
+        $field = @{}
+        foreach ($match in [regex]::Matches($text, '"([A-Za-z]+)"\s*:\s*("[^"\\]*"|[^,}\s]+)')) {
+            if (-not $field.ContainsKey($match.Groups[1].Value)) {
+                $field[$match.Groups[1].Value] = $match.Groups[2].Value
+            }
+        }
+
+        $state = [pscustomobject]@{
+            Compactions = 0
+            Injected = 0
+            LastTurn = $null
+            LastInjectionUtc = $null
+            Characters = 0
+        }
+
+        foreach ($name in 'compactions', 'injected', 'lastTurn', 'characters') {
+            if ($null -ne $field[$name] -and $field[$name] -ne 'null') {
+                $state.$name = [Math]::Max(0, [int]::Parse($field[$name], [Globalization.NumberStyles]::AllowLeadingSign, [Globalization.CultureInfo]::InvariantCulture))
+            }
+        }
+
+        $stamp = $field['lastInjectionUtc']
+        if ($null -ne $stamp -and $stamp -ne 'null') {
+            if ($stamp -notmatch '\A"(.+)"\z') {
+                throw 'lastInjectionUtc is not a timestamp.'
+            }
+
+            $state.LastInjectionUtc = [datetimeoffset]::Parse($Matches[1], [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal).UtcDateTime
+        }
+
+        return $state
+    } catch {
+        if (-not $ReplaceUnreadable) {
+            throw
+        }
+
+        Write-Debug -Message "Unreadable calibration state replaced: $($_.Exception.Message)"
+        return $fresh
+    }
+}
+
+function Save-CalibrationState {
+    <#
+        Writes every field of the calibration state with an atomic replace,
+        under the state lock the caller holds. An absent lastTurn or
+        lastInjectionUtc stays absent, so only SessionStart can arm the
+        backstop. Duplicated verbatim; see Read-CalibrationState.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StatePath,
+
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$State
+    )
+
+    $text = '{"schemaVersion":1,"compactions":' + [int]$State.Compactions + ',"injected":' + [int]$State.Injected
+
+    if ($null -ne $State.LastTurn) {
+        $text += ',"lastTurn":' + [int]$State.LastTurn
+    }
+
+    if ($null -ne $State.LastInjectionUtc) {
+        $text += ',"lastInjectionUtc":"' + ([datetime]$State.LastInjectionUtc).ToUniversalTime().ToString('o', [Globalization.CultureInfo]::InvariantCulture) + '"'
+    }
+
+    $text += ',"characters":' + [int]$State.Characters + '}'
+    $temporary = $StatePath + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+
+    try {
+        [IO.File]::WriteAllText($temporary, $text, [Text.UTF8Encoding]::new($false))
+
+        if ([IO.File]::Exists($StatePath)) {
+            [IO.File]::Replace($temporary, $StatePath, [System.Management.Automation.Language.NullString]::Value)
+        } else {
+            [IO.File]::Move($temporary, $StatePath)
+        }
+    } finally {
+        if ([IO.File]::Exists($temporary)) {
+            try {
+                [IO.File]::Delete($temporary)
+            } catch {
+                Write-Debug -Message "Temporary calibration state left behind: $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
+function Enter-CalibrationStateLock {
+    <#
+        Opens the lock every writer of the calibration state takes, waiting up
+        to 5 seconds, and returns $null when another hook still holds it.
+        Duplicated verbatim; see Read-CalibrationState.
+    #>
+    [CmdletBinding()]
+    [OutputType([IO.FileStream])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$StatePath
+    )
+
+    $lockPath = [IO.Path]::ChangeExtension($StatePath, '.lock')
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+
+    while ($true) {
+        try {
+            return [IO.FileStream]::new($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 1, [IO.FileOptions]::DeleteOnClose)
+        } catch {
+            if ($watch.ElapsedMilliseconds -ge 5000) {
+                return $null
+            }
+
+            Start-Sleep -Milliseconds 50
+        }
+    }
+}
+
 function Add-CalibrationCompaction
 {
     <#
         Advances the compaction counter of the per-session calibration state,
-        session-<key>.familiarity.json, under the state lock that the
-        PostToolUse hook also takes, so its compare-and-set can never erase a
-        newer compaction. Replaces the file atomically.
+        session-<key>.familiarity.json, under the state lock every calibration
+        writer takes, so the PostToolUse hook's compare-and-set can never erase
+        a newer compaction. Every other field stays as found: dropping one
+        would reset the session's character budget and re-arm the backstop at
+        every compaction (Decision record 0028, A12).
     #>
     param(
         [Parameter(Mandatory = $true)]
         [string]$StatePath
     )
 
-    $directory = [IO.Path]::GetDirectoryName($StatePath)
-    $null = [IO.Directory]::CreateDirectory($directory)
-    $lockPath = [IO.Path]::ChangeExtension($StatePath, '.lock')
-    $lock = $null
-    $watch = [Diagnostics.Stopwatch]::StartNew()
+    $null = [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($StatePath))
+    $lock = Enter-CalibrationStateLock -StatePath $StatePath
 
-    while ($null -eq $lock)
+    if ($null -eq $lock)
     {
-        try
-        {
-            $lock = [IO.FileStream]::new($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 1, [IO.FileOptions]::DeleteOnClose)
-        }
-        catch
-        {
-            if ($watch.ElapsedMilliseconds -ge 5000)
-            {
-                throw
-            }
-
-            Start-Sleep -Milliseconds 50
-        }
+        throw 'The calibration state lock was not released within 5 seconds.'
     }
 
     try
     {
-        $compactions = 0
-        $injected = 0
-        if ([IO.File]::Exists($StatePath))
-        {
-            try
-            {
-                $state = [IO.File]::ReadAllText($StatePath) | ConvertFrom-Json -ErrorAction Stop
-                $compactions = [Math]::Max(0, [int]$state.compactions)
-                $injected = [Math]::Max(0, [int]$state.injected)
-            }
-            catch
-            {
-                Write-Debug -Message 'Unreadable calibration state replaced.'
-            }
-        }
-
-        $text = '{{"schemaVersion":1,"compactions":{0},"injected":{1}}}' -f ($compactions + 1), $injected
-        $temporary = $StatePath + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
-        [IO.File]::WriteAllText($temporary, $text, [Text.UTF8Encoding]::new($false))
-        if ([IO.File]::Exists($StatePath))
-        {
-            [IO.File]::Replace($temporary, $StatePath, [System.Management.Automation.Language.NullString]::Value)
-        }
-        else
-        {
-            [IO.File]::Move($temporary, $StatePath)
-        }
+        $state = Read-CalibrationState -StatePath $StatePath -ReplaceUnreadable
+        $state.Compactions = $state.Compactions + 1
+        Save-CalibrationState -StatePath $StatePath -State $state
     }
     finally
     {
