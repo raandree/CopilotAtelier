@@ -53,28 +53,14 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   manual compactions; criterion 21's runner, preview, and draft cases are
   ready in the private kit, with no paid run.
 
-- **2026-10-06**: Implemented Decision 0028 Amendment 1 test-first on
-  `ai/calibration-phase-2` (`software-engineer`): write selection with
-  `-NewContributor`, `.NET`, registration ownership through the recorded hash
-  with replacement of outdated registrations, the partial-view rule with a
-  read-only `Get-`, the sentence budget, and the amended Meter with its tested
-  arithmetic. The new tests ran red against `b72ac98`, then green. The Meter's
-  two runs on Prox1 meet every Budget except SessionStart with one entry in
-  VS Code's spawn (0.53 to 0.61 launch, Budget 0.5, Fail 1.0): returned to
-  `software-architect`.
-
-- **2026-10-06**: Signed off Decision 0028 Amendment 1 (`software-architect`):
-  rulings A1 to A8 on the five questions implementation returned, the seven
-  interpretations, and a `rubber-duck` review of the draft (2 Blockers and 2
-  Majors resolved, a re-review's Major fixed). Latency counts in no-op hook
-  launches: SessionStart Budget 0.5 and Fail 1.0, PostToolUse 1.1 and 1.25;
-  `.NET` passes; registrations are owned through the recorded hash; writes go
-  only to a positively chosen target; a half-synced registration is pending.
-  Handed back to `software-engineer`.
-
-- **2026-10-06**: Implemented Decision 0028 test-first on `ai/calibration-phase-2`
-  (`dc6c26a` to `b026161`, `software-engineer`), after its sign-off the same
-  day; five Meter questions went back to `software-architect`.
+- **2026-10-06**: Implemented Decision 0028 test-first on
+  `ai/calibration-phase-2` (`dc6c26a` to `b026161`, `software-engineer`),
+  after its sign-off the same day, then Amendment 1 (rulings A1 to A8, signed
+  off by `software-architect` after a `rubber-duck` review): write selection
+  with `-NewContributor`, `.NET`, registration ownership through the recorded
+  hash, the read-only `Get-`, the sentence budget, and the amended Meter. The
+  Meter's two runs on Prox1 met every Budget except SessionStart with one
+  entry in VS Code's spawn: returned to `software-architect`.
 
 ## Stable capabilities
 
