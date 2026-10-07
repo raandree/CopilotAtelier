@@ -351,13 +351,17 @@ no longer matches it. On a OneDrive Canonical target the record and the file
 sync in either order; a record whose file has not arrived is pending, and
 nothing, including `Uninstall-CopilotAtelier`, acts on it until both are there.
 
-Latency is stated in frozen reference scripts: a hook's own time over a fixed
-no-op hook, divided by the own time of a fixed reference script, all three
-through the same launcher and spawn, so machine speed and shell edition cancel.
+Latency is stated in frozen references: a hook's own time over a fixed no-op
+hook, divided by the own time of a frozen reference, all three through the same
+launcher and spawn, so machine speed and shell edition cancel. The reference,
+[`tests/Fixtures/ReferenceHook`](../../tests/Fixtures/ReferenceHook), runs one
+fixed calibration with a frozen copy of the profile reader, the same kind of
+work as the calibration step itself.
 [`tests/Fixtures/Measure-CalibrationLatency.ps1`](../../tests/Fixtures/Measure-CalibrationLatency.ps1)
-measures it, and a test pins the reference script's SHA-256. A change to a
-launcher in `hooks.json` or to the reference script changes the measurement, so
-re-run the Meter and re-baseline Decision record 0028's latency levels then.
+measures it, and a test pins one SHA-256 over every file of the reference. A
+change to a launcher in `hooks.json` or to any file of the reference changes the
+measurement, so re-run the Meter and re-baseline Decision record 0028's latency
+levels then.
 
 The common path reads `session_id` from the head of the payload, where both
 hosts put it ahead of every tool field, one small state file and, in an armed

@@ -3,20 +3,22 @@
 .SYNOPSIS
     Latency Meter of Decision record 0028 for the calibration hooks.
 .DESCRIPTION
-    Measures SessionStart.AddedLatency and PostToolUse.CallLatency as ruling A9
-    amended them: in frozen reference scripts, never in absolute milliseconds.
-    Each host's exact spawn runs with process start included: the VS Code spawn
-    runs a hook's windows command under powershell.exe, the SDK spawn its
-    powershell command under pwsh. The no-op hook and the frozen reference
-    script, tests/Fixtures/Invoke-ReferenceHook.ps1, run through the same
-    launcher and spawn as the measured hooks.
+    Measures SessionStart.AddedLatency and PostToolUse.CallLatency as rulings
+    A9 and A17 amended them: in frozen references, never in absolute
+    milliseconds. Each host's exact spawn runs with process start included: the
+    VS Code spawn runs a hook's windows command under powershell.exe, the SDK
+    spawn its powershell command under pwsh. The no-op hook and the frozen
+    reference, tests/Fixtures/ReferenceHook, run through the same launcher and
+    spawn as the measured hooks. The reference's driver runs one fixed
+    calibration on its own fixture with a frozen copy of the calibration
+    reader, so the unit is the SessionStart calibration step's kind of work.
 
     A replicate runs every cell once, back to back, in an order rotated by one
     place per replicate; -WarmUp replicates run first and are discarded, then
     -Replicates are measured. Every cell's step is its time net of the same
-    replicate's no-op hook, and the unit is the reference script's step in the
-    same replicate. Ratios are taken inside each replicate before the
-    nearest-rank p95, through tests/Helpers/CalibrationMeter.ps1:
+    replicate's no-op hook, and the unit is the reference's step in the same
+    replicate. Ratios are taken inside each replicate before the nearest-rank
+    p95, through tests/Helpers/CalibrationMeter.ps1:
 
     - SessionStart added: the time with declared Knowledge areas minus the
       time without a declaration. Gated for a profile with one entry and for
@@ -33,13 +35,14 @@
       hook (ruling A11).
 
     Every cell also reports its absolute and its step milliseconds, and the
-    reference script reports its own step, the unit's calibration. Ruling A10
+    reference reports its own step, the unit's calibration. Ruling A10
     withdrew the launch-unit levels, so a gated cell reads 'no level (A10)'
-    until the re-baseline rule sets its Budget and Fail. Thresholds are
-    inclusive, and a verdict above Budget or Fail counts only when a second
-    Meter run reproduces it: -Repeat runs the whole Meter that many times, and
-    each gated cell's reproduced row names its lower run, the input of the
-    re-baseline rule.
+    until the re-baseline rule sets its Budget and Fail, one w per tag
+    (ruling A16). Thresholds are inclusive, and a verdict above Budget or Fail
+    counts only when a second Meter run reproduces it: -Repeat runs the whole
+    Meter that many times, and each gated cell's reproduced row names its
+    lower run, the input of the re-baseline rule, and the run-to-run spread,
+    its higher run divided by its lower.
 
     The scripts of this working tree are staged in the deployed layout under a
     scratch home, with profiles behind a Canonical target, so the Meter never
@@ -65,11 +68,11 @@
     lay out.
 .NOTES
     Windows only: the VS Code spawn is the Windows one. Not run by the test
-    suite; record its results in Decision record 0028. Refuses to run when the
-    reference script no longer matches its pinned SHA-256. A change to a
-    launcher in hooks.json changes the launch the unit is measured through, so
-    re-run the Meter and re-baseline the latency levels then (Decision record
-    0016).
+    suite; record its results in Decision record 0028. Refuses to run when any
+    file of the frozen reference no longer matches its pinned composite
+    SHA-256. A change to a launcher in hooks.json changes the launch the unit
+    is measured through, so re-run the Meter and re-baseline the latency
+    levels then (Decision record 0016).
 #>
 [CmdletBinding()]
 param
@@ -100,18 +103,18 @@ $repositoryRoot = Split-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -Par
 . (Join-Path -Path $repositoryRoot -ChildPath 'tests/Helpers/ContributorProfileFixture.ps1')
 . (Join-Path -Path $repositoryRoot -ChildPath 'tests/Helpers/CalibrationMeter.ps1')
 
-# The unit of every latency level (ruling A9) is this script's step over the
-# no-op hook. A different script would make every ratio incomparable with the
-# levels recorded against the pinned one.
-$referenceScript = Join-Path -Path $PSScriptRoot -ChildPath 'Invoke-ReferenceHook.ps1'
-$referenceHash = Get-CalibrationMeterReferenceHash -Path $referenceScript
+# The unit of every latency level (rulings A9 and A17) is the frozen
+# reference's step over the no-op hook. Any other reference would make every
+# ratio incomparable with the levels recorded against the pinned one.
+$referenceFolder = Join-Path -Path $PSScriptRoot -ChildPath 'ReferenceHook'
+$referenceHash = Get-CalibrationMeterReferenceHash -Path $referenceFolder
 $meterLevels = Get-CalibrationMeterBudget
 if ($referenceHash -ne $meterLevels.ReferenceSha256)
 {
-    throw "The frozen reference script has SHA-256 $referenceHash, not the pinned $($meterLevels.ReferenceSha256). Re-baseline both latency tags before measuring with it."
+    throw "The frozen reference has composite SHA-256 $referenceHash, not the pinned $($meterLevels.ReferenceSha256). Re-baseline both latency tags before measuring with it."
 }
 
-Write-Information -MessageData ('{0}, {1:yyyy-MM-dd HH:mm} UTC, frozen reference script {2}' -f $env:COMPUTERNAME, [System.DateTime]::UtcNow, $referenceHash) -InformationAction Continue
+Write-Information -MessageData ('{0}, {1:yyyy-MM-dd HH:mm} UTC, frozen reference {2}' -f $env:COMPUTERNAME, [System.DateTime]::UtcNow, $referenceHash) -InformationAction Continue
 
 # The hooks resolve their session files under each scratch home. Should one
 # fall back to the real folder or to the temp directory, the cleanup removes
@@ -149,7 +152,9 @@ function Initialize-MeterHome
     Set-Content -LiteralPath (Join-Path $target '.copilotatelier.json') -Value '{}' -Encoding ascii
     Copy-Item -Path (Join-Path $repositoryRoot 'com.github.copilot/hooks/scripts/*.ps1') -Destination (Join-Path $target 'hooks/scripts')
     Set-Content -LiteralPath (Join-Path $target 'hooks/scripts/Invoke-NoOpHook.ps1') -Value $noOpHookText -Encoding ascii
-    Copy-Item -LiteralPath $referenceScript -Destination (Join-Path $target 'hooks/scripts/Invoke-ReferenceHook.ps1')
+    # The whole reference folder, so the driver finds its reader copy and its
+    # fixture beside it, outside every git working tree.
+    Copy-Item -LiteralPath $referenceFolder -Destination (Join-Path $target 'hooks/scripts/ReferenceHook') -Recurse -Force
     Copy-Item -Path (Join-Path $repositoryRoot 'skills/contributor-profile') -Destination (Join-Path $target 'skills') -Recurse
     foreach ($folder in 'hooks', 'skills')
     {
@@ -256,10 +261,10 @@ try
     {
         # The same launcher and spawn as the measured hooks, only the script differs.
         $noOp[$key] = $sessionStart.$key.Replace('Add-SessionContext.ps1', 'Invoke-NoOpHook.ps1')
-        $reference[$key] = $sessionStart.$key.Replace('Add-SessionContext.ps1', 'Invoke-ReferenceHook.ps1')
+        $reference[$key] = $sessionStart.$key.Replace('Add-SessionContext.ps1', 'ReferenceHook/Invoke-ReferenceHook.ps1')
         if ($noOp[$key] -ceq $sessionStart.$key)
         {
-            throw "The SessionStart $key launcher no longer names Add-SessionContext.ps1, so the no-op hook and the reference script cannot share it."
+            throw "The SessionStart $key launcher no longer names Add-SessionContext.ps1, so the no-op hook and the reference cannot share it."
         }
     }
 
@@ -270,7 +275,7 @@ try
     $postToolUse = @($template.PostToolUse)[0]
     $cells = [ordered] @{
         noop      = @{ Name = 'No-op hook'; Gate = 'origin'; Entry = $noOp; Event = 'SessionStart'; Workspace = $plain; Home = $oneEntryHome; Expect = $null }
-        reference = @{ Name = 'Frozen reference script'; Gate = 'unit'; Entry = $reference; Event = 'SessionStart'; Workspace = $plain; Home = $oneEntryHome; Expect = $null }
+        reference = @{ Name = 'Frozen reference'; Gate = 'unit'; Entry = $reference; Event = 'SessionStart'; Workspace = $plain; Home = $oneEntryHome; Expect = $null }
         baseline  = @{ Name = 'SessionStart, no declaration'; Gate = 'reported'; Entry = $sessionStart; Event = 'SessionStart'; Workspace = $plain; Home = $oneEntryHome; Expect = $null }
         one       = @{ Name = 'SessionStart, one entry'; Gate = 'gated'; Added = $true; StopLineMs = 1000; Entry = $sessionStart; Event = 'SessionStart'; Workspace = $declared; Home = $oneEntryHome; Expect = '"Kerberos" new' }
         none      = @{ Name = 'SessionStart, no profile'; Gate = 'gated'; Added = $true; StopLineMs = 1000; Entry = $sessionStart; Event = 'SessionStart'; Workspace = $declared; Home = $noProfileHome; Expect = 'No contributor profile levels' }
@@ -343,13 +348,13 @@ try
                 }
             }
 
-            # A replicate in which the reference script ran no slower than the
-            # no-op hook leaves no unit, so that run takes no ratio at all; its
+            # A replicate in which the reference ran no slower than the no-op
+            # hook leaves no unit, so that run takes no ratio at all; its
             # milliseconds stay reported as the evidence.
             $unmeasurable = @($samples | Where-Object -FilterScript { $_['reference'] -le $_['noop'] }).Count
             if ($unmeasurable -gt 0)
             {
-                Write-Warning -Message ('Run {0}, {1}: the frozen reference script ran no slower than the no-op hook in {2} of {3} replicates, so this run takes no ratio.' -f $run, $spawn.Host, $unmeasurable, $samples.Count)
+                Write-Warning -Message ('Run {0}, {1}: the frozen reference ran no slower than the no-op hook in {2} of {3} replicates, so this run takes no ratio.' -f $run, $spawn.Host, $unmeasurable, $samples.Count)
             }
 
             foreach ($key in $cellKeys)
@@ -396,6 +401,7 @@ try
                     RatioP50  = if ($ratio) { [System.Math]::Round((Get-CalibrationMeterRank -Value $ratio -Percent 50), 2) } else { $null }
                     RatioP95  = if ($ratio) { [System.Math]::Round($ratioP95, 2) } else { $null }
                     LowerP95  = $null
+                    Spread    = $null
                     Budget    = if ($level) { $level.Budget } else { $null }
                     Fail      = if ($level) { $level.Fail } else { $null }
                     Verdict   = $verdict
@@ -412,8 +418,9 @@ try
         }
     }
 
-    # A verdict above Budget or Fail counts only when every run reproduces it,
-    # and the lower run of each gated cell is what the re-baseline rule reads.
+    # A verdict above Budget or Fail counts only when every run reproduces it.
+    # The lower run of each gated cell is what the re-baseline rule reads, one
+    # w per tag, and the spread is its step 8: the higher run over the lower.
     foreach ($spawn in $spawns)
     {
         foreach ($key in $cellKeys)
@@ -436,6 +443,7 @@ try
                 RatioP50  = $null
                 RatioP95  = if ($ratios.Count -gt 1) { '{0} to {1}' -f $ratios[0], $ratios[-1] } elseif ($ratios.Count -eq 1) { $ratios[0] } else { $null }
                 LowerP95  = if ($complete) { $ratios[0] } else { $null }
+                Spread    = if ($complete -and $ratios.Count -gt 1 -and $ratios[0] -gt 0) { [System.Math]::Round($ratios[-1] / $ratios[0], 2) } else { $null }
                 Budget    = $runRows[0].Budget
                 Fail      = $runRows[0].Fail
                 Verdict   = if (-not $complete) { 'unit unmeasurable in {0} of {1} runs' -f ($runRows.Count - $ratios.Count), $runRows.Count } elseif ($runRows[0].Budget) { Merge-CalibrationMeterVerdict -Verdict @($runRows | ForEach-Object -Process { $_.Verdict }) } else { 'no level (A10)' }

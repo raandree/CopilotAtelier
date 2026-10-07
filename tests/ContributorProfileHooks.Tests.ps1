@@ -723,6 +723,44 @@ Describe 'Backstop re-send in <Edition>' -Tag 'Unit' -ForEach $script:editions {
         }
     }
 
+    Context 'the choices ruling A18 confirmed' {
+        It 'seeds lastInjectionUtc from the injection, so a resumed session whose start is hours old makes no re-send on its first tool call' {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            $null = New-Item -ItemType Directory -Path $fixture.ClockRoot -Force
+            $clock = [ordered] @{ startedUtc = [System.DateTime]::UtcNow.AddHours(-3).ToString('o'); workspace = $fixture.Workspace; turns = 2 }
+            [System.IO.File]::WriteAllText((Get-ClockPath -Fixture $fixture), ($clock | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
+            $before = [System.DateTime]::UtcNow
+
+            $resumed = Invoke-Event -Fixture $fixture -Event 'SessionStart' -Source 'resume'
+            $first = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+
+            (Get-CalibrationSentence -Result $resumed) | Should -Match '"Kerberos" new'
+            $first.ExitCode | Should -Be 0
+            $first.Output | Should -BeNullOrEmpty
+            $state = Get-State -Fixture $fixture
+            $state.lastTurn | Should -Be 2
+            ([System.DateTimeOffset] $state.lastInjectionUtc).UtcDateTime | Should -BeGreaterOrEqual $before.AddSeconds(-1)
+        }
+
+        It 'records a due backstop that finds nothing to send after an opt-out, advancing lastTurn and lastInjectionUtc and leaving characters unchanged' {
+            $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
+            $null = Invoke-Event -Fixture $fixture -Event 'SessionStart'
+            $null = Invoke-Event -Fixture $fixture -Event 'Stop'
+            $seeded = Get-State -Fixture $fixture
+            Write-ContributorFixture -Case @{ Text = (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -State '"off"')) } -Path $fixture.ProfilePath
+
+            $due = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+
+            $due.ExitCode | Should -Be 0
+            $due.Output | Should -BeNullOrEmpty
+            $state = Get-State -Fixture $fixture
+            $state.lastTurn | Should -Be 1
+            $state.characters | Should -Be $seeded.characters
+            ([System.DateTimeOffset] $state.lastInjectionUtc) | Should -BeGreaterThan ([System.DateTimeOffset] $seeded.lastInjectionUtc)
+            (Invoke-Event -Fixture $fixture -Event 'PostToolUse').Output | Should -BeNullOrEmpty
+        }
+    }
+
     Context 'the session character budget (Context.SessionBudget)' {
         It 'stops backstop re-sends at 12,000 characters while compaction re-sends continue' {
             $longNames = 1..16 | ForEach-Object -Process { ('Area {0:D2} ' -f $_) + ('x' * 40) }

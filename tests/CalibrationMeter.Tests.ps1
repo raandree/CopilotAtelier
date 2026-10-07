@@ -1,11 +1,12 @@
 <#
     Arithmetic of the calibration latency Meter (Decision record 0028,
-    rulings A9 and A10): rotated cell order, ratios taken per replicate in
-    frozen reference scripts, nearest-rank percentiles, inclusive thresholds,
-    the withdrawn launch-unit levels, the re-baseline rule and its unit
-    transfer check, and the rule that a verdict above Budget or Fail counts
-    only when a second Meter run reproduces it. It also pins the frozen
-    reference script (criterion 26). The measurement itself runs only by hand:
+    rulings A9, A10, A16, and A17): rotated cell order, ratios taken per
+    replicate in frozen references, nearest-rank percentiles, inclusive
+    thresholds, the withdrawn launch-unit levels, the re-baseline rule and its
+    unit transfer check, and the rule that a verdict above Budget or Fail
+    counts only when a second Meter run reproduces it. It also pins the frozen
+    reference, a driver with a frozen copy of the calibration reader and a
+    fixed fixture (criterion 26). The measurement itself runs only by hand:
     tests/Fixtures/Measure-CalibrationLatency.ps1.
 #>
 
@@ -23,7 +24,32 @@ BeforeDiscovery {
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
     . (Join-Path -Path $script:repoRoot -ChildPath 'tests/Helpers/CalibrationMeter.ps1')
-    $script:referencePath = Join-Path -Path $script:repoRoot -ChildPath 'tests/Fixtures/Invoke-ReferenceHook.ps1'
+    $script:referencePath = Join-Path -Path $script:repoRoot -ChildPath 'tests/Fixtures/ReferenceHook'
+
+    function script:Copy-Reference
+    {
+        <#
+            Stages the frozen reference outside every git working tree, as the
+            Meter does, and returns the staged folder.
+        #>
+        param ([string] $Name = ([guid]::NewGuid().ToString('N')))
+
+        $staged = Join-Path -Path $TestDrive -ChildPath $Name
+        Copy-Item -LiteralPath $script:referencePath -Destination $staged -Recurse -Force
+        return $staged
+    }
+
+    function script:Set-LineEnding
+    {
+        <# Rewrites every file of a folder with the given line ending. #>
+        param ([string] $Path, [string] $Ending)
+
+        foreach ($file in [System.IO.Directory]::GetFiles($Path, '*', [System.IO.SearchOption]::AllDirectories))
+        {
+            $text = [System.IO.File]::ReadAllText($file).Replace("`r`n", "`n")
+            [System.IO.File]::WriteAllText($file, $text.Replace("`n", $Ending), [System.Text.UTF8Encoding]::new($false))
+        }
+    }
 }
 
 Describe 'Calibration Meter arithmetic' -Tag 'Unit' {
@@ -41,7 +67,7 @@ Describe 'Calibration Meter arithmetic' -Tag 'Unit' {
         }
     }
 
-    It 'takes the ratio inside each replicate in frozen reference scripts, before any percentile' {
+    It 'takes the ratio inside each replicate in frozen references, before any percentile' {
         # The second replicate runs on a machine twice as slow: the ratios move
         # only where the work itself differs.
         $replicates = @(
@@ -56,7 +82,7 @@ Describe 'Calibration Meter arithmetic' -Tag 'Unit' {
         $own | Should -Be @(0.5, 0.25)
     }
 
-    It 'refuses a replicate in which the reference script ran no slower than the no-op hook' {
+    It 'refuses a replicate in which the reference ran no slower than the no-op hook' {
         $replicates = @(@{ noop = 900.0; reference = 900.0; post = 950.0 })
 
         { Get-CalibrationMeterRatio -Replicate $replicates -Subject 'post' } | Should -Throw -ExpectedMessage '*unit cannot be measured*'
@@ -130,59 +156,135 @@ Describe 'Calibration Meter arithmetic' -Tag 'Unit' {
     }
 }
 
-Describe 'Frozen reference script' -Tag 'Unit' {
-    It 'is pinned by its SHA-256, so a change fails until both latency tags are re-baselined (criterion 26)' {
+Describe 'Frozen reference' -Tag 'Unit' {
+    It 'is pinned by one composite SHA-256, so a change fails until both latency tags are re-baselined (criterion 26)' {
         Get-CalibrationMeterReferenceHash -Path $script:referencePath | Should -BeExactly (Get-CalibrationMeterBudget).ReferenceSha256
     }
 
     It 'pins the text, not the line endings a checkout gives it' {
-        $text = [System.IO.File]::ReadAllText($script:referencePath)
-        $lf = Join-Path -Path $TestDrive -ChildPath 'lf.ps1'
-        $crlf = Join-Path -Path $TestDrive -ChildPath 'crlf.ps1'
-        [System.IO.File]::WriteAllText($lf, $text.Replace("`r`n", "`n"))
-        [System.IO.File]::WriteAllText($crlf, $text.Replace("`r`n", "`n").Replace("`n", "`r`n"))
+        $lf = Copy-Reference -Name 'lf'
+        $crlf = Copy-Reference -Name 'crlf'
+        Set-LineEnding -Path $lf -Ending "`n"
+        Set-LineEnding -Path $crlf -Ending "`r`n"
 
         Get-CalibrationMeterReferenceHash -Path $crlf | Should -BeExactly (Get-CalibrationMeterReferenceHash -Path $lf)
+        Get-CalibrationMeterReferenceHash -Path $lf | Should -BeExactly (Get-CalibrationMeterReferenceHash -Path $script:referencePath)
     }
 
-    It 'runs about 4,000 syntax-tree nodes of straight-line code' {
-        $tokens = $null
-        $errors = $null
-        $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:referencePath, [ref] $tokens, [ref] $errors)
+    It 'covers <Change>' -ForEach @(
+        @{ Change = 'the driver'; File = 'Invoke-ReferenceHook.ps1'; Action = 'Edit' }
+        @{ Change = 'the frozen reader copy'; File = 'ContributorProfileReader.ps1'; Action = 'Edit' }
+        @{ Change = 'the fixture profile'; File = 'fixture/CopilotAtelier/contributor/profile.json'; Action = 'Edit' }
+        @{ Change = 'the fixture declaration, inside a dot folder'; File = 'fixture/workspace/.memory-bank/projectbrief.md'; Action = 'Edit' }
+        @{ Change = 'a file renamed without a change to its text'; File = 'ContributorProfileReader.ps1'; Action = 'Rename' }
+        @{ Change = 'a file added'; File = 'fixture/extra.txt'; Action = 'Add' }
+    ) {
+        $staged = Copy-Reference
+        $before = Get-CalibrationMeterReferenceHash -Path $staged
+        $target = Join-Path -Path $staged -ChildPath $File
+        switch ($Action)
+        {
+            'Edit' { [System.IO.File]::AppendAllText($target, ' ') }
+            'Rename' { Rename-Item -LiteralPath $target -NewName ('Renamed' + [System.IO.Path]::GetFileName($target)) }
+            'Add' { [System.IO.File]::WriteAllText($target, 'x') }
+        }
 
-        $errors | Should -BeNullOrEmpty
-        $ast.FindAll({ $true }, $true).Count | Should -BeGreaterOrEqual 3800
-        $ast.FindAll({ $true }, $true).Count | Should -BeLessOrEqual 4200
-        $ast.FindAll({ param ($node) $node -is [System.Management.Automation.Language.LoopStatementAst] }, $true) | Should -BeNullOrEmpty
-        $ast.FindAll({ param ($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | Should -BeNullOrEmpty
+        Get-CalibrationMeterReferenceHash -Path $staged | Should -Not -Be $before
+    }
+
+    It 'refuses a path that is not a folder' {
+        { Get-CalibrationMeterReferenceHash -Path (Join-Path -Path $script:referencePath -ChildPath 'Invoke-ReferenceHook.ps1') } | Should -Throw
+    }
+
+    It 'holds the driver, a frozen reader copy that says no drift test may bind it, and a one-entry fixture' {
+        $files = @(
+            foreach ($file in [System.IO.Directory]::GetFiles($script:referencePath, '*', [System.IO.SearchOption]::AllDirectories))
+            {
+                $file.Substring($script:referencePath.Length + 1).Replace('\', '/')
+            }
+        ) | Sort-Object
+
+        $files | Should -Be @(
+            'ContributorProfileReader.ps1'
+            'fixture/CopilotAtelier/contributor/profile.json'
+            'fixture/workspace/.memory-bank/projectbrief.md'
+            'Invoke-ReferenceHook.ps1'
+        )
+        $copy = [System.IO.File]::ReadAllText((Join-Path -Path $script:referencePath -ChildPath 'ContributorProfileReader.ps1'))
+        $copy | Should -Match 'Frozen copy'
+        $copy | Should -Match 'No drift test'
+        $copy | Should -Match 'function Get-ContributorCalibration'
+        $fixtureProfile = Get-Content -LiteralPath (Join-Path -Path $script:referencePath -ChildPath 'fixture/CopilotAtelier/contributor/profile.json') -Raw | ConvertFrom-Json
+        @($fixtureProfile.contributors).Count | Should -Be 1 -Because 'one entry keeps git out under -SkipGitForSingleEntry'
+        $fixtureProfile.contributors[0].state | Should -BeExactly 'on'
     }
 }
 
-Describe 'Frozen reference script in <Edition>' -Tag 'Unit' -ForEach $script:editions {
-    It 'reads its payload like a hook, writes nothing, and exits 0' {
-        $startInfo = [System.Diagnostics.ProcessStartInfo]::new($Executable, ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}"' -f $script:referencePath))
-        $startInfo.UseShellExecute = $false
-        $startInfo.CreateNoWindow = $true
-        $startInfo.RedirectStandardInput = $true
-        $startInfo.RedirectStandardOutput = $true
-        $startInfo.RedirectStandardError = $true
-        $process = [System.Diagnostics.Process]::Start($startInfo)
-        try
+Describe 'Frozen reference in <Edition>' -Tag 'Unit' -ForEach $script:editions {
+    BeforeAll {
+        function script:Invoke-Reference
         {
-            $outputTask = $process.StandardOutput.ReadToEndAsync()
-            $errorTask = $process.StandardError.ReadToEndAsync()
-            $process.StandardInput.Write((@{ hook_event_name = 'SessionStart'; session_id = [guid]::NewGuid().ToString(); cwd = $TestDrive; source = 'new' } | ConvertTo-Json -Compress))
-            $process.StandardInput.Close()
-            $process.WaitForExit(60000) | Should -BeTrue
-            $process.WaitForExit()
+            <# Runs the driver at Path with a SessionStart payload; returns exit code and streams. #>
+            param ([string] $Path)
 
-            $process.ExitCode | Should -Be 0
-            $outputTask.Result | Should -BeNullOrEmpty
-            $errorTask.Result | Should -BeNullOrEmpty
+            $startInfo = [System.Diagnostics.ProcessStartInfo]::new($Executable, ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}"' -f $Path))
+            $startInfo.UseShellExecute = $false
+            $startInfo.CreateNoWindow = $true
+            $startInfo.RedirectStandardInput = $true
+            $startInfo.RedirectStandardOutput = $true
+            $startInfo.RedirectStandardError = $true
+            $process = [System.Diagnostics.Process]::Start($startInfo)
+            try
+            {
+                $outputTask = $process.StandardOutput.ReadToEndAsync()
+                $errorTask = $process.StandardError.ReadToEndAsync()
+                $process.StandardInput.Write((@{ hook_event_name = 'SessionStart'; session_id = [guid]::NewGuid().ToString(); cwd = $TestDrive; source = 'new' } | ConvertTo-Json -Compress))
+                $process.StandardInput.Close()
+                if (-not $process.WaitForExit(60000))
+                {
+                    $process.Kill()
+                    throw "$Path did not exit within 60 seconds."
+                }
+
+                $process.WaitForExit()
+                [pscustomobject] @{ ExitCode = $process.ExitCode; Output = $outputTask.Result; Error = $errorTask.Result }
+            }
+            finally
+            {
+                $process.Dispose()
+            }
         }
-        finally
+    }
+
+    It 'runs its fixed calibration from a staged copy, writing and emitting nothing, and exits 0' {
+        $staged = Copy-Reference
+        $before = Get-CalibrationMeterReferenceHash -Path $staged
+        $filesBefore = [System.IO.Directory]::GetFiles($staged, '*', [System.IO.SearchOption]::AllDirectories).Count
+
+        $result = Invoke-Reference -Path (Join-Path -Path $staged -ChildPath 'Invoke-ReferenceHook.ps1')
+
+        $result.ExitCode | Should -Be 0 -Because $result.Error
+        $result.Output | Should -BeNullOrEmpty
+        $result.Error | Should -BeNullOrEmpty
+        Get-CalibrationMeterReferenceHash -Path $staged | Should -BeExactly $before
+        [System.IO.Directory]::GetFiles($staged, '*', [System.IO.SearchOption]::AllDirectories).Count | Should -Be $filesBefore
+    }
+
+    It 'exits 1 when its fixture yields no levels, <Why>' -ForEach @(
+        @{ Why = 'as when it runs in place inside the repository'; Mode = 'InPlace' }
+        @{ Why = 'as when the fixture profile is missing'; Mode = 'NoProfile' }
+    ) {
+        $path = Join-Path -Path $script:referencePath -ChildPath 'Invoke-ReferenceHook.ps1'
+        if ($Mode -eq 'NoProfile')
         {
-            $process.Dispose()
+            $staged = Copy-Reference
+            Remove-Item -LiteralPath (Join-Path -Path $staged -ChildPath 'fixture/CopilotAtelier/contributor/profile.json')
+            $path = Join-Path -Path $staged -ChildPath 'Invoke-ReferenceHook.ps1'
         }
+
+        $result = Invoke-Reference -Path $path
+
+        $result.ExitCode | Should -Be 1
+        $result.Output | Should -BeNullOrEmpty
     }
 }
