@@ -3,7 +3,7 @@ status: accepted
 date: 2026-10-06
 last-verified: 2026-10-07
 owner: software-architect
-source: software-architect Design Concept interview 2026-10-05 to 2026-10-06 and sign-off 2026-10-06; amendment interview 2026-10-06 (rulings A1 to A7); Amendment 2 rulings 2026-10-07 (A9 to A13), signed off by the repository owner in chat on 2026-10-07; Decision record 0027; hook host references (VS Code, GitHub, Claude Code), fetched during the interview
+source: software-architect Design Concept interview 2026-10-05 to 2026-10-06 and sign-off 2026-10-06; amendment interview 2026-10-06 (rulings A1 to A7); Amendment 2 rulings 2026-10-07 (A9 to A13), signed off by the repository owner in chat on 2026-10-07; Decision record 0027; hook host references (VS Code, GitHub, Claude Code), fetched during the interview; Amendment 3 rulings 2026-10-07 (A14 to A18), signed off by the repository owner in chat on 2026-10-07
 supersedes: none
 ---
 
@@ -980,7 +980,8 @@ not run on RAANDREE3, and should not be until question 4 is ruled, because a
 resized unit invalidates any run made before it.
 
 **Questions for software-architect.** None of them blocks steps 1 and 2;
-question 4 blocks step 3.
+question 4 blocks step 3. Answered by Amendment 3, rulings A14 to A17, under
+*Rulings, 2026-10-07, second pass* below.
 
 1. *Failure modes* says that where `turns` never advances, the 5-minute signal
    alone drives the backstop. Criterion 10 and the Outputs arm that signal only
@@ -1003,6 +1004,250 @@ question 4 blocks step 3.
    block, with the hash pin moving in the same commit; no level exists yet, so
    nothing else is re-baselined. Then run step 3 again on both machines.
 
+### Rulings, 2026-10-07, second pass
+
+`software-architect` ruled on the four questions implementation returned while
+building Amendment 2, and confirmed the six choices it made within the text, at
+named-subset depth — purpose, inputs and outputs, failure modes, edge cases,
+rollback, non-goals — because these are contained changes to a signed-off
+concept: two sentences that contradict the record's own criteria, one
+arithmetic rule of a Meter, and the choice of a test fixture. No new system, no
+new persisted schema, and no new or changed public contract. No independent
+review was commissioned, because no ruling introduces or alters an attack
+surface; the reasoning is under *Independent review* at the end of this
+section. Amendment 3 applies the rulings and marks every amended passage with
+its tag.
+
+Two probes on Prox1, 2026-10-07, are the evidence for A17. Own time is the
+variant minus the no-op hook in the same replicate, through the real launchers
+under both host spawns, 12 measured replicates after 2 warm-up, rotated order:
+
+| Groups | Nodes | Bytes | VS Code own p50 / p95 / min | SDK own p50 / p95 / min |
+|---|---|---|---|---|
+| 24 (the script of Amendment 2) | 4,002 | 20,059 | 84 / 111 / 65 ms | 84 / 113 / 65 ms |
+| 72 | 11,874 | 58,539 | 127 / 170 / 97 ms | 129 / 156 / 101 ms |
+| 120 | 19,746 | 97,019 | 183 / 224 / 151 ms | 139 / 170 / 128 ms |
+
+No-op launch p50: 773 ms (VS Code spawn), 1,005 ms (SDK spawn). The marginal
+cost is about 1 ms per group of about 165 nodes in Windows PowerShell and
+nearly flat between 72 and 120 groups in PowerShell 7, so about 0.006 ms per
+node rather than the 0.07 ms Decision 0016 states for first-executed nodes.
+
+The second probe, a fresh process per run, 5 measured after 2 warm-up, with
+`Get-Item` and `Select-Object` pre-loaded as the launcher does, a one-entry
+profile, a declared workspace, and `-SkipGitForSingleEntry`:
+
+| Edition | Dot-source the reader | `Get-ContributorCalibration` | `Format-...Sentence` |
+|---|---|---|---|
+| Windows PowerShell 5.1 | 18 ms | 404 ms | 31 ms |
+| PowerShell 7 | 20 ms | 264 ms | 17 ms |
+
+About 95 per cent of the reader's cost is executing its 21 functions and 19
+loops, not first-executing its 5,239 nodes. It runs 1.53 times slower in
+Windows PowerShell than in PowerShell 7 on one machine, where straight-line
+code runs 1.0 to 1.32 times slower: different kinds of work scale differently
+even across editions, which is what A9's Assumption and the TBD-6 transfer
+check are about.
+
+| # | Question | Ruling |
+|---|---|---|
+| A14 | The frozen-`turns` Failure-modes row contradicts criterion 10 and the Outputs | **Correct the row; the arming does not change yet.** Where the clock is readable and `turns` never advances, neither leg fires and that host receives no backstop, which is what is built. TBD-7 becomes a per-host measurement with a defined consequence, and a **grace fallback is pre-authorized**: should TBD-7 find a host inside the promise whose `turns` never advances, the time leg is also armed by a clock still reading `turns = 0` in a session whose recorded `startedUtc` is more than 30 minutes old, built without a further architect round |
+| A15 | The 60,000-character row says the condition is reported by `Get-` | **Drop the clause.** The state file is the record: `characters` at or above 60,000, with the unanswered compactions left in `compactions`. `Get-` reads the profile, is given no session identifier, and gains no session-state contract |
+| A16 | The re-baseline rule takes one `w` across the gated cells | **One `w` per tag**, across that tag's gated cells and across both machines and both spawns, each cell at its lower run. Never one `w` for both tags |
+| A17 | The frozen reference script is too small, and the wrong kind of work | **A reader-shaped frozen reference.** `tests/Fixtures/ReferenceHook/` holds a driver keeping A9's payload primitives, a **frozen copy** of the contributor-profile reader, and a frozen fixture; the driver runs one fixed calibration on that fixture. One composite hash pins all three, A9's straight-line block is removed, and the transfer check runs per tag with a defined outcome when it fails for `PostToolUse.CallLatency` |
+| A18 | The six choices implementation made within the text | **All six confirmed**, four of them promoted from implementation detail to contract text, because they are correctness properties a later change could silently remove |
+
+Reasons:
+
+- **A14.** `Test-BackstopDue` fires the turn leg on `turns` above `lastTurn`
+  and arms the time leg on a clock that is unreadable or reports at least one
+  closed turn. A readable clock frozen at 0 satisfies neither, and `lastTurn`
+  is seeded 0, so the row promised a backstop that cannot happen. The arming
+  buys exactly one thing — no duplicate of the session-start sentence inside a
+  long first turn — and removing it would spend that in every host, including
+  the ones that never needed it, for a contingency that is still unmeasured.
+  The record already accepts a turn-1 gap: the Purpose promises re-injection
+  within one turn where PreCompact does not run. A host that never advances
+  `turns` is outside that promise, which is the case worth closing, and TBD-7
+  closes it cheaply because it already runs in increment 7.5. The remedy is
+  therefore pre-authorized rather than built: a 30-minute grace, far longer
+  than a normal first turn and far shorter than a session in which losing
+  calibration matters, reading one more field with one more pattern from a file
+  the common path already opens. Rejected: arming the time leg whenever `turns`
+  reads 0, which makes the row true at the price of duplicating the
+  session-start sentence in every host with a first turn over 5 minutes, routine
+  agentic work here, and spending the very budget `Context.SessionBudget`
+  protects; and leaving row and code as they were, which is how this question
+  arose.
+- **A15.** `Get-CopilotAtelierContributorProfile` resolves the profile, the
+  registration, and the sentence for a workspace. It is never given a session
+  identifier, so it cannot report this session's budget, and enumerating the
+  per-session files would print other sessions' private hook state from a
+  command whose output enters the model's context. Criterion 27 already
+  requires the condition to be recorded, and the state file is where it is
+  recorded. Rejected: amending `Get-` and adding a criterion, which enlarges a
+  public API named under *Durable choices* for no consumer that exists; it
+  stays available as additive work.
+- **A16.** A Budget is a level of one requirement, and the two tags measure
+  different code that regresses independently: the session-start step
+  dot-sources the reader and parses a profile, while the common path runs one
+  regex over a payload head and reads two small files. Pooling makes the
+  smaller tag's level a function of the larger tag's step. On the Prox1 SDK
+  spawn of 2026-10-07, in the unit then in force, the lower-run p95 values were
+  6.21, 2.43, and 1.65; one `w` gives every gated cell Budget 11.0, so a common
+  path three times slower than today would still pass, while one `w` per tag
+  gives 11.0 and 3.0. Within a tag the pooling is sound, because a tag's gated
+  cells share a code path and move together. Rejected: a Budget per cell or per
+  spawn, more sensitive but turning two levels into four or eight, quadrupling
+  what a launcher change re-baselines and changing a requirement structure the
+  measured spread does not demand.
+- **A17.** A9 sized the reference from Decision 0016's 0.07 ms per
+  first-executed node. The first probe falsifies that figure for straight-line
+  code by an order of magnitude, so the block lands at 84 ms rather than 280 ms
+  and cannot be grown into range: 200 or more groups and about 175 KB in
+  Windows PowerShell, and PowerShell 7 nearly flat between 72 and 120 groups.
+  The second probe explains it: about 95 per cent of the reader's cost is
+  executing functions and loops, and the two kinds of work scale differently
+  even between editions on one machine. A9's Assumption is therefore not merely
+  unverified for a straight-line reference; the only evidence points against it.
+  The unit was also too small — 76 to 89 ms against a launch of 775 to
+  1,019 ms, inside the launch's own jitter, which cost one of two VS Code runs
+  its entire ratio on 2026-10-07. A reader-shaped reference removes both
+  defects at once: the same kind of work by construction, and an own time of
+  about 400 ms through the VS Code spawn and 280 ms through the SDK spawn. The
+  copy must be frozen and must carry no drift test, because a reference that
+  called the shipped reader would move numerator and denominator together and
+  detect nothing. The consequence is stated rather than hidden: with the
+  reference near the subject, `SessionStart.AddedLatency` becomes a
+  relative-regression gate and its absolute stop line stays the guard against a
+  regression that moves both, which is the trade A9 made when it put the
+  machine's speed outside this record's scope. `PostToolUse.CallLatency` is the
+  honest residue: its common path is different and smaller work, its ratio
+  against the new reference would be about 0.27 and 0.42 in the two spawns from
+  the 2026-10-07 figures, and a 1.5-times spread between two spawns on one
+  machine warns that the unit may not cancel machine speed there, so the rule
+  now says what happens when the check fails instead of discovering it mid-run.
+  Rejected: keeping the 4,000-node script, which lost a run in two and is the
+  wrong kind of work; growing it, impractical per the probe and still the wrong
+  kind, with a 175 KB fixture nobody can review; and a synthetic workload of
+  functions, parameter binding, and loops sized to 280 to 400 ms, closer in kind
+  but an opinion that would be re-argued at every reader change and would have
+  to be tuned by measurement, where a frozen copy gets the property by
+  construction. The synthetic workload stays the fallback if the frozen copy
+  ever becomes a maintenance problem.
+- **A18.** `lastInjectionUtc` names the injection, and its only use is elapsed
+  time since one; seeding it from a resumed session's start, hours old, would
+  make the time leg due on the first tool call and duplicate the sentence
+  SessionStart had just emitted, while for a new session the two differ by
+  milliseconds. A due re-send that finds nothing to send must still be
+  recorded, or the standing condition makes every later tool call pay the
+  inject path's profile read for a contributor who has opted out; advancing the
+  state is bounded and self-correcting, because an opt-in later in the session
+  is picked up by the next turn or the next 5 minutes. The calibration step
+  must run outside the lock, because it may run to its 3-second cap while
+  `Write-CompactionCheckpoint.ps1` waits only 5 seconds for the same lock, and
+  the two properties that make that safe are now contract: the locked decision
+  never upgrades a backstop into a compaction re-send, so no suffix can lie,
+  and the call records the compaction count read before the step, so a
+  compaction counted meanwhile is answered by the next call. Check-then-send at
+  a bound matches the wording of the Budget and overshoots by one worst-case
+  sentence, 13,178 against 12,000, which is 10 per cent of a bound whose
+  rationale is written in units of 3,000 tokens; pre-checking would suppress a
+  re-send the contributor is entitled to in order to defend that 10 per cent,
+  and the `Fail` line was ambiguous about it and is rewritten. Reading the state
+  file and the clock with one anchored pattern per field saves about 100 ms of
+  module load on the hot path, the very requirement two of these questions are
+  about, and each read fails closed in the sense its own file carries: an
+  unmatched or malformed state file reads as unreadable, so no backstop fires
+  and nothing is written, while a session clock whose `turns` cannot be read
+  counts as missing and leaves the 5-minute signal alone, as the Failure-modes
+  row for a missing or unreadable clock already states. The clock's `workspace`
+  value cannot forge `turns`, because a quote inside it is JSON-escaped and
+  breaks the anchor.
+
+**Independent review.** None was commissioned. A14 changes no shipped file in
+this amendment, and its pre-authorized fallback reads one more field from a file
+the common path already opens, whose forgery causes extra re-sends already
+classified in the Failure modes as a bounded degradation. A15 removes an output
+claim. A16 is Meter arithmetic. A17 is a test fixture that never ships, reading
+only its own fixture through an explicit `-Location`. A18 confirms behaviour the
+`security-reviewer` pass of 2026-10-07 already approved, in the shape it
+approved. Should the grace fallback be built, the engineer re-runs the
+`agent-security-review` checklist over the changed hook path before committing.
+
+### Amendment 3 implemented, 2026-10-07 on Prox1
+
+`software-engineer` built A17 and A18 test-first and ran the Prox1 half of step
+7.3 under the new reference. A14 and A15 changed no code, A16 no helper, and
+the grace fallback is not built: TBD-7 has found no host that needs it.
+
+**A17.** `tests/Fixtures/ReferenceHook/` replaces
+`tests/Fixtures/Invoke-ReferenceHook.ps1`: the driver, a copy of the shipped
+reader as committed in `23a861a` with only a header paragraph added, and the
+fixture, the same profile text and declaration as the Meter's `[one entry]`
+cell. `Get-CalibrationMeterReferenceHash` hashes the folder: per file, in
+ordinal order of its relative path, the path, the length of its LF text, and
+the text, each ended by a NUL character. The pin is
+`30fb3229afc003e248371b378883b2164a8ed00338c9f7647b40acfab2d29c79`, the same in
+both editions. Fifteen new tests went red first: the pin, line-ending
+independence, a changed driver, reader copy, fixture profile, or declaration
+inside its dot folder, a renamed file, an added file, the folder's contents, and
+the driver's exit codes in both editions: `0` from a staged copy, `1` in place
+and with the profile removed. The build copies only the five customization
+folders, so the copy cannot ship. The Meter stages the folder, launches the
+driver as `ReferenceHook/Invoke-ReferenceHook.ps1` through the SessionStart
+launchers, and adds a `Spread` column to each reproduced row for step 8.
+
+**A18.** Criterion 10's suite already proved the turn-0 arming, the stale-write
+answer, and both bounds. Two tests joined it, each green in both editions and
+each shown to fail against a deliberately broken hook before the hook was
+restored: a resumed session whose recorded start is three hours old makes no
+re-send on its first tool call, failing when the seed takes the session start;
+and a due backstop after an opt-out emits nothing, advances `lastTurn` and
+`lastInjectionUtc`, and leaves `characters` alone, failing when the record is
+skipped for an empty sentence. Both suites passed in both editions, 254 tests.
+
+**Step 7.3 on Prox1, 2026-10-07 15:30 UTC.** Two runs, 20 replicates after 2
+warm-up replicates each, on an idle machine. No replicate lost the unit. Step
+milliseconds over the no-op hook, p50 then p95, ranges over the two runs:
+
+| Cell | VS Code spawn | SDK spawn |
+|---|---|---|
+| No-op launch, absolute p50 | 772 to 773 | 1,002 to 1,007 |
+| Frozen reference, the unit (Past) | 433 to 435; 472 | 348 to 362; 373 to 383 |
+| SessionStart, one entry, added | 449 to 455; 460 to 479 | 358; 384 to 389 |
+| SessionStart, no profile, added | 184 to 191; 211 to 216 | 166 to 171; 185 to 223 |
+| PostToolUse, common path | 112 to 115; 150 to 151 | 119 to 127; 137 to 157 |
+| PostToolUse, inject path | 561 to 565; 591 to 596 | 485 to 486; 500 to 508 |
+| Push guard, benign tool | 101 to 111; 129 to 133 | 94 to 100; 120 |
+
+Gated ratios, p95 over the two runs, with the lower run and the spread of
+step 8:
+
+| Gated cell | VS Code spawn | SDK spawn |
+|---|---|---|
+| SessionStart, one entry | 1.08 to 1.13, lower 1.08, spread 1.05 | 1.12 to 1.16, lower 1.12, spread 1.04 |
+| SessionStart, no profile | 0.49 to 0.49, lower 0.49, spread 1.00 | 0.53 to 0.61, lower 0.53, spread 1.15 |
+| PostToolUse, common path | 0.32 to 0.32, lower 0.32, spread 1.00 | 0.38 to 0.44, lower 0.38, spread 1.16 |
+
+Reported ratios, p95: two entries 1.32 to 1.44, inject path 1.34 to 1.48, push
+guard 0.29 to 0.36. Both stop lines are clear in every run: the SessionStart
+step reaches at most 479 ms against 1,000, and the common path at most 157 ms
+against 400. The widest spread is 1.16, well inside the 1.75 factor. On Prox1
+alone the rule would give `SessionStart.AddedLatency` w 1.12, Budget 2.0, Fail
+4.0, and `PostToolUse.CallLatency` w 0.38, Budget 0.75, Fail 1.5. These are not
+levels: each tag's `w` is taken across both machines, and the transfer check
+needs RAANDREE3.
+
+Across the two editions on this machine, which is not the TBD-6 check, the
+reference's VS Code-to-SDK ratio of its p50 own time is 1.22. The one-entry step's is 1.26, 1.03 times
+apart, and the no-profile step's 1.11, 1.10 times apart; the common path's is
+0.92, 1.33 times apart. The reader-shaped unit tracks the session-start step
+across editions as A17 intended, and the common path is the different kind of
+work A17 expected it to be. Should the same hold across machines, the
+`PostToolUse.CallLatency` outcome of step 5 applies: no ratio Budget, the
+400 ms stop line as its gate.
+
 ## Signed-off Design Concept
 
 Signed off by the repository owner in chat on 2026-10-06, after an interview
@@ -1013,8 +1258,9 @@ security ruling after review (R1). No answer was delegated with
 `not sure, you pick`, and the override log is empty. The text below is the
 signed-off concept, verbatim apart from its title, its draft status header, the
 sign-off annotations on the rating-question ruling and TBD-4, the sign-off
-record, Amendment 1: rulings A1 to A8 of 2026-10-06, and Amendment 2: rulings
-A9 to A13 of 2026-10-07, each marked in place with its tag and listed in the
+record, Amendment 1: rulings A1 to A8 of 2026-10-06, Amendment 2: rulings
+A9 to A13 of 2026-10-07, and Amendment 3: rulings A14 to A18 of 2026-10-07,
+each marked in place with its tag and listed in the
 *Amendment log* before *Sign-off*.
 
 ## Purpose
@@ -1214,11 +1460,14 @@ Reason codes, a fixed set: `not-local`, `too-large`, `invalid-json`,
   backstop at every compaction *(A12)*.
 - `Add-SessionContext.ps1` seeds the three new fields when, and only when, it
   injects levels: `lastTurn` from the session clock's `turns`,
-  `lastInjectionUtc` from the session start, and `characters` from the sentence
-  it emitted. When the file already exists — a resumed session, where the clock
-  is preserved — it merges the three fields and leaves `compactions` and
+  `lastInjectionUtc` from the moment of that injection, and `characters` from
+  the sentence it emitted. The field is the time of the injection and not of
+  the session: a resumed session's recorded start can be hours old and would
+  make the time leg due on the first tool call, duplicating the sentence just
+  emitted. When the file already exists — a resumed session, where the clock is
+  preserved — it merges the three fields and leaves `compactions` and
   `injected` untouched, so a compaction pending across the resume still gets
-  its re-send *(A12)*.
+  its re-send *(A12, A18)*.
 - `Add-FamiliarityContext.ps1`, registered only by the registration file, reads
   the file on every successful tool call; PostToolUse does not fire for a
   failed one *(A7)*. When `compactions` exceeds `injected`, it emits
@@ -1239,18 +1488,43 @@ Reason codes, a fixed set: `not-local`, `too-large`, `invalid-json`,
   tool call more than 5 minutes into turn 1 cannot duplicate the SessionStart
   sentence. The turn leg is already safe at turn 1, because SessionStart writes
   `turns = 0` and only the Stop hook advances it *(A12)*.
-- **The common path writes nothing and takes no lock.** The inject path takes
-  the lock first, re-reads the state, re-decides, writes, and only then emits;
-  a failed or timed-out write emits nothing on that call. Without that order a
-  5-second lock timeout would leave a standing backstop condition unrecorded,
-  re-firing on every later call while `characters` never advanced.
-  `characters` accumulates as a monotonic maximum under the same
-  compare-and-set as the existing counters, so parallel tool calls cannot
-  undercount it *(A12)*.
+- **The common path writes nothing and takes no lock.** The calibration step
+  runs before the lock is taken, because it may run to its 3-second cap while
+  `Write-CompactionCheckpoint.ps1` waits only 5 seconds for the same lock; the
+  lock covers the re-read, the decision, and the write only. The inject path
+  then takes the lock, re-reads the state, re-decides, writes, and only then
+  emits; a failed or timed-out write emits nothing on that call. Without that
+  order a 5-second lock timeout would leave a standing backstop condition
+  unrecorded, re-firing on every later call while `characters` never advanced.
+  The decision taken under the lock never becomes a compaction re-send that the
+  decision before the step was not, so no suffix can claim a compaction that
+  did not drive it, and the call records the compaction count it read **before**
+  the step, so a compaction counted during the step is answered by the next call
+  rather than swallowed. `characters` accumulates as a monotonic maximum under
+  the same compare-and-set as the existing counters, so parallel tool calls
+  cannot undercount it *(A12, A18)*.
+- A re-send that falls due and then finds nothing to send — the entry opted out,
+  the profile unreadable, or no declared area matched — records the state as
+  though it had injected, adding no characters, and emits nothing. Without that
+  record the condition would stand and every later tool call in the session
+  would pay the inject path's profile read for a contributor who is receiving
+  nothing. An opt-in later in the same session is picked up by the next turn or
+  the next 5 minutes *(A12, A18)*.
+- The state file and the session clock are read with one pattern per field,
+  anchored to the field name, rather than with `ConvertFrom-Json`, whose module
+  load cost the armed common path about 100 ms. Each read fails closed in the
+  sense its own file carries: an unmatched or malformed state file reads as
+  unreadable, so no backstop fires and nothing is written, while a session
+  clock whose `turns` cannot be read counts as missing, which leaves the
+  5-minute signal alone, as the Failure modes already state *(A12, A18)*.
 - A backstop re-send is suppressed once `characters` reaches 12,000. A
   compaction re-send is never suppressed below 60,000 and counts toward
-  `characters`; above 60,000 the hook emits nothing of either kind and reports
-  the session as out of envelope *(A12)*.
+  `characters`; above 60,000 the hook emits nothing of either kind. Both bounds
+  are tested before the send, so the re-send that reaches a bound still goes
+  out and the overshoot is one sentence, at most 1,178 characters. Nothing is
+  emitted about the condition and no command reports it: the state file is its
+  record, `characters` at or above the bound with the unanswered compactions
+  left in `compactions` *(A12, A15, A18)*.
 - Both re-sends carry the matched levels only, without the unrated count, and
   both recheck the profile on every injection, so an opt-out or deletion takes
   effect at once even in a session that loaded the registration earlier. The
@@ -1263,6 +1537,17 @@ Reason codes, a fixed set: `not-local`, `too-large`, `invalid-json`,
   launcher that cannot resolve the script, which exits `1` as lifecycle hooks
   do.
 - Parallel tool calls may inject the sentence twice; that is accepted.
+- **Grace fallback, built only if TBD-7 finds a host inside the promise whose
+  `turns` never advances.** In that case the time leg is armed either by a clock
+  reporting at least one closed turn, as above, or by a clock still reporting
+  `turns = 0` in a session whose recorded `startedUtc` is more than 30 minutes
+  old. `startedUtc` is read with one more anchored pattern from the clock file
+  the common path already opens, so no file access is added. The grace is
+  deliberately much longer than the 5-minute leg: a first turn shorter than 30
+  minutes, the normal case in every host, keeps today's behaviour and cannot
+  duplicate the session-start sentence. Where TBD-7 finds no such host, the
+  fallback is not built and the delivery matrix records the per-host `turns`
+  values that decided it *(A14)*.
 
 ### Registration file (Q20, Q24)
 
@@ -1501,7 +1786,8 @@ Meter: tests/Fixtures/Measure-CalibrationLatency.ps1, gaining two cells —
 Past: withdrawn (A10). The launch-unit readings of 2026-10-06 on Prox1 and
        RAANDREE3 stay under Confirmation as the evidence for A9 and bind
        nothing. The first run under this Meter sets Past.
-Budget [one entry, none]: set by the re-baseline rule (A9)
+Budget [one entry, none]: set by the re-baseline rule, from this tag's own w
+       (A9, A16)
 Fail [one entry, none]: 2 x Budget (A9)
 Stop line: the calibration step's own p95 above 1,000 ms on either machine
        means the design, not the unit, is the problem; return to
@@ -1514,12 +1800,17 @@ Rationale: Paid once per chat, only where a workspace declares Knowledge
        unit is cold script execution, the same kind of work as the measured
        cost, so machine speed, shell edition and load cancel to first order.
        The launcher's own cost belongs to Decision 0016.
-Assumption: The frozen reference script's cold cost scales across machines
-       and spawns the same way the calibration step's does. The re-baseline
-       rule checks this directly (TBD-6); it is not carried as belief. (A9)
-Risk: Changing the frozen reference script's bytes changes every ratio in
-       this record. It is hash-pinned by a test; a change re-baselines both
-       latency tags in the same commit.
+Assumption: The frozen reference is the calibration step's own kind of work by
+       construction (A17), so for this tag the transfer check is a sanity test
+       rather than a leap of faith; A9's original assumption, that a
+       straight-line block scales the way the step does, was falsified by
+       measurement on 2026-10-07 and is withdrawn. The re-baseline rule still
+       checks transfer directly (TBD-6). (A9, A17)
+Risk: Changing any file of the frozen reference changes every ratio in this
+       record. One composite hash pins the driver, the frozen reader copy, and
+       the fixture; a change re-baselines both latency tags in the same commit.
+       The frozen reader copy carries no drift test against the shipped reader,
+       and adding one would destroy the unit. (A9, A17)
 Authority: Repository owner
 
 Tag: PostToolUse.CallLatency
@@ -1533,8 +1824,10 @@ Scale: p95 over paired replicates of the calibration PostToolUse hook's own
        backstop trigger evaluated and nothing injected. (A9, A12)
 Meter: As SessionStart.AddedLatency.
 Past: withdrawn (A10); the 2026-10-06 launch-unit readings stay as evidence.
-Budget: set by the re-baseline rule (A9)
-Fail: 2 x Budget (A9)
+Budget: set by the re-baseline rule, from this tag's own w; `not set (unit
+       does not transfer)` when the transfer check fails for this tag, which
+       then gates it on its absolute stop line alone (A9, A16, A17)
+Fail: 2 x Budget, or none while no Budget is set (A9, A17)
 Stop line: the hook's own script p95 above 400 ms on either machine returns
        to software-architect. Measured worst under the old unit: about
        290 ms, in the noisiest SDK run. (A9)
@@ -1549,7 +1842,11 @@ Rationale: The common path reads the payload head, runs one regex, reads the
        barely more than a no-op launch. Fallback A applies only when this
        requirement reaches Fail on Prox1 or RAANDREE3 under the unit in force
        (A3, as re-expressed by A9); it has not been reached under any unit.
-Assumption: Only machines with a profile that is on pay it (Q20).
+Assumption: Only machines with a profile that is on pay it (Q20). The frozen
+       reference is the session-start step's kind of work, not this tag's: the
+       common path is smaller and different, so transfer is not given by
+       construction and the check decides per tag whether this tag carries a
+       ratio Budget at all (A17).
 Authority: Repository owner
 
 Tag: Context.SentenceSize
@@ -1581,12 +1878,18 @@ Meter: A Pester fixture driving a session past each bound with the worst-case
 Past: 1,118 at most <- Phase 2 before A12, one sentence per session plus one
        per compaction
 Budget [backstop re-sends]: 12,000 characters for all Positions together,
-       enforced by the hook itself (A12)
-Budget [ceiling, every Position]: 60,000 characters, above which the hook
-       emits nothing further and the session is reported as out of envelope
-       (A12)
-Fail: any backstop re-send after 12,000, any compaction re-send suppressed
-       below 60,000, or any injection at all above 60,000 (A12)
+       enforced by the hook itself. The bound is tested before the send, so
+       the re-send that reaches it still goes out and the session receives at
+       most 12,000 plus one worst-case sentence, 13,178 characters (A12, A18)
+Budget [ceiling, every Position]: 60,000 characters, tested the same way, so
+       at most 61,178. Above it the hook emits nothing of either kind; the
+       record of the condition is the state file itself, `characters` at or
+       above 60,000 with the unanswered compactions left in `compactions`, and
+       no command reports it (A12, A15, A18)
+Fail: a backstop re-send issued when `characters` already stood at or above
+       12,000, a compaction re-send suppressed while `characters` stood below
+       60,000, or any injection issued when `characters` already stood at or
+       above 60,000 (A12, A18)
 Rationale: 12,000 characters is about 3,000 tokens: 5 per cent of the
        ~60,000-token base prompt this record measured, 1.5 per cent of a
        200,000-token window. At the typical 300-character sentence it allows
@@ -1613,22 +1916,87 @@ Conditions (Q18): profile at most 64 KB, 16 entries, 8 aliases, and 200 areas
 per entry; `projectbrief.md` read up to 64 KB and 16 bullets; calibration step
 within 3 s; git within 2 s.
 
-### The frozen reference script (A9)
+### The frozen reference (A9, resized by A17)
 
-`tests/Fixtures/Invoke-ReferenceHook.ps1`, beside the Meter, never shipped:
+`tests/Fixtures/ReferenceHook/`, beside the Meter, never shipped. It holds
+three things, and the Meter stages the whole folder into each scratch home's
+`hooks/scripts` and launches the driver through the same launcher and spawn as
+the measured hooks:
 
-- reads standard input exactly as the no-op hook does, then parses that
-  payload with `ConvertFrom-Json`, matches one regular expression against it,
-  and tests one file path — the same primitives the shipped hooks use;
-- then executes a fixed block of straight-line cold code sized to about 4,000
-  syntax-tree nodes, so that its own time is the same kind and order of work as
-  the calibration step's. Decision 0016's figure of roughly 0.07 ms per
-  first-executed node puts that near 280 ms on Prox1, against a reader measured
-  at 412 to 493 ms there;
-- is **frozen**: a test pins its SHA-256, and a change to its bytes
-  re-baselines both latency tags in the same commit. This is the same
-  discipline the no-op hook already carries ("Keep it fixed; changing it
-  changes every ratio").
+1. `Invoke-ReferenceHook.ps1`, the driver. It reads standard input exactly as
+   the no-op hook does, then parses that payload with `ConvertFrom-Json`,
+   matches one regular expression against it, and tests one file path — the
+   same primitives the shipped hooks use, kept from A9. It then dot-sources the
+   frozen reader copy and runs one fixed calibration on the frozen fixture:
+   `Get-ContributorCalibration` with the fixture workspace, the fixture
+   location passed explicitly through `-Location`, `-SkipGitForSingleEntry`,
+   and `-TimeoutMilliseconds 3000`, followed by
+   `Format-ContributorCalibrationSentence`. It writes nothing and emits
+   nothing; it exits `0` only when that calibration returns state `levels` and
+   a non-empty sentence, and exits `1` otherwise, so a fixture that stops
+   producing levels fails the Meter instead of silently shrinking the unit. The
+   fixture is read only after the Meter has staged the folder outside any git
+   working tree: run in place inside the repository, the reader refuses the
+   profile as `inside-repository`, so the driver exits `1` there by design.
+   `-Location` is passed so the unit never resolves `~/.copilot`, never depends
+   on the cell's scratch home, and never reads a contributor's real profile;
+   `-SkipGitForSingleEntry` keeps git, whose cost is a machine property rather
+   than script work, out of the unit.
+2. `ContributorProfileReader.ps1`, a **frozen copy** of the shipped
+   `skills/contributor-profile/scripts/ContributorProfileReader.ps1`, taken in
+   the commit that introduces the reference and changed only together with a
+   re-baseline. **No drift test binds it to the shipped reader, and adding one
+   would destroy the unit**: the copy is the yardstick and the shipped reader
+   is the subject, so a regression in the shipped reader must move the
+   numerator while the denominator stands still. Its header says so, and the
+   Meter is its only consumer.
+3. The frozen fixture: a workspace folder whose `.memory-bank/projectbrief.md`
+   declares a fixed `## Knowledge areas` section, and a
+   `contributor/profile.json` holding one entry, on, rating those areas — the
+   same shape as the `[one entry]` cell it is the unit for, and single-entry so
+   that `-SkipGitForSingleEntry` keeps git out.
+
+Why a reader-shaped reference and not A9's straight-line block: measurement on
+2026-10-07 falsified both of that block's premises, and both probes are
+recorded under *Rulings, 2026-10-07, second pass*. Its own time through the
+launcher is 84 ms at p50 in both spawns, not the ~280 ms A9 sized it for, and
+it cannot be grown into that range — the marginal cost is about 1 ms per group
+of ~165 nodes in Windows PowerShell and nearly flat in PowerShell 7 between 72
+and 120 groups, so ~280 ms would need 200 or more groups and about 175 KB.
+Decision 0016's figure of 0.07 ms per first-executed node, which A9 used to
+size the block, does not describe straight-line code: the measured marginal
+cost is about 0.006 ms per node. A unit of 84 ms also sits inside the launch's
+own jitter: one replicate in twenty lost it on 2026-10-07, and the Meter
+reports such a run as `unit unmeasurable`, so one of two VS Code runs produced
+no ratio at all.
+
+The reader's cost has a different shape: about 95 per cent of it is executing
+functions and loops rather than first-executing nodes, and it runs 1.53 times
+slower in Windows PowerShell than in PowerShell 7 on one machine, where
+straight-line code runs 1.0 to 1.32 times slower. A unit whose work is a
+different kind from the measured step's is what A9's Assumption forbids, so the
+reference is made the same kind by construction. Its own time is about 400 ms
+through the VS Code spawn and 280 ms through the SDK spawn, far above launch
+jitter and in the band A9 intended.
+
+The consequence is stated rather than hidden. For `SessionStart.AddedLatency`
+the ratio is near 1.0 by construction, so its Budget is a relative-regression
+gate — the shipped step may not exceed the frozen step by more than the
+re-baseline factor — and the absolute stop line stays the guard against a
+regression that moves both, which is the trade A9 made when it put machine
+speed outside this record's scope. `PostToolUse.CallLatency`'s common path is
+different and smaller work, so its transfer is not given by construction and is
+decided per tag by the transfer check (TBD-6).
+
+**Pinning.** `Get-CalibrationMeterBudget` pins one SHA-256 over the whole
+reference: the LF text of every file under `tests/Fixtures/ReferenceHook/`,
+hashed in ascending ordinal order of relative path, each entry covering the
+relative path and the file's text. `Get-CalibrationMeterReferenceHash` computes
+it from the folder, `Measure-CalibrationLatency.ps1` refuses to run when it
+differs from the pin, and `tests/CalibrationMeter.Tests.ps1` asserts the pin. A
+change to any file of the reference — driver, reader copy, or fixture — is a
+change to the unit and re-baselines both latency tags in the same commit
+(criterion 26).
 
 ### The re-baseline rule (A9)
 
@@ -1639,13 +2007,21 @@ no further architect round:
 1. Record the frozen reference script's own time in milliseconds per machine
    and spawn as a new Past line. It is the unit's calibration and must be
    published, not buried in a ratio.
-2. Let `w` be the maximum, across the **gated cells only**, of each cell's
-   **lower** of its two runs. Gated means `[one entry]` and `[none]` for
-   `SessionStart.AddedLatency`, and the common-path cell for
-   `PostToolUse.CallLatency`. The `[two entries]` cell, the inject-path cell,
-   the push guard, and every absolute-millisecond figure are reported and
-   never enter `w`. Taking the lower of the two runs is what "reproduced"
-   means in this record: a level counts only when both runs reach it.
+2. Compute one `w` **per tag**, never one for both. For a tag, `w` is the
+   maximum, across that tag's **gated cells only** and across both machines and
+   both spawns, of each cell's **lower** of its two runs. Gated means
+   `[one entry]` and `[none]` for `SessionStart.AddedLatency`, and the
+   common-path cell for `PostToolUse.CallLatency`. The `[two entries]` cell,
+   the inject-path cell, the push guard, and every absolute-millisecond figure
+   are reported and never enter `w`. Taking the lower of the two runs is what
+   "reproduced" means in this record: a level counts only when both runs reach
+   it. One `w` for both tags would set the common path's Budget from the
+   session-start step, which is several times larger: on the Prox1 SDK spawn of
+   2026-10-07, in the unit then in force, it would have given every gated cell
+   Budget 11.0 against 3.0 for the common path on its own, so a common path
+   three times slower than today would still have passed. Within a tag the
+   pooling is sound, because a tag's gated cells share a code path and move
+   together *(A16)*.
 3. `Budget` = the smallest multiple of 0.25 that is at least `1.75 x w`.
    `Fail` = `2 x Budget`.
 4. The 1.75 factor must **exceed** the Meter's own run-to-run spread, because
@@ -1653,17 +2029,31 @@ no further architect round:
    higher one. The widest pair in the 2026-10-06 runs moved 0.43 to 0.71, a
    factor of 1.65; typical pairs moved by 1.1 to 1.3. Any factor at or below
    1.65 would fail the noisier run by construction.
-5. **Unit transfer check (TBD-6).** Let `r` be the frozen reference script's
+5. **Unit transfer check (TBD-6), per tag.** Let `r` be the frozen reference's
    RAANDREE3 time divided by its Prox1 time, per spawn, and `s` the same ratio
-   for the measured step. When `r` and `s` differ by more than 1.3 times in
-   either direction, the unit has not cancelled machine speed: record both and
-   return to software-architect. Do not set a Budget from a unit that failed
-   this check.
+   for the step of the gated cell that set that tag's `w`. When `r` and `s`
+   differ by more than 1.3 times in either direction, the unit has not
+   cancelled machine speed for that tag. For `SessionStart.AddedLatency`, whose
+   reference is the same kind of work by construction, a failure means the unit
+   itself is wrong: record both numbers and return to `software-architect`
+   without setting a Budget. For `PostToolUse.CallLatency`, whose common path
+   is different and smaller work, a failure sets no ratio Budget for that tag
+   in this release: record both numbers, leave `Budget` and `Fail` as
+   `not set (unit does not transfer)`, gate the tag on its absolute stop line
+   alone, keep TBD-6 open for it, and carry the better unit as named follow-up
+   work rather than blocking the release on the cheapest path in the design,
+   whose absolute cost is already measured and small *(A9, A17)*.
 6. **Stop lines.** Above the absolute stop line in either tag, return to
    software-architect instead of re-baselining. A re-baseline that only ever
    moves the line to wherever the code already sits is not a Meter.
 7. Record the computed Budget, Fail, and the run that produced them in the
    Confirmation, together with the reference script's hash.
+8. Record the Meter's own run-to-run spread for each gated cell, as the higher
+   run's p95 divided by the lower run's. The 1.75 factor was chosen against a
+   spread of 1.65 measured under a unit this reference replaces: a materially
+   smaller spread makes a tighter factor available to a later amendment, and a
+   larger one would mean the factor no longer exceeds the spread, which step 4
+   requires *(A17)*.
 
 ## Design options and recommendation
 
@@ -1716,10 +2106,17 @@ would add a sixth Discovery link to create, verify, remove, and reconcile.
 | A11, restating the Consequences | **Fully reversible.** Documentation of measured fact. The rejected one-process launcher stays available as separate work against Decision 0016 |
 | A12, the backstop re-send | **Reversible in code, with one durable edge.** The trigger, the bound, and the suffix are a hook change, revertible in one commit. The three new fields in `session-<key>.familiarity.json` are the durable part: the file is private, per-session, recreated every session, and read only by these hooks, so an older hook reading a newer file ignores unknown fields and a newer hook reading an older file sees them absent and treats the session as freshly started. No migration, no user-visible artefact |
 | A13, eval case provenance | **Fully reversible.** The eval kit is private and versioned; cases can be re-mined or replaced. The `provenance` field makes a later purge of synthetic cases a filter rather than an archaeology exercise |
+| A14, correcting the frozen-`turns` row and pre-authorizing the grace fallback | **Fully reversible.** A record correction now. The fallback, if TBD-7 calls for it, is one condition and one anchored pattern in `Add-FamiliarityContext.ps1`, revertible in one commit; `startedUtc` is already in the session clock, so no schema moves |
+| A15, dropping the `Get-` clause for the 60,000 ceiling | **Fully reversible.** No public command changes; adding the report later is additive and would need a session selector, a criterion, and a test |
+| A16, one `w` per tag | **Fully reversible.** Meter arithmetic applied once at the re-baseline; `Get-CalibrationMeterRebaseline` already computes `w` from the array it is given, so the rule changes which arrays it is given |
+| A17, the reader-shaped frozen reference | **Fully reversible.** A test fixture and a Meter change; nothing ships, and reverting means re-running the Meter under the old reference. The frozen reader copy is a yardstick, not a maintained copy: it is never loaded by the product, reads only its own fixture through an explicit `-Location`, and carries no drift test by design |
+| A18, the six implementation choices confirmed | **Reversible in code.** Each is a condition or an ordering inside the PostToolUse and SessionStart hooks, revertible in one commit; none changes the state file's five fields, the profile schema, or a public contract |
 
 Amendment 2 changes no schema, public command, persistence format, or
 dependency decision: the five public command names, the profile schema 1, and
-the registration contract are untouched *(A9 to A13)*.
+the registration contract are untouched *(A9 to A13)*. Amendment 3 changes none
+of them either, and changes no shipped file at all unless TBD-7 calls for the
+grace fallback *(A14 to A18)*.
 
 ### Delivery increments
 
@@ -1753,12 +2150,19 @@ the registration contract are untouched *(A9 to A13)*.
       the 12,000 and 60,000 bounds, and the 59-character backstop suffix. Do
       this before the re-baseline, because it changes the PostToolUse common
       path that step 3 measures.
-   3. **A9, A10 — re-baseline.** Run the amended Meter twice on Prox1 and twice
-      on RAANDREE3. Apply the re-baseline rule exactly: publish the reference's
-      own milliseconds, take `w` from the gated cells as each cell's lower run,
-      run the unit transfer check (TBD-6), compute Budget and Fail, and check
-      both stop lines. Record everything in the Confirmation. Return to
-      `software-architect` only if TBD-6 fails or a stop line is crossed.
+   3. **A9, A10, A16, A17 — build the new reference, then re-baseline.**
+      Replace `tests/Fixtures/Invoke-ReferenceHook.ps1` with the
+      `tests/Fixtures/ReferenceHook/` reference of A17, move the pin to the
+      composite hash, stage the folder in `Initialize-MeterHome`, and keep the
+      launcher substitution pointing at the driver. Then run the amended Meter
+      twice on Prox1 and twice on RAANDREE3. Apply the re-baseline rule
+      exactly: publish the reference's own milliseconds, take one `w` per tag
+      from that tag's gated cells across both machines and spawns as each
+      cell's lower run, run the transfer check per tag, compute Budget and Fail
+      per tag, record the run-to-run spread, and check both stop lines. Record
+      everything in the Confirmation. Return to `software-architect` only if
+      the `SessionStart.AddedLatency` transfer check fails, a stop line is
+      crossed, or a run reports `unit unmeasurable`.
    4. **A11 — restate the Consequences and the Purpose** with the amended text,
       and open a separate Decision record proposing the one-process `windows`
       launcher against Decision 0016, with `tests/HookLauncher.Tests.ps1` and
@@ -1776,6 +2180,15 @@ the registration contract are untouched *(A9 to A13)*.
    7. **Close out.** Criteria 10, 14, 20, 21, 22, and 26 to 29 all move
       together; none of them is done until the re-baseline and the eval are
       recorded here.
+8. **Amendment 3 (A14 to A18):** the record corrections of A14, A15, and A18
+   land with the Amendment 3 edit itself and need no code. Where criterion 10's
+   suite does not already prove an A18 clause — the seeding moment, the
+   opted-out re-send that records and emits nothing, the compaction counted
+   during the step — the test joins it in the same commit as the edit. A16 and
+   A17 are prerequisites of step 7.3 and are built before the re-baseline run.
+   A14's grace fallback is built only if step 7.5's TBD-7 measurement finds a
+   host that needs it, with its own test in both editions and criterion 30 as
+   its gate.
 
 ## Failure modes
 
@@ -1802,13 +2215,13 @@ the registration contract are untouched *(A9 to A13)*.
 | Registration script unresolvable in an open session | Launcher exits `1`, a warning, until the chat restarts; Uninstall reconciles first |
 | Any hook fault | Exit `0`, session never blocked, profile never written by a hook |
 | Session clock file missing or unreadable at a PostToolUse call | The turn signal is unavailable; the 5-minute signal alone drives the backstop; no error, nothing written *(A12)* |
-| `turns` never advances in a host | The 5-minute signal alone drives the backstop; recovery is within 5 minutes rather than one turn *(A12)* |
+| `turns` never advances in a host whose clock is readable | Neither signal fires: the turn leg needs a closed turn, and the time leg is armed only by a clock reporting at least one, so that host receives no backstop and the Purpose's "within one turn" does not hold there. Whether such a host exists inside the promise is TBD-7, measured per host in the delivery matrix; finding one builds the grace fallback in the Outputs *(A12, A14)* |
 | A session reaches the 12,000-character bound | Backstop re-sends stop for the rest of the session; compaction re-sends continue; nothing is reported to the model *(A12)* |
-| A session reaches the 60,000-character ceiling | No injection of either kind for the rest of the session; the condition is recorded in the state file and reported by `Get-` *(A12)* |
+| A session reaches the 60,000-character ceiling | No injection of either kind for the rest of the session. The record of the condition is the state file: `characters` at or above 60,000, with the unanswered compactions left in `compactions`. No command reports it, because the per-session state is hook-private and no command is given a session identifier *(A12, A15)* |
 | The state write fails or the lock times out on an inject path | Nothing is emitted on that call; the backstop re-evaluates on the next one, so no condition is lost and none re-fires unrecorded *(A12)* |
 | A resumed session meets an existing state file | The three new fields are merged, `compactions` and `injected` are left alone, and a compaction pending across the resume still gets its re-send *(A12)* |
 | A compaction in a session where SessionStart injected nothing | `Write-CompactionCheckpoint.ps1` still creates the state file, but `lastInjectionUtc` is unseeded, so no backstop fires and no profile is read *(A12)* |
-| An agent with file tools writes a high `turns` into the session clock | Backstop re-sends fire more often, bounded by the 12,000-character budget; a frozen `turns` disables the turn leg only, leaving the 5-minute leg. Both are degradations, not escalations *(A12)* |
+| An agent with file tools writes the session clock | A high `turns`, or an old `startedUtc` where the grace fallback is built, makes backstop re-sends fire more often, bounded by the 12,000-character budget; a frozen `turns` disables the turn leg only, leaving the 5-minute leg wherever it is armed. Both are degradations, not escalations *(A12, A14)* |
 
 ## Edge cases
 
@@ -1965,8 +2378,11 @@ exists only in sessions started while a registration file exists.
     first PostToolUse after it emits the re-sent sentence under both host keys
     and records `injected` by compare-and-set. A backstop re-send is emitted on
     the first successful tool call after the session clock's `turns` advances,
-    or after 5 minutes since `lastInjectionUtc` once the first turn boundary
-    has passed, carrying the backstop suffix and never the compaction suffix.
+    or after 5 minutes since `lastInjectionUtc` once the clock reports at least
+    one closed turn, or after 5 minutes when the clock is missing or
+    unreadable, carrying the backstop suffix and never the compaction suffix; a
+    readable clock whose `turns` still reads 0 arms neither leg, proved by a
+    test *(A12, A14)*.
     Every writer of the state file preserves all five fields, proved by a test
     in which a PreCompact write follows a backstop injection and leaves
     `lastTurn`, `lastInjectionUtc` and `characters` intact. SessionStart seeds
@@ -1983,6 +2399,15 @@ exists only in sessions started while a registration file exists.
     a stale PostToolUse write with a newer PreCompact never loses the newer
     compaction; no calibration hook rewrites the session clock file; neither
     hook emits `decision` or exits `2` *(A12)*.
+    `lastInjectionUtc` is seeded from the moment of the injection, proved by a
+    test in which a resumed session whose recorded start is hours old makes no
+    re-send on its first tool call. The calibration step runs outside the lock,
+    and a compaction counted during it is answered by the next call, not by the
+    call in flight. A due re-send that yields no sentence records the state as
+    though it had injected and emits nothing, proved by a test in which an
+    opted-out entry leaves `lastTurn` and `lastInjectionUtc` advanced and
+    `characters` unchanged. Both bounds are tested before the send, so a
+    session receives at most the bound plus one sentence *(A14, A18)*.
 11. The registration file exists exactly while an entry is on and rates at
     least one area. A file this writer creates matches the shipped template
     byte for byte, and the next writer replaces an owned file from an earlier
@@ -2027,13 +2452,17 @@ exists only in sessions started while a registration file exists.
     reconciles the registration before removing any file, and stops with the
     file named when it cannot.
 20. The latency levels hold on Prox1 and RAANDREE3 per the Meter as amended:
-    frozen reference scripts as the unit, 20 paired replicates in rotated
-    order, inclusive thresholds, and a verdict above Budget or Fail reproduced
-    in a second run. The re-baseline rule is applied once and its Budget, Fail,
-    the reference script's hash, and its own milliseconds per machine and spawn
-    are recorded in Decision record 0028. The unit transfer check passes. The
-    two-entry cell, the push guard, and every cell's absolute milliseconds are
-    reported *(A9, A10, A11)*.
+    the frozen reference as the unit, 20 paired replicates in rotated order,
+    inclusive thresholds, and a verdict above Budget or Fail reproduced in a
+    second run. The re-baseline rule is applied once, per tag, and each tag's
+    `w`, Budget, Fail, the reference's composite hash, its own milliseconds per
+    machine and spawn, and the run-to-run spread are recorded in Decision
+    record 0028. No run reports `unit unmeasurable`. The unit transfer check
+    passes for `SessionStart.AddedLatency`; where it fails for
+    `PostToolUse.CallLatency`, that tag carries no ratio Budget, is gated on
+    its absolute stop line, and the failing numbers are recorded. The
+    two-entry cell, the inject path, the push guard, and every cell's absolute
+    milliseconds are reported *(A9, A10, A11, A16, A17)*.
 21. Eval: `Calibration.Persistence` 100 % pass^3 at each Position, over a set
     of at least 6 cases per Position with at least 3 `real-derived` and at
     least one case per Familiarity level, every case carrying its provenance;
@@ -2054,9 +2483,12 @@ exists only in sessions started while a registration file exists.
 25. Every script that derives the session clock path (SessionStart, Stop,
     PreCompact, PostToolUse, and the elapsed reader) derives the same path for
     one shared fixture set.
-26. The frozen reference script's bytes are pinned by a test, and a change to
-    them fails that test until both latency tags are re-baselined in the same
-    commit *(A9)*.
+26. Every file of the frozen reference — the driver, the frozen reader copy,
+    and the fixture — is covered by one pinned composite hash; a change to any
+    of them fails `tests/CalibrationMeter.Tests.ps1`, and the Meter refuses to
+    run until both latency tags are re-baselined in the same commit. The frozen
+    reader copy is bound by no drift test to the shipped reader; its header
+    records why, and the Meter is its only consumer *(A9, A17)*.
 27. `Context.SessionBudget` holds: a fixture driving a session past 12,000
     characters proves that backstop re-sends stop and compaction re-sends do
     not, and a fixture driving it past 60,000 proves that neither kind is
@@ -2070,6 +2502,14 @@ exists only in sessions started while a registration file exists.
 29. The reported cells are produced and recorded: the inject path's own time in
     the new unit and in milliseconds, per machine and spawn, beside the common
     path's *(A12, A11)*.
+30. The delivery matrix records, per host inside the promise, whether the
+    session clock's `turns` advances between turns, with the observed value.
+    Where a host's clock is readable and its `turns` never advances, the grace
+    fallback is built and proved in both editions by a test in which a clock
+    frozen at `turns = 0` arms the time leg once the recorded `startedUtc` is
+    more than 30 minutes old and does not arm it before; where no such host is
+    found, the fallback is absent and the matrix records the per-host values
+    that decided it *(A14)*.
 
 ## Open questions
 
@@ -2081,7 +2521,7 @@ exists only in sessions started while a registration file exists.
 | TBD-4 | Gates for the offer and safety eval groups | Resolved at sign-off: equal to `Calibration.Persistence` | Measurement only |
 | TBD-5 | Closed: **no.** The reader's cold cost does not scale with the launch cost across machines. A9 retires the launch unit | — | Closed by the RAANDREE3 run |
 | TBD-6 | Does the frozen reference script's cold cost scale across machines and spawns the same way the calibration step's does? | software-engineer, the re-baseline run, step 5 of the rule | Whether the new unit cancels machine speed; if not, back to software-architect |
-| TBD-7 | Does `turns` advance in every host that runs the Stop hook? | software-engineer, measured in the delivery matrix | Whether VS Code Local recovers within one turn or within 5 minutes |
+| TBD-7 | Does `turns` advance in every host inside the promise? Measured per host, with the observed value recorded | software-engineer, measured in the delivery matrix | Whether the backstop fires at all in that host. A host whose clock is readable and whose `turns` never advances receives no backstop today; finding one builds the grace fallback *(A14)*. Measured so far: the SDK-runtime agent host advanced `turns` to 2 between turns on 2026-10-07; VS Code Local is unmeasured |
 | TBD-8 | Where does the private eval kit live, and does it satisfy the working-tree refusal? | software-engineer, recorded before the persistence set is rebuilt | Whether chat excerpts can reach a repository |
 
 Delegated answers: none.
@@ -2132,6 +2572,25 @@ independent review of the draft folded in. The reasons are under
 | A13 | `Calibration.Persistence`: Meter, Limitation; criterion 21; new criterion 28; Open questions: TBD-8 added |
 | A9 to A13 | Durable choices and their reversibility; Delivery increments: the build order for implementation |
 
+Amendment 3, 2026-10-07: rulings A14 to A18, answering the four questions
+implementation returned while building Amendment 2 and confirming the six
+choices it made within the text. A17 withdraws A9's sizing of the frozen
+reference on measurement that falsified both of its premises. The repository
+owner answered the six decisions the architect round put to them with the
+recommended answers, and delegated none of them with `not sure, you pick`. No
+independent review was commissioned, because no ruling introduces or alters an
+attack surface. The reasons are under *Rulings, 2026-10-07, second pass* in the
+Confirmation.
+
+| Ruling | Passages amended |
+|---|---|
+| A14 | Failure modes: the frozen-`turns` row and the writable-clock row; Outputs: the conditional grace fallback; criterion 10; new criterion 30; Open questions: TBD-7 |
+| A15 | Failure modes: the 60,000 row; Outputs: the bounds bullet; `Context.SessionBudget`: Budget, Fail |
+| A16 | The re-baseline rule: step 2; `SessionStart.AddedLatency` and `PostToolUse.CallLatency`: Budget; criterion 20 |
+| A17 | The frozen reference script, replaced by the frozen reference; the re-baseline rule: steps 5 and new 8; `SessionStart.AddedLatency`: Assumption, Risk; `PostToolUse.CallLatency`: Budget, Fail, Assumption; criteria 20 and 26; Delivery increments 7.3 |
+| A18 | Outputs: seeding, the lock ordering, the due re-send that yields nothing, the field-pattern reads, the bounds; `Context.SessionBudget`: Budget, Fail; criterion 10 |
+| A14 to A18 | Durable choices and their reversibility; Delivery increments: new item 8 |
+
 ## Sign-off
 
 - [x] The user read this document end to end.
@@ -2150,5 +2609,15 @@ Amendment 2:
 - [x] The repository owner read the amendment end to end.
 - [x] The repository owner accepted rulings A9 to A13, choosing
   "Accept all four (Recommended)" for the four decisions behind them.
+- [x] The repository owner signed it off in chat on 2026-10-07, relayed through
+  `software-engineer`, which dispatched `software-architect` to record it.
+
+Amendment 3:
+
+- [x] The repository owner read the summary relayed in chat: each ruling, the
+  six decisions with their reasons, alternatives, and undo cost, and the two
+  engineer additions folded into A17 and A18.
+- [x] The repository owner accepted rulings A14 to A18 and answered the six
+  decisions the architect round put to them with the recommended answers.
 - [x] The repository owner signed it off in chat on 2026-10-07, relayed through
   `software-engineer`, which dispatched `software-architect` to record it.

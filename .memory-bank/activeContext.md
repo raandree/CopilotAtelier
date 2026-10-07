@@ -9,26 +9,27 @@ source: current task evidence
 
 ## Current focus
 
-Decision 0028 **Amendment 2, steps 7.1 and 7.2, is built** on
-`ai/calibration-phase-2` (2026-10-07), test-first: the frozen reference script
-(4,002 nodes, SHA-256 `269b070a…d798`, pinned in `Get-CalibrationMeterBudget`),
-the amended Meter (reference, inject-path, and armed common-path cells, step
-milliseconds, stop lines, `unit unmeasurable`), and the A12 backstop re-send in
-the three calibration hooks, which share verbatim state helpers that keep all
-five fields and record before they emit. Criteria 10, 14, 26, and 27 have
-tests in both editions; the full gate passed 3,138 tests once Decision 0028's
-`status` was `accepted` again (`61ce515` had broken it). The Prox1 half of the
-re-baseline ran and stopped on the unit (Confirmation, *Amendment 2
-implemented*): through the launcher the reference script costs about 80 ms,
-not the intended 280 ms, and one VS Code replicate in 20 lost it to launch
-jitter, so that run has no ratio; both stop lines are clear (at most 550 ms and
-232 ms). Four questions went to `software-architect` in the Confirmation; the
-fourth, resizing the reference script, blocks step 3. The one-process launcher
-(A11) is open work in `progress.md`, because Decision records here are
-accepted or superseded.
+Decision 0028 **Amendment 3 (A14 to A18) is signed off and built** on
+`ai/calibration-phase-2` (2026-10-07). The owner accepted all six recommended
+answers: the reader-shaped frozen reference (A17), one `w` per tag (A16), the
+`turns` and `Get-` corrections (A14, A15), the conditional 30-minute grace
+fallback, and the six implementation choices (A18). `tests/Fixtures/ReferenceHook/`
+holds the driver, a frozen reader copy, and a one-entry fixture under one
+composite pin (`30fb3229…9c79`); the old 4,002-node script is gone. The Prox1
+half of step 7.3 ran under it (Confirmation, *Amendment 3 implemented*): unit
+433 to 435 ms (VS Code) and 348 to 362 ms (SDK), no lost replicate, spread at
+most 1.16, both stop lines clear. Across editions the unit tracks the
+SessionStart step within 3 % and the PostToolUse common path only within 33 %,
+an early sign that step 5's no-Budget outcome may apply to that tag. Amendment 2
+steps 7.1 and 7.2 (the backstop, `23a861a`) stay as built. The one-process
+launcher (A11) is open work in `progress.md`.
 
 ## Previous focuses
 
+- **Amendment 2 steps 7.1 and 7.2 (`23a861a`, `e15a123`).** The A12 backstop in
+  the three calibration hooks and the first Meter cells; the full gate passed
+  3,138 tests. The first Prox1 run stopped on an 80 ms straight-line unit,
+  which Amendment 3 replaced.
 - **Amendment 2 rulings (`61ce515`).** A9 to A13, signed off 2026-10-07: frozen
   reference scripts, the two verdicts withdrawn, per-machine Consequences, the
   bounded backstop, and derived plus reviewed synthetic persistence cases.
@@ -153,21 +154,21 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. `software-architect` answers the four questions in Decision 0028's
-   Confirmation (*Amendment 2 implemented*). Question 4, resizing the frozen
-   reference script to its intended 280 ms, blocks the re-baseline: do not run
-   the Meter on RAANDREE3 before it is ruled. Then `software-engineer` resizes
-   and re-pins the script, reruns the Meter twice on Prox1, and the owner runs
-   it twice on RAANDREE3
-   (`pwsh -Command "& tests/Fixtures/Measure-CalibrationLatency.ps1 | Format-Table -AutoSize"`);
-   the re-baseline rule then sets Budget and Fail from both machines (TBD-6
-   transfer check, both stop lines), written into `Get-CalibrationMeterBudget`
-   and the record in one commit. Then the VS Code Local backstop cell and its
-   manual compaction (criterion 22, TBD-7), and A13 (TBD-8, owner review,
-   approval and budget before any paid eval). Never set the summarization
-   threshold below about 1.3 times the base prompt (*Compactions*). Redeploy
-   `main` on Prox1 with `Setup-CopilotSettings.ps1` once the owner closes the
-   checks.
+1. The owner runs the amended Meter twice on RAANDREE3, on the branch as
+   committed, from the repository root:
+   `pwsh -Command "& tests/Fixtures/Measure-CalibrationLatency.ps1 | Format-Table -AutoSize"`
+   (two runs by default, about 18 minutes; it refuses to run if the reference
+   pin moved). Then `software-engineer` applies the re-baseline rule: one `w`
+   per tag across both machines and spawns, the transfer check per tag (TBD-6;
+   a failure for `PostToolUse.CallLatency` leaves that tag on its 400 ms stop
+   line, a failure for `SessionStart.AddedLatency` returns to
+   `software-architect`), both stop lines, and the spread, written into
+   `Get-CalibrationMeterBudget` and the record in one commit. Then the VS Code
+   Local backstop cell and its manual compaction (criterion 22, TBD-7, which
+   decides the grace fallback), and A13 (TBD-8, owner review, approval and
+   budget before any paid eval). Never set the summarization threshold below
+   about 1.3 times the base prompt (*Compactions*). Redeploy `main` on Prox1
+   with `Setup-CopilotSettings.ps1` once the owner closes the checks.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.
 3. Optional: report upstream that the GitHub hooks reference describes the

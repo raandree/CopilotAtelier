@@ -18,6 +18,13 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-07**: Signed off and built Decision 0028 Amendment 3
+  (`software-architect` drafted and recorded A14 to A18; the owner accepted
+  all six recommended answers; `software-engineer` built A17 and A18
+  test-first). The unit is now a reader-shaped frozen reference under one
+  composite pin; the Prox1 Meter under it lost no replicate, spread at most
+  1.16, both stop lines clear. RAANDREE3 runs next, by the owner.
+
 - **2026-10-07**: Built Decision 0028 Amendment 2 steps 1 and 2 test-first
   (`software-engineer`): the frozen reference script and amended Meter (A9),
   and the backstop re-send in the three calibration hooks (A12), criteria 10,
@@ -47,21 +54,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   files now state its version. Both gaps returned to `software-architect`
   (questions 4 and 5).
 
-- **2026-10-06**: Recorded the RAANDREE3 latency Meter and criterion 22's
-  manual compactions in Decision 0028: criterion 20 is not met, with one cell
-  over Budget and within Fail on each machine; TBD-5 is answered no, because
-  RAANDREE3's VS Code launch costs 2.4 times Prox1's; Copilot CLI re-sends the
-  levels after `/compact`, and VS Code Local cannot. Returned to
-  `software-architect` (second round).
-
-- **2026-10-06**: Addressed the open Phase 2 issues (`software-engineer`): an
-  independent `security-reviewer` pass of `main...b7e6502` found five Low
-  issues and six test gaps, all fixed test-first (red, then green); both
-  reported `Calibration.Delivery` cells are measured in the SDK runtime and
-  Copilot CLI (8 of 8); the branch is deployed on Prox1 for criterion 22's
-  manual compactions; criterion 21's runner, preview, and draft cases are
-  ready in the private kit, with no paid run.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -87,15 +79,13 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Contributor calibration, Decision 0028 Amendment 2: `software-architect`
-  answers four questions recorded in the Confirmation (the never-advancing
-  `turns` failure mode, `Get-` reporting above 60,000, one `w` or one per tag,
-  and resizing the reference script); the fourth blocks the re-baseline, so no
-  RAANDREE3 Meter run before it. Then the re-baseline on both machines (TBD-6
-  transfer check, both stop lines); one manual compaction in VS Code Local
-  proves the backstop within one turn (criterion 22, TBD-7); A13 rebuilds the
-  persistence set (TBD-8, owner review of synthetic cases, approval and budget
-  before any paid eval).
+- Contributor calibration, Decision 0028: the owner runs the amended Meter
+  twice on RAANDREE3; then the re-baseline rule, one `w` per tag across both
+  machines (TBD-6 transfer check per tag, both stop lines, the spread); one
+  manual compaction in VS Code Local proves the backstop within one turn and
+  measures TBD-7, which decides the grace fallback (criteria 22 and 30); A13
+  rebuilds the persistence set (TBD-8, owner review of synthetic cases,
+  approval and budget before any paid eval).
 - One-process `windows` launcher (ruling A11): separate work against Decision
   0016, kept here because Decision records here are accepted or superseded.
   Adopt only if `tests/HookLauncher.Tests.ps1` passes unchanged (`cmd.exe`,
