@@ -21,8 +21,11 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - **2026-10-07**: VS Code Local runs no PreCompact for a background
   compaction either (Copilot Chat 0.68.0), found when a 70,000-token threshold
   set for the retest made one prompt loop through 2,001 requests and 99
-  compactions; the threshold is removed. RZ1VPFWEB200's 475 messages hold no
-  level statement. Both returned to `software-architect` (questions 4 and 5).
+  compactions; the threshold is removed. VS Code's agent host (SDK runtime)
+  re-sent the levels after each of three automatic compactions, and the model
+  noticed them unprompted. RZ1VPFWEB200's 475 messages hold no level
+  statement; the private finder's files now state its version. Both gaps
+  returned to `software-architect` (questions 4 and 5).
 
 - **2026-10-06**: Recorded criterion 22's manual compactions in Decision 0028:
   Copilot CLI re-sends the levels after `/compact` with a real model; VS Code

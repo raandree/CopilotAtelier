@@ -19,7 +19,8 @@ working-tree guard). The two reported `Calibration.Delivery` cells are measured
 in the SDK runtime and Copilot CLI. Criterion 22's manual compactions ran on
 Prox1 in `C:\Users\install\Documents\calibration-check` (branch deployed): the
 CLI passes; VS Code Local cannot show it, as Copilot Chat 0.68.0 runs no
-PreCompact hook for a manual or a background compaction.
+PreCompact hook for a manual or a background compaction. VS Code's agent host
+re-sent the levels after three automatic compactions, and the model saw them.
 Criterion 21's unpaid groundwork sits in the private kit: the runner's `arms`
 and `profile` fields and `Preview` mode, `evals-phase2.json` (8 draft cases),
 and `evals-phase1-guard.json`. Criterion 20 is not met and is back with

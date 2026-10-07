@@ -148,7 +148,7 @@ Still open, and not decided in code:
 |---|---|
 | 20 | Not met: one gated cell over Budget and within Fail on each machine, reproduced (Prox1: SessionStart with one entry in VS Code's spawn; RAANDREE3: PostToolUse in the SDK host's spawn), and TBD-5 answered no; returned to `software-architect` (*Returned to software-architect, second round*) |
 | 21 | Not run: the private kit's Phase 2 runner and draft cases are ready, but no machine yields 6 real level restatements per Position (question 5 of the second round); runs are paid |
-| 22 | Copilot CLI passes with a real model; VS Code Local is not demonstrated, because Copilot Chat 0.68.0 runs no PreCompact hook for a manual `/compact` or a background compaction (*Manual compactions*); the plugin-install and no-tool-call cells are measured (*Reported delivery cells*) |
+| 22 | Copilot CLI passes with a real model; VS Code Local is not demonstrated, because Copilot Chat 0.68.0 runs no PreCompact hook for a manual `/compact` or a background compaction; VS Code's agent host re-sent the levels after each of three automatic compactions (*Compactions*); the plugin-install and no-tool-call cells are measured (*Reported delivery cells*) |
 
 ### Latency Meter, 2026-10-06 on Prox1
 
@@ -459,7 +459,7 @@ no-op read p95 2,424 ms against p50 1,973.
 
 ### Returned to software-architect, second round
 
-Five results go back, the last two from the manual compactions and the eval
+Five results go back, the last two from the compaction checks and the eval
 preparation; none is redesigned in code.
 
 1. **The launch unit does not transfer across machines (TBD-5).** Options: keep
@@ -484,25 +484,27 @@ preparation; none is redesigned in code.
    the cross-shell guarantees of `tests/HookLauncher.Tests.ps1`; or fallback A
    for VS Code only.
 4. **VS Code Local runs no PreCompact hook for a manual or a background
-   compaction** (*Manual compactions*), only on its rare foreground fallback.
+   compaction** (*Compactions*), only on its rare foreground fallback.
    The Purpose promises levels after a compaction in module and Setup
-   installs; in VS Code Local that does not hold in practice. Options: report
-   it as a measured gap, like a reply that makes no tool call, and ask VS Code
-   to run PreCompact on every compaction; or detect a compaction from VS Code's
-   chat-session storage, which is undocumented. The engineer recommends the
-   first.
+   installs; in VS Code Local that does not hold in practice. VS Code's agent
+   host, which runs the SDK runtime, does run it and re-sends, so the gap is
+   VS Code Local's alone. Options: report it as a measured gap, like a reply
+   that makes no tool call, and ask VS Code to run PreCompact on every
+   compaction; or detect a compaction from VS Code's chat-session storage,
+   which is undocumented. The engineer recommends the first.
 5. **`Calibration.Persistence` cannot be measured from real restatements.**
-   Its Meter needs at least 6 per Position, mined from real restatements. The
-   full histories of Prox1 (619 user messages) and RZ1VPFWEB200 (475) hold no
-   level statement, with the finder extended to flag them; RAANDREE3's full
-   history was searched only before that extension, and its approved Phase 1
-   cases hold three, two of them in one area. Phase 2
+   Its Meter needs at least 6 per Position, mined from real restatements.
+   Prox1's full history (619 user messages) holds no level statement, with the
+   finder extended to flag them. RZ1VPFWEB200's (475) held none in a run 18
+   minutes after the extension, though its files cannot prove the finder
+   version; RAANDREE3's full history was searched only before the extension,
+   and its approved Phase 1 cases hold three, two of them in one area. Phase 2
    itself removes the need to restate. Options: accept persistence cases
    derived from real cases, with the stated level moved into the profile
    sentence; accept owner-reviewed synthetic cases; or lower the count. The
    engineer recommends derived cases, topped up with reviewed synthetic ones.
 
-### Manual compactions, 2026-10-06 on Prox1
+### Compactions, 2026-10-06 on Prox1
 
 The owner ran the check in a scratch workspace that declares Kerberos and
 PowerShell DSC, with the branch deployed through Setup and a one-entry profile
@@ -536,6 +538,20 @@ rating both.
   background compaction runs or waits, as when a single tool result pushes the
   context from under 78 % past 100 %. No realistic check exercises it. Never
   set the threshold below about 1.3 times the base prompt.
+- **VS Code's agent host on the SDK runtime (session `b35a8857`,
+  `client_name: vscode-agent-host`, a real model): re-sends after every
+  automatic compaction.** Asked to read every Memory Bank file and a large
+  folder in full, the session reached 169,186 to 179,511 of 200,000 tokens
+  three times. Each time the runtime ran PreCompact (`trigger: auto`) as the
+  compaction started, which wrote a checkpoint, and the first tool call
+  afterwards re-sent the levels; later calls added nothing, and the state file
+  ends at three compactions and three re-sends. The runtime summarizes in the
+  background while the agent keeps calling tools, so two of the re-sends came
+  before their compaction finished. They survived it: four minutes after the
+  second compaction finished, the agent remarked unprompted that the hook had
+  re-sent Kerberos `new` and PowerShell DSC `expert` after the compaction,
+  which neither that compaction's summary nor any file it had read stated. The
+  compactions were automatic, where criterion 22 names a manual one.
 
 ### Reported delivery cells, 2026-10-06 on Prox1
 
