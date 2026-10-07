@@ -19,7 +19,7 @@ working-tree guard). The two reported `Calibration.Delivery` cells are measured
 in the SDK runtime and Copilot CLI. Criterion 22's manual compactions ran on
 Prox1 in `C:\Users\install\Documents\calibration-check` (branch deployed): the
 CLI passes; VS Code Local cannot show it, as Copilot Chat 0.68.0 runs no
-PreCompact hook for a manual `/compact`, only for an automatic compaction.
+PreCompact hook for a manual or a background compaction.
 Criterion 21's unpaid groundwork sits in the private kit: the runner's `arms`
 and `profile` fields and `Preview` mode, `evals-phase2.json` (8 draft cases),
 and `evals-phase1-guard.json`. Criterion 20 is not met and is back with
@@ -154,20 +154,19 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. `software-architect` rules on the second-round return of Decision 0028:
-   the launch unit (TBD-5), criterion 20's two over-Budget cells, the 2 s
-   per-call cost in VS Code on RAANDREE3, and VS Code Local's missing
-   PreCompact for a manual compaction. Criterion 22's VS Code Local retest is
-   set up: the scratch workspace sets
-   `github.copilot.chat.summarizeAgentConversationHistoryThreshold` to 70,000
-   tokens to force an automatic compaction; after it, redeploy `main` on Prox1
-   with `Setup-CopilotSettings.ps1`. For criterion 21, the private finder now
-   also flags level statements (strength `level`, 60 self-checks), but Prox1's
-   whole history holds none and RAANDREE3 had no candidate since 2026-09-30;
-   mine a heavily used machine's full history, replace the derived persistence
-   stand-ins with at least 6 real restatements per Position, add grader
-   fixtures, define the offer and safety groups (the Decision names them only),
-   and get the owner's approval and budget before any paid run.
+1. `software-architect` rules on the second-round return of Decision 0028
+   (five questions): the launch unit (TBD-5), criterion 20's two over-Budget
+   cells, the 2 s per-call cost in VS Code on RAANDREE3, VS Code Local running
+   no PreCompact for a manual or background compaction, and persistence cases
+   that no machine's history can supply. The 70,000-token threshold in the
+   scratch workspace caused a compaction loop (2,001 requests, 99 background
+   summarizations) and is removed; never set it below about 1.3 times the base
+   prompt. Redeploy `main` on Prox1 with `Setup-CopilotSettings.ps1` once the
+   owner closes the checks. For criterion 21, RAANDREE3's full history still
+   needs a run of the extended finder; then build the persistence cases as
+   ruled, add grader fixtures, define the offer and safety groups (the
+   Decision names them only), and get the owner's approval and budget before
+   any paid run.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.
 3. Optional: report upstream that the GitHub hooks reference describes the

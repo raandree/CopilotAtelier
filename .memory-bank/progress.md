@@ -18,6 +18,12 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-07**: VS Code Local runs no PreCompact for a background
+  compaction either (Copilot Chat 0.68.0), found when a 70,000-token threshold
+  set for the retest made one prompt loop through 2,001 requests and 99
+  compactions; the threshold is removed. RZ1VPFWEB200's 475 messages hold no
+  level statement. Both returned to `software-architect` (questions 4 and 5).
+
 - **2026-10-06**: Recorded criterion 22's manual compactions in Decision 0028:
   Copilot CLI re-sends the levels after `/compact` with a real model; VS Code
   Local cannot, because Copilot Chat 0.68.0 runs no PreCompact hook for a
@@ -57,17 +63,8 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   Handed back to `software-engineer`.
 
 - **2026-10-06**: Implemented Decision 0028 test-first on `ai/calibration-phase-2`
-  (`dc6c26a` to `b026161`, `software-engineer`): the spike TBD-1, the profile
-  core and five commands, the SessionStart sentence, re-injection after a
-  compaction, Uninstall reconciliation, and the offers. The SDK delivery probe
-  passes in both runtimes. The latency Meter fails SessionStart.AddedLatency on
-  Prox1 (+349 to +380 ms p95) and misses PostToolUse.CallLatency, so five
-  questions went back to `software-architect`. Fixed a test leak of a
-  calibration state file into the real per-user data folder. Full gate 2,987
-  passed, 0 failed.
-
-- **2026-10-06**: Signed off the contributor calibration Phase 2 Design Concept
-  as Decision 0028 (`software-architect`, 26 questions, all twelve categories).
+  (`dc6c26a` to `b026161`, `software-engineer`), after its sign-off the same
+  day; five Meter questions went back to `software-architect`.
 
 ## Stable capabilities
 
