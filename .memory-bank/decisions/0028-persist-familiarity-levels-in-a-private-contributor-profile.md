@@ -1591,6 +1591,108 @@ and Copilot CLI 1.0.92. Its summary lists 15 warnings from the Meter tests'
 simulated crashes, 10 of them from the new tests, because Invoke-Build records
 `Write-Warning` even under `-WarningAction SilentlyContinue`.
 
+### The persistence set and its eval (A13), 2026-10-08 on Prox1
+
+Step 7.6 of the delivery increments. `software-engineer` rebuilt the set in
+the private eval kit and ran it; this record receives counts, rates, costs, and
+the kit's location only, and the full account stays in the kit's
+`notes-evals.md`.
+
+**TBD-8: the kit lies outside every git working tree.** It lives at
+`C:\Users\install\Documents\CopilotAtelier-private\calibration` on Prox1.
+`Test-ContributorPathInsideRepository -ResolveLinks`, dot-sourced from the
+working tree's reader (SHA-256 `FC410C13…53AC`), returned false for every file
+and folder of the kit: 843 paths before the rebuild, 1,314 after the run. The
+same call returned true for a file of this repository, and for a temporary
+junction into it only with `-ResolveLinks`. Neither the kit nor an ancestor
+holds a `.git` or a reparse point, `git rev-parse` exits 128 there, and
+`Documents` is not redirected to OneDrive. The kit's verifier repeats the check
+on every run.
+
+**The set.** At each Position, 6 persistence cases, 3 `real-derived` and 3
+`synthetic-reviewed`, covering `new`, `familiar`, and `expert`; with 2 offer
+and 2 safety cases, 16 cases. The 3 real-derived cases come from the 3
+restatements of the RAANDREE3 version 2 finder run that state a level, each
+case serving both Positions; one shares its source with an approved Phase 1
+case and counts once in each set. A real-derived case carries only an
+HMAC-SHA256 digest under a salt that stays in the kit, and the finder's own
+redaction step changed none of the 3 derived messages. One source message was
+stored cut at the finder's 400-character limit; the owner chose to end its
+derived message at the last complete sentence. The owner reviewed the 10
+synthetic cases in chat on 2026-10-08 and approved them as shown. The kit's
+verifier passes 94 of 94 checks — provenance shape, digest re-derivation, the
+counts, no history name, path, session identifier, or source message text, the
+redaction step, and the working-tree refusal — and its negative controls catch
+7 of 7 injected violations.
+
+**Method.** `claude-opus-5` replies, K = 3, the arms run at the same time as
+four processes, with frozen regex graders and the pinned `gpt-5.5` judge,
+version 1, 3 votes. Two runner corrections preceded the freeze. After a
+compaction both arms now receive the summary and the tool result, so the
+re-sent sentence is the only difference; Preview showed 8 prompts changed and
+16 byte-identical. The Phase 2 set ran with an 8,000-token output limit,
+because all 8 pilot replies of its longest case ended on 3,000; the guard
+kept 3,000, as in Phase 1. The pilot, K = 2 on the Phase 2 set and not
+counted, checked the 8 new checks against 64 replies; 6 grader errors were
+fixed the same way in both arms and frozen as fixtures before the run.
+
+**Results, frozen graders:**
+
+| Gate | With the sentence | Without | Verdict |
+|---|---|---|---|
+| `Calibration.Persistence`, session start | 4 of 6 cases at pass^3; 15 of 18 samples, 83.3 % | 66.7 % | Fail |
+| `Calibration.Persistence`, after a compaction | 5 of 6 cases; 17 of 18 samples, 94.4 % | 66.7 % | Below Goal, not Fail |
+| Offer group (TBD-4) | 2 of 2 cases; 6 of 6 samples | 50.0 % | Goal met |
+| Safety group (TBD-4) | 2 of 2 cases; 6 of 6 samples | 100 % | Goal met |
+| `Calibration.PhaseOneGuard` | 50 of 51 | 50 of 51 | Fail |
+
+The judge graded the 12 replies of the guard's two judged cases with 36 votes,
+all unanimous passes; every quoted passage occurs in its reply and meets its
+rubric on reading, so there are 0 judge disagreements. One call was blocked by
+the content filter and answered on retry. Cost: pilot 2.33 USD, Phase 2 run
+4.58, guard run 2.89, judge 0.39; 10.19 USD in all, for 264 `claude-opus-5`
+calls and 36 `gpt-5.5` votes.
+
+**Every failing reply, read.** Of the 4 persistence failures with the
+sentence, 3 meet their case's stated check on reading: the frozen pattern
+missed definitions written as glosses without an article. The fourth exceeds
+its case's 3,000-character ceiling while teaching no basics. The guard's
+failure with the sentence, and the one without it in another case, both meet
+their stated check on reading; the frozen Phase 1 graders missed the wording.
+Read that way, persistence scores 17 of 18 at session start and 18 of 18 after
+a compaction, and the guard 51 of 51, still below the Goal at session start.
+The verdicts in the table stand: the Meter prescribes the frozen graders, and
+nothing was re-graded or re-run after the freeze.
+
+Criterion 28 is met, and TBD-8 is closed. Criterion 21 is not met; it returns
+to `software-architect` below.
+
+### Returned to software-architect, third round
+
+1. **The semantic regex checks cannot carry a 100 % pass^3 Goal.** Within one
+   day the check for a `new`-level definition in one real-derived case failed
+   both ways: the pilot's pattern passed sentences that define nothing, and the
+   stricter frozen pattern missed three real definitions. Options: a pinned
+   judge rubric per Familiarity level row for the persistence group,
+   calibrated against owner labels on this run's 72 persistence replies,
+   before a fresh run; a fixed-criteria read of every failing sample, written
+   before the run and made part of the Meter; or the regex widened by this
+   run's misses and a fresh run. The engineer recommends the judge, because the
+   check is semantic.
+2. **`Calibration.PhaseOneGuard`'s Fail at 51 of 51 measures the grader's miss
+   rate.** The frozen Phase 1 graders dropped one valid reply in each arm of
+   the same run, with the sentence and without it. Options: keep 51 of 51 and
+   add a fixed-criteria read of each failure; or gate on non-inferiority to the
+   concurrent arm without the sentence, here 50 of 51 against 50 of 51. The
+   engineer recommends non-inferiority plus the read, because the guard asks
+   whether the sentence harms Phase 1 behavior.
+3. **One synthetic `expert` case no longer separates `expert` from the
+   `familiar` default.** Its expert replies ran only about 20 % shorter than
+   the default, so its check now rejects a beginner pitch and a reply over
+   3,000 characters, and one expert reply ran 3,405. The other `expert` case
+   separates the levels clearly. Options: name it as a limitation, or give the
+   case the judge of item 1.
+
 ## Signed-off Design Concept
 
 Signed off by the repository owner in chat on 2026-10-06, after an interview
@@ -2880,7 +2982,7 @@ exists only in sessions started while a registration file exists.
 | TBD-5 | Closed: **no.** The reader's cold cost does not scale with the launch cost across machines. A9 retires the launch unit | — | Closed by the RAANDREE3 run |
 | TBD-6 | Closed: **yes, per tag.** The reader-shaped frozen reference's cold cost scales across Prox1 and RAANDREE3 the way both gated steps do, within 1.01 to 1.16 times through both spawns, on 2026-10-08 | — | Closed by the re-baseline run, step 5 of the rule |
 | TBD-7 | Closed: **yes.** `turns` advances between turns in every host inside the promise: VS Code Local to 3 over three turns on Copilot Chat 0.69.0, Copilot CLI 1.0.92 to 2, and VS Code's agent host to 1, 4, and 6, on 2026-10-06 to 2026-10-08. No host needs the grace fallback, so it is not built | — | Closed by the delivery matrix, *VS Code Local backstop and TBD-7* |
-| TBD-8 | Where does the private eval kit live, and does it satisfy the working-tree refusal? | software-engineer, recorded before the persistence set is rebuilt | Whether chat excerpts can reach a repository |
+| TBD-8 | Closed: **outside every working tree.** The kit lives at `C:\Users\install\Documents\CopilotAtelier-private\calibration` on Prox1. On 2026-10-08 `Test-ContributorPathInsideRepository -ResolveLinks` returned false for all 1,314 of its paths and true for a file of this repository and for a junction into it | — | Closed by *The persistence set and its eval (A13)* |
 
 Delegated answers: none.
 

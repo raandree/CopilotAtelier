@@ -9,21 +9,25 @@ source: current task evidence
 
 ## Current focus
 
-Decision 0028 **step 7.5 is done** (2026-10-08, Prox1, the owner at the
-keyboard). After the owner approved redeploying the branch head over
-`cacda62`, a new VS Code Local chat on Copilot Chat 0.69.0 (session
-`b74f6efc`) re-sent the levels with the backstop suffix on the first tool call
-after `/compact`; no PreCompact ran and `compactions` stayed 0, so criterion 22
-is met. TBD-7 is closed: `turns` advances in VS Code Local, Copilot CLI
-(session `3f1353ab`, which also re-proved the PreCompact re-send on the
-deployed head), and the agent host, so the grace fallback is not built and
-criterion 30 is met. `software-architect` ruled A19 (Amendment 4), signed off
-by the owner: the Meter's retry stays, a run with a failed launch in a measured
-replicate is evidence only, and a third failed launch in one run and spawn
-stops the Meter; built test-first. Still open: criteria 21 and 28 (A13).
+Decision 0028 **step 7.6 ran and returned to `software-architect`**
+(2026-10-08, Prox1; the owner authorized the spend and then left the decisions
+to `software-engineer`). TBD-8 is closed: the private eval kit lies outside
+every working tree. The persistence set was rebuilt under A13, 6 cases per
+Position (3 real-derived carrying only an HMAC digest, 3 synthetic-reviewed
+that the owner approved), and run as a pilot plus a frozen confirmatory run,
+10.19 USD. Criterion 28 is met. Criterion 21 is not met as measured:
+persistence 15 of 18 at session start (Fail) and 17 of 18 after a compaction,
+the guard 50 of 51 (Fail), offer and safety at their Goal. On reading, every
+miss but one is a grader false negative. Three questions wait in *Returned to
+software-architect, third round*: a pinned judge for the persistence checks,
+non-inferiority for the guard, and one non-discriminating `expert` case.
 
 ## Previous focuses
 
+- **Step 7.5, the VS Code Local backstop (`b05efe3`).** Copilot Chat 0.69.0
+  re-sent the levels with the backstop suffix on the first tool call after
+  `/compact`, with no PreCompact; TBD-7 closed in every host, so the grace
+  fallback is not built; criteria 22 and 30 met; A19 built test-first.
 - **Step 7.3, the levels (`3bef6b9`).** `SessionStart.AddedLatency` Budget
   2.0 and `PostToolUse.CallLatency` Budget 0.75, one `w` per tag; TBD-6
   closed; criteria 20, 26, and 29 met. The RAANDREE3 `FailFast` is a .NET
@@ -77,14 +81,6 @@ stops the Meter; built test-first. Still open: criteria 21 and 28 (A13).
 - **Plugin manifest rollover (`6367e68`, on `main`).** `Update_PluginManifest_Version`
   rewrites `plugin.json` before `Create_ChangeLog_GitHub_PR`, so a rollover no
   longer fails its own manifest guard (CI run 36549550887).
-- **Client-specific adapters (task 06, `288a4ad`).** VS Code profiles remain the
-  source; the adapter rewrites strictly parsed frontmatter through explicit
-  capability mappings, rejects unsupported grants, and preserves the body bytes.
-  CLI `review: on` and `cycle: full` are refused in the generated variant.
-  Neither client is runtime verified; authored cases sit in
-  `docs/client-adapter-evals.md`. Generated variants are undeployed artifacts
-  under `output/clientAdapters`, owned through a schema 2 manifest recording
-  SHA-256 that refuses an unowned or modified collision. Round 2: 121 passed.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 

@@ -18,6 +18,14 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-08**: Ran Decision 0028's A13 eval (`software-engineer`, Prox1, the
+  owner's review and spend approval in chat). TBD-8 closed; 6 persistence cases
+  per Position, 3 real-derived carrying only an HMAC digest. Frozen graders:
+  persistence 15 of 18 at session start (Fail), 17 of 18 after a compaction,
+  guard 50 of 51 (Fail), offer and safety at Goal; 10.19 USD. Criterion 28 met,
+  criterion 21 returned to `software-architect`; on reading, every miss but one
+  is a grader false negative.
+
 - **2026-10-08**: Proved Decision 0028's backstop live and answered TBD-7
   (`software-engineer`; the owner at the keyboard on Prox1, the branch head
   redeployed): in VS Code Local on Copilot Chat 0.69.0 the first tool call
@@ -49,15 +57,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   composite pin; the Prox1 Meter under it lost no replicate, spread at most
   1.16, both stop lines clear. RAANDREE3 runs next, by the owner.
 
-- **2026-10-07**: Built Decision 0028 Amendment 2 steps 1 and 2 test-first
-  (`software-engineer`): the frozen reference script and amended Meter (A9),
-  and the backstop re-send in the three calibration hooks (A12), criteria 10,
-  14, 26, and 27 tested in both editions; the full gate passed 3,138 tests
-  after Decision 0028's `status` was restored. The Prox1 Meter ran and stopped
-  on the unit: about 80 ms through the launcher, lost to jitter in one VS Code
-  replicate, with both stop lines clear. Four questions returned to
-  `software-architect`.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -83,9 +82,9 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Contributor calibration, Decision 0028: A13 rebuilds the persistence set
-  (TBD-8, owner review of synthetic cases, approval and budget before any paid
-  eval; criteria 21 and 28).
+- Contributor calibration, Decision 0028: criterion 21 waits on
+  `software-architect`'s third-round ruling (a pinned judge for the
+  persistence checks, non-inferiority for the guard), then a fresh run.
 - Lessons of the 2026-10-08 live check, handed off as Desktop prompt 03 to run
   on another machine on its own branch from `origin/main` (Pester 5.7.1,
   Copilot Chat 0.69.0): the detached Pester templates fail only on
