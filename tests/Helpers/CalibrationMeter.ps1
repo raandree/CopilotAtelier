@@ -1,12 +1,13 @@
 <#
     Arithmetic of the calibration latency Meter, Decision record 0028, rulings
-    A9, A10, A16, and A17. Latency counts in frozen references: every replicate
+    A9, A10, A16, A17, and A19. Latency counts in frozen references: every replicate
     runs each cell back to back in rotated order through the same launcher and
     spawn, a cell's time is taken net of the same replicate's no-op hook, and
     the unit is that replicate's frozen reference, a fixed calibration run with
     a frozen copy of the reader, net of the same no-op hook, so machine speed,
     shell edition, and load cancel to first order. Ratios are taken inside a
-    replicate before any percentile.
+    replicate before any percentile. A failed launch runs again once; a run
+    and spawn with one in a measured replicate is evidence only (A19).
     tests/Fixtures/Measure-CalibrationLatency.ps1 measures; tests/CalibrationMeter.Tests.ps1
     proves this file.
 #>
@@ -319,6 +320,43 @@ function Test-CalibrationMeterTransfer
     return [System.Math]::Round($spread, 9) -le 1.3
 }
 
+function Get-CalibrationMeterFailureCount
+{
+    <#
+        The failed launches recorded for one run and spawn (ruling A19). Every
+        one counts against the run budget of Invoke-CalibrationMeterLaunch,
+        warm-up replicates included; with -MeasuredOnly only those in measured
+        replicates count, and any of them makes that run and spawn evidence
+        only: it sets no w and decides no verdict.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Int32])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[System.Object]]
+        $Failure,
+
+        [Parameter(Mandatory = $true)]
+        [System.Int32]
+        $Run,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [System.String]
+        $SpawnHost,
+
+        [Parameter()]
+        [System.Management.Automation.SwitchParameter]
+        $MeasuredOnly
+    )
+
+    return @($Failure | Where-Object -FilterScript {
+            $_.Run -eq $Run -and $_.Host -eq $SpawnHost -and ($_.Measured -or -not $MeasuredOnly)
+        }).Count
+}
+
 function Invoke-CalibrationMeterLaunch
 {
     <#
@@ -326,9 +364,13 @@ function Invoke-CalibrationMeterLaunch
         Milliseconds, ExitCode, Output, and Error. A launch that exits
         non-zero measured no hook time, but its exit code and standard error
         are a finding, so each is recorded in Failure, warned about at once,
-        and run once more in the same position of the same replicate. A second
-        failure in a row stops the Meter, naming both exit codes and the last
-        standard error.
+        and run once more in the same position of the same replicate. Two
+        stops end the Meter: a second failure in a row, naming both exit codes
+        and the last standard error, and the third failed launch of one run
+        and spawn, whether or not two fell together (ruling A19). A record
+        carries Measured from the Context, true unless the Context says the
+        replicate is a warm-up; a failure in a measured replicate makes its
+        run and spawn evidence only (Get-CalibrationMeterFailureCount).
     #>
     [CmdletBinding()]
     [OutputType([System.Management.Automation.PSCustomObject])]
@@ -348,6 +390,7 @@ function Invoke-CalibrationMeterLaunch
         $Context
     )
 
+    $measured = if ($Context.Contains('Measured')) { [System.Boolean] $Context.Measured } else { $true }
     $failedAttempts = [System.Collections.Generic.List[System.Object]]::new()
     for ($attempt = 1; $attempt -le 2; $attempt++)
     {
@@ -369,6 +412,7 @@ function Invoke-CalibrationMeterLaunch
             Cell        = $Context.Cell
             Replicate   = $Context.Replicate
             Attempt     = $attempt
+            Measured    = $measured
             ExitCode    = $result.ExitCode
             ExitCodeHex = '0x{0:X8}' -f $result.ExitCode
             Error       = $errorText
@@ -377,6 +421,12 @@ function Invoke-CalibrationMeterLaunch
         $Failure.Add($record)
         $failedAttempts.Add($record)
         Write-Warning -Message ("Run {0}, {1} '{2}', replicate {3}, attempt {4}: exited {5}. {6}" -f $record.Run, $record.Host, $record.Cell, $record.Replicate, $attempt, $record.ExitCodeHex, $errorText)
+
+        $runFailure = @($Failure | Where-Object -FilterScript { $_.Run -eq $Context.Run -and $_.Host -eq $Context.Host })
+        if ($runFailure.Count -ge 3)
+        {
+            throw ("{0} run {1} reached {2} failed launches, the budget of ruling A19: {3}. Last standard error: {4}" -f $Context.Host, $Context.Run, $runFailure.Count, (($runFailure | ForEach-Object -Process { "'{0}' replicate {1} attempt {2} exited {3}" -f $_.Cell, $_.Replicate, $_.Attempt, $_.ExitCodeHex }) -join '; '), $errorText)
+        }
     }
 
     throw ("{0} '{1}' failed twice in run {2}, replicate {3}, exiting {4}. Last standard error: {5}" -f $Context.Host, $Context.Cell, $Context.Run, $Context.Replicate, (($failedAttempts | ForEach-Object -Process { $_.ExitCodeHex }) -join ' and '), $failedAttempts[-1].Error)

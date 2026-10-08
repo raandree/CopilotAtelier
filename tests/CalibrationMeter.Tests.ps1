@@ -1,13 +1,14 @@
 <#
     Arithmetic of the calibration latency Meter (Decision record 0028,
-    rulings A9, A10, A16, and A17): rotated cell order, ratios taken per
+    rulings A9, A10, A16, A17, and A19): rotated cell order, ratios taken per
     replicate in frozen references, nearest-rank percentiles, inclusive
     thresholds, the withdrawn launch-unit levels, the re-baseline rule and its
     unit transfer check, and the rule that a verdict above Budget or Fail
-    counts only when a second Meter run reproduces it. It also pins the frozen
-    reference, a driver with a frozen copy of the calibration reader and a
-    fixed fixture (criterion 26). The measurement itself runs only by hand:
-    tests/Fixtures/Measure-CalibrationLatency.ps1.
+    counts only when a second Meter run reproduces it; a failed launch's retry,
+    its two stops, and the failure count that makes a run evidence only. It
+    also pins the frozen reference, a driver with a frozen copy of the
+    calibration reader and a fixed fixture (criterion 26). The measurement
+    itself runs only by hand: tests/Fixtures/Measure-CalibrationLatency.ps1.
 #>
 
 BeforeDiscovery {
@@ -247,6 +248,70 @@ Describe 'Calibration Meter launch' -Tag 'Unit' {
         $failure[0].Error | Should -Not -Match '[\r\n]'
         $failure[0].Error.Length | Should -BeLessOrEqual 2000
         $failure[0].Error | Should -Match '\.\.\.\z'
+    }
+
+    It 'stops the Meter when a third launch fails in one run and spawn, even when no two fall together (A19)' {
+        $failure = [System.Collections.Generic.List[object]]::new()
+        $exitOne = [pscustomobject] @{ Milliseconds = 4.0; ExitCode = 1; Output = ''; Error = 'could not resolve the script' }
+        $accessViolation = [pscustomobject] @{ Milliseconds = 6.0; ExitCode = -1073741819; Output = ''; Error = 'access violation' }
+
+        $null = Invoke-CalibrationMeterLaunch -Launch (New-Launch -Measurement $script:crash, $script:success) -Failure $failure -Context @{ Run = 2; Host = 'SDK'; Cell = 'SessionStart, one entry'; Replicate = 3 } -WarningAction SilentlyContinue
+        $null = Invoke-CalibrationMeterLaunch -Launch (New-Launch -Measurement $exitOne, $script:success) -Failure $failure -Context @{ Run = 2; Host = 'SDK'; Cell = 'PostToolUse, inject path'; Replicate = 9 } -WarningAction SilentlyContinue
+
+        { Invoke-CalibrationMeterLaunch -Launch (New-Launch -Measurement $accessViolation, $script:success) -Failure $failure -Context @{ Run = 2; Host = 'SDK'; Cell = 'Push guard, benign tool'; Replicate = 15 } -WarningAction SilentlyContinue } |
+            Should -Throw -ExpectedMessage "*SDK*run 2*3 failed launches*0x80131623*0x00000001*0xC0000005*access violation*"
+        $failure.Count | Should -Be 3
+    }
+
+    It 'counts the run budget per run and spawn, so failures spread over others do not stop it (A19)' {
+        $failure = [System.Collections.Generic.List[object]]::new()
+
+        foreach ($context in @(
+                @{ Run = 1; Host = 'SDK'; Cell = 'SessionStart, one entry'; Replicate = 4 }
+                @{ Run = 1; Host = 'SDK'; Cell = 'SessionStart, two entries'; Replicate = 11 }
+                @{ Run = 1; Host = 'VS Code'; Cell = 'SessionStart, two entries'; Replicate = 5 }
+                @{ Run = 2; Host = 'SDK'; Cell = 'SessionStart, two entries'; Replicate = 8 }
+            ))
+        {
+            { Invoke-CalibrationMeterLaunch -Launch (New-Launch -Measurement $script:crash, $script:success) -Failure $failure -Context $context -WarningAction SilentlyContinue } |
+                Should -Not -Throw
+        }
+
+        $failure.Count | Should -Be 4
+    }
+
+    It 'marks a failure in a warm-up replicate as not measured, and any other as measured (A19)' {
+        $failure = [System.Collections.Generic.List[object]]::new()
+
+        $null = Invoke-CalibrationMeterLaunch -Launch (New-Launch -Measurement $script:crash, $script:success) -Failure $failure -Context @{ Run = 1; Host = 'SDK'; Cell = 'No-op hook'; Replicate = 1; Measured = $false } -WarningAction SilentlyContinue
+        $null = Invoke-CalibrationMeterLaunch -Launch (New-Launch -Measurement $script:crash, $script:success) -Failure $failure -Context @{ Run = 1; Host = 'SDK'; Cell = 'No-op hook'; Replicate = 3; Measured = $true } -WarningAction SilentlyContinue
+        $null = Invoke-CalibrationMeterLaunch -Launch (New-Launch -Measurement $script:crash, $script:success) -Failure $failure -Context $script:context -WarningAction SilentlyContinue
+
+        $failure[0].Measured | Should -Be $false
+        $failure[1].Measured | Should -Be $true
+        $failure[2].Measured | Should -Be $true -Because 'a context that does not say counts as measured'
+    }
+}
+
+Describe 'Calibration Meter failure count' -Tag 'Unit' {
+    It 'counts the failed launches of one run and spawn, warm-up included unless -MeasuredOnly (A19)' {
+        $failure = [System.Collections.Generic.List[object]]::new()
+        $failure.Add([pscustomobject] @{ Run = 1; Host = 'SDK'; Measured = $true })
+        $failure.Add([pscustomobject] @{ Run = 1; Host = 'SDK'; Measured = $false })
+        $failure.Add([pscustomobject] @{ Run = 1; Host = 'VS Code'; Measured = $true })
+        $failure.Add([pscustomobject] @{ Run = 2; Host = 'SDK'; Measured = $true })
+
+        Get-CalibrationMeterFailureCount -Failure $failure -Run 1 -SpawnHost 'SDK' | Should -Be 2
+        Get-CalibrationMeterFailureCount -Failure $failure -Run 1 -SpawnHost 'SDK' -MeasuredOnly | Should -Be 1
+        Get-CalibrationMeterFailureCount -Failure $failure -Run 1 -SpawnHost 'VS Code' | Should -Be 1
+        Get-CalibrationMeterFailureCount -Failure $failure -Run 2 -SpawnHost 'SDK' | Should -Be 1
+        Get-CalibrationMeterFailureCount -Failure $failure -Run 2 -SpawnHost 'VS Code' | Should -Be 0
+    }
+
+    It 'counts zero in an empty list' {
+        $failure = [System.Collections.Generic.List[object]]::new()
+
+        Get-CalibrationMeterFailureCount -Failure $failure -Run 1 -SpawnHost 'SDK' -MeasuredOnly | Should -Be 0
     }
 }
 

@@ -64,8 +64,11 @@
     Folder that receives calibration-meter-<computer>-<UTC time>.csv with
     every row, each stamped with the computer, the start time, the reference
     hash, and the versions of both editions and of git, and a -failures.csv
-    beside it when a launch failed. Defaults to the temp folder, outside every
-    working tree. The CSV keeps the columns a narrow console's table drops.
+    beside it when a launch failed, each failure marked Measured or warm-up.
+    Every row carries in Failed the failed launches in measured replicates of
+    its run and spawn, so no row reads as clean when it is not (ruling A19).
+    Defaults to the temp folder, outside every working tree. The CSV keeps the
+    columns a narrow console's table drops.
 .EXAMPLE
     pwsh -NoProfile -Command '& ./tests/Fixtures/Measure-CalibrationLatency.ps1 | Format-Table -AutoSize'
 
@@ -84,7 +87,11 @@
     A launch that exits non-zero measured no hook time. Its exit code and
     standard error are warned about at once and kept in the failures CSV, and
     the launch runs once more in the same position; a second failure in a row
-    stops the Meter. The rows of an incomplete run are still written.
+    stops the Meter, and so does the third failed launch of one run and spawn
+    (ruling A19). A run and spawn with a failed launch in a measured replicate
+    is evidence only: its rows count it in Failed, its reproduced rows say so
+    in Verdict, and it sets no w and decides no verdict, so run the pair again.
+    The rows of an incomplete run are still written.
 #>
 [CmdletBinding()]
 param
@@ -365,7 +372,7 @@ try
                         Measure-HookRun -Spawn $spawn -Command $cell.Entry.($spawn.Key) -Payload ($payload | ConvertTo-Json -Compress -Depth 5) -UserHome $cell.Home -GitConfig $gitConfig
                     }
 
-                    $measurement = Invoke-CalibrationMeterLaunch -Launch $launch -Failure $failures -Context @{ Run = $run; Host = $spawn.Host; Cell = $cell.Name; Replicate = $replicate + 1 }
+                    $measurement = Invoke-CalibrationMeterLaunch -Launch $launch -Failure $failures -Context @{ Run = $run; Host = $spawn.Host; Cell = $cell.Name; Replicate = $replicate + 1; Measured = ($replicate -ge $WarmUp) }
 
                     if ($cell.Expect)
                     {
@@ -398,6 +405,10 @@ try
             {
                 Write-Warning -Message ('Run {0}, {1}: the frozen reference ran no slower than the no-op hook in {2} of {3} replicates, so this run takes no ratio.' -f $run, $spawn.Host, $unmeasurable, $samples.Count)
             }
+
+            # A failed launch in a measured replicate makes this run and spawn
+            # evidence only: it sets no w and decides no verdict (ruling A19).
+            $failedMeasured = Get-CalibrationMeterFailureCount -Failure $failures -Run $run -SpawnHost $spawn.Host -MeasuredOnly
 
             foreach ($key in $cellKeys)
             {
@@ -447,6 +458,7 @@ try
                     Budget    = if ($level) { $level.Budget } else { $null }
                     Fail      = if ($level) { $level.Fail } else { $null }
                     Verdict   = $verdict
+                    Failed    = $failedMeasured
                     P50Ms     = [System.Math]::Round((Get-CalibrationMeterRank -Value $absolute -Percent 50), 0)
                     P95Ms     = [System.Math]::Round((Get-CalibrationMeterRank -Value $absolute -Percent 95), 0)
                     StepP50Ms = if ($step) { [System.Math]::Round((Get-CalibrationMeterRank -Value $step -Percent 50), 0) } else { $null }
@@ -477,6 +489,13 @@ try
             $ratios = @($runRows | Where-Object -FilterScript { $null -ne $_.RatioP95 } | ForEach-Object -Process { $_.RatioP95 } | Sort-Object)
             $crossed = @($runRows | Where-Object -FilterScript { $_.StopLine -eq 'crossed' }).Count
             $complete = $ratios.Count -eq $runRows.Count
+            $failedSum = [System.Int32] (($runRows | Measure-Object -Property Failed -Sum).Sum)
+            $mergedVerdict = if (-not $complete) { 'unit unmeasurable in {0} of {1} runs' -f ($runRows.Count - $ratios.Count), $runRows.Count } elseif ($runRows[0].Budget) { Merge-CalibrationMeterVerdict -Verdict @($runRows | ForEach-Object -Process { $_.Verdict }) } else { 'no level (A10)' }
+            if ($failedSum -gt 0)
+            {
+                $mergedVerdict = '{0}, evidence only (A19)' -f $mergedVerdict
+            }
+
             [pscustomobject] @{
                 Run       = 'reproduced'
                 Host      = $spawn.Host
@@ -488,7 +507,8 @@ try
                 Spread    = if ($complete -and $ratios.Count -gt 1 -and $ratios[0] -gt 0) { [System.Math]::Round($ratios[-1] / $ratios[0], 2) } else { $null }
                 Budget    = $runRows[0].Budget
                 Fail      = $runRows[0].Fail
-                Verdict   = if (-not $complete) { 'unit unmeasurable in {0} of {1} runs' -f ($runRows.Count - $ratios.Count), $runRows.Count } elseif ($runRows[0].Budget) { Merge-CalibrationMeterVerdict -Verdict @($runRows | ForEach-Object -Process { $_.Verdict }) } else { 'no level (A10)' }
+                Verdict   = $mergedVerdict
+                Failed    = $failedSum
                 P50Ms     = $null
                 P95Ms     = $null
                 StepP50Ms = $null
@@ -542,7 +562,12 @@ finally
 
     if ($failures.Count -gt 0)
     {
-        Write-Warning -Message ('{0} launches failed and ran again; their exit codes and standard error are in {1}.' -f $failures.Count, $failuresPath)
+        $perRun = $failures | Group-Object -Property Run, Host | ForEach-Object -Process {
+            $measuredCount = @($_.Group | Where-Object -FilterScript { $_.Measured }).Count
+            'run {0} {1}: {2} measured, {3} warm-up' -f $_.Group[0].Run, $_.Group[0].Host, $measuredCount, ($_.Count - $measuredCount)
+        }
+
+        Write-Warning -Message ('{0} launches failed ({1}); their exit codes and standard error are in {2}. A run and spawn with a failed launch in a measured replicate is evidence only: it sets no w and decides no verdict, so run the pair again (ruling A19).' -f $failures.Count, ($perRun -join '; '), $failuresPath)
     }
 
     foreach ($sessionId in $sessionIds)
