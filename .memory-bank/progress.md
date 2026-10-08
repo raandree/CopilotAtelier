@@ -18,6 +18,13 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-08**: The owner ran the Meter on RAANDREE3: both runs of the first
+  invocation complete, the rule's Budgets computable from the ratios (2.25 and
+  0.75) and the transfer check passing for both tags, but the milliseconds lost
+  to the console's width. A second invocation hit an `Environment.FailFast` in
+  the two-entry SDK cell, not reproduced in 400 launches on Prox1. The Meter
+  now keeps stderr, retries a crashed launch once, and writes a CSV.
+
 - **2026-10-07**: Signed off and built Decision 0028 Amendment 3
   (`software-architect` drafted and recorded A14 to A18; the owner accepted
   all six recommended answers; `software-engineer` built A17 and A18
@@ -79,8 +86,9 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Contributor calibration, Decision 0028: the owner runs the amended Meter
-  twice on RAANDREE3; then the re-baseline rule, one `w` per tag across both
+- Contributor calibration, Decision 0028: one more Meter invocation on
+  RAANDREE3 with its CSV, and its Application event log entry for the
+  2026-10-08 `FailFast`; then the re-baseline rule, one `w` per tag across both
   machines (TBD-6 transfer check per tag, both stop lines, the spread); one
   manual compaction in VS Code Local proves the backstop within one turn and
   measures TBD-7, which decides the grace fallback (criteria 22 and 30); A13

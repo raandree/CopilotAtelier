@@ -9,23 +9,26 @@ source: current task evidence
 
 ## Current focus
 
-Decision 0028 **Amendment 3 (A14 to A18) is signed off and built** on
-`ai/calibration-phase-2` (2026-10-07). The owner accepted all six recommended
-answers: the reader-shaped frozen reference (A17), one `w` per tag (A16), the
-`turns` and `Get-` corrections (A14, A15), the conditional 30-minute grace
-fallback, and the six implementation choices (A18). `tests/Fixtures/ReferenceHook/`
-holds the driver, a frozen reader copy, and a one-entry fixture under one
-composite pin (`30fb3229…9c79`); the old 4,002-node script is gone. The Prox1
-half of step 7.3 ran under it (Confirmation, *Amendment 3 implemented*): unit
-433 to 435 ms (VS Code) and 348 to 362 ms (SDK), no lost replicate, spread at
-most 1.16, both stop lines clear. Across editions the unit tracks the
-SessionStart step within 3 % and the PostToolUse common path only within 33 %,
-an early sign that step 5's no-Budget outcome may apply to that tag. Amendment 2
-steps 7.1 and 7.2 (the backstop, `23a861a`) stay as built. The one-process
-launcher (A11) is open work in `progress.md`.
+Decision 0028 **step 7.3 waits for one more RAANDREE3 Meter invocation**
+(2026-10-08). The owner's first invocation there completed both runs: on its
+ratios the rule gives `SessionStart.AddedLatency` Budget 2.25, Fail 4.5 and
+`PostToolUse.CallLatency` Budget 0.75, Fail 1.5, and the transfer check passes
+for both tags (1.01 to 1.21 times apart). But the console's table dropped the
+milliseconds, which step 1 and the stop lines need. A second invocation crashed
+once: `SessionStart, two entries` through the SDK spawn exited `0x80131623`,
+an `Environment.FailFast`, in the only cell that runs git. It did not reproduce
+in 400 launches on Prox1, so the cause is specific to RAANDREE3 and its
+Application event log holds the message. The Meter now keeps stderr, retries a
+crashed launch once, and writes every row to a CSV with the tool versions
+(Confirmation, *Step 7.3 on RAANDREE3*). Amendment 3 (A14 to A18, `82f6541`)
+stays as built.
 
 ## Previous focuses
 
+- **Amendment 3 (`1c2f9b7`, `82f6541`).** Signed off 2026-10-07 with all six
+  recommended answers; the reader-shaped frozen reference under one composite
+  pin (`30fb3229…9c79`), and the two A18 tests. Prox1 Meter under it: unit
+  433 to 435 ms (VS Code) and 348 to 362 ms (SDK), spread at most 1.16.
 - **Amendment 2 steps 7.1 and 7.2 (`23a861a`, `e15a123`).** The A12 backstop in
   the three calibration hooks and the first Meter cells; the full gate passed
   3,138 tests. The first Prox1 run stopped on an 80 ms straight-line unit,
@@ -154,21 +157,18 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. The owner runs the amended Meter twice on RAANDREE3, on the branch as
-   committed, from the repository root:
-   `pwsh -Command "& tests/Fixtures/Measure-CalibrationLatency.ps1 | Format-Table -AutoSize"`
-   (two runs by default, about 18 minutes; it refuses to run if the reference
-   pin moved). Then `software-engineer` applies the re-baseline rule: one `w`
-   per tag across both machines and spawns, the transfer check per tag (TBD-6;
-   a failure for `PostToolUse.CallLatency` leaves that tag on its 400 ms stop
-   line, a failure for `SessionStart.AddedLatency` returns to
-   `software-architect`), both stop lines, and the spread, written into
-   `Get-CalibrationMeterBudget` and the record in one commit. Then the VS Code
-   Local backstop cell and its manual compaction (criterion 22, TBD-7, which
-   decides the grace fallback), and A13 (TBD-8, owner review, approval and
-   budget before any paid eval). Never set the summarization threshold below
-   about 1.3 times the base prompt (*Compactions*). Redeploy `main` on Prox1
-   with `Setup-CopilotSettings.ps1` once the owner closes the checks.
+1. The owner, on RAANDREE3 after pulling the branch: reads the Application
+   event log for the 2026-10-08 crash and runs the Meter once more (one
+   invocation, two runs), then sends the CSV it names. `software-engineer`
+   then applies the re-baseline rule to that pair with its milliseconds, keeps
+   the 08:29 pair as its reproduction check, writes Budget and Fail into
+   `Get-CalibrationMeterBudget` and the record in one commit, and decides from
+   the event log whether the `FailFast` is ours to fix. Then the VS Code Local
+   backstop cell and its manual compaction (criterion 22, TBD-7, which decides
+   the grace fallback), and A13 (TBD-8, owner review, approval and budget
+   before any paid eval). Never set the summarization threshold below about
+   1.3 times the base prompt (*Compactions*). Redeploy `main` on Prox1 with
+   `Setup-CopilotSettings.ps1` once the owner closes the checks.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.
 3. Optional: report upstream that the GitHub hooks reference describes the

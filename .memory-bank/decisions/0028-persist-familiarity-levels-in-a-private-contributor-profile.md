@@ -1248,6 +1248,72 @@ work A17 expected it to be. Should the same hold across machines, the
 `PostToolUse.CallLatency` outcome of step 5 applies: no ratio Budget, the
 400 ms stop line as its gate.
 
+### Step 7.3 on RAANDREE3, 2026-10-08
+
+The owner ran the Meter on RAANDREE3 at the pinned reference `30fb3229…`. The
+first invocation, at 08:29 UTC, completed both runs. A second invocation, at
+08:56 UTC, stopped in its first SDK pass when one launch of
+`SessionStart, two entries` exited `-2146232797`. The console's table dropped
+every column after `Fail`, so the milliseconds of the first invocation are
+lost: the reference's own time, every step, and the stop-line check.
+
+Gated ratios, p95 over the two runs of the first invocation, with the lower
+run and the spread of step 8:
+
+| Gated cell | VS Code spawn | SDK spawn |
+|---|---|---|
+| SessionStart, one entry | 0.94 to 0.96, lower 0.94, spread 1.02 | 1.15 to 1.16, lower 1.15, spread 1.01 |
+| SessionStart, no profile | 0.39 to 0.41, lower 0.39, spread 1.05 | 0.56 to 0.60, lower 0.56, spread 1.07 |
+| PostToolUse, common path | 0.27 to 0.29, lower 0.27, spread 1.07 | 0.40 to 0.42, lower 0.40, spread 1.05 |
+
+Reported ratios, p95: two entries 1.16 to 1.51, inject path 1.39 to 1.56, push
+guard 0.31 to 0.40.
+
+**The rule on these ratios, not yet levels.** Across both machines and spawns,
+`SessionStart.AddedLatency` takes w 1.15, from RAANDREE3's SDK spawn with one
+entry, so Budget 2.25 and Fail 4.5; `PostToolUse.CallLatency` takes w 0.40,
+from the same spawn, so Budget 0.75 and Fail 1.5. The highest p95 of any run is
+1.16 and 0.44, within both Budgets, and the widest spread, 1.16, stays below
+the 1.75 factor. Because the reference and the step run in the same replicate,
+the transfer check's `s` over `r` equals, up to the choice of statistic, the
+cell's RAANDREE3 ratio over its Prox1 ratio. From each cell's p50 averaged over
+its two runs: the one-entry step is 1.01 times apart through the SDK spawn and
+1.21 times through VS Code's, the common path 1.03 and 1.15 times. All four are
+within 1.3, so both tags pass: the PostToolUse gap seen across editions under
+*Amendment 3 implemented* did not carry across machines. These become levels
+only from a RAANDREE3 pair with its milliseconds, because step 1 publishes the
+reference's own time per machine and spawn and the stop lines read step
+milliseconds; this pair then stands as its reproduction check.
+
+**The crash.** `-2146232797` is `0x80131623`, the exit code of .NET's
+`Environment.FailFast`; an unhandled exception in a script exits `0xE0434352`
+instead, as an experiment on Prox1 showed for both. No script of this
+repository calls `FailFast` or runs script code on a thread without a runspace.
+The launcher passes the inner process's exit code on, so either PowerShell 7
+process of that launch may have failed. The two-entry cell is the only one that
+runs git. On Prox1, 400 launches through the SDK spawn, alternating the
+two-entry cell with the one-entry cell as a control, with PowerShell 7.6.6 and
+git 2.53.0, produced no failure, beside some 350 two-entry SDK launches in
+earlier Meter runs; RAANDREE3 failed once in at most 66. Something specific to
+RAANDREE3 is involved, its PowerShell 7 build, its git, or its environment, and
+which one is unknown until its Application event log or a captured standard
+error shows the message `FailFast` writes. A crashed SessionStart hook costs its
+whole context, the Memory Bank probe and the session clock as well as the
+calibration sentence, so this is a reliability finding although the cell is
+reported, not gated.
+
+**The Meter, hardened.** Choices for `software-architect` to confirm:
+
+- A launch that exits non-zero is recorded with its exit code and standard
+  error, warned about at once, and run once more in the same position with a
+  fresh session; a second failure in a row stops the Meter. A crashed process
+  measured no hook time, so the retry changes no measured quantity, and the
+  failures CSV keeps the finding. Five tests prove the rule.
+- Every row is written to a CSV in the temp folder, stamped with the computer,
+  the start time, the reference hash, and the versions of both editions and of
+  git, and the rows of an incomplete run are written too, so neither a narrow
+  console nor a late failure loses the milliseconds again.
+
 ## Signed-off Design Concept
 
 Signed off by the repository owner in chat on 2026-10-06, after an interview
