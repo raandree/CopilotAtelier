@@ -59,13 +59,19 @@
 .PARAMETER Repeat
     Whole Meter runs whose verdicts merge: a verdict above Budget or Fail
     counts only when every run reproduces it.
+.PARAMETER OutputDirectory
+    Folder that receives calibration-meter-<computer>-<UTC time>.csv with
+    every row, each stamped with the computer, the start time, the reference
+    hash, and the versions of both editions and of git, and a -failures.csv
+    beside it when a launch failed. Defaults to the temp folder, outside every
+    working tree. The CSV keeps the columns a narrow console's table drops.
 .EXAMPLE
     pwsh -NoProfile -Command '& ./tests/Fixtures/Measure-CalibrationLatency.ps1 | Format-Table -AutoSize'
 
     Runs the Meter twice on this machine and prints every run and the
-    reproduced rows as one table. Format inside the Meter's process: a
-    parent shell receives a child's output as text, which Format-Table cannot
-    lay out.
+    reproduced rows as one table, then names the CSV that holds every column.
+    Format inside the Meter's process: a parent shell receives a child's
+    output as text, which Format-Table cannot lay out.
 .NOTES
     Windows only: the VS Code spawn is the Windows one. Not run by the test
     suite; record its results in Decision record 0028. Refuses to run when any
@@ -73,6 +79,11 @@
     SHA-256. A change to a launcher in hooks.json changes the launch the unit
     is measured through, so re-run the Meter and re-baseline the latency
     levels then (Decision record 0016).
+
+    A launch that exits non-zero measured no hook time. Its exit code and
+    standard error are warned about at once and kept in the failures CSV, and
+    the launch runs once more in the same position; a second failure in a row
+    stops the Meter. The rows of an incomplete run are still written.
 #>
 [CmdletBinding()]
 param
@@ -90,7 +101,12 @@ param
     [Parameter()]
     [ValidateRange(1, 5)]
     [System.Int32]
-    $Repeat = 2
+    $Repeat = 2,
+
+    [Parameter()]
+    [ValidateScript({ Test-Path -LiteralPath $_ -PathType Container })]
+    [System.String]
+    $OutputDirectory = [System.IO.Path]::GetTempPath()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -115,6 +131,29 @@ if ($referenceHash -ne $meterLevels.ReferenceSha256)
 }
 
 Write-Information -MessageData ('{0}, {1:yyyy-MM-dd HH:mm} UTC, frozen reference {2}' -f $env:COMPUTERNAME, [System.DateTime]::UtcNow, $referenceHash) -InformationAction Continue
+
+$startedUtc = [System.DateTime]::UtcNow
+$resultsPath = Join-Path -Path $OutputDirectory -ChildPath ('calibration-meter-{0}-{1:yyyyMMdd-HHmmss}.csv' -f $env:COMPUTERNAME, $startedUtc)
+$failuresPath = [System.IO.Path]::ChangeExtension($resultsPath, $null).TrimEnd('.') + '-failures.csv'
+$rows = [System.Collections.Generic.List[object]]::new()
+$failures = [System.Collections.Generic.List[object]]::new()
+
+# The tools' versions travel with every CSV row, because a crash or a shift
+# in the unit can be a property of one build: both editions, and git, which
+# the identity rule runs in the two-entry cell.
+$editionVersion = @{ Pwsh = $null; WindowsPowerShell = $null; Git = $null }
+$pwshCommand = Get-Command -Name 'pwsh' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($pwshCommand)
+{
+    $editionVersion.Pwsh = ([string] (Get-Item -LiteralPath $pwshCommand.Source).VersionInfo.ProductVersion -split ' ')[0]
+}
+
+$editionVersion.WindowsPowerShell = [string] (Get-Item -LiteralPath (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe')).VersionInfo.ProductVersion
+$gitCommand = Get-Command -Name 'git' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($gitCommand)
+{
+    $editionVersion.Git = (& $gitCommand.Source --version 2>$null | Select-Object -First 1) -replace '\Agit version ', ''
+}
 
 # The hooks resolve their session files under each scratch home. Should one
 # fall back to the real folder or to the temp directory, the cleanup removes
@@ -215,7 +254,7 @@ function Measure-HookRun
     try
     {
         $output = $process.StandardOutput.ReadToEndAsync()
-        $null = $process.StandardError.ReadToEndAsync()
+        $errorText = $process.StandardError.ReadToEndAsync()
         $process.StandardInput.Write($Payload)
         $process.StandardInput.Close()
         $process.WaitForExit()
@@ -225,6 +264,7 @@ function Measure-HookRun
             Milliseconds = $watch.Elapsed.TotalMilliseconds
             ExitCode     = $process.ExitCode
             Output       = $output.Result
+            Error        = $errorText.Result
         }
     }
     finally
@@ -286,7 +326,6 @@ try
     }
 
     $cellKeys = [System.String[]] @($cells.Keys)
-    $rows = [System.Collections.Generic.List[object]]::new()
     for ($run = 1; $run -le $Repeat; $run++)
     {
         foreach ($spawn in $spawns)
@@ -299,31 +338,33 @@ try
                 foreach ($key in (Get-CalibrationMeterOrder -Cell $cellKeys -Replicate $replicate))
                 {
                     $cell = $cells[$key]
-                    $sessionId = [guid]::NewGuid().ToString()
-                    $sessionIds.Add($sessionId)
-                    $payload = [ordered] @{ hook_event_name = $cell.Event; session_id = $sessionId; cwd = $cell.Workspace; source = 'new' }
-                    if ($cell.Event -ne 'SessionStart')
-                    {
-                        $payload.tool_name = 'view'
-                        $payload.tool_input = @{ path = 'README.md' }
+                    # Each attempt starts its own session, so a retry never meets
+                    # the state a failed attempt left behind.
+                    $launch = {
+                        $sessionId = [guid]::NewGuid().ToString()
+                        $sessionIds.Add($sessionId)
+                        $payload = [ordered] @{ hook_event_name = $cell.Event; session_id = $sessionId; cwd = $cell.Workspace; source = 'new' }
+                        if ($cell.Event -ne 'SessionStart')
+                        {
+                            $payload.tool_name = 'view'
+                            $payload.tool_input = @{ path = 'README.md' }
+                        }
+
+                        if ($cell.Event -eq 'PostToolUse')
+                        {
+                            # A realistic tool result: the hook must find session_id without parsing it.
+                            $payload.tool_result = @{ result_type = 'success'; text_result_for_llm = ('line of file text ' * 400) }
+                        }
+
+                        if ($cell.Session)
+                        {
+                            Set-MeterSessionState -UserHome $cell.Home -SessionId $sessionId -Workspace $cell.Workspace -Turns $cell.Session.Turns -LastTurn $cell.Session.LastTurn
+                        }
+
+                        Measure-HookRun -Spawn $spawn -Command $cell.Entry.($spawn.Key) -Payload ($payload | ConvertTo-Json -Compress -Depth 5) -UserHome $cell.Home -GitConfig $gitConfig
                     }
 
-                    if ($cell.Event -eq 'PostToolUse')
-                    {
-                        # A realistic tool result: the hook must find session_id without parsing it.
-                        $payload.tool_result = @{ result_type = 'success'; text_result_for_llm = ('line of file text ' * 400) }
-                    }
-
-                    if ($cell.Session)
-                    {
-                        Set-MeterSessionState -UserHome $cell.Home -SessionId $sessionId -Workspace $cell.Workspace -Turns $cell.Session.Turns -LastTurn $cell.Session.LastTurn
-                    }
-
-                    $measurement = Measure-HookRun -Spawn $spawn -Command $cell.Entry.($spawn.Key) -Payload ($payload | ConvertTo-Json -Compress -Depth 5) -UserHome $cell.Home -GitConfig $gitConfig
-                    if ($measurement.ExitCode -ne 0)
-                    {
-                        throw "$($spawn.Host) '$($cell.Name)' exited with $($measurement.ExitCode)."
-                    }
+                    $measurement = Invoke-CalibrationMeterLaunch -Launch $launch -Failure $failures -Context @{ Run = $run; Host = $spawn.Host; Cell = $cell.Name; Replicate = $replicate + 1 }
 
                     if ($cell.Expect)
                     {
@@ -421,7 +462,7 @@ try
     # A verdict above Budget or Fail counts only when every run reproduces it.
     # The lower run of each gated cell is what the re-baseline rule reads, one
     # w per tag, and the spread is its step 8: the higher run over the lower.
-    foreach ($spawn in $spawns)
+    $reproduced = foreach ($spawn in $spawns)
     {
         foreach ($key in $cellKeys)
         {
@@ -455,9 +496,54 @@ try
             }
         }
     }
+
+    foreach ($row in $reproduced)
+    {
+        $rows.Add($row)
+        $row
+    }
 }
 finally
 {
+    # Every column a narrow console's table drops, and the rows of an
+    # incomplete run, survive in the CSV.
+    $stamp = [ordered] @{
+        Computer                 = $env:COMPUTERNAME
+        StartedUtc               = $startedUtc.ToString('o')
+        ReferenceSha256          = $referenceHash
+        PwshVersion              = $editionVersion.Pwsh
+        WindowsPowerShellVersion = $editionVersion.WindowsPowerShell
+        GitVersion               = $editionVersion.Git
+    }
+
+    foreach ($set in @(@{ Items = $rows; Path = $resultsPath; Name = 'rows' }, @{ Items = $failures; Path = $failuresPath; Name = 'failed launches' }))
+    {
+        if ($set.Items.Count -eq 0)
+        {
+            continue
+        }
+
+        try
+        {
+            $set.Items | ForEach-Object -Process {
+                $record = [ordered] @{}
+                foreach ($name in $stamp.Keys) { $record[$name] = $stamp[$name] }
+                foreach ($property in $_.PSObject.Properties) { $record[$property.Name] = $property.Value }
+                [pscustomobject] $record
+            } | Export-Csv -LiteralPath $set.Path -NoTypeInformation -Encoding utf8
+            Write-Information -MessageData ('Wrote {0} {1} to {2}' -f $set.Items.Count, $set.Name, $set.Path) -InformationAction Continue
+        }
+        catch
+        {
+            Write-Warning -Message ('Could not write {0} to {1}: {2}' -f $set.Name, $set.Path, $_.Exception.Message)
+        }
+    }
+
+    if ($failures.Count -gt 0)
+    {
+        Write-Warning -Message ('{0} launches failed and ran again; their exit codes and standard error are in {1}.' -f $failures.Count, $failuresPath)
+    }
+
     foreach ($sessionId in $sessionIds)
     {
         foreach ($sessionRoot in $fallbackSessionRoots)

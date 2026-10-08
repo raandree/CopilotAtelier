@@ -314,3 +314,66 @@ function Test-CalibrationMeterTransfer
     $spread = [System.Math]::Max($ReferenceRatio / $StepRatio, $StepRatio / $ReferenceRatio)
     return [System.Math]::Round($spread, 9) -le 1.3
 }
+
+function Invoke-CalibrationMeterLaunch
+{
+    <#
+        One hook launch of the Meter. Launch returns an object with
+        Milliseconds, ExitCode, Output, and Error. A launch that exits
+        non-zero measured no hook time, but its exit code and standard error
+        are a finding, so each is recorded in Failure, warned about at once,
+        and run once more in the same position of the same replicate. A second
+        failure in a row stops the Meter, naming both exit codes and the last
+        standard error.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Management.Automation.PSCustomObject])]
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [System.Management.Automation.ScriptBlock]
+        $Launch,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[System.Object]]
+        $Failure,
+
+        [Parameter(Mandatory = $true)]
+        [System.Collections.IDictionary]
+        $Context
+    )
+
+    $failedAttempts = [System.Collections.Generic.List[System.Object]]::new()
+    for ($attempt = 1; $attempt -le 2; $attempt++)
+    {
+        $result = & $Launch
+        if ($result.ExitCode -eq 0)
+        {
+            return $result
+        }
+
+        $errorText = ([string] $result.Error -replace '[\p{Cc}\p{Zl}\p{Zp}]', ' ' -replace '\s+', ' ').Trim()
+        if ($errorText.Length -gt 2000)
+        {
+            $errorText = $errorText.Substring(0, 1997) + '...'
+        }
+
+        $record = [pscustomobject] @{
+            Run         = $Context.Run
+            Host        = $Context.Host
+            Cell        = $Context.Cell
+            Replicate   = $Context.Replicate
+            Attempt     = $attempt
+            ExitCode    = $result.ExitCode
+            ExitCodeHex = '0x{0:X8}' -f $result.ExitCode
+            Error       = $errorText
+        }
+
+        $Failure.Add($record)
+        $failedAttempts.Add($record)
+        Write-Warning -Message ("Run {0}, {1} '{2}', replicate {3}, attempt {4}: exited {5}. {6}" -f $record.Run, $record.Host, $record.Cell, $record.Replicate, $attempt, $record.ExitCodeHex, $errorText)
+    }
+
+    throw ("{0} '{1}' failed twice in run {2}, replicate {3}, exiting {4}. Last standard error: {5}" -f $Context.Host, $Context.Cell, $Context.Run, $Context.Replicate, (($failedAttempts | ForEach-Object -Process { $_.ExitCodeHex }) -join ' and '), $failedAttempts[-1].Error)
+}

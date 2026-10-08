@@ -156,6 +156,81 @@ Describe 'Calibration Meter arithmetic' -Tag 'Unit' {
     }
 }
 
+Describe 'Calibration Meter launch' -Tag 'Unit' {
+    BeforeAll {
+        $script:context = @{ Run = 2; Host = 'SDK'; Cell = 'SessionStart, two entries'; Replicate = 7 }
+
+        function script:New-Launch
+        {
+            <# A launch that returns the given measurements in order, one per call. #>
+            param ([object[]] $Measurement)
+
+            $queue = [System.Collections.Generic.Queue[object]]::new()
+            foreach ($item in $Measurement) { $queue.Enqueue($item) }
+            return { $queue.Dequeue() }.GetNewClosure()
+        }
+
+        $script:crash = [pscustomobject] @{ Milliseconds = 5.0; ExitCode = -2146232797; Output = ''; Error = "Process terminated. probe`r`n   at System.Environment.FailFast(String message)`r`n" }
+        $script:success = [pscustomobject] @{ Milliseconds = 900.0; ExitCode = 0; Output = '{}'; Error = '' }
+    }
+
+    It 'returns the measurement of a launch that exits 0 and records no failure' {
+        $failure = [System.Collections.Generic.List[object]]::new()
+
+        $measurement = Invoke-CalibrationMeterLaunch -Launch (New-Launch -Measurement $script:success) -Failure $failure -Context $script:context
+
+        $measurement.Milliseconds | Should -Be 900.0
+        $failure.Count | Should -Be 0
+    }
+
+    It 'records a launch that exits non-zero with its exit code and standard error, then runs it once more in the same position' {
+        $failure = [System.Collections.Generic.List[object]]::new()
+
+        $measurement = Invoke-CalibrationMeterLaunch -Launch (New-Launch -Measurement $script:crash, $script:success) -Failure $failure -Context $script:context -WarningAction SilentlyContinue
+
+        $measurement.Milliseconds | Should -Be 900.0
+        $failure.Count | Should -Be 1
+        $failure[0].Run | Should -Be 2
+        $failure[0].Host | Should -BeExactly 'SDK'
+        $failure[0].Cell | Should -BeExactly 'SessionStart, two entries'
+        $failure[0].Replicate | Should -Be 7
+        $failure[0].Attempt | Should -Be 1
+        $failure[0].ExitCode | Should -Be -2146232797
+        $failure[0].ExitCodeHex | Should -BeExactly '0x80131623'
+        $failure[0].Error | Should -BeExactly 'Process terminated. probe at System.Environment.FailFast(String message)'
+    }
+
+    It 'warns as soon as a launch fails, so a run in progress shows it' {
+        $failure = [System.Collections.Generic.List[object]]::new()
+
+        $null = Invoke-CalibrationMeterLaunch -Launch (New-Launch -Measurement $script:crash, $script:success) -Failure $failure -Context $script:context -WarningVariable warned -WarningAction SilentlyContinue
+
+        @($warned).Count | Should -Be 1
+        [string] $warned[0] | Should -Match '0x80131623'
+        [string] $warned[0] | Should -Match 'SessionStart, two entries'
+    }
+
+    It 'stops the Meter when the launch fails a second time, naming both exit codes and the standard error' {
+        $failure = [System.Collections.Generic.List[object]]::new()
+        $second = [pscustomobject] @{ Milliseconds = 4.0; ExitCode = 1; Output = ''; Error = 'could not resolve the script' }
+
+        { Invoke-CalibrationMeterLaunch -Launch (New-Launch -Measurement $script:crash, $second) -Failure $failure -Context $script:context -WarningAction SilentlyContinue } |
+            Should -Throw -ExpectedMessage "*SDK 'SessionStart, two entries'*0x80131623*0x00000001*could not resolve the script*"
+        $failure.Count | Should -Be 2
+    }
+
+    It 'keeps a recorded standard error on one line and at most 2,000 characters' {
+        $failure = [System.Collections.Generic.List[object]]::new()
+        $long = [pscustomobject] @{ Milliseconds = 5.0; ExitCode = 1; Output = ''; Error = ("line`n" * 1000) }
+
+        $null = Invoke-CalibrationMeterLaunch -Launch (New-Launch -Measurement $long, $script:success) -Failure $failure -Context $script:context -WarningAction SilentlyContinue
+
+        $failure[0].Error | Should -Not -Match '[\r\n]'
+        $failure[0].Error.Length | Should -BeLessOrEqual 2000
+        $failure[0].Error | Should -Match '\.\.\.\z'
+    }
+}
+
 Describe 'Frozen reference' -Tag 'Unit' {
     It 'is pinned by one composite SHA-256, so a change fails until both latency tags are re-baselined (criterion 26)' {
         Get-CalibrationMeterReferenceHash -Path $script:referencePath | Should -BeExactly (Get-CalibrationMeterBudget).ReferenceSha256
