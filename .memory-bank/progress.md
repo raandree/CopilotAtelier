@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-07
+last-verified: 2026-10-08
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -17,6 +17,16 @@ Releases and the PowerShell Gallery (verified 2026-10-05). Incremental work is
 tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-10-08**: Proved Decision 0028's backstop live and answered TBD-7
+  (`software-engineer`; the owner at the keyboard on Prox1, the branch head
+  redeployed): in VS Code Local on Copilot Chat 0.69.0 the first tool call
+  after `/compact` re-sent the levels with the backstop suffix and no
+  PreCompact ran; Copilot CLI re-sent them through PreCompact on the deployed
+  head. `turns` advances in every host, so the grace fallback is not built;
+  criteria 22 and 30 met. Ruling A19 (Amendment 4) keeps the Meter's retry and
+  makes a run with a failed measured launch evidence only; built test-first.
+  Full gate: 3,293 tests, 0 failed. Prox1 runs `main` again, scratch removed.
 
 - **2026-10-08**: Set Decision 0028's latency levels by the re-baseline rule
   (`software-engineer`, from the owner's third RAANDREE3 invocation and its
@@ -48,15 +58,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   replicate, with both stop lines clear. Four questions returned to
   `software-architect`.
 
-- **2026-10-07**: Signed off Decision 0028 Amendment 2 (`software-architect`
-  as a subagent of `software-engineer`; the owner accepted all four
-  decisions): rulings A9 to A13 replace the launch unit with a frozen
-  reference script, withdraw criterion 20's two verdicts, restate the hook
-  cost per machine, add a bounded per-turn backstop re-send for VS Code
-  Local, and allow derived and reviewed synthetic persistence cases. An
-  independent `security-reviewer` pass found no Blocker; its 12 findings are
-  resolved in the text. Nothing is implemented yet.
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -82,12 +83,9 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Contributor calibration, Decision 0028: one manual compaction in VS Code
-  Local proves the backstop within one turn and measures TBD-7, which decides
-  the grace fallback (criteria 22 and 30); A13 rebuilds the persistence set
+- Contributor calibration, Decision 0028: A13 rebuilds the persistence set
   (TBD-8, owner review of synthetic cases, approval and budget before any paid
-  eval; criteria 21 and 28); `software-architect` confirms the Meter's
-  retry-once rule.
+  eval; criteria 21 and 28).
 - One-process `windows` launcher (ruling A11): separate work against Decision
   0016, kept here because Decision records here are accepted or superseded.
   Adopt only if `tests/HookLauncher.Tests.ps1` passes unchanged (`cmd.exe`,
@@ -131,8 +129,10 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   every retained browser workflow.
 - Replace the three handwritten agent-frontmatter parsers with one shared YAML
   parser and fixtures that prove malformed nested handoffs and lists fail, and
-  capture the trigger-eval harness's expected simulated backend failure so the
-  successful full build emits no warning.
+  capture the trigger-eval harness's expected simulated backend failure and the
+  Meter tests' 15 simulated crashed launches (Invoke-Build records
+  `Write-Warning` despite `-WarningAction SilentlyContinue`) so the successful
+  full build emits no warning.
 - Restore a Windows PowerShell 5.1 CI leg now that `Repair_ManifestEncoding`
   fixes the manifest. Re-adding it guards the fix and the heartbeat's
   `MoveFile` path (review F-03), and needs the `ci.yml` `shell: pwsh` steps

@@ -1,9 +1,9 @@
 ---
 status: accepted
 date: 2026-10-06
-last-verified: 2026-10-07
+last-verified: 2026-10-08
 owner: software-architect
-source: software-architect Design Concept interview 2026-10-05 to 2026-10-06 and sign-off 2026-10-06; amendment interview 2026-10-06 (rulings A1 to A7); Amendment 2 rulings 2026-10-07 (A9 to A13), signed off by the repository owner in chat on 2026-10-07; Decision record 0027; hook host references (VS Code, GitHub, Claude Code), fetched during the interview; Amendment 3 rulings 2026-10-07 (A14 to A18), signed off by the repository owner in chat on 2026-10-07
+source: software-architect Design Concept interview 2026-10-05 to 2026-10-06 and sign-off 2026-10-06; amendment interview 2026-10-06 (rulings A1 to A7); Amendment 2 rulings 2026-10-07 (A9 to A13), signed off by the repository owner in chat on 2026-10-07; Decision record 0027; hook host references (VS Code, GitHub, Claude Code), fetched during the interview; Amendment 3 rulings 2026-10-07 (A14 to A18), signed off by the repository owner in chat on 2026-10-07; Amendment 4 ruling 2026-10-08 (A19), signed off by the repository owner in chat on 2026-10-08
 supersedes: none
 ---
 
@@ -1313,17 +1313,29 @@ push guard does not fail open on it, because the SDK host denies a
 `preToolUse` hook that exits neither `0` nor `2` (Decision record 0016), and
 VS Code Local runs the guard under Windows PowerShell.
 
-**The Meter, hardened.** Choices for `software-architect` to confirm:
+**The Meter, hardened.** Both choices stand, the first with one condition
+added *(A19)*:
 
 - A launch that exits non-zero is recorded with its exit code and standard
   error, warned about at once, and run once more in the same position with a
-  fresh session; a second failure in a row stops the Meter. A crashed process
-  measured no hook time, so the retry changes no measured quantity, and the
-  failures CSV keeps the finding. Five tests prove the rule.
+  fresh session; a second failure in a row stops the Meter, and so does the
+  third failed launch of one run and spawn, whether or not two fell together.
+  A crashed process measured no hook time, so the retry changes no measured
+  quantity, and the failures CSV keeps the finding. A run whose measured
+  replicates contain a failed launch is evidence only: it sets no `w` and is
+  not one of the two runs that decide a verdict, so the retry's residual bias
+  never reaches a level. Five tests prove the rule, three more the run budget,
+  its scope, and the warm-up mark, and two the failure count.
 - Every row is written to a CSV in the temp folder, stamped with the computer,
   the start time, the reference hash, and the versions of both editions and of
   git, and the rows of an incomplete run are written too, so neither a narrow
-  console nor a late failure loses the milliseconds again.
+  console nor a late failure loses the milliseconds again. Each row carries the
+  failed-launch count of its run and spawn, so no row reads as clean when it is
+  not *(A19)*.
+
+No level in this record comes from a retried launch: the 08:56 invocation
+stopped before the hardening existed, and the 09:42 pair that set the levels
+had no failed launch, so the condition invalidates nothing already recorded.
 
 ### Step 7.3, the levels, 2026-10-08
 
@@ -1407,6 +1419,177 @@ costs on the same machine, which is the cost of the shared launcher.
 Criteria 20, 26, and 29 are met. Criteria 21, 22, 28, and 30 stay open: the
 persistence set of A13, the manual compaction in VS Code Local with TBD-7, and
 the grace fallback TBD-7 decides.
+
+### VS Code Local backstop and TBD-7, 2026-10-08 on Prox1
+
+Step 7.5 of the delivery increments. The owner typed the turns; `software-engineer`
+read the hosts' own logs and the two files beside each session clock, and
+wrote neither file.
+
+**Deployment.** Prox1 still ran the hooks of `cacda62`, from before the
+backstop. With the owner's approval, `Setup-CopilotSettings.ps1` deployed the
+branch head `3bef6b9`: the three calibration hooks, the hooks README, and the
+`contributor-profile` Skill's reader and `SKILL.md` changed, and nothing else
+did, the registration file included. `Get-CopilotAtelierContributorProfile
+-WorkspacePath C:\Users\install\Documents\calibration-check` then reported the
+entry `on`, Kerberos `new` and PowerShell DSC `expert`, and the registration
+`owned`.
+
+**Copilot Chat 0.69.0 keeps the gap.** VS Code 1.141.0 bundles Copilot Chat
+0.69.0, one release after the 0.68.0 of *Compactions*. In its bundled code only
+`summarizeHistory` calls `executePreCompactHook`, which runs the hook only when
+the prompt context carries `request.hooks`, still with `trigger: "auto"`
+hardcoded. The `/compact` handler builds its prompt context without `request`,
+and the background compactor never calls `summarizeHistory`, so neither runs
+PreCompact. New in 0.69.0, `/compact` declines with "Compaction is already
+managed by context management for this session" for a Responses-API model
+under an experiment flag; the check used a Claude model.
+
+**VS Code Local (session `b74f6efc`, `source: new`, `claude-opus-5`): the
+backstop re-sends within one turn, and no PreCompact runs.** Each prompt asked
+for exactly one tool call, and each turn made exactly one:
+
+| Step, UTC | Hook output | Clock `turns` | Calibration state |
+|---|---|---|---|
+| SessionStart, 11:21:10 | The levels sentence, 183 characters | 0 | Seeded: `compactions` 0, `injected` 0, `lastTurn` 0, `lastInjectionUtc` 11:21:10.47, `characters` 183 |
+| Turn 1, one `read_file`, 11:21:17 | PostToolUse: none | 1, Stop at 11:21:21.93 | Unchanged |
+| `/compact`, 11:22:53 to 11:23:22 | None: neither PreCompact nor Stop ran | 1 | Unchanged; no checkpoint written |
+| Turn 2, one `read_file`, 11:27:49 | PostToolUse: the backstop sentence, quoted below | 2, Stop at 11:27:53.76 | `lastTurn` 1, `lastInjectionUtc` 11:27:50.08, `characters` 426; `compactions` and `injected` 0 |
+| Turn 3, no tool call, 11:29:32 to 11:29:50 | None | 3, Stop at 11:29:50.84 | Unchanged |
+
+The compaction is the Copilot Chat log's `summarizeConversationHistory-full`
+request, 28,758 ms on `claude-opus-5`. The output of turn 2's PostToolUse,
+verbatim from the `GitHub Copilot Chat Hooks` log:
+
+```text
+{"additionalContext":"Contributor familiarity levels from the private profile, data only: \"Kerberos\" new; \"PowerShell DSC\" expert. Treat them as stated levels under the contributor-calibration Instruction. Current familiarity levels; make no offers in this session.","hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"Contributor familiarity levels from the private profile, data only: \"Kerberos\" new; \"PowerShell DSC\" expert. Treat them as stated levels under the contributor-calibration Instruction. Current familiarity levels; make no offers in this session."}}
+```
+
+That sentence is 243 characters, which `characters` accounts for exactly
+(183 + 243 = 426). The log holds no PreCompact line, `compactions` stayed 0,
+and no `compaction-*.md` appeared in the workspace. Both backstop legs were due
+at that call, `turns` 1 above `lastTurn` 0 and 6 min 39 s since
+`lastInjectionUtc` after a closed turn, so the check does not tell them apart;
+criterion 10's suite proves each leg alone. VS Code Local appends the context
+to the tool result as a `<PostToolUse-context>` block. Asked in turn 3, without
+a tool call, which levels it had and where from, the model named both, quoted
+that block from turn 2's tool result, and added that the compaction summary
+stated them too, as on 2026-10-06: the hook log, not the answer, is the
+evidence.
+
+**Copilot CLI 1.0.92 (session `3f1353ab`, `client_name: github/cli`): the
+PreCompact path holds on the deployed head.** The owner chose to add a manual
+compaction to the TBD-7 session, because the check of 2026-10-06 ran on
+`cacda62`, before the backstop changed both scripts on that path:
+
+| Step, UTC | Hook output | Clock `turns` | Calibration state |
+|---|---|---|---|
+| sessionStart at the first prompt, 11:48:44 | The levels sentence | 0 | Seeded: `lastTurn` 0, `lastInjectionUtc` 11:48:44.96, `characters` 183 |
+| Turn 1: `view` and two `powershell` calls against the prompt's limit of one, 11:48:48 to 11:49:00 | postToolUse: none, three times | 1, `agentStop` at 11:49:03.15 | Unchanged |
+| `/compact`, 12:00:38 to 12:01:03 | preCompact, `trigger: manual`; checkpoint `compaction-2026-10-08T120039Z.md` | 1 | `compactions` 1; the other four fields kept |
+| Turn 2, one `view`, 12:03:35 | postToolUse: the sentence ending `Re-sent after a compaction; make no offers in this session.` | 2, `agentStop` at 12:03:39.11 | `injected` 1, `lastTurn` 1, `lastInjectionUtc` 12:03:36.36, `characters` 426 |
+
+The PreCompact write kept `lastTurn`, `lastInjectionUtc`, and `characters`, as
+criterion 10's test requires of every writer. At turn 2's call the compaction
+re-send took the place of the backstop that was also due and advanced the
+backstop's fields, so nothing was sent twice.
+
+**TBD-7: `turns` advances in every host inside the promise.** Read from the
+session clocks, from the `GitHub Copilot Chat Hooks` log for VS Code Local, and
+for the SDK runtime from `~/.copilot/session-state/<id>/events.jsonl`, whose
+`workspace.yaml` names the `client_name`:
+
+| Host | Session | Turns closed | Clock `turns` |
+|---|---|---|---|
+| VS Code Local, Copilot Chat 0.69.0 | `b74f6efc`, 2026-10-08 | 3 Stop runs | 1, 2, 3 after each; the `/compact` request ran no Stop |
+| VS Code Local, Copilot Chat 0.68.0 | `53bfb281`, 2026-10-06 | 3 Stop runs | 3 |
+| Copilot CLI 1.0.92 | `3f1353ab`, 2026-10-08 | 2 `agentStop` runs | 1, 2 after each; `/compact` ran no `agentStop` |
+| Copilot CLI 1.0.92 | `1fad021f`, 2026-10-06 | 3 `agentStop` runs | 3 |
+| VS Code agent host, runtime `1.0.92-4.unstable.r37397886721.gad270aa` | `21abd9cf` and `83eacee8`, 2026-10-08 | 1 `agentStop` run each | 1 each |
+| VS Code agent host | `ddb443bd`, 2026-10-07 to 2026-10-08, resumed twice | 8 `agentStop` runs | 6 |
+| VS Code agent host | `b35a8857`, 2026-10-06 | 4 `agentStop` runs | 4 |
+
+No host inside the promise has a readable clock whose `turns` never advances,
+so A14's grace fallback is not built: criterion 30 closes on these values, and
+`Add-FamiliarityContext.ps1` is unchanged. In `ddb443bd` two of eight
+`agentStop` runs left the clock unchanged. `Write-SessionClose.ps1` declines
+only on `stop_hook_active` or a clock it cannot read or write, and a resume
+keeps a readable clock unchanged, but that runtime's events record no hook
+input, so the cause is not established. The backstop needs no particular
+increment: any increase arms the turn leg, and once a turn has closed the
+5-minute leg covers the rest.
+
+Criteria 22 and 30 are met. Criterion 22 rests on this VS Code Local check, the
+Copilot CLI checks of 2026-10-06 and today, the agent host's re-sends under
+*Compactions*, and `tests/HookSdkRuntime.Tests.ps1`, whose probe and reported
+cells pass in both runtimes. The VS Code Local cell of a plugin install at
+session start is covered the way the Meter of `Calibration.Delivery` states, by
+Pester through each launcher, not by a live session. Criteria 21 and 28 stay
+open: the persistence set of A13.
+
+### Rulings, 2026-10-08
+
+`software-architect` ruled on the two choices *The Meter, hardened* left for
+it to confirm, and the repository owner signed the ruling off in chat.
+
+- **A19.** The retry is the right treatment of a crashed launch, and the
+  condition on it is what makes it safe. A launch that exits non-zero measured
+  no hook time, so the sample is missing rather than wrong, and in a paired
+  design a missing sample is either re-measured or dropped with its pair.
+  Dropping is the worse of the two here: nearest-rank p95 over 19 replicates is
+  the maximum and over 20 the second largest, so a crash would change the
+  statistic itself rather than one of its inputs, and re-running the replicate
+  at its own rotation index costs nine launches to remove a bias that one
+  re-measured cell can move by at most one rank. The retry does carry a
+  residual bias — the retried launch runs after an extra process start and
+  after whatever `FailFast` left on the machine, and its direction depends on
+  whether the crashed cell was a numerator or the shared denominator — so the
+  bias is bounded rather than absent, and a bound is not enough for a level.
+  Hence the condition: a run whose measured replicates contain a failed launch
+  is reported as evidence, sets no `w`, and is never one of the two runs that
+  decide or reproduce a verdict. Its cost is a re-run, in about one invocation
+  in four at the rate RAANDREE3 showed. A failure in a warm-up replicate
+  disqualifies nothing, because a discarded replicate contributes no measured
+  quantity, but it counts against the run budget. Two failures in a row stay
+  the stop for a deterministic fault, and a third failed launch in one run and
+  spawn is added for the intermittent one: at the observed rate a run and spawn
+  expects 0.17 failed launches and trips the budget in fewer than one run in a
+  thousand, while a rate near one launch in a hundred trips it in about one
+  pass in three, so an invocation's four passes catch it four times in five,
+  and such a rate is an apparatus problem rather than the known runtime fault.
+  The crash rate is reported, never gated: it measures a host runtime's patch
+  level — PowerShell 7.6.1 on .NET 10.0.6, one failure in about 1,160
+  SDK-spawn launches, none in about 750 on .NET 10.0.12 — and a Tag for it
+  would make this record's pass depend on a .NET release it does not control.
+  Rejected: discarding the replicate, for the statistic it changes; a failure
+  budget instead of two in a row, which would let a mis-resolved script path
+  waste a whole run; a settle pause before the retry, a knob to tune where the
+  condition already removes the need; and a requirement Tag for the crash rate.
+
+### Amendment 4 implemented, 2026-10-08 on Prox1
+
+`software-engineer` built A19 test-first. Five tests joined
+`tests/CalibrationMeter.Tests.ps1`. Four went red first for the expected
+reasons: no stop at the third failed launch, no `Measured` on a record, and no
+`Get-CalibrationMeterFailureCount`. The fifth, the run budget's scope, can fail
+only against a budget counted too widely, so it passed before the budget
+existed and was shown to fail against a budget counted per run only and one
+counted per spawn only, before the filter was restored. The file then passed
+51 of 51. The Meter, which the suite does not run, marks each failure
+`Measured` or warm-up, carries `Failed` on every row, appends `, evidence only
+(A19)` to a reproduced row's verdict, and names the failed launches per run and
+spawn in its closing warning. A smoke run on Prox1 at 12:25 UTC, 3 replicates
+without warm-up and one repeat, 54 launches, completed with `Failed` 0 on all
+24 rows and wrote the column to the CSV; three replicates measure nothing, so
+its ratios are not recorded. No latency level and no file of
+`tests/Fixtures/ReferenceHook` changed, so the pin `30fb3229…` holds. The full
+gate, `./build.ps1 -Tasks build, test`, passed with this subsection's and the
+VS Code Local check's records in place: 3,293 tests, 0 failed, 129 skipped,
+coverage 90.84 %, among them the SDK runtime probe and the reported cells of
+`tests/HookSdkRuntime.Tests.ps1` against the runtime VS Code 1.141.0 bundles
+and Copilot CLI 1.0.92. Its summary lists 15 warnings from the Meter tests'
+simulated crashes, 10 of them from the new tests, because Invoke-Build records
+`Write-Warning` even under `-WarningAction SilentlyContinue`.
 
 ## Signed-off Design Concept
 
@@ -1943,6 +2126,11 @@ Meter: tests/Fixtures/Measure-CalibrationLatency.ps1, gaining two cells —
        reproduces it. The hook's full wall-clock time, the no-op launch, the
        frozen reference script's own time, and the push guard are reported in
        milliseconds per machine and spawn, not used as levels. (A9)
+       A launch that exits non-zero is recorded and run once more in the same
+       position with a fresh session; a second failure in a row, or a third
+       failed launch in one run and spawn, stops the Meter, and a run whose
+       measured replicates contain a failed launch is evidence only — it sets
+       no w and decides no verdict. (A19)
 Past: withdrawn (A10). The launch-unit readings of 2026-10-06 on Prox1 and
        RAANDREE3 stay under Confirmation as the evidence for A9 and bind
        nothing. Under this Meter: [one entry] 1.08 to 1.13 (Prox1) and 0.94 to
@@ -2168,8 +2356,10 @@ change to the unit and re-baselines both latency tags in the same commit
 ### The re-baseline rule (A9)
 
 Applied once, by the engineer, in the first Meter run under the new unit, on
-both machines and both spawns. It is deliberately mechanical so that it needs
-no further architect round:
+both machines and both spawns. Only a run whose measured replicates contain no
+failed launch may set a `w` or decide a verdict; a run that needed a retry is
+reported as evidence and the pair is run again *(A19)*. It is deliberately
+mechanical so that it needs no further architect round:
 
 1. Record the frozen reference script's own time in milliseconds per machine
    and spawn as a new Past line. It is the unit's calibration and must be
@@ -2382,7 +2572,7 @@ grace fallback *(A14 to A18)*.
 | Registration script unresolvable in an open session | Launcher exits `1`, a warning, until the chat restarts; Uninstall reconciles first |
 | Any hook fault | Exit `0`, session never blocked, profile never written by a hook |
 | Session clock file missing or unreadable at a PostToolUse call | The turn signal is unavailable; the 5-minute signal alone drives the backstop; no error, nothing written *(A12)* |
-| `turns` never advances in a host whose clock is readable | Neither signal fires: the turn leg needs a closed turn, and the time leg is armed only by a clock reporting at least one, so that host receives no backstop and the Purpose's "within one turn" does not hold there. Whether such a host exists inside the promise is TBD-7, measured per host in the delivery matrix; finding one builds the grace fallback in the Outputs *(A12, A14)* |
+| `turns` never advances in a host whose clock is readable | Neither signal fires: the turn leg needs a closed turn, and the time leg is armed only by a clock reporting at least one, so that host receives no backstop and the Purpose's "within one turn" does not hold there. TBD-7 measured every host inside the promise on 2026-10-08 and found none: `turns` advances in VS Code Local, VS Code's agent host, and Copilot CLI, so the grace fallback in the Outputs is not built *(A12, A14)* |
 | A session reaches the 12,000-character bound | Backstop re-sends stop for the rest of the session; compaction re-sends continue; nothing is reported to the model *(A12)* |
 | A session reaches the 60,000-character ceiling | No injection of either kind for the rest of the session. The record of the condition is the state file: `characters` at or above 60,000, with the unanswered compactions left in `compactions`. No command reports it, because the per-session state is hook-private and no command is given a session identifier *(A12, A15)* |
 | The state write fails or the lock times out on an inject path | Nothing is emitted on that call; the backstop re-evaluates on the next one, so no condition is lost and none re-fires unrecorded *(A12)* |
@@ -2624,12 +2814,13 @@ exists only in sessions started while a registration file exists.
     second run. The re-baseline rule is applied once, per tag, and each tag's
     `w`, Budget, Fail, the reference's composite hash, its own milliseconds per
     machine and spawn, and the run-to-run spread are recorded in Decision
-    record 0028. No run reports `unit unmeasurable`. The unit transfer check
-    passes for `SessionStart.AddedLatency`; where it fails for
+    record 0028. No run reports `unit unmeasurable`, and no run that set a `w`
+    or decided a verdict had a failed launch in a measured replicate. The unit
+    transfer check passes for `SessionStart.AddedLatency`; where it fails for
     `PostToolUse.CallLatency`, that tag carries no ratio Budget, is gated on
     its absolute stop line, and the failing numbers are recorded. The
     two-entry cell, the inject path, the push guard, and every cell's absolute
-    milliseconds are reported *(A9, A10, A11, A16, A17)*.
+    milliseconds are reported *(A9, A10, A11, A16, A17, A19)*.
 21. Eval: `Calibration.Persistence` 100 % pass^3 at each Position, over a set
     of at least 6 cases per Position with at least 3 `real-derived` and at
     least one case per Familiarity level, every case carrying its provenance;
@@ -2688,7 +2879,7 @@ exists only in sessions started while a registration file exists.
 | TBD-4 | Gates for the offer and safety eval groups | Resolved at sign-off: equal to `Calibration.Persistence` | Measurement only |
 | TBD-5 | Closed: **no.** The reader's cold cost does not scale with the launch cost across machines. A9 retires the launch unit | — | Closed by the RAANDREE3 run |
 | TBD-6 | Closed: **yes, per tag.** The reader-shaped frozen reference's cold cost scales across Prox1 and RAANDREE3 the way both gated steps do, within 1.01 to 1.16 times through both spawns, on 2026-10-08 | — | Closed by the re-baseline run, step 5 of the rule |
-| TBD-7 | Does `turns` advance in every host inside the promise? Measured per host, with the observed value recorded | software-engineer, measured in the delivery matrix | Whether the backstop fires at all in that host. A host whose clock is readable and whose `turns` never advances receives no backstop today; finding one builds the grace fallback *(A14)*. Measured so far: the SDK-runtime agent host advanced `turns` to 2 between turns on 2026-10-07; VS Code Local is unmeasured |
+| TBD-7 | Closed: **yes.** `turns` advances between turns in every host inside the promise: VS Code Local to 3 over three turns on Copilot Chat 0.69.0, Copilot CLI 1.0.92 to 2, and VS Code's agent host to 1, 4, and 6, on 2026-10-06 to 2026-10-08. No host needs the grace fallback, so it is not built | — | Closed by the delivery matrix, *VS Code Local backstop and TBD-7* |
 | TBD-8 | Where does the private eval kit live, and does it satisfy the working-tree refusal? | software-engineer, recorded before the persistence set is rebuilt | Whether chat excerpts can reach a repository |
 
 Delegated answers: none.
@@ -2758,6 +2949,17 @@ Confirmation.
 | A18 | Outputs: seeding, the lock ordering, the due re-send that yields nothing, the field-pattern reads, the bounds; `Context.SessionBudget`: Budget, Fail; criterion 10 |
 | A14 to A18 | Durable choices and their reversibility; Delivery increments: new item 8 |
 
+Amendment 4, 2026-10-08: ruling A19, confirming the two choices the Meter's
+hardening made after the launch that crashed on RAANDREE3 on 2026-10-08 and
+adding one condition to the first. The repository owner signed it off with the
+recommended answer and delegated nothing. No independent review was
+commissioned: the ruling changes a measurement procedure and introduces no
+attack surface. The reason is under *Rulings, 2026-10-08* in the Confirmation.
+
+| Ruling | Passages amended |
+|---|---|
+| A19 | `SessionStart.AddedLatency`: Meter; the re-baseline rule: preamble; criterion 20; Confirmation, Step 7.3 on RAANDREE3: *The Meter, hardened* |
+
 ## Sign-off
 
 - [x] The user read this document end to end.
@@ -2788,3 +2990,14 @@ Amendment 3:
   decisions the architect round put to them with the recommended answers.
 - [x] The repository owner signed it off in chat on 2026-10-07, relayed through
   `software-engineer`, which dispatched `software-architect` to record it.
+
+Amendment 4:
+
+- [x] The repository owner read the summary relayed in chat: the ruling's five
+  points, the passages and the Meter code it changes, and one correction by
+  `software-engineer` to the expected re-run rate, one invocation in four
+  rather than three.
+- [x] The repository owner accepted ruling A19, choosing "Sign off A19 in full:
+  record and Meter code, built test-first now (Recommended)".
+- [x] The repository owner signed it off in chat on 2026-10-08, relayed through
+  `software-engineer`, which dispatched `software-architect` for the ruling.

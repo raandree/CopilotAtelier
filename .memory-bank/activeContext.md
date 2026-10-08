@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-07
+last-verified: 2026-10-08
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,20 +9,25 @@ source: current task evidence
 
 ## Current focus
 
-Decision 0028 **step 7.3 is done** (2026-10-08): the re-baseline rule set
-`SessionStart.AddedLatency` Budget 2.0 and Fail 4.0, and
-`PostToolUse.CallLatency` Budget 0.75 and Fail 1.5, one `w` per tag, from the
-Prox1 pair of 2026-10-07 15:30 and the RAANDREE3 pair of 2026-10-08 09:42, both
-with milliseconds. The transfer check passed for both tags (TBD-6 closed), both
-stop lines are clear, and criteria 20, 26, and 29 are met; the levels sit in
-`Get-CalibrationMeterBudget`, derived by a test from the recorded lower runs.
-The RAANDREE3 `FailFast` is a .NET 10.0.6 runtime fault, an unhandled
-`IndexOutOfRangeException` in the runtime's exception dispatch, not our code;
-RAANDREE3 runs PowerShell 7.6.1, Prox1 7.6.6 on .NET 10.0.12, and the push guard
-does not fail open on it. Still open: criteria 21, 22, 28, and 30.
+Decision 0028 **step 7.5 is done** (2026-10-08, Prox1, the owner at the
+keyboard). After the owner approved redeploying the branch head over
+`cacda62`, a new VS Code Local chat on Copilot Chat 0.69.0 (session
+`b74f6efc`) re-sent the levels with the backstop suffix on the first tool call
+after `/compact`; no PreCompact ran and `compactions` stayed 0, so criterion 22
+is met. TBD-7 is closed: `turns` advances in VS Code Local, Copilot CLI
+(session `3f1353ab`, which also re-proved the PreCompact re-send on the
+deployed head), and the agent host, so the grace fallback is not built and
+criterion 30 is met. `software-architect` ruled A19 (Amendment 4), signed off
+by the owner: the Meter's retry stays, a run with a failed launch in a measured
+replicate is evidence only, and a third failed launch in one run and spawn
+stops the Meter; built test-first. Still open: criteria 21 and 28 (A13).
 
 ## Previous focuses
 
+- **Step 7.3, the levels (`3bef6b9`).** `SessionStart.AddedLatency` Budget
+  2.0 and `PostToolUse.CallLatency` Budget 0.75, one `w` per tag; TBD-6
+  closed; criteria 20, 26, and 29 met. The RAANDREE3 `FailFast` is a .NET
+  10.0.6 runtime fault on PowerShell 7.6.1, not this repository's code.
 - **RAANDREE3 Meter and the Meter hardening (`8fc71a8`, `012682c`).** The
   first invocation's milliseconds were lost to the console's width; the
   Meter now keeps stderr, retries a crashed launch once, and writes a CSV.
@@ -80,13 +85,6 @@ does not fail open on it. Still open: criteria 21, 22, 28, and 30.
   `docs/client-adapter-evals.md`. Generated variants are undeployed artifacts
   under `output/clientAdapters`, owned through a schema 2 manifest recording
   SHA-256 that refuses an unowned or modified collision. Round 2: 121 passed.
-- **Changed-file validation (task 05).** An opt-in, bounded validation pass over
-  one work batch, collected manually because no documented hook event reports an
-  edit contract this implementation has verified. Validators read an isolated
-  snapshot, and a receipt binds to those bytes plus a plan identity hashing the
-  linter entry point and the shipped checker code. Parse and PSScriptAnalyzer
-  run in an owned child worker. `Markdown.NativeStructure` is `coverage=partial`
-  and never stands in for markdownlint. 12 red, then 85/0/0.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -158,17 +156,18 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. Decision 0028 continues with the VS Code Local backstop cell of the
-   delivery matrix and its manual compaction (criterion 22, TBD-7, which
-   decides the grace fallback and criterion 30), then A13: record the eval
-   kit's location and prove the working-tree refusal (TBD-8), rebuild the
-   persistence set with `provenance`, get the owner's review of the synthetic
-   cases, and get approval and a budget before any paid eval (criteria 21 and
-   28). `software-architect` still owes a confirmation of the Meter's
-   retry-once rule. Recommended to the owner, not required: update PowerShell 7
-   on RAANDREE3 from 7.6.1. Never set the summarization threshold below about
-   1.3 times the base prompt (*Compactions*). Redeploy `main` on Prox1 with
-   `Setup-CopilotSettings.ps1` once the owner closes the checks.
+1. Decision 0028 continues with A13: record the eval kit's location and prove
+   the working-tree refusal (TBD-8), rebuild the persistence set with
+   `provenance`, get the owner's review of the synthetic cases, and get
+   approval and a budget before any paid eval (criteria 21 and 28).
+   Recommended to the owner, not required: update PowerShell 7 on RAANDREE3
+   from 7.6.1. Never set the summarization threshold below about 1.3 times the
+   base prompt (*Compactions*). Prox1 runs `main` (`9b6a341`) again since
+   2026-10-08 13:09 UTC: with the owner's explicit yes to each step, the
+   scratch profile entry and its registration were removed and the scratch
+   workspace's files deleted; its empty folder stays for the owner to delete.
+   Prompt 02's runner reads the Instruction and the reader from the clone, so
+   it needs no branch deployment.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.
 3. Optional: report upstream that the GitHub hooks reference describes the
