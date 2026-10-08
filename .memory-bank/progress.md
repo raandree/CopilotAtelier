@@ -17,6 +17,14 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-08**: Corrected the `automatedlab-deployment` Skill after a real
+  loss: `Remove-LabVMSnapshot` removes the named checkpoint with
+  `-IncludeAllChildSnapshots -ErrorAction SilentlyContinue`, so it took the
+  newer checkpoint of a 13-VM lab on 10 machines and reported nothing on the
+  3 it skipped. The Skill now states the gotcha in `SKILL.md` and keeps a
+  per-VM `Remove-VMSnapshot` recipe with a merge wait and a `Get-VMSnapshot`
+  verification in `references/vm-operations.md`.
+
 - **2026-10-04**: Fixed prompt 06 on `ai/hook-deny-reason`: Copilot SDK chats
   show the guard's block reason. A model-free probe of the bundled runtime found
   that on exit 2 it drops a PascalCase event's JSON deny that also carries
@@ -49,30 +57,20 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   published `6.1.0-preview0001`. Closed #19, the API key question. Only `main`
   and the merged `copilot/dgthths` remain on GitHub.
 
-- **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
-  `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
-  - The post-release review failed the v6.0.0 launcher fix: in VS Code Local
-    chats on Windows the push guard only warned, because VS Code's outer
-    `powershell.exe -Command` reports exit 2 as 1 (Blocker, reproduced).
-  - Nine re-reviews followed; every Blocker and Major was fixed test-first
-    (SEC-13 to SEC-33, assessment log). The guard now decides within about
-    5 s (1 MB parse, 20,000-field walk, 4 MB block caps) and joins split
-    command fields in document order and per object, and on its raw path also
-    across the payload. The last re-review approved.
-  - The override cannot reach a hook from an agent terminal, so an authorized
-    push runs in the user's own terminal; never persist it. The SDK host gets
-    its own `powershell` launcher and the reason on stdout.
-  - Hook suites: 559 passed, 0 failed; full gate of the merge (`634546e`)
-    2,536 passed, 0 failed. Deployed: hooks match the source, the deployment
-    is healthy, and a push exits 2 with its reason in both host spawns.
-
-- **2026-10-02**: The version now rises only from Conventional Commit markers
-  (`31042ea`, `bd60b7a`), approved by an independent review; `main` was then
-  merged into `ai/contributor-calibration` (`e0955fb`).
-
-- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake (`bff3ac4`):
-  the heartbeat state is renamed over atomically, also on Windows PowerShell
-  5.1; torn reads fell from 2 to 94 per run to none in 18.
+- **2026-10-02**: Hook follow-up prompts 02, 05, and 06 landed on local `main`
+  (`d8cc6f5` to `fea564f`); only their live checks remained. The post-release
+  review failed the v6.0.0 launcher fix — VS Code's outer
+  `powershell.exe -Command` reports exit 2 as 1, so the Local-chat guard only
+  warned — and nine re-reviews fixed every Blocker and Major test-first
+  (SEC-13 to SEC-33, assessment log). The guard now decides within about 5 s
+  (1 MB parse, 20,000-field walk, 4 MB block), joins split command fields per
+  object and, on its raw path, across the payload, and an authorized push runs
+  in the user's own terminal because the override cannot reach a hook from an
+  agent terminal. Full gate of the merge (`634546e`): 2,536 passed, 0 failed.
+  The same day the version rules landed (`31042ea`, `bd60b7a`): only
+  Conventional Commit markers raise it. The `LongRunningJobMonitor` heartbeat
+  flake is gone too (`bff3ac4`) — the state file is renamed over atomically,
+  also on Windows PowerShell 5.1.
 
 ## Stable capabilities
 

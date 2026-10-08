@@ -81,7 +81,7 @@ Commonly used cmdlets grouped by category. Internal worker cmdlets
 | `Checkpoint-LabVM` | Create a snapshot |
 | `Get-LabVMSnapshot` | List snapshots |
 | `Restore-LabVMSnapshot` | Restore a snapshot |
-| `Remove-LabVMSnapshot` | Delete a snapshot |
+| `Remove-LabVMSnapshot` | Remove a snapshot **and all of its child snapshots** (see [`vm-operations.md`](vm-operations.md)) |
 
 ### Remote Execution & Sessions
 

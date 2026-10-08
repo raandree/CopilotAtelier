@@ -308,6 +308,22 @@ A complete lab script is maintained at the project root:
 - **Network**: `192.168.100.0/24` internal + Default Switch (External) for internet
 - **Post-deploy**: Creates `\\FS1\Data` share, takes a baseline snapshot
 
+## Gotchas
+
+- **`Remove-LabVMSnapshot` also deletes the named checkpoint's whole subtree.**
+  It runs `Remove-VMSnapshot -IncludeAllChildSnapshots -ErrorAction
+  SilentlyContinue` per VM (AutomatedLabCore 5.61.704), so every checkpoint
+  below it in the VM's checkpoint tree goes with it — in a linear chain, every
+  later one — and a VM where nothing was removed is never reported. To drop an
+  older checkpoint and keep the newer ones, remove it per VM instead:
+  `Get-VMSnapshot -VMName <ResourceName> | Where-Object Name -EQ '<old>' | Remove-VMSnapshot`
+  without `-IncludeAllChildSnapshots`, wait while the VM's `OperationalStatus`
+  reports `MergingDisks`, then verify with `Get-VMSnapshot`. Recipe:
+  [`references/vm-operations.md`](references/vm-operations.md).
+- **A checkpoint that exists on only part of the lab cannot restore it to a
+  consistent state.** Apply and remove checkpoints across all lab machines
+  together, and verify every VM afterwards.
+
 ## Troubleshooting
 
 Hyper-V symptoms, WinRM/CredSSP failures, AD-readiness races, ISO mount issues, base-image corruption, and post-install hangs — read [`references/troubleshooting.md`](references/troubleshooting.md).

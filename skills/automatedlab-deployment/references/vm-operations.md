@@ -17,6 +17,7 @@ Extracted from `Skills/automatedlab-deployment/SKILL.md` to keep the main skill 
 - Save (hibernate) VMs
 - Remove individual VMs
 - Remove snapshots
+- Remove an older snapshot and keep the newer ones
 - Get snapshots
 - Copy files to lab VMs
 - Download files from the internet
@@ -147,10 +148,60 @@ Remove-LabVM -Name 'CL1'
 
 ### Remove snapshots
 
+> **`Remove-LabVMSnapshot` removes the named snapshot *and all of its child
+> snapshots*.** It calls `Remove-VMSnapshot -IncludeAllChildSnapshots
+> -ErrorAction SilentlyContinue` on every machine (AutomatedLabCore 5.61.704),
+> so every checkpoint below the named one in the VM's checkpoint tree — in a
+> linear chain, every later one — is deleted with it, and a VM where nothing
+> was removed is not reported. Use it only when the named snapshot is the
+> newest one or the whole subtree is expendable.
+
 ```powershell
 Remove-LabVMSnapshot -ComputerName 'DC1' -SnapshotName 'Baseline'
 Remove-LabVMSnapshot -All -SnapshotName 'Baseline'
 ```
+
+### Remove an older snapshot and keep the newer ones
+
+Remove it per VM with `Remove-VMSnapshot` and **without**
+`-IncludeAllChildSnapshots`. Hyper-V merges the removed checkpoint into its
+child, so the later checkpoints survive. Address the VMs by their Hyper-V name
+— `(Get-LabVM).ResourceName`, which differs from the machine name when the lab
+uses a VM name prefix. Wait on `OperationalStatus`, an enum: the `Status` text
+is localised, so comparing it to `'Operating normally'` never ends on a
+non-English host.
+
+```powershell
+$snapshotToRemove = 'Baseline'
+$vmNames = (Get-LabVM).ResourceName
+
+foreach ($vmName in $vmNames) {
+    Get-VMSnapshot -VMName $vmName |
+        Where-Object Name -EQ $snapshotToRemove |
+        Remove-VMSnapshot
+
+    # The merge runs in the background; give it a moment to start, then wait it
+    # out, and fail loudly instead of hanging if it never finishes
+    $deadline = (Get-Date).AddMinutes(30)
+    do {
+        Start-Sleep -Seconds 5
+        $operationalStatus = (Get-VM -Name $vmName).OperationalStatus
+        $isMerging = ($operationalStatus -contains 'MergingDisks') -or
+            ($operationalStatus -contains 'DeletingSnapshot')
+        if ($isMerging -and (Get-Date) -gt $deadline) {
+            throw "Merging '$snapshotToRemove' on '$vmName' did not finish within 30 minutes (OperationalStatus: $operationalStatus)."
+        }
+    } while ($isMerging)
+}
+
+# Verify on every VM that only the newer checkpoints remain
+Get-VMSnapshot -VMName $vmNames |
+    Select-Object VMName, Name, ParentSnapshotName
+```
+
+> A checkpoint that exists on only part of the lab cannot restore the lab to a
+> consistent state. Apply and remove checkpoints across all lab machines
+> together, and confirm the result with `Get-VMSnapshot` on every VM.
 
 ### Get snapshots
 
