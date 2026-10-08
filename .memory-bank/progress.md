@@ -86,16 +86,16 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - Contributor calibration, Decision 0028: A13 rebuilds the persistence set
   (TBD-8, owner review of synthetic cases, approval and budget before any paid
   eval; criteria 21 and 28).
-- Lessons of the 2026-10-08 live check, verified then (Pester 5.7.1, Copilot
-  Chat 0.69.0): the detached Pester templates in `pester.instructions.md` and
-  `pester-patterns` fail only on `FailedCount`, so a test file that does not
-  parse or whose `BeforeDiscovery` throws reads as passed (`Result` Failed,
-  `FailedContainersCount` 1) — fail on `Result -ne 'Passed'`; `-BeTrue` and
-  `-BeFalse` check truthiness (`$null` passes `-BeFalse`), not the "Boolean
-  check" the table names; `agent-security-review`: PostToolUse context is
-  pushed into the tool result's own content, so it carries data only; an async
-  wait on `ResultPath` for sub-minute detached runs (the heartbeat's minimum is
-  1 minute); and the hooks README should say where each host records evidence.
+- Lessons of the 2026-10-08 live check, handed off as Desktop prompt 03 to run
+  on another machine on its own branch from `origin/main` (Pester 5.7.1,
+  Copilot Chat 0.69.0): the detached Pester templates fail only on
+  `FailedCount`, so a file that does not parse, a throwing `BeforeDiscovery`,
+  or a path with no test file reads as passed — fail on `Result -ne 'Passed'`;
+  `-BeTrue`/`-BeFalse` check truthiness, not the "Boolean check" the table
+  names; `agent-security-review`: PostToolUse context is pushed into the tool
+  result, so it carries data only; an async wait on `ResultPath` for
+  sub-minute detached runs; and the hooks README should say where each host
+  records evidence.
 - One-process `windows` launcher (ruling A11): separate work against Decision
   0016, kept here because Decision records here are accepted or superseded.
   Adopt only if `tests/HookLauncher.Tests.ps1` passes unchanged (`cmd.exe`,
