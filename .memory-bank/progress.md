@@ -18,6 +18,13 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-08**: Set Decision 0028's latency levels by the re-baseline rule
+  (`software-engineer`, from the owner's third RAANDREE3 invocation and its
+  CSV): `SessionStart.AddedLatency` Budget 2.0, `PostToolUse.CallLatency` 0.75;
+  transfer check passed for both tags (TBD-6 closed); stop lines clear;
+  criteria 20, 26, and 29 met. The RAANDREE3 `FailFast` traced to the .NET
+  10.0.6 runtime of its PowerShell 7.6.1, not to this repository's code.
+
 - **2026-10-08**: The owner ran the Meter on RAANDREE3: both runs of the first
   invocation complete, the rule's Budgets computable from the ratios (2.25 and
   0.75) and the transfer check passing for both tags, but the milliseconds lost
@@ -50,17 +57,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   independent `security-reviewer` pass found no Blocker; its 12 findings are
   resolved in the text. Nothing is implemented yet.
 
-- **2026-10-07**: VS Code Local runs no PreCompact for a background
-  compaction either (Copilot Chat 0.68.0), found when a 70,000-token threshold
-  set for the retest made one prompt loop through 2,001 requests and 99
-  compactions; the threshold is removed. VS Code's agent host (SDK runtime)
-  re-sent the levels after each of three automatic compactions, and the model
-  noticed them unprompted. The owner ruled out asking VS Code for a change.
-  Three machines' whole histories (2,706 messages) add 2 real level
-  statements, both `new`, to the approved Phase 1 cases; the private finder's
-  files now state its version. Both gaps returned to `software-architect`
-  (questions 4 and 5).
-
 ## Stable capabilities
 
 - Deterministic lifecycle hooks that block remote mutation and prove Memory Bank
@@ -86,14 +82,12 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Contributor calibration, Decision 0028: one more Meter invocation on
-  RAANDREE3 with its CSV, and its Application event log entry for the
-  2026-10-08 `FailFast`; then the re-baseline rule, one `w` per tag across both
-  machines (TBD-6 transfer check per tag, both stop lines, the spread); one
-  manual compaction in VS Code Local proves the backstop within one turn and
-  measures TBD-7, which decides the grace fallback (criteria 22 and 30); A13
-  rebuilds the persistence set (TBD-8, owner review of synthetic cases,
-  approval and budget before any paid eval).
+- Contributor calibration, Decision 0028: one manual compaction in VS Code
+  Local proves the backstop within one turn and measures TBD-7, which decides
+  the grace fallback (criteria 22 and 30); A13 rebuilds the persistence set
+  (TBD-8, owner review of synthetic cases, approval and budget before any paid
+  eval; criteria 21 and 28); `software-architect` confirms the Meter's
+  retry-once rule.
 - One-process `windows` launcher (ruling A11): separate work against Decision
   0016, kept here because Decision records here are accepted or superseded.
   Adopt only if `tests/HookLauncher.Tests.ps1` passes unchanged (`cmd.exe`,

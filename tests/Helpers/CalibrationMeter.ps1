@@ -16,12 +16,12 @@ function Get-CalibrationMeterBudget
     <#
         The latency levels of the gated cells, in frozen references (rulings
         A9 and A17), and the composite SHA-256 of the frozen reference they
-        were set against. Ruling A10 withdrew the launch-unit levels of rulings
-        A2 and A3, and the re-baseline rule sets the new ones, one w per tag
-        (ruling A16), from the first Meter runs under the new unit, so Level
-        stays empty until then. Changing any file of the reference changes
-        every ratio: re-baseline both latency tags in the commit that changes
-        ReferenceSha256.
+        were set against. The re-baseline rule set them on 2026-10-08, one w
+        per tag (ruling A16), from the Prox1 pair of 2026-10-07 15:30 UTC and
+        the RAANDREE3 pair of 2026-10-08 09:42 UTC, both spawns, replacing the
+        launch-unit levels ruling A10 withdrew. Changing any file of the
+        reference changes every ratio: re-baseline both latency tags in the
+        commit that changes ReferenceSha256.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -29,7 +29,11 @@ function Get-CalibrationMeterBudget
 
     @{
         ReferenceSha256 = '30fb3229afc003e248371b378883b2164a8ed00338c9f7647b40acfab2d29c79'
-        Level           = @{}
+        Level           = @{
+            'SessionStart, one entry'  = @{ Budget = 2.0; Fail = 4.0 }
+            'SessionStart, no profile' = @{ Budget = 2.0; Fail = 4.0 }
+            'PostToolUse, common path' = @{ Budget = 0.75; Fail = 1.5 }
+        }
     }
 }
 

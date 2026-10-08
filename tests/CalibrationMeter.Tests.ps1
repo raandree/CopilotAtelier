@@ -116,11 +116,30 @@ Describe 'Calibration Meter arithmetic' -Tag 'Unit' {
         Merge-CalibrationMeterVerdict -Verdict $Verdict | Should -BeExactly $Expected
     }
 
-    It 'carries no latency level until the re-baseline, because ruling A10 withdrew the launch-unit levels' {
+    It 'gates every cell of a tag at the level the re-baseline rule set from its own w' {
+        <#
+            Decision record 0028, step 7.3, 2026-10-08: the rule applied once,
+            one w per tag (ruling A16), to the gated cells' lower-run p95
+            values of the Prox1 pair of 2026-10-07 15:30 UTC and the RAANDREE3
+            pair of 2026-10-08 09:42 UTC, both spawns, against the reference
+            pinned below. A change to the reference re-baselines these.
+        #>
         $budget = Get-CalibrationMeterBudget
+        $sessionStart = Get-CalibrationMeterRebaseline -LowerRunP95 1.08, 0.49, 1.12, 0.53, 0.94, 0.45, 1.11, 0.56
+        $postToolUse = Get-CalibrationMeterRebaseline -LowerRunP95 0.32, 0.38, 0.28, 0.38
 
-        $budget.Level.Count | Should -Be 0
-        $budget.ReferenceSha256 | Should -Match '\A[0-9a-f]{64}\z'
+        @($budget.Level.Keys | Sort-Object) | Should -Be @('PostToolUse, common path', 'SessionStart, no profile', 'SessionStart, one entry')
+        foreach ($cell in 'SessionStart, one entry', 'SessionStart, no profile')
+        {
+            $budget.Level[$cell].Budget | Should -Be $sessionStart.Budget
+            $budget.Level[$cell].Fail | Should -Be $sessionStart.Fail
+        }
+
+        $budget.Level['PostToolUse, common path'].Budget | Should -Be $postToolUse.Budget
+        $budget.Level['PostToolUse, common path'].Fail | Should -Be $postToolUse.Fail
+        $sessionStart.Budget | Should -Be 2.0
+        $postToolUse.Budget | Should -Be 0.75
+        $budget.ReferenceSha256 | Should -BeExactly '30fb3229afc003e248371b378883b2164a8ed00338c9f7647b40acfab2d29c79'
     }
 
     It 'sets Budget at the smallest multiple of 0.25 at least 1.75 times the worst lower run (<Case>)' -ForEach @(

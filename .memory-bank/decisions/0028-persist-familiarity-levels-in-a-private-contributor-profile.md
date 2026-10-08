@@ -1252,10 +1252,11 @@ work A17 expected it to be. Should the same hold across machines, the
 
 The owner ran the Meter on RAANDREE3 at the pinned reference `30fb3229…`. The
 first invocation, at 08:29 UTC, completed both runs. A second invocation, at
-08:56 UTC, stopped in its first SDK pass when one launch of
-`SessionStart, two entries` exited `-2146232797`. The console's table dropped
-every column after `Fail`, so the milliseconds of the first invocation are
-lost: the reference's own time, every step, and the stop-line check.
+08:56 UTC, stopped in its second run's SDK pass, as the event log below dates
+it, when one launch of `SessionStart, two entries` exited `-2146232797`. The
+console's table dropped every column after `Fail`, so the milliseconds of the
+first invocation are lost: the reference's own time, every step, and the
+stop-line check.
 
 Gated ratios, p95 over the two runs of the first invocation, with the lower
 run and the spread of step 8:
@@ -1287,20 +1288,30 @@ milliseconds; this pair then stands as its reproduction check.
 
 **The crash.** `-2146232797` is `0x80131623`, the exit code of .NET's
 `Environment.FailFast`; an unhandled exception in a script exits `0xE0434352`
-instead, as an experiment on Prox1 showed for both. No script of this
-repository calls `FailFast` or runs script code on a thread without a runspace.
-The launcher passes the inner process's exit code on, so either PowerShell 7
-process of that launch may have failed. The two-entry cell is the only one that
-runs git. On Prox1, 400 launches through the SDK spawn, alternating the
-two-entry cell with the one-entry cell as a control, with PowerShell 7.6.6 and
-git 2.53.0, produced no failure, beside some 350 two-entry SDK launches in
-earlier Meter runs; RAANDREE3 failed once in at most 66. Something specific to
-RAANDREE3 is involved, its PowerShell 7 build, its git, or its environment, and
-which one is unknown until its Application event log or a captured standard
-error shows the message `FailFast` writes. A crashed SessionStart hook costs its
-whole context, the Memory Bank probe and the session clock as well as the
-calibration sentence, so this is a reliability finding although the cell is
-reported, not gated.
+instead, as an experiment on Prox1 showed for both. RAANDREE3's Application
+log holds one matching event since the Meter started: `.NET Runtime` event
+1025 at 11:20:12 local time, about 09:20 UTC. The process was `pwsh.exe` on
+CoreCLR 10.0.626.17701, .NET 10.0.6, and the message `UnhandledException`: an
+`IndexOutOfRangeException` thrown by the runtime's own bounds-check helper,
+`ThrowHelpers.ThrowIndexOutOfRangeException`, for which the managed exception
+dispatch, `System.Runtime.EH.DispatchEx`, found no handler and fell back to
+`FailFast`. No frame below the throw helper was recorded, so the faulting code
+is not named. It is not script code: no script of this repository calls
+`FailFast` or runs script code on a thread without a runspace, and an exception
+in script code reaches the hook's own `try` and `catch` or exits `0xE0434352`.
+
+RAANDREE3 runs PowerShell 7.6.1, whose .NET 10.0.6 is six patch releases behind
+Prox1's PowerShell 7.6.6 on .NET 10.0.12. On Prox1, 400 launches through the SDK
+spawn, alternating the two-entry cell with the one-entry cell as a control,
+produced no failure, beside some 350 two-entry SDK launches in earlier Meter
+runs. RAANDREE3 failed once in about 1,160 SDK-spawn launches over three
+invocations, and never through the VS Code spawn, whose Windows PowerShell runs
+on .NET Framework. Whether a later .NET 10 patch fixes it is unverified. The
+cost is one launch: for SessionStart, that session's whole context, the Memory
+Bank probe and the session clock included; for PostToolUse, one re-send. The
+push guard does not fail open on it, because the SDK host denies a
+`preToolUse` hook that exits neither `0` nor `2` (Decision record 0016), and
+VS Code Local runs the guard under Windows PowerShell.
 
 **The Meter, hardened.** Choices for `software-architect` to confirm:
 
@@ -1313,6 +1324,89 @@ reported, not gated.
   the start time, the reference hash, and the versions of both editions and of
   git, and the rows of an incomplete run are written too, so neither a narrow
   console nor a late failure loses the milliseconds again.
+
+### Step 7.3, the levels, 2026-10-08
+
+A third invocation on RAANDREE3, at 09:42 UTC with the hardened Meter,
+completed both runs without a failed launch, on PowerShell 7.6.1, Windows
+PowerShell 10.0.26100.8875, and git 2.53.0.windows.2. Step milliseconds over
+the no-op hook, p50 then p95, ranges over the two runs:
+
+| Cell | VS Code spawn | SDK spawn |
+|---|---|---|
+| No-op launch, absolute p50 | 1,777 to 1,783 | 1,322 to 1,331 |
+| Frozen reference, the unit (Past) | 568 to 569; 594 to 600 | 394 to 402; 423 to 431 |
+| SessionStart, one entry, added | 504 to 517; 531 to 545 | 397 to 401; 433 to 450 |
+| SessionStart, no profile, added | 208 to 216; 245 to 253 | 189 to 198; 210 to 228 |
+| SessionStart, two entries, added | 613 to 632; 651 to 658 | 509 to 522; 583 to 615 |
+| PostToolUse, common path | 127 to 136; 164 to 168 | 128 to 132; 156 to 190 |
+| PostToolUse, inject path | 709 to 710; 741 to 756 | 536 to 544; 552 to 570 |
+| Push guard, benign tool | 190 to 192; 207 to 224 | 102 to 111; 123 to 135 |
+
+Gated ratios, p95 over the two runs, with the lower run and the spread:
+
+| Gated cell | VS Code spawn | SDK spawn |
+|---|---|---|
+| SessionStart, one entry | 0.94 to 0.98, lower 0.94, spread 1.04 | 1.11 to 1.19, lower 1.11, spread 1.07 |
+| SessionStart, no profile | 0.45 to 0.45, lower 0.45, spread 1.00 | 0.56 to 0.59, lower 0.56, spread 1.05 |
+| PostToolUse, common path | 0.28 to 0.29, lower 0.28, spread 1.04 | 0.38 to 0.49, lower 0.38, spread 1.29 |
+
+Reported ratios, p95 over both spawns: two entries 1.16 to 1.54, inject path
+1.32 to 1.47, push guard 0.33 to 0.38.
+
+**The re-baseline rule, applied once** to this pair and to the Prox1 pair of
+2026-10-07 15:30 UTC, both spawns, against the reference `30fb3229…`, computed
+by `Get-CalibrationMeterRebaseline` and `Test-CalibrationMeterTransfer` from the
+two CSV files:
+
+1. The reference's own time, Past of the unit, p50 then p95: Prox1 433 to 435
+   and 472 ms through the VS Code spawn, 348 to 362 and 373 to 383 ms through
+   the SDK spawn; RAANDREE3 568 to 569 and 594 to 600 ms, 394 to 402 and 423 to
+   431 ms.
+2. One w per tag: `SessionStart.AddedLatency` 1.12, set by Prox1's SDK spawn
+   with one entry; `PostToolUse.CallLatency` 0.38, set by the SDK spawn of both
+   machines.
+3. `SessionStart.AddedLatency` Budget 2.0 and Fail 4.0;
+   `PostToolUse.CallLatency` Budget 0.75 and Fail 1.5. The highest p95 of any of
+   the four runs is 1.19 and 0.49.
+4. The widest spread is 1.15 and 1.29, both below the 1.75 factor.
+5. The transfer check passes for both tags, and TBD-6 closes. The reference
+   runs 1.310 times slower on RAANDREE3 through the VS Code spawn at p50 and
+   1.121 times through the SDK spawn; the one-entry step 1.129 and 1.115 times,
+   1.16 and 1.01 times apart; the common path 1.159 and 1.057 times, 1.13 and
+   1.06 times apart. At p95 the four are 1.10, 1.01, 1.15, and 1.04 times
+   apart.
+6. Both stop lines are clear: the highest step p95 is 545 ms against 1,000, on
+   RAANDREE3's VS Code spawn with one entry, and 190 ms against 400, on its SDK
+   spawn.
+7. The levels are set in `Get-CalibrationMeterBudget` beside the reference's
+   hash, and a test derives each from its tag's recorded lower runs.
+8. The spreads are in the tables above and under *Amendment 3 implemented*.
+
+The 08:29 pair is the reproduction check, as recorded before this pair
+arrived: every run of it lies within these levels, at highest 1.16 and 0.42.
+Had it set w, its 1.15 would have given `SessionStart.AddedLatency` Budget
+2.25.
+
+The PostToolUse hook against its inject path, ratio p95 and step p50
+(criterion 29):
+
+| Machine and spawn | Common path | Inject path |
+|---|---|---|
+| Prox1, VS Code | 0.32; 112 to 115 ms | 1.34 to 1.35; 561 to 565 ms |
+| Prox1, SDK | 0.38 to 0.44; 119 to 127 ms | 1.46 to 1.48; 485 to 486 ms |
+| RAANDREE3, VS Code | 0.28 to 0.29; 127 to 136 ms | 1.32 to 1.33; 709 to 710 ms |
+| RAANDREE3, SDK | 0.38 to 0.49; 128 to 132 ms | 1.45 to 1.47; 536 to 544 ms |
+
+The hook's full wall-clock p50 beside the push guard's (A11): Prox1 887 and
+875 to 877 ms through the VS Code spawn, 1,125 to 1,127 and 1,100 to 1,102 ms
+through the SDK spawn; RAANDREE3 1,913 to 1,914 and 1,967 to 1,976 ms, 1,457
+to 1,461 and 1,435 to 1,436 ms. The PostToolUse hook costs what the push guard
+costs on the same machine, which is the cost of the shared launcher.
+
+Criteria 20, 26, and 29 are met. Criteria 21, 22, 28, and 30 stay open: the
+persistence set of A13, the manual compaction in VS Code Local with TBD-7, and
+the grace fallback TBD-7 decides.
 
 ## Signed-off Design Concept
 
@@ -1851,10 +1945,13 @@ Meter: tests/Fixtures/Measure-CalibrationLatency.ps1, gaining two cells —
        milliseconds per machine and spawn, not used as levels. (A9)
 Past: withdrawn (A10). The launch-unit readings of 2026-10-06 on Prox1 and
        RAANDREE3 stay under Confirmation as the evidence for A9 and bind
-       nothing. The first run under this Meter sets Past.
-Budget [one entry, none]: set by the re-baseline rule, from this tag's own w
-       (A9, A16)
-Fail [one entry, none]: 2 x Budget (A9)
+       nothing. Under this Meter: [one entry] 1.08 to 1.13 (Prox1) and 0.94 to
+       0.98 (RAANDREE3) through the VS Code spawn, 1.12 to 1.16 and 1.11 to
+       1.19 through the SDK spawn; [none] 0.45 to 0.61 on both <- Prox1
+       2026-10-07, RAANDREE3 2026-10-08, Confirmation, Step 7.3, the levels
+Budget [one entry, none]: 2.0, set by the re-baseline rule from this tag's own
+       w, 1.12, on 2026-10-08 (A9, A16)
+Fail [one entry, none]: 4.0, 2 x Budget (A9)
 Stop line: the calibration step's own p95 above 1,000 ms on either machine
        means the design, not the unit, is the problem; return to
        software-architect rather than re-baselining. Measured worst under the
@@ -1890,10 +1987,14 @@ Scale: p95 over paired replicates of the calibration PostToolUse hook's own
        backstop trigger evaluated and nothing injected. (A9, A12)
 Meter: As SessionStart.AddedLatency.
 Past: withdrawn (A10); the 2026-10-06 launch-unit readings stay as evidence.
-Budget: set by the re-baseline rule, from this tag's own w; `not set (unit
-       does not transfer)` when the transfer check fails for this tag, which
-       then gates it on its absolute stop line alone (A9, A16, A17)
-Fail: 2 x Budget, or none while no Budget is set (A9, A17)
+       Under this Meter: 0.32 (Prox1) and 0.28 to 0.29 (RAANDREE3) through the
+       VS Code spawn, 0.38 to 0.44 and 0.38 to 0.49 through the SDK spawn <-
+       Prox1 2026-10-07, RAANDREE3 2026-10-08, Confirmation, Step 7.3, the
+       levels
+Budget: 0.75, set by the re-baseline rule from this tag's own w, 0.38, on
+       2026-10-08; the transfer check passed for this tag, so the fallback of
+       `not set (unit does not transfer)` was not needed (A9, A16, A17)
+Fail: 1.5, 2 x Budget (A9, A17)
 Stop line: the hook's own script p95 above 400 ms on either machine returns
        to software-architect. Measured worst under the old unit: about
        290 ms, in the noisiest SDK run. (A9)
@@ -2586,7 +2687,7 @@ exists only in sessions started while a registration file exists.
 | TBD-3 | Exact wording of the Instruction, Pre-flight, and Prompt sentences within the caps | software-engineer, measured by the eval | Wording only |
 | TBD-4 | Gates for the offer and safety eval groups | Resolved at sign-off: equal to `Calibration.Persistence` | Measurement only |
 | TBD-5 | Closed: **no.** The reader's cold cost does not scale with the launch cost across machines. A9 retires the launch unit | — | Closed by the RAANDREE3 run |
-| TBD-6 | Does the frozen reference script's cold cost scale across machines and spawns the same way the calibration step's does? | software-engineer, the re-baseline run, step 5 of the rule | Whether the new unit cancels machine speed; if not, back to software-architect |
+| TBD-6 | Closed: **yes, per tag.** The reader-shaped frozen reference's cold cost scales across Prox1 and RAANDREE3 the way both gated steps do, within 1.01 to 1.16 times through both spawns, on 2026-10-08 | — | Closed by the re-baseline run, step 5 of the rule |
 | TBD-7 | Does `turns` advance in every host inside the promise? Measured per host, with the observed value recorded | software-engineer, measured in the delivery matrix | Whether the backstop fires at all in that host. A host whose clock is readable and whose `turns` never advances receives no backstop today; finding one builds the grace fallback *(A14)*. Measured so far: the SDK-runtime agent host advanced `turns` to 2 between turns on 2026-10-07; VS Code Local is unmeasured |
 | TBD-8 | Where does the private eval kit live, and does it satisfy the working-tree refusal? | software-engineer, recorded before the persistence set is rebuilt | Whether chat excerpts can reach a repository |
 

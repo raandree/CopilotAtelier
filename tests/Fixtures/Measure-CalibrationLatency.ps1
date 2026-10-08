@@ -35,14 +35,15 @@
       hook (ruling A11).
 
     Every cell also reports its absolute and its step milliseconds, and the
-    reference reports its own step, the unit's calibration. Ruling A10
-    withdrew the launch-unit levels, so a gated cell reads 'no level (A10)'
-    until the re-baseline rule sets its Budget and Fail, one w per tag
-    (ruling A16). Thresholds are inclusive, and a verdict above Budget or Fail
-    counts only when a second Meter run reproduces it: -Repeat runs the whole
-    Meter that many times, and each gated cell's reproduced row names its
-    lower run, the input of the re-baseline rule, and the run-to-run spread,
-    its higher run divided by its lower.
+    reference reports its own step, the unit's calibration. Each gated cell
+    is judged against the Budget and Fail of Get-CalibrationMeterBudget,
+    which the re-baseline rule set on 2026-10-08, one w per tag (ruling A16);
+    a gated cell without a level reads 'no level (A10)'. Thresholds are
+    inclusive, and a verdict above Budget or Fail counts only when a second
+    Meter run reproduces it: -Repeat runs the whole Meter that many times, and
+    each gated cell's reproduced row names its lower run, the input of the
+    re-baseline rule, and the run-to-run spread, its higher run divided by its
+    lower.
 
     The scripts of this working tree are staged in the deployed layout under a
     scratch home, with profiles behind a Canonical target, so the Meter never

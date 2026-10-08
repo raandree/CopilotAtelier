@@ -9,22 +9,23 @@ source: current task evidence
 
 ## Current focus
 
-Decision 0028 **step 7.3 waits for one more RAANDREE3 Meter invocation**
-(2026-10-08). The owner's first invocation there completed both runs: on its
-ratios the rule gives `SessionStart.AddedLatency` Budget 2.25, Fail 4.5 and
-`PostToolUse.CallLatency` Budget 0.75, Fail 1.5, and the transfer check passes
-for both tags (1.01 to 1.21 times apart). But the console's table dropped the
-milliseconds, which step 1 and the stop lines need. A second invocation crashed
-once: `SessionStart, two entries` through the SDK spawn exited `0x80131623`,
-an `Environment.FailFast`, in the only cell that runs git. It did not reproduce
-in 400 launches on Prox1, so the cause is specific to RAANDREE3 and its
-Application event log holds the message. The Meter now keeps stderr, retries a
-crashed launch once, and writes every row to a CSV with the tool versions
-(Confirmation, *Step 7.3 on RAANDREE3*). Amendment 3 (A14 to A18, `82f6541`)
-stays as built.
+Decision 0028 **step 7.3 is done** (2026-10-08): the re-baseline rule set
+`SessionStart.AddedLatency` Budget 2.0 and Fail 4.0, and
+`PostToolUse.CallLatency` Budget 0.75 and Fail 1.5, one `w` per tag, from the
+Prox1 pair of 2026-10-07 15:30 and the RAANDREE3 pair of 2026-10-08 09:42, both
+with milliseconds. The transfer check passed for both tags (TBD-6 closed), both
+stop lines are clear, and criteria 20, 26, and 29 are met; the levels sit in
+`Get-CalibrationMeterBudget`, derived by a test from the recorded lower runs.
+The RAANDREE3 `FailFast` is a .NET 10.0.6 runtime fault, an unhandled
+`IndexOutOfRangeException` in the runtime's exception dispatch, not our code;
+RAANDREE3 runs PowerShell 7.6.1, Prox1 7.6.6 on .NET 10.0.12, and the push guard
+does not fail open on it. Still open: criteria 21, 22, 28, and 30.
 
 ## Previous focuses
 
+- **RAANDREE3 Meter and the Meter hardening (`8fc71a8`, `012682c`).** The
+  first invocation's milliseconds were lost to the console's width; the
+  Meter now keeps stderr, retries a crashed launch once, and writes a CSV.
 - **Amendment 3 (`1c2f9b7`, `82f6541`).** Signed off 2026-10-07 with all six
   recommended answers; the reader-shaped frozen reference under one composite
   pin (`30fb3229…9c79`), and the two A18 tests. Prox1 Meter under it: unit
@@ -157,16 +158,15 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. The owner, on RAANDREE3 after pulling the branch: reads the Application
-   event log for the 2026-10-08 crash and runs the Meter once more (one
-   invocation, two runs), then sends the CSV it names. `software-engineer`
-   then applies the re-baseline rule to that pair with its milliseconds, keeps
-   the 08:29 pair as its reproduction check, writes Budget and Fail into
-   `Get-CalibrationMeterBudget` and the record in one commit, and decides from
-   the event log whether the `FailFast` is ours to fix. Then the VS Code Local
-   backstop cell and its manual compaction (criterion 22, TBD-7, which decides
-   the grace fallback), and A13 (TBD-8, owner review, approval and budget
-   before any paid eval). Never set the summarization threshold below about
+1. Decision 0028 continues with the VS Code Local backstop cell of the
+   delivery matrix and its manual compaction (criterion 22, TBD-7, which
+   decides the grace fallback and criterion 30), then A13: record the eval
+   kit's location and prove the working-tree refusal (TBD-8), rebuild the
+   persistence set with `provenance`, get the owner's review of the synthetic
+   cases, and get approval and a budget before any paid eval (criteria 21 and
+   28). `software-architect` still owes a confirmation of the Meter's
+   retry-once rule. Recommended to the owner, not required: update PowerShell 7
+   on RAANDREE3 from 7.6.1. Never set the summarization threshold below about
    1.3 times the base prompt (*Compactions*). Redeploy `main` on Prox1 with
    `Setup-CopilotSettings.ps1` once the owner closes the checks.
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
