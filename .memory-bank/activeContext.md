@@ -20,7 +20,10 @@ persistence 15 of 18 at session start (Fail) and 17 of 18 after a compaction,
 the guard 50 of 51 (Fail), offer and safety at their Goal. On reading, every
 miss but one is a grader false negative. Three questions wait in *Returned to
 software-architect, third round*: a pinned judge for the persistence checks,
-non-inferiority for the guard, and one non-discriminating `expert` case.
+non-inferiority for the guard, and one non-discriminating `expert` case. The
+rest is handed off as Desktop prompts 04 (a review of the kit's privacy
+boundary), 05 (the ruling), 06 (the fresh run), and 07 (the close-out); the
+session clock's shadowing goes to prompt 08.
 
 ## Previous focuses
 

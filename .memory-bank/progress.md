@@ -82,9 +82,9 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Contributor calibration, Decision 0028: criterion 21 waits on
-  `software-architect`'s third-round ruling (a pinned judge for the
-  persistence checks, non-inferiority for the guard), then a fresh run.
+- Contributor calibration, Decision 0028: Desktop prompts 04 (review of the
+  eval kit's privacy boundary), 05 (third-round ruling on criterion 21's
+  graders), 06 (rebuilt grader, fresh run), and 07 (close-out, pull request).
 - Lessons of the 2026-10-08 live check, handed off as Desktop prompt 03 to run
   on another machine on its own branch from `origin/main` (Pester 5.7.1,
   Copilot Chat 0.69.0): the detached Pester templates fail only on
@@ -103,8 +103,9 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   Decision 0028's levels are re-baselined in the same change.
 - `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
   workspace, so a subagent or parallel chat there shadows the parent's clock
-  (2026-10-01: a 06:29 start; 2026-10-04, in one Copilot SDK chat: a 10:25 and
-  a 13:24 start). Inject the reader with this session's `-Path`.
+  (06:29 on 2026-10-01; 10:25 and 13:24 in one SDK chat on 2026-10-04; 11:05
+  in a parallel agent-host chat on 2026-10-08). Desktop prompt 08: `-Path` from
+  SessionStart, the reader preferring `COPILOT_AGENT_SESSION_ID`.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
