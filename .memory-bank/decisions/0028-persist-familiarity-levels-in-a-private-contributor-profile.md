@@ -1,9 +1,9 @@
 ---
 status: accepted
 date: 2026-10-06
-last-verified: 2026-10-08
+last-verified: 2026-10-09
 owner: software-architect
-source: software-architect Design Concept interview 2026-10-05 to 2026-10-06 and sign-off 2026-10-06; amendment interview 2026-10-06 (rulings A1 to A7); Amendment 2 rulings 2026-10-07 (A9 to A13), signed off by the repository owner in chat on 2026-10-07; Decision record 0027; hook host references (VS Code, GitHub, Claude Code), fetched during the interview; Amendment 3 rulings 2026-10-07 (A14 to A18), signed off by the repository owner in chat on 2026-10-07; Amendment 4 ruling 2026-10-08 (A19), signed off by the repository owner in chat on 2026-10-08
+source: software-architect Design Concept interview 2026-10-05 to 2026-10-06 and sign-off 2026-10-06; amendment interview 2026-10-06 (rulings A1 to A7); Amendment 2 rulings 2026-10-07 (A9 to A13), signed off by the repository owner in chat on 2026-10-07; Decision record 0027; hook host references (VS Code, GitHub, Claude Code), fetched during the interview; Amendment 3 rulings 2026-10-07 (A14 to A18), signed off by the repository owner in chat on 2026-10-07; Amendment 4 ruling 2026-10-08 (A19), signed off by the repository owner in chat on 2026-10-08; Amendment 5 rulings 2026-10-09 (A20 to A24), signed off by the repository owner in chat on 2026-10-09
 supersedes: none
 ---
 
@@ -1702,6 +1702,139 @@ intentional disclosure. See `docs/SECURITY-REVIEW.md`.
    separates the levels clearly. Options: name it as a limitation, or give the
    case the judge of item 1.
 
+Ruled in Amendment 5 on 2026-10-09: items 1 to 3 are A20 to A22, under
+*Rulings, 2026-10-09*.
+
+### Rulings, 2026-10-09
+
+`software-architect` interviewed the repository owner in chat on 2026-10-09 at
+named-subset depth, covering purpose, inputs and outputs, failure modes, edge
+cases, rollback, and non-goals, in 13 questions, one at a time. The owner
+answered each with the recommended answer, except the spending ceiling,
+described under A24. Nothing was delegated with `not sure, you pick`, and the
+override log is empty. No model was called to settle a ruling and no eval money
+was spent.
+
+The three results are one finding seen three ways: the frozen graders measured
+their own miss rate rather than the behavior. Read by hand, 3 of the 4
+persistence misses with the sentence and the guard's single miss in each arm
+meet their stated checks, and the one real miss is a length. The rulings change
+the Meter and one gate, with their reasons, and no Instruction, sentence, or
+case.
+
+- **A20.** The persistence group's semantic checks move to a pinned judge, one
+  rubric per Familiarity-level row of the Instruction's table. The checks failed
+  both ways within a day: the pilot's loose pattern passed sentences that define
+  nothing, and the strict one missed three real definitions written as glosses
+  without an article. A pattern cannot be loose enough for the one failure and
+  strict enough for the other, because the check is about meaning. A regex
+  widened by this run's misses was rejected, because it fits the grader to the
+  samples it was just shown and could be tested only by another run. A
+  fixed-criteria read of every failing sample as the Meter was rejected,
+  because it makes the verdict one person's reading each time and is costly to
+  repeat; the read stays, as a report beside the verdict, and the Meter's
+  verdict stays the grader's, as before. The read also covers a fixed sample of
+  10 passing replies per run, picked by a rule frozen before the run, because
+  the 3 votes see the same reply and are not independent against an injection
+  in it. Lengths and literal-wording cues stay
+  deterministic, because a count or a pattern checks them exactly, and a reply
+  that fails one fails without a judge call. The 3,405-character reply
+  therefore stays a failed sample: it is the one real miss. The offer and safety
+  groups keep their regex graders, because they met their Goal and their checks
+  are sentence-level. The judge is `gpt-5.5`, a different model family from the
+  one that writes the replies, so it cannot favour its own style; version 2
+  marks the new rubrics and keeps the Phase 1 cache keys apart, each revision
+  round under A23 takes its own letter suffix, and the decisive run uses the
+  version that met the bar; 3 votes with a majority verdict, as in Phase 1,
+  and a quote check that Phase 1 did by hand: a PASS verdict quotes a passage
+  that occurs verbatim in the reply, a FAIL quotes one or answers `NONE`, and a
+  vote that fails the check is void. The runner does not check this yet, so
+  Delivery increments item 9, step 1, builds it with fixtures before any model
+  call. The 2026-10-08 readings are withdrawn as a verdict and stay as
+  evidence, as A10 did for the launch-unit readings. They are not re-graded.
+- **A21.** `Calibration.PhaseOneGuard` gates on non-inferiority to the
+  concurrent arm without the sentence. The guard asks whether the sentence
+  harms Phase 1 behavior, and a gate of 51 of 51 asked whether a grader that
+  dropped one valid reply in each arm would happen to miss nothing. Comparing
+  against the arm run at the same time cancels the grader's miss, which falls on
+  both arms. The margin is 2 failed samples in 51. If the sentence changed
+  nothing and each arm failed once on average, a margin of 0 would fail about 35
+  % of the time, a margin of 1 about 13 %, and a margin of 2 about 4 %; these
+  are hand estimates from the difference of two Poisson counts with mean 1, not
+  measurements. A margin of 2 flags only a drop of more than about 4 points, so
+  the reading closes the gap that counts leave: a with-arm failure that on
+  reading misses its case's stated check, in a case the arm without the
+  sentence passes 3 of 3, fails the gate whatever the count. Goal and Fail are
+  one level, as 51 of 51 was. Rejected: keeping 51 of 51 with the read added,
+  because the gate would then fail on the grader's miss and the read would
+  excuse it by hand, which puts the judgement outside the Meter.
+- **A22.** The synthetic `expert` DSC case keeps its place, takes the
+  `expert` rubric of A20, keeps its length ceiling, and is named as a limitation
+  under `Calibration.Persistence`. Its `expert` replies ran about 20 % shorter
+  than the `familiar` default, so a pass on it is weak evidence that the saved
+  level took effect, and the record says so. Replacing it with a new synthetic
+  case was rejected: it changes the case set after seeing the results, and costs
+  an owner review for a case that the other `expert` case already backs, which
+  separates the levels clearly (595 to 646 characters against 922 to 1,255 for
+  the default). A limitation without the judge was rejected, because the
+  regex's pitch check would still miss what a reader sees.
+- **A23.** The judge is calibrated before the fresh run on 40 items that the
+  repository owner labels blind: at least 10 in each level row, drawn from the 72
+  persistence replies of 2026-10-08, the pilot's observed-reply fixtures, and 2
+  to 3 near misses, each a passing reply with its pitch element removed. The
+  list is fixed before the owner sees anything, the sheet carries no arm, run,
+  or verdict, and the labels are hashed before any judge call. The sheet is a
+  file inside the kit that the owner opens locally, never pasted into chat, and
+  the labels go to a new file beside the Phase 1 labels, which stay untouched.
+  The engineer
+  labelling would make the calibration reference partly the engineer's own
+  reading, and labelling all 72 would double the owner's work for a small gain
+  in precision. The bar is 36 of 40, kappa 0.80, and at most 1 disagreement per
+  10 items in each row, a little below the Phase 1 judge's 38 of 40 and kappa
+  0.89, because 40 items give a kappa that moves by several hundredths with one
+  label. Below the bar the fresh run does not start: the rubric or its few-shot
+  examples, which stay distinct from the 40 items, may be revised twice and run
+  again on the same labels, and after the second failed round the question
+  returns to `software-architect`. A label changes only for an error proved by
+  reading, recorded when found, as one Phase 1 label was. Every disagreement is
+  read and recorded, met bar or not.
+- **A24.** The decisive run is fresh: every group and the guard run again at
+  the same time after a new freeze, K = 3, `claude-opus-5`. Calibrating on the
+  2026-10-08 replies and then grading the same replies would be circular, and
+  prompt 04's fixes to the kit's runner and checker changed files after the
+  2026-10-08 freeze, so a new freeze is needed anyway. The output limits join the
+  Meter: 8,000 tokens for the Phase 2 set, after all 8 pilot replies of its
+  longest case stopped at 3,000, and 3,000 for the guard, as in Phase 1, so the
+  guard's arm stays comparable. A reply that stops at its limit counts as a
+  failed sample and is reported separately as truncated, so a limit never
+  becomes a quiet pass or a hidden miss. The judge's failure rules: a 2 to 1
+  split counts by majority and is reported; a blocked or unusable call is
+  retried up to 3 attempts, as the runner does, and a reply that still lacks a
+  majority of 2 matching usable votes, a 1 to 1 tie included, is unjudged and
+  stops the run, with no fallback pass from the regex; an
+  unreachable judge stops the run; a vote whose quote check fails is void; the rubrics are in English and
+  judge German and English alike, and the language of a reply is not graded, as
+  ruled on 2026-10-01. A13's rule stands: the Goal and Fail levels of
+  `Calibration.Persistence` do not move. Spending: the owner answered "as much
+  is needed, there is no limit" and, asked whether that stopped at the steps this
+  amendment defines, "no limit at all, including extra runs". The estimate, from
+  the 2026-10-08 costs and not a measurement, is about 10.5 USD for the run and
+  about 1.5 USD for each calibration round, 15 USD in all. The authorization is
+  for the eval work under this amendment and is not recorded as a standing
+  authorization for other paid work. The kit's per-process caps stay as rails,
+  and a run that passes 3 times its estimate stops and reports; raising a cap
+  needs a recorded reason. **The architect added one safeguard that the owner
+  did not rule on, flagged for sign-off:** a rerun of the decisive run is
+  allowed only for a named infrastructure fault, a provider outage, a runner
+  crash, or a refused call that produced no replies, never for a result. The
+  owner confirms the reason in writing before the rerun, the record lists every
+  rerun and its reason, a rerun repeats the whole run and never a single case,
+  and a second rerun for the same fault returns to `software-architect`. A
+  missed Goal is not rerun to pass; it returns to `software-architect`. Without
+  that, a limit-free budget would turn a gate into a retry loop. Non-goals: no judge for the offer and safety groups, no change to
+  the Instruction, the profile sentence, or any case, no new Goal or Fail level,
+  and no re-grading of the 2026-10-08 replies.
+
 ## Signed-off Design Concept
 
 Signed off by the repository owner in chat on 2026-10-06, after an interview
@@ -1713,7 +1846,8 @@ security ruling after review (R1). No answer was delegated with
 signed-off concept, verbatim apart from its title, its draft status header, the
 sign-off annotations on the rating-question ruling and TBD-4, the sign-off
 record, Amendment 1: rulings A1 to A8 of 2026-10-06, Amendment 2: rulings
-A9 to A13 of 2026-10-07, and Amendment 3: rulings A14 to A18 of 2026-10-07,
+A9 to A13 of 2026-10-07, Amendment 3: rulings A14 to A18 of 2026-10-07, and
+Amendment 5: rulings A20 to A24 of 2026-10-09,
 each marked in place with its tag and listed in the
 *Amendment log* before *Sign-off*.
 
@@ -2169,7 +2303,22 @@ Scale: Percent of eval samples in which a level saved earlier shapes the reply
        without the contributor restating it, with the sentence at [Position]:
        session start, or after a tool result following a compaction.
 Meter: Persistence cases in the private eval kit, at least 6 per Position;
-       K = 3; pinned gpt-5.5 judge; compared arms run together. Every case
+       K = 3; claude-opus-5 replies with an output limit of 8,000 tokens; the
+       arms run at the same time. Each case's checks split in two (A20).
+       Deterministic: the length floors and ceilings a case states, and
+       literal-wording cues; a reply that fails one fails without a judge call.
+       Judged: the pitch checks, one pinned rubric per Familiarity-level row of
+       the Instruction's table, `new`, `familiar`, and `expert`, by `gpt-5.5`,
+       judge version 2, 3 votes, majority verdict, each verdict quoting a
+       passage that occurs in the reply. The judge is calibrated before the
+       decisive run on 40 items that the repository owner labels blind, with an
+       agreement bar of 36 of 40, kappa 0.80, and 90 % in each row (A23). The
+       decisive run is fresh, after a new freeze, with every group and the guard
+       run again at the same time (A24). A reply that stops at its output limit
+       counts as a failed sample and is reported separately as truncated
+       (A24). Every failing sample, and a fixed sample of 10 passing ones, is
+       also read against criteria written before the run, and the reading is
+       reported next to the verdict (A20). Every case
        carries a provenance field: real-derived, with the stated level moved
        out of the message and into the profile sentence and nothing else
        changed; or synthetic-reviewed, authored and reviewed by the owner,
@@ -2182,13 +2331,23 @@ Meter: Persistence cases in the private eval kit, at least 6 per Position;
        two sets stay separate. The kit lives outside every git working tree,
        under the refusal criteria 4 and 24 impose on the profile. (A13)
 Past [Phase 1]: 0 % <- Decision 0027, CAL-09 (levels are session-scoped)
-Goal [Phase 2 release, each Position]: 100 % pass^3 <- Interview Q1, 2026-10-05
-Fail: below 90 % of samples <- Interview Q1
+       Frozen-regex readings of 2026-10-08, withdrawn as a verdict: 15 of 18
+       samples at session start and 17 of 18 after a compaction, with 66.7 %
+       in the arm without the sentence. They stay under Confirmation as the
+       evidence for A20 and bind nothing. (A20)
+Goal [Phase 2 release, each Position]: 100 % pass^3 <- Interview Q1, 2026-10-05;
+       unchanged (A13, A24)
+Fail: below 90 % of samples <- Interview Q1; unchanged (A13, A24)
 Limitation: Three whole histories, 2,706 user messages, yield at most 3
        usable real restatements, all at `new`; Phase 2 removes the need to
        restate, so the population shrinks rather than grows. A set fed partly
        by authored cases is weaker evidence than one fed entirely by observed
        behaviour. Accepted with A13. (A13)
+       One synthetic `expert` case, the DSC one, no longer separates `expert`
+       from the `familiar` default: its `expert` replies ran about 20 % shorter
+       than the default. It stays in the set under the `expert` rubric, and a
+       pass on it is weak evidence that the saved level took effect. The other
+       `expert` case separates the levels clearly. (A22)
 Authority: Repository owner
 
 Tag: Calibration.Delivery
@@ -2210,11 +2369,22 @@ Authority: Repository owner
 Tag: Calibration.PhaseOneGuard
 Type: Quality Requirement
 Gist: Phase 1 behavior survives a profile sentence in context.
-Scale: Passing samples of the 17 Phase 1 cases with a sentence present.
-Meter: Phase 1 eval cases, K = 3, the same frozen grader and judge.
-Past: 51 of 51 <- Decision 0027
-Goal: 51 of 51 <- Interview Q1
-Fail: below 51 of 51
+Scale: Passing samples of the 17 Phase 1 cases with a sentence present,
+       against the concurrent arm without it. (A21)
+Meter: Phase 1 eval cases, K = 3, the Phase 1 graders and judge version 1
+       unchanged, output limit 3,000 tokens, both arms run at the same time as
+       the Phase 2 groups. Each failing sample in either arm is read against
+       its case's stated check, with the criteria written before the run, and
+       the reading is reported next to the count. (A21, A24)
+Past: 51 of 51 <- Decision 0027. On 2026-10-08, under the frozen graders, 50 of
+       51 in each arm, one grader miss each; withdrawn as a verdict. (A21)
+Goal: the arm with the sentence has at most 2 more failed samples than the
+       concurrent arm without it, and no with-arm failure that on reading
+       misses its case's stated check lies in a case that the arm without the
+       sentence passes at 3 of 3 <- Amendment 5, Interview Q2 and Q13 (A21)
+Fail: either condition not met; one level, as 51 of 51 was (A21)
+Limitation: A margin of 2 samples in 51 flags only a drop of more than about 4
+       points; the reading catches a regression that sits in one case. (A21)
 
 Tag: SessionStart.AddedLatency
 Type: Resource Requirement
@@ -2579,12 +2749,14 @@ would add a sixth Discovery link to create, verify, remove, and reconcile.
 | A16, one `w` per tag | **Fully reversible.** Meter arithmetic applied once at the re-baseline; `Get-CalibrationMeterRebaseline` already computes `w` from the array it is given, so the rule changes which arrays it is given |
 | A17, the reader-shaped frozen reference | **Fully reversible.** A test fixture and a Meter change; nothing ships, and reverting means re-running the Meter under the old reference. The frozen reader copy is a yardstick, not a maintained copy: it is never loaded by the product, reads only its own fixture through an explicit `-Location`, and carries no drift test by design |
 | A18, the six implementation choices confirmed | **Reversible in code.** Each is a condition or an ordering inside the PostToolUse and SessionStart hooks, revertible in one commit; none changes the state file's five fields, the profile schema, or a public contract |
+| A20 to A24, the grader and gate rulings for criterion 21 | **Fully reversible.** A Meter and two gates in a private eval kit; nothing ships. Reverting is a record change followed by a re-run; the 2026-10-08 readings stay as evidence. Money spent on a run is not recoverable, and the record says what each run authorizes (A24) |
 
 Amendment 2 changes no schema, public command, persistence format, or
 dependency decision: the five public command names, the profile schema 1, and
 the registration contract are untouched *(A9 to A13)*. Amendment 3 changes none
 of them either, and changes no shipped file at all unless TBD-7 calls for the
-grace fallback *(A14 to A18)*.
+grace fallback *(A14 to A18)*. Amendment 5 changes no shipped file at all: it
+rules on a Meter and two gates in the private eval kit *(A20 to A24)*.
 
 ### Delivery increments
 
@@ -2657,6 +2829,54 @@ grace fallback *(A14 to A18)*.
    A14's grace fallback is built only if step 7.5's TBD-7 measurement finds a
    host that needs it, with its own test in both editions and criterion 30 as
    its gate.
+9. **Amendment 5 (A20 to A24):** desktop prompt 06 builds the grader and runs
+   the decisive eval, in this order, because each step's result feeds the next.
+   The record edit itself needs no code. Every step happens in the private eval
+   kit; no shipped file changes, and no case, Instruction, or profile sentence
+   is edited to make a gate pass.
+   1. **A20 — write the judge.** One pinned rubric for each of the `new`,
+      `familiar`, and `expert` rows, each with one authored passing and one
+      authored failing few-shot example distinct from every labelled item,
+      language-neutral; the split of each case's checks into deterministic and
+      judged; judge version 2. Build the quote check, which the runner lacks: a
+      PASS verdict quotes a passage that occurs verbatim in the reply, a FAIL
+      quotes one or answers `NONE`, and a failed check voids the vote. Change
+      the runner's vote rule to A24's, 3 attempts and a majority of 2 matching
+      usable votes, because it now needs all 3 votes and counts a tie as FAIL.
+      Put the case's situation and message into the judge's cache key. Test all
+      of it with fixtures, and review the injection fences again, before any
+      model call.
+   2. **A23 — fix the calibration list, then label.** Fix 40 items, at least 10
+      in each level row, drawn from the 72 persistence replies of 2026-10-08,
+      the pilot's observed-reply fixtures, and 2 to 3 near misses, a passing
+      reply with its pitch element removed. The sheet is a file in the kit
+      that the owner opens locally, with no arm, run, or verdict, and the
+      labels go to a new file beside the Phase 1 labels. Hash the labels before
+      any judge call.
+   3. **A23 — calibrate.** Run judge version 2 on the 40 items, 3 votes. Read
+      and record every disagreement. Below the bar, revise the rubric or its
+      few-shots at most twice and run again on the same labels; after the
+      second failed round, return to `software-architect`. The labels change
+      only for a labelling error proved by reading, recorded when found. Each
+      revision round takes its own judge version suffix.
+   4. **A20, A21 — write the reading criteria** for failing samples, for the
+      persistence group and for the guard, and the rule that picks the 10
+      passing persistence replies to read, before the run.
+   5. **A24 — freeze.** Record the hashes of the case set, the deterministic
+      graders, the rubrics, the few-shots, the labels, the judge cache, the
+      runner, the Instruction, and the reader, with the output limits, in the
+      kit's `freeze.json`, and make the freeze verifier fail if any judged
+      case's situation or message changes afterwards. Run the kit's verifier
+      and the working-tree refusal first; prompt 04 changed both after the
+      2026-10-08 freeze.
+   6. **A24 — run once.** Every group and the guard at the same time, K = 3, as
+      four processes, with the persistence and guard-judged replies judged
+      under judge version 2 and version 1 respectively.
+   7. **A24 — record.** Grade by the Meter, read every failing sample, report
+      truncated replies, split votes, and the cost, and write numbers, rates,
+      costs, and rulings only to Confirmation here. Mark criterion 21 met or
+      not met; a miss of the Goal returns to `software-architect` and is not
+      rerun to pass.
 
 ## Failure modes
 
@@ -2785,6 +3005,53 @@ repository code executed, no new traversal surface. An agent with file tools
 that writes the session clock can force more re-sends or freeze the turn leg;
 both are bounded degradations under `Context.SessionBudget`, not escalations,
 and neither moves private data outward *(A12)*.
+
+**Amendment 5 and the judge's input (A20, A23).** One path widens. The Phase 1
+judge sent the situation, the contributor's derived message, and one reply to
+`gpt-5.5` for 2 Phase 1 cases. The persistence judge does the same for the
+persistence cases, which include the 3 `real-derived` ones, so a redacted
+derivative of 3 more real chat messages, each case's situation text, and the
+replies to them reach the same provider and model, again in each calibration
+call. The judge's prompt carries the rubric, one passing and one failing
+example, the situation, the derived message, and the reply, and must never
+carry the `provenance` digest, a label, an arm, a run name, or any history name,
+path, or session identifier. The Phase 1 runner's judge already sends none of
+them, which the review of 2026-10-09 confirmed against the kit's code. The
+few-shot examples are authored, never taken from real replies. The 3 derived
+messages passed the existing redaction step, which changed none of them on
+2026-10-08, and the kit's checker still refuses a prohibited identifier form.
+The 40 calibration items, the owner's labels, and the judge cache, which holds
+verdicts and the fragments of reply text its reasons quote, stay in the kit
+outside every git working tree, and this record receives numbers, rates, costs,
+and rulings only. The labelling sheet is a file inside the kit that the owner
+opens locally; it is never pasted into chat, mail, or a tracked path, and the
+labels go to a new file, so the Phase 1 labels stay untouched. Reading a
+failing sample or a disagreement in an agent session sends that text to the chat
+provider, accepted as for the reading of 2026-10-08. The disclosure is the one
+`docs/SECURITY-REVIEW.md` already names as an intentional provider submission,
+extended by 3 messages, and its known limits apply to them: names and addresses
+absent from the private term list, and letters-only Base64.
+
+The judge reads a reply that is untrusted data, so a reply could try to steer
+its own verdict. The 3 votes see the same reply, so a majority does not contain
+an injection that works; the containment is that the judge holds no tool and no
+file, browser, or terminal access and writes two lines, the quote check, the
+calibration, and the reading of samples. The runner does not yet check the
+quote: A20 builds it in Delivery increment 9, step 1, with fixtures, and until
+then the quote is not relied on. A passing sample is not read by the
+failing-sample rule, so a fixed sample of passing replies is read as well. The
+trifecta is broken at the outbound leg: private derived text and untrusted
+replies meet in a call that can do nothing but return a verdict.
+
+**Review of the draft, 2026-10-09:** the built-in `security-review` agent
+reviewed the draft read-only, because the `security-reviewer` Custom agent's
+declared model was not available in the runtime. It returned **approve with
+changes**, no Blocker: no new outbound channel, one widened path, three Major
+findings and eight Minor or Nit findings. All are folded in above and in A20,
+A23, A24, and Delivery increments item 9: the unbuilt quote check, the votes
+not being independent against an injection, the labelling sheet's location,
+the runner's vote rule, the judge cache's contents, the cache key, the rerun
+safeguard, and the per-process caps.
 
 ## Performance
 
@@ -2934,10 +3201,15 @@ exists only in sessions started while a registration file exists.
     milliseconds are reported *(A9, A10, A11, A16, A17, A19)*.
 21. Eval: `Calibration.Persistence` 100 % pass^3 at each Position, over a set
     of at least 6 cases per Position with at least 3 `real-derived` and at
-    least one case per Familiarity level, every case carrying its provenance;
-    Phase 1 51 of 51 with a sentence present, counted over its own set; the
-    offer and safety groups meet the same gates (TBD-4, resolved at sign-off)
-    *(A13)*.
+    least one case per Familiarity level, every case carrying its provenance,
+    graded by the deterministic checks plus the pinned judge version 2 once
+    the judge has met its agreement bar on the owner's 40 labels, in one fresh
+    run after a new freeze; `Calibration.PhaseOneGuard` non-inferior to the
+    concurrent arm without the sentence, counted over its own set, with the
+    reading of each failing sample reported; the offer and safety groups meet
+    the same gates as before, under their unchanged graders (TBD-4, resolved at
+    sign-off); no output-limited reply goes unreported; the record receives
+    numbers, rates, costs, and rulings only *(A13, A20 to A24)*.
 22. `Calibration.Delivery`: every cell inside the promise delivers the
     sentence, and the reported cells are measured and recorded. The SDK runtime
     probe shows the PostToolUse `additionalContext` reaching the model and the
@@ -2992,6 +3264,7 @@ exists only in sessions started while a registration file exists.
 | TBD-6 | Closed: **yes, per tag.** The reader-shaped frozen reference's cold cost scales across Prox1 and RAANDREE3 the way both gated steps do, within 1.01 to 1.16 times through both spawns, on 2026-10-08 | — | Closed by the re-baseline run, step 5 of the rule |
 | TBD-7 | Closed: **yes.** `turns` advances between turns in every host inside the promise: VS Code Local to 3 over three turns on Copilot Chat 0.69.0, Copilot CLI 1.0.92 to 2, and VS Code's agent host to 1, 4, and 6, on 2026-10-06 to 2026-10-08. No host needs the grace fallback, so it is not built | — | Closed by the delivery matrix, *VS Code Local backstop and TBD-7* |
 | TBD-8 | Closed: **outside every working tree.** The kit lives at `C:\Users\install\Documents\CopilotAtelier-private\calibration` on Prox1. On 2026-10-08 `Test-ContributorPathInsideRepository -ResolveLinks` returned false for all 1,314 of its paths and true for a file of this repository and for a junction into it | — | Closed by *The persistence set and its eval (A13)* |
+| TBD-9 | Does judge version 2 meet its agreement bar (36 of 40, kappa 0.80, 90 % in each row) against the owner's labels within two rubric revisions? | software-engineer, prompt 06 step 3 | The persistence grader; if not, return to software-architect (A23) |
 
 Delegated answers: none.
 
@@ -3071,6 +3344,22 @@ attack surface. The reason is under *Rulings, 2026-10-08* in the Confirmation.
 |---|---|
 | A19 | `SessionStart.AddedLatency`: Meter; the re-baseline rule: preamble; criterion 20; Confirmation, Step 7.3 on RAANDREE3: *The Meter, hardened* |
 
+Amendment 5, 2026-10-09: rulings A20 to A24, answering the three results that
+the criterion 21 eval returned to `software-architect` on 2026-10-08 and
+settling the details prompt 06 needs. The reasons are under *Rulings,
+2026-10-09* in the Confirmation. A20 to A22 amend `Calibration.Persistence`
+and `Calibration.PhaseOneGuard`; A23 and A24 amend the Meter's calibration,
+freeze, and run, and add Open question TBD-9.
+
+| Ruling | Passages amended |
+|---|---|
+| A20 | `Calibration.Persistence`: Meter, Past, Goal, Fail; criterion 21; Confirmation, *Returned to software-architect, third round*: item 1 |
+| A21 | `Calibration.PhaseOneGuard`: Scale, Meter, Past, Goal, Fail, Limitation; criterion 21; Confirmation, third round: item 2 |
+| A22 | `Calibration.Persistence`: Limitation; criterion 21; Confirmation, third round: item 3 |
+| A23 | `Calibration.Persistence`: Meter; Delivery increments: new item 9; Open questions: TBD-9 added |
+| A24 | `Calibration.Persistence` and `Calibration.PhaseOneGuard`: Meter, Goal, Fail; criterion 21; Durable choices and their reversibility; Delivery increments: new item 9; Security |
+| A20 to A24 | Durable choices and their reversibility; Delivery increments: new item 9 |
+
 ## Sign-off
 
 - [x] The user read this document end to end.
@@ -3112,3 +3401,16 @@ Amendment 4:
   record and Meter code, built test-first now (Recommended)".
 - [x] The repository owner signed it off in chat on 2026-10-08, relayed through
   `software-engineer`, which dispatched `software-architect` for the ruling.
+
+Amendment 5:
+
+- [x] The repository owner read the amendment as shown in chat: the five
+  rulings, the passages they amend, the independent review's result, and the
+  one safeguard the architect added to A24.
+- [x] The repository owner accepted rulings A20 to A24, answering each of the 13
+  interview questions with the recommended answer except the spending ceiling,
+  where they answered "as much is needed, there is no limit" and then "no limit
+  at all, including extra runs". Nothing was delegated with `not sure, you
+  pick`.
+- [x] The repository owner signed it off in chat on 2026-10-09, choosing
+  "SIGNED OFF" to the question that named the added rerun safeguard.

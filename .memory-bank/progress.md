@@ -18,6 +18,14 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-09**: Ran Desktop prompt 05 (`software-architect`, owner at the
+  keyboard): Decision 0028 Amendment 5, rulings A20 to A24, signed off. A pinned
+  judge replaces the persistence regex checks (calibrated on 40 owner labels,
+  bar 36 of 40 and kappa 0.80); the guard gates on non-inferiority (margin 2 in
+  51) plus a read; the decisive run is fresh; no spending ceiling set by the
+  owner. A read-only security review (approve with changes) found the runner
+  lacks a quote check and the labelling sheet needs a local-only rule; both are
+  in the record and prompt 06's build order. No model call, no eval spend.
 - **2026-10-09**: Ran Desktop prompt 04 (`software-engineer`, owner away): an
   independent read-only review of the private eval kit's privacy boundary,
   four rounds, findings P-01..P-03, V-01..V-04, S-01..S-04. Every Major fixed

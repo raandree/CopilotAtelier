@@ -9,31 +9,32 @@ source: current task evidence
 
 ## Current focus
 
-Decision 0028 **step 7.6 ran and returned to `software-architect`**
-(2026-10-08, Prox1; the owner authorized the spend and then left the decisions
-to `software-engineer`). TBD-8 is closed: the private eval kit lies outside
-every working tree. The persistence set was rebuilt under A13, 6 cases per
-Position (3 real-derived carrying only an HMAC digest, 3 synthetic-reviewed
-that the owner approved), and run as a pilot plus a frozen confirmatory run,
-10.19 USD. Criterion 28 is met. Criterion 21 is not met as measured:
-persistence 15 of 18 at session start (Fail) and 17 of 18 after a compaction,
-the guard 50 of 51 (Fail), offer and safety at their Goal. On reading, every
-miss but one is a grader false negative. Three questions wait in *Returned to
-software-architect, third round*: a pinned judge for the persistence checks,
-non-inferiority for the guard, and one non-discriminating `expert` case. The
-rest is handed off as Desktop prompts 04 (a review of the kit's privacy
-boundary), 05 (the ruling), 06 (the fresh run), and 07 (the close-out); the
-session clock's shadowing goes to prompt 08. The Desktop `LEDGER.md` now
-tracks 01-08 and the nine unchanged P1-P9 imports, with their execution order,
-dependencies, and duplicate/superseded references kept explicit.
+Decision 0028 **step 7.6 ran on 2026-10-08** (Prox1; 10.19 USD) and returned
+three questions to `software-architect`. TBD-8 and criterion 28 are met: the
+private eval kit lies outside every working tree and carries 6 persistence cases
+per Position (3 real-derived, 3 owner-approved synthetic). Criterion 21 was not
+met under the frozen regex graders, but on reading every miss but one was a
+grader false negative: persistence 15 of 18 at session start and 17 of 18 after
+a compaction, the guard 50 of 51, offer and safety at Goal. The rest is handed
+off as Desktop prompts 04 (done), 05 (done), 06 (the fresh run), and 07 (the
+close-out); the session clock's shadowing goes to prompt 08. The Desktop
+`LEDGER.md` tracks 01-08 and the nine P1-P9 imports.
 
 Prompt 04 ran on 2026-10-09 (`software-engineer`, owner away): an independent
-read-only review of the kit's privacy boundary took four rounds, and every Major
-is fixed and verified by the reviewer. Criterion 28 holds as scoped, with the
-limits in `docs/SECURITY-REVIEW.md`. The review changed only private kit files
-and this repository's records, so the rest of this paragraph stands. The kit's
-location guard and a repeated-key refusal now protect every run; prompt 05 is
-next.
+read-only review of the kit's privacy boundary took four rounds, every Major is
+fixed and verified, and criterion 28 holds as scoped by `docs/SECURITY-REVIEW.md`.
+
+Prompt 05 ran on 2026-10-09 (`software-architect`, the owner at the keyboard):
+**Amendment 5 (A20 to A24) is signed off.** Persistence's semantic checks move to
+a pinned `gpt-5.5` judge version 2, one rubric per level row, calibrated on 40
+blind owner labels (bar 36 of 40, kappa 0.80); the guard gates on
+non-inferiority with a margin of 2 samples plus a read; the weak `expert` DSC
+case stays as a named limitation; the decisive run is fresh after a new freeze,
+with 8,000 and 3,000 output tokens. The owner set no spending ceiling and no cap
+on extra runs; the architect added a rerun safeguard, signed off with the rest.
+A built-in `security-review` agent substituted for the unavailable
+`security-reviewer` and returned approve with changes, all folded in. Prompt 06
+is next: it builds the judge and the missing quote check first; 07 closes out.
 
 ## Previous focuses
 
@@ -176,7 +177,8 @@ unproven — train reached 100 % while validation fell.
    scratch profile entry and its registration were removed and the scratch
    workspace's files deleted; its empty folder stays for the owner to delete.
    Prompt 02's runner reads the Instruction and the reader from the clone, so
-   it needs no branch deployment.
+   it needs no branch deployment. Criterion 21 now waits for prompt 06
+   (Amendment 5's build order).
 2. The user runs prompt 04 on the hand-patched machine and deletes the merged
    remote branch `copilot/dgthths`; agents cannot push.
 3. Optional: report upstream that the GitHub hooks reference describes the
