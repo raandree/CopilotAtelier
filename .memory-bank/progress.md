@@ -17,6 +17,12 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-09**: Session lessons item 2: name truthiness and the missing-field
+  pitfall in both Pester guides. Pester 5.7.1 also coerces `'False'` in
+  `Should -Be $true`, so a real boolean needs `Should -BeOfType ([bool])` too;
+  the actual comparer uses `Expected -eq Actual`. Six guidance checks went red
+  in each edition, then all 27 passed; the three characterizations retain the evidence.
+
 - **2026-10-09**: Session lessons item 1 on `ai/session-lessons` from
   `origin/main` (`9b6a341`): all ten detached Pester guards reject a result
   other than `Passed` and name every failure count; E2 includes load failures.
@@ -37,22 +43,15 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   A2 and B2 then passed in new chats (sessions `d2788da5`, `874b1f34`).
 
 - **2026-10-04**: Fixed the clock restart on resume that the live checks found:
-  `Add-SessionContext.ps1` keeps a readable clock of the same session when
-  `sessionStart` arrives with `source: resume` (red, then 18 of 18). Corrected
-  the `[Unreleased]` changelog entry and the hooks README, which claimed the
-  SDK host reads the guard's reason on exit 2. Not deployed yet.
+  `Add-SessionContext.ps1` preserves a readable same-session clock on resume
+  (red, then 18 of 18); corrected the changelog and hooks README. Detail stays in git.
 
 - **2026-10-04**: Fixed an intermittent Windows CI failure, also seen on `main`
-  (runs 104, 106): a cold runner's first Windows PowerShell run of the real
-  guard overran its 5-second limit and blocked a benign command. The launcher
-  integration block now warms it up once, unasserted.
+  (runs 104, 106): warm the real guard once before asserting its 5-second limit.
 
 - **2026-10-02**: Live checks after the deploy (VS Code 1.140.0, SDK
-  1.0.15-preview.4), verified against the session logs on 2026-10-04. A1 and
-  B1 to B3 passed: SessionStart context once per chat in both hosts, measured
-  clocks, and Local blocks the probe with the full reason, also with the
-  override set in the agent's terminal. A2 failed: the SDK denied the probe,
-  but the model read only `hook exited with code 2` (fixed 2026-10-04).
+  1.0.15-preview.4): A1 and B1-B3 passed; A2 lacked the SDK deny reason, fixed
+  2026-10-04. Verified against host logs; detail stays in git.
 
 - **2026-10-02**: Pushed `main` and merged pull request #27 (contributor
   calibration Phase 1, with review finding F-03 closed and

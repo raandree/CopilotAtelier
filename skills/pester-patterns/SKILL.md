@@ -95,6 +95,20 @@ Do not use `-PassThru` with `-Configuration`; they are different parameter sets.
 Detached-execution regression prompts live in
 [`notes-evals.md`](notes-evals.md).
 
+## Assertion pitfall: truthiness
+
+`-BeTrue` and `-BeFalse` check truthiness, not existence or boolean type:
+`$null | Should -BeFalse` and `'False' | Should -BeTrue` both pass. A missing
+property can therefore give a false green. Use `Should -Be $true` or
+`Should -Be $false` for the expected value; equality can also coerce types
+(`'False' | Should -Be $true` passes in Pester 5.7.1), so require the type too
+when the value must be a real boolean:
+
+```powershell
+$record.Measured | Should -BeOfType ([bool])
+$record.Measured | Should -Be $false
+```
+
 ## Recipes
 
 Patterns 0 and 14 apply to every Pester run, so they stay here. Patterns 1 to

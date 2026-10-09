@@ -331,7 +331,7 @@ $result | Should Not BeNullOrEmpty
 | `-Be` | Equality (case-insensitive) | `$x \| Should -Be 'hello'` |
 | `-BeExactly` | Equality (case-sensitive) | `$x \| Should -BeExactly 'Hello'` |
 | `-BeNullOrEmpty` | Null or empty check | `$x \| Should -Not -BeNullOrEmpty` |
-| `-BeTrue` / `-BeFalse` | Boolean check | `$flag \| Should -BeTrue` |
+| `-BeTrue` / `-BeFalse` | Truthiness, not existence or boolean type; use `Should -Be $true` / `Should -Be $false` for values and `Should -BeOfType ([bool])` for type | `$flag \| Should -Be $true` |
 | `-BeOfType` | Type check | `$x \| Should -BeOfType [string]` |
 | `-BeGreaterThan` | Numeric comparison | `$count \| Should -BeGreaterThan 0` |
 | `-BeLessThan` | Numeric comparison | `$count \| Should -BeLessThan 100` |
@@ -342,6 +342,18 @@ $result | Should Not BeNullOrEmpty
 | `-BeLike` | Wildcard match | `$x \| Should -BeLike 'prefix-*'` |
 | `-Throw` | Exception check | `{ Get-Foo } \| Should -Throw` |
 | `-Not` | Negation modifier | `$x \| Should -Not -Be $null` |
+
+`-BeTrue` and `-BeFalse` check truthiness: `$null | Should -BeFalse` and
+`'False' | Should -BeTrue` both pass. A missing object property therefore
+passes `-BeFalse` without proving the property exists.
+Use `Should -Be $true` or `Should -Be $false` for the expected boolean value.
+Equality also permits type coercion: in Pester 5.7.1, `'False' | Should -Be
+$true` passes. Add `Should -BeOfType ([bool])` when a real boolean is required:
+
+```powershell
+$record.Measured | Should -BeOfType ([bool])
+$record.Measured | Should -Be $false
+```
 
 ### Testing for Exceptions
 

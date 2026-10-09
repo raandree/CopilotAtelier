@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix Pester assertion guidance that called `-BeTrue` / `-BeFalse` boolean checks: explain truthiness, use `Should -Be $true` / `$false` for expected values, and require `Should -BeOfType ([bool])` when coercion must not pass a non-boolean. See [the assertion pitfall](skills/pester-patterns/SKILL.md#assertion-pitfall-truthiness).
 - Fix detached Pester templates that reported a test file which failed to load, or a run returning nothing, as passed: reject `Result -ne 'Passed'` and report the failed test, block, and container counts. See [Pester guidance](com.github.copilot/rules/pester.instructions.md).
 - Deliver the SessionStart context to Copilot SDK (agent host) and Copilot CLI sessions. `Add-SessionContext` wrote it only under `hookSpecificOutput`, which those hosts ignore; it now also writes the top-level `additionalContext` they read.
 - Keep the session clock when a Copilot SDK chat resumes. The runtime reruns the `SessionStart` hook with `source: resume` when it reloads a chat, and `Add-SessionContext` restarted the clock there, so the closing elapsed line and the turn count started over and the injected start time moved; it now keeps a readable clock of the same session.

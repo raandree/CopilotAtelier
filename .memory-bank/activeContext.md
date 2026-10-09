@@ -11,9 +11,11 @@ source: current task evidence
 
 Applying the five lessons of the 2026-10-08 live check on `ai/session-lessons`,
 from `origin/main` (`9b6a341`), independently of the calibration branch.
-Item 1 is green: the Pester 5.7.1 probe matched every supplied row, then the
-guidance checks went 12 red to 18 green in both installed PowerShell editions.
-Items 2-5 and the full build/test gate remain. Keep one local commit per item;
+Item 1 is committed (`30108eb`): the Pester 5.7.1 probe matched every supplied
+row, then the guidance checks went 12 red to 18 green in both editions.
+Item 2 fixes truthiness guidance and adds the observed equality-coercion caveat.
+All 27 guidance and characterization tests pass in both editions; lint is clean.
+Items 3-5 and the full build/test gate remain. Keep one local commit per item;
 do not push or run a paid eval. The user delegated reversible wording choices
 and requested no questions; the chosen waiting Instruction wording was shown
 before editing and remains an assumption for expert review, not a new approval.
