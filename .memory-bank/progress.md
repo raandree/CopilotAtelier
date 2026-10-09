@@ -93,16 +93,12 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - Desktop `CopilotAtelier New\LEDGER.md` owns the local queue: 01-08 and P1-P9.
   It keeps Decision 0028 gates, dependencies, and duplicate/superseded references.
-- Lessons of the 2026-10-08 live check, handed off as Desktop prompt 03 to run
-  on another machine on its own branch from `origin/main` (Pester 5.7.1,
-  Copilot Chat 0.69.0): the detached Pester templates fail only on
-  `FailedCount`, so a file that does not parse, a throwing `BeforeDiscovery`,
-  or a path with no test file reads as passed — fail on `Result -ne 'Passed'`;
-  `-BeTrue`/`-BeFalse` check truthiness, not the "Boolean check" the table
-  names; `agent-security-review`: PostToolUse context is pushed into the tool
-  result, so it carries data only; an async wait on `ResultPath` for
-  sub-minute detached runs; and the hooks README should say where each host
-  records evidence.
+- Merge `ai/session-lessons` (six local commits, not pushed) into `main`: the
+  five lessons of the 2026-10-08 live check (Pester `Result` check, `-BeTrue`
+  truthiness, hook context in the tool result, `Wait-DetachedResult.ps1`, hook
+  evidence locations) are done there, with the Instruction wording reviewed by
+  the owner on 2026-10-09. Expect small conflicts in `CHANGELOG.md`, the Memory
+  Bank, and the hooks README.
 - One-process `windows` launcher (ruling A11): separate work against Decision
   0016, kept here because Decision records here are accepted or superseded.
   Adopt only if `tests/HookLauncher.Tests.ps1` passes unchanged (`cmd.exe`,
