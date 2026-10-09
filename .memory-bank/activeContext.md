@@ -44,9 +44,9 @@ lock the labels, calibrate, freeze, run the four processes at once, judge, grade
 read, and record in a new Confirmation subsection; 07 closes out.
 
 Deviations the owner chose on 2026-10-09, for `software-architect` to ratify:
-hybrid calibration labels (four independent AI labellers, unanimity standing;
-the owner labels the 8 split items and decides later judge disagreements) and `claude-sonnet-5.5` as the reply writer,
-because `claude-opus-5` is no longer available. The owner's 8-item sheet is
+hybrid calibration labels (seven independent AI labellers: unanimity of the first four stands, a
+majority of seven stands for the splits unless 4 to 3; the owner labels only the 3 items left) and `claude-sonnet-5.5` as the reply writer,
+because `claude-opus-5` is no longer available. The owner's 3-item sheet is
 the next step.
 
 ## Previous focuses
