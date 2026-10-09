@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-08
+last-verified: 2026-10-09
 owner: software-engineer
 source: current task evidence
 ---
@@ -24,7 +24,8 @@ non-inferiority for the guard, and one non-discriminating `expert` case. The
 rest is handed off as Desktop prompts 04 (a review of the kit's privacy
 boundary), 05 (the ruling), 06 (the fresh run), and 07 (the close-out); the
 session clock's shadowing goes to prompt 08. The Desktop `LEDGER.md` now
-tracks status and dependencies for prompts 01-08.
+tracks 01-08 and the nine unchanged P1-P9 imports, with their execution order,
+dependencies, and duplicate/superseded references kept explicit.
 
 ## Previous focuses
 

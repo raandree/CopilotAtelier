@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-08
+last-verified: 2026-10-09
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -18,9 +18,10 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-10-09**: Created the Desktop `CopilotAtelier New\LEDGER.md` to track
-  prompts 01-08, their completed outcomes, dependencies, and next owner actions.
-  Its statuses are reconciled to the prompt files and README as of this date.
+- **2026-10-09**: Created the Desktop ledger for 01-08, then consolidated nine
+  P1-P9 prompts from `Desktop\p`, preserving names and bytes (SHA-256 9/9).
+  README/ledger carry the order and gates; P4 is an older reference, P9 duplicates
+  03. All 43 metadata links resolve; imported tasks were not executed.
 - **2026-10-08**: Ran Decision 0028's A13 eval (`software-engineer`, Prox1, the
   owner's review and spend approval in chat). TBD-8 closed; 6 persistence cases
   per Position, 3 real-derived carrying only an HMAC digest. Frozen graders:
@@ -82,8 +83,8 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Decision 0028 follow-ups are tracked in Desktop `CopilotAtelier New\LEDGER.md`:
-  prompts 04-07, their dependencies, and the next criteria 21 gate.
+- Desktop `CopilotAtelier New\LEDGER.md` owns the local queue: 01-08 and P1-P9.
+  It keeps Decision 0028 gates, dependencies, and duplicate/superseded references.
 - Lessons of the 2026-10-08 live check, handed off as Desktop prompt 03 to run
   on another machine on its own branch from `origin/main` (Pester 5.7.1,
   Copilot Chat 0.69.0): the detached Pester templates fail only on
