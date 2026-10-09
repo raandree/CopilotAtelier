@@ -43,6 +43,12 @@ before any paid call) and the 40-item calibration sheet waits at
 lock the labels, calibrate, freeze, run the four processes at once, judge, grade,
 read, and record in a new Confirmation subsection; 07 closes out.
 
+Deviations the owner chose on 2026-10-09, for `software-architect` to ratify:
+hybrid calibration labels (two independent AI labellers, the owner on 5
+disagreements and a 10-item audit) and `claude-sonnet-5.5` as the reply writer,
+because `claude-opus-5` is no longer available. The owner's 15-item sheet is
+the next step.
+
 ## Previous focuses
 
 - **Step 7.5, the VS Code Local backstop (`b05efe3`).** Copilot Chat 0.69.0
