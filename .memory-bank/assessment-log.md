@@ -25,13 +25,14 @@ by the author and checked by the author's tests, with no fourth round.
 Criterion 28 holds for the current case set and kit location, as scoped. Full
 record in [docs/SECURITY-REVIEW.md](../docs/SECURITY-REVIEW.md).
 
-Residual risk:
+Residual risk, all accepted by the owner on 2026-10-09:
 
 - Names and addresses not on the private term list depend on the owner's read.
 - Letters-only Base64 is not recognized.
-- One earlier commit keeps the old source attribution until history is rewritten
-  with the owner's authorization.
-- Filesystem alias coverage was not live-tested by the reviewer.
+- One earlier commit keeps the old source attribution; the history stays as it
+  is.
+- Filesystem alias coverage was not live-tested by the reviewer; a live test is
+  deferred to a later round.
 - Provider submissions remain an intentional disclosure.
 
 ## 2026-10-01 contributor calibration Phase 1 and its private eval tooling

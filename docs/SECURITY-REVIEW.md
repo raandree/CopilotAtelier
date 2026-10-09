@@ -57,12 +57,15 @@ kit location, as scoped by the remaining risks below.
 ### Remaining risks
 
 - Personal names and postal addresses that are not on the private term list
-  still depend on the owner's read of each case.
-- Base64 made only of letters is not recognized as an opaque token.
-- One earlier commit keeps the old source attribution; rewriting history needs
-  the owner's separate authorization.
+  still depend on the owner's read of each case. The owner accepted this on
+  2026-10-09.
+- Base64 made only of letters is not recognized as an opaque token. The owner
+  accepted this on 2026-10-09.
+- One earlier commit keeps the old source attribution. The owner accepted
+  keeping the history as it is on 2026-10-09.
 - The reviewer did not live-test every filesystem alias form. The author's
-  check covers a junction.
+  check covers a junction. The owner deferred a live alias test to a later
+  round.
 - Sending a case to the model provider remains an intentional disclosure.
 
 ## 2026-10-01: contributor calibration
