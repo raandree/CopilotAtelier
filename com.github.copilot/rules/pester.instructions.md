@@ -64,9 +64,14 @@ $launch = & $launcherPath -EncodedCommand $encodedPayload
 .\build.ps1 -Tasks test
 ```
 
-Do not poll with `Start-Sleep`. On a later status check, read `ResultPath`
-(`0` success, `1` failure) and the log tail; use the PID only for liveness while
-the child still exists. Apply `long-running-job-monitor` for continuing reports.
+Never poll with `Start-Sleep` in a foreground command. Launch Pester detached,
+then arm `Wait-DetachedResult.ps1` from `long-running-job-monitor` through the
+terminal tool in async mode with the returned `ResultPath` and `LogPath` for
+a run expected to finish within about two minutes. The waiter checks in 500 ms
+steps with a bounded timeout and notifies on completion; do not run it
+synchronously or launch it detached. For longer runs, arm the Skill's async
+heartbeat. On notification or a later status check, read `ResultPath` (`0`
+success, `1` failure) and the log; use the PID only for liveness.
 
 ### Why the Detached Launcher (not pwsh -Command)?
 

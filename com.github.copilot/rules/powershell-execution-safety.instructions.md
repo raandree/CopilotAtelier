@@ -14,10 +14,13 @@ deployment entry point. It fires on an agent-initiated run — no user request,
 no user phrasing to match — so decide from the command, not the conversation.
 
 Detaching and monitoring are one obligation. Load `long-running-job-monitor`
-before launching; it specifies the instrumented log, the status line owed on
-every in-flight reply, and the stuck-versus-working classification. A detached
-run that is not instrumented and monitored is non-compliant, not
-half-compliant.
+before launching. For a detached run expected to finish within about two
+minutes, arm `Wait-DetachedResult.ps1` through the terminal tool in async mode
+with `ResultPath` and `LogPath`. It checks in 500 ms steps with a bounded timeout
+and notifies on completion. Never run the waiter synchronously or through the
+detached launcher. For longer runs, use the Skill's instrumented log, in-flight
+status line, async heartbeat, and stuck-versus-working classification. A
+detached run without the appropriate async waiter or heartbeat is non-compliant.
 
 - Always run `Invoke-Pester`, `Invoke-Build`, and build entry points such as
     `build.ps1` in a new, fully detached process. The canonical helper uses
@@ -29,9 +32,10 @@ half-compliant.
 - Launch with `Start-DetachedPowerShell.ps1`, write merged PowerShell streams
     to a persistent log under `$env:TEMP`, and return `ProcessId`, `LogPath`,
     and `ResultPath` metadata.
-- Do not use a `Start-Sleep` polling loop and do not re-read terminal output on
-    a cadence. End the turn and let the completion notification wake the next
-    one; inspect process state and logs on a status check.
+- Never poll with `Start-Sleep` in a foreground command or repeatedly re-read
+  terminal output. Use the bounded async waiter for short detached runs or
+  an async heartbeat for longer runs; let completion notifications wake the
+  agent, then inspect the result and log.
 
 ```powershell
 $runId = [guid]::NewGuid().ToString('N')
@@ -99,8 +103,8 @@ details. Never poll either path in a foreground sleep loop.
 
 ## Other One-Shot Commands
 
-- Run other installs, module imports, scripts, and DSC compilation through the
-    terminal tool in synchronous mode.
+- Run other one-shot commands synchronously. Monitoring waiters and heartbeat
+  ticks are the explicit async exception.
 - Omit the timeout unless the command has a known hang risk.
 - Treat synchronous output as final. Read terminal output again only when the
     tool explicitly reports backgrounding, timeout, or input required.
@@ -109,8 +113,9 @@ details. Never poll either path in a foreground sleep loop.
 
 ## Indefinite processes
 
-- Use asynchronous mode only for servers, watchers, daemons, and other
-    processes that must remain running while work continues.
+- Use asynchronous mode for servers, watchers, daemons, and other processes
+  that must remain running, and for the bounded `Wait-DetachedResult.ps1`
+  waiter and heartbeat ticks.
 - Wait for terminal completion notifications. Do not poll background commands.
 - Multi-minute monitoring falls under the launch rule above; verify progress
     through an independent target plane rather than the job's own output.

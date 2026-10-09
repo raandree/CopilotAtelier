@@ -17,6 +17,14 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-09**: Session lessons item 4: the read-only bounded async waiter,
+  its full help, and matching Skill/Instruction wiring. Presence went red then
+  green in both editions; 11 behavior checks and three wiring checks went red,
+  then the combined monitor and guidance suite passed all 70 in each edition.
+  Native async monitoring returned `DETACHED-RESULT 0 after 19.1 s` and 29.6 s.
+  Timeout is 124, not the 1 an outer EncodedCommand had collapsed it to; the
+  test runner now passes LASTEXITCODE through. No foreground polling or paid eval.
+
 - **2026-10-09**: Session lessons item 3: record both hosts' tool-result delivery
   of hook context and its data-only trust boundary in `agent-security-review`.
   Version/date-scoped supplied observations remain explicit; lookalike-block
@@ -59,10 +67,8 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   2026-10-04. Verified against host logs; detail stays in git.
 
 - **2026-10-02**: Pushed `main` and merged pull request #27 (contributor
-  calibration Phase 1, with review finding F-03 closed and
-  `docs/SECURITY-REVIEW.md`) as `7a48abe`; CI run 37058264901 passed and
-  published `6.1.0-preview0001`. Closed #19, the API key question. Only `main`
-  and the merged `copilot/dgthths` remain on GitHub.
+  calibration Phase 1) as `7a48abe`; CI run 37058264901 passed and published
+  `6.1.0-preview0001`; #19 closed. Review and history stay in git.
 
 - **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
   `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
@@ -88,6 +94,7 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - Prompt templates for repeatable development, research, legal, and operations
   workflows.
 - Detached Pester and build execution with persistent completion evidence.
+  Short runs have a bounded async result waiter; longer runs keep heartbeat ticks.
   Test-first behavior changes, regression guards, risk-scaled review, and
   agentic-security checks. Routed Memory Bank loading with deterministic
   non-inferiority, health, provenance, compactness, and rollback checks.

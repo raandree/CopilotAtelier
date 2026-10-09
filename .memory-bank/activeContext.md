@@ -15,8 +15,10 @@ Item 1 is committed (`30108eb`): the Pester 5.7.1 probe matched every supplied
 row, then the guidance checks went 12 red to 18 green in both editions.
 Item 2 is committed (`3cf2352`): truthiness and equality coercion are explicit.
 All 27 guidance and characterization tests pass in both editions; lint is clean.
-Item 3 documents the hook-context trust boundary with version-scoped evidence.
-Items 4-5 and the full build/test gate remain. Keep one local commit per item;
+Item 3 is committed (`e3373d1`): tool-hook context is data only, with evidence.
+Item 4 is green: read-only waiter plus all three guidance surfaces; all 70
+focused monitor/guidance tests pass in both editions. Item 5 and the full
+build/test gate remain. Keep one local commit per item;
 do not push or run a paid eval. The user delegated reversible wording choices
 and requested no questions; the chosen waiting Instruction wording was shown
 before editing and remains an assumption for expert review, not a new approval.

@@ -27,7 +27,12 @@ Runs, monitors, and reports on jobs that take many minutes to tens of minutes �
 - The agent kicks off a test suite, a build, a live/integration test run, an installer, or a deployment that will not return promptly.
 - The user asks "is it done?", "is it stuck?", "still running?", "watch the deployment", or "tell me when it finishes".
 - A job's own output is silent or buffered and the agent needs an independent read on progress.
-- Skip for short commands that return in seconds — the overhead is not worth it.
+- For a Pester/build run expected to finish within about two minutes, launch
+  detached and arm [`Wait-DetachedResult.ps1`](scripts/Wait-DetachedResult.ps1)
+  through the terminal tool in async mode. Its 500 ms checks and bounded timeout
+  replace a heartbeat tick, even when the run ends within seconds.
+- Skip ordinary short one-shot commands; this does not exempt Pester or builds
+  from detached launch and monitoring.
 
 ## Extends the execution foundation
 
@@ -119,8 +124,14 @@ phase-specific `ProgressToken` advancement proves work progress.
   Extension host.
 - The implementation is
   [`scripts/Start-DetachedPowerShell.ps1`](scripts/Start-DetachedPowerShell.ps1).
-- **Use async only for truly indefinite processes** (servers, watchers, the monitor sidecar in step 4).
-- **Never `Start-Sleep` in the agent's own foreground command to "wait 5 minutes"**, and never hand-roll a poll loop. A blocking foreground command makes the chat unresponsive for the whole wait.
+- For a run expected to finish within about two minutes, arm
+  [`scripts/Wait-DetachedResult.ps1`](scripts/Wait-DetachedResult.ps1) in async mode
+  with `-ResultPath $launch.ResultPath -LogPath $logPath`. It checks in 500 ms
+  steps, prints `DETACHED-RESULT`, tails the log, and exits `0`/`1` or `124`
+  on timeout. Never run it synchronously or through the detached launcher:
+  a detached waiter notifies nobody. A timeout does not terminate the job.
+- Use async for indefinite processes, bounded result waiters, and heartbeat ticks.
+- Never poll with `Start-Sleep` in a foreground command or hand-roll a wait loop.
 - **To wake on a cadence, arm an async timer instead.** An async command does not block the chat, and its completion notification spawns a turn with no user input. See [Chat heartbeat](#chat-heartbeat).
 - **Arm that tick in the same turn as the launch, before the turn ends**,
   whenever the job is expected to run longer than the cadence interval. Launch,
@@ -361,15 +372,18 @@ synthetic-heartbeat stall detection, and a vocabulary-only trigger-rate check.
 - [ ] Job wrapped to emit `START`, per-phase lines, heartbeats, and a `<JOB>-DONE`/`-FAILED` marker.
 - [ ] stdout+stderr tee'd to a persistent `$env:TEMP` log.
 - [ ] Run ordinary one-shot commands synchronously, Pester/builds detached, and
-  indefinite services asynchronously; no agent-side `Start-Sleep`/poll loop.
+  indefinite services, bounded result waiters, and heartbeat ticks asynchronously;
+  no foreground `Start-Sleep`/poll loop.
 - [ ] Detached Pester/build runs expose `ResultPath`; read `0`/`1` and the log
   only on demand.
+- [ ] For a run expected within about two minutes, arm `Wait-DetachedResult.ps1`
+  in async mode instead of a heartbeat tick; never launch the waiter detached.
 - [ ] An out-of-band, read-only target probe is chosen for step 3.
 - [ ] After any restart, prior readiness is discarded and the next phase's
   actual protocol is re-probed.
 - [ ] Remote jobs: detached on the remote, log + liveness on the remote, and a channel drop is treated as reconnect-and-recheck (not FAILED).
 - [ ] Every in-flight reply opens with the mandatory status line — timestamp + elapsed + phase + status + next + out-of-band evidence ([The one rule](#the-one-rule-non-negotiable)); a bare `[… UTC]` opener is not sufficient.
-- [ ] A heartbeat tick is armed in async mode in the same turn the job is
+- [ ] For a longer run, a heartbeat tick is armed in async mode in the same turn the job is
   launched, the turn is ended without polling, and every status line publishes
   the next due time.
 - [ ] On completion: full log read, end-state verified on target, throwaway resources cleaned up.
