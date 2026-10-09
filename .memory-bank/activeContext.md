@@ -27,6 +27,14 @@ session clock's shadowing goes to prompt 08. The Desktop `LEDGER.md` now
 tracks 01-08 and the nine unchanged P1-P9 imports, with their execution order,
 dependencies, and duplicate/superseded references kept explicit.
 
+Prompt 04 ran on 2026-10-09 (`software-engineer`, owner away): an independent
+read-only review of the kit's privacy boundary took four rounds, and every Major
+is fixed and verified by the reviewer. Criterion 28 holds as scoped, with the
+limits in `docs/SECURITY-REVIEW.md`. The review changed only private kit files
+and this repository's records, so the rest of this paragraph stands. The kit's
+location guard and a repeated-key refusal now protect every run; prompt 05 is
+next.
+
 ## Previous focuses
 
 - **Step 7.5, the VS Code Local backstop (`b05efe3`).** Copilot Chat 0.69.0

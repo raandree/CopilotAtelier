@@ -11,6 +11,29 @@ Episodic record of completed security assessments. One entry per assessment:
 date, scope, verdict, and the findings that outlived the review. Retain two
 years; archive older entries to a dated Memory Bank topic.
 
+## 2026-10-09 privacy boundary of the private calibration eval kit
+
+Scope: the kit's case checker, location and destination guards, and case-set
+checker, plus the repository records describing them, at
+`ai/calibration-phase-2`. The built-in `security-review` agent ran read-only
+(the Custom `security-reviewer` agent was unavailable); the parent saved its
+reports in the private kit.
+
+Verdict: four rounds, each Request changes. Every Major (P-01, P-02, V-01, V-02,
+S-01, S-02) was verified fixed by the reviewer. The last Minor (S-04) was fixed
+by the author and checked by the author's tests, with no fourth round.
+Criterion 28 holds for the current case set and kit location, as scoped. Full
+record in [docs/SECURITY-REVIEW.md](../docs/SECURITY-REVIEW.md).
+
+Residual risk:
+
+- Names and addresses not on the private term list depend on the owner's read.
+- Letters-only Base64 is not recognized.
+- One earlier commit keeps the old source attribution until history is rewritten
+  with the owner's authorization.
+- Filesystem alias coverage was not live-tested by the reviewer.
+- Provider submissions remain an intentional disclosure.
+
 ## 2026-10-01 contributor calibration Phase 1 and its private eval tooling
 
 Scope: round 1 reviewed `a592832..6b00681` on `ai/contributor-calibration` — the

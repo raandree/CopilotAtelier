@@ -4,6 +4,67 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-10-09: privacy boundary of the private eval kit
+
+The built-in `security-review` agent reviewed the private calibration eval kit in
+a fresh, read-only context. It could not write files, so the parent saved each
+report. The Custom `security-reviewer` agent was unavailable because its first
+model was not offered. The reviewer re-ran its own reproductions after each fix
+instead of reading the diff.
+
+### Scope
+
+- The kit's case checker, the runner's location and destination guards, the
+  case-set checker, and the repository records that describe them, at
+  `ai/calibration-phase-2`. File names only; the kit lives outside every git
+  working tree and its content never enters this repository.
+- The question: does Decision record 0028 criterion 28 hold, meaning no eval
+  case records a history name, a path, a session identifier, or source text?
+- Out of scope by design: the private eval data and the protected run folders,
+  whose manifest the reviewer hashed before and after every round and found
+  unchanged.
+
+### Verdict
+
+| Round | Verdict | Blocker | Major | Minor |
+|---|---|---|---|---|
+| 1 | Request changes | 0 | 2 | 1 |
+| Verification 1 | Request changes | 0 | 2 | 2 |
+| Verification 2 | Request changes | 0 | 2 | 1 |
+| Verification 3 | Request changes | 0 | 0 | 1 |
+
+Every Major was verified fixed by the reviewer. The one Minor left in round 3
+was fixed afterwards and checked by the author's own tests, not by a fourth
+review round. The reviewer confirmed criterion 28 for the current case set and
+kit location, as scoped by the remaining risks below.
+
+### Findings
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| P-01 | Major | Case checker | Forms of a prohibited identifier were accepted. | Fixed: structural, rule-based checks with safe labels, whole-token short terms, and a size cap. |
+| P-02 | Major | Runner | No operational refusal to read or write inside a git working tree. | Fixed: a guard before every read and write, links resolved, failing closed. |
+| P-03 | Minor | Decision 0028 | One subsection named the source machine. | Fixed in the working tree; an earlier commit keeps it. |
+| V-01 | Major | Case checker | A dotted property name spoofed the digest exemption. | Fixed: exemptions match structural path segments. |
+| V-02 | Major | Runner | A case id could write outside the accepted work folder. | Fixed: case ids must be plain path components, and every destination must stay below the work folder. |
+| V-03 | Minor | Case checker | Labels and diagnostics echoed rejected text. | Fixed with S-03. |
+| V-04 | Minor | Case checker | Short candidate identifiers were not collected. | Fixed. |
+| S-01 | Major | Case checker | The expectation exemption applied to any nested property of that name. | Fixed: it applies to the one top-level field only. |
+| S-02 | Major | Case checker, runner | A repeated JSON key hid an earlier value from every check. | Fixed: both load the eval through a reader that refuses repeated keys. |
+| S-03 | Minor | Case checker | Source-text labels and one detail line echoed content. | Fixed: labels are source-aware and details are counts. |
+| S-04 | Minor | Reader | A key pair differing only by case made the conversion error name the keys. | Fixed with a failing test first; no review round followed. |
+
+### Remaining risks
+
+- Personal names and postal addresses that are not on the private term list
+  still depend on the owner's read of each case.
+- Base64 made only of letters is not recognized as an opaque token.
+- One earlier commit keeps the old source attribution; rewriting history needs
+  the owner's separate authorization.
+- The reviewer did not live-test every filesystem alias form. The author's
+  check covers a junction.
+- Sending a case to the model provider remains an intentional disclosure.
+
 ## 2026-10-01: contributor calibration
 
 The `security-reviewer` Custom agent reviewed the change set in a fresh,

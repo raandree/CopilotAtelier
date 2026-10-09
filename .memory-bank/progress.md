@@ -18,6 +18,14 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-09**: Ran Desktop prompt 04 (`software-engineer`, owner away): an
+  independent read-only review of the private eval kit's privacy boundary,
+  four rounds, findings P-01..P-03, V-01..V-04, S-01..S-04. Every Major fixed
+  and verified by the reviewer; the last Minor fixed by the author's tests. The
+  kit now refuses a working-tree location, an unsafe case id or destination,
+  and a repeated JSON key. Criterion 28 holds as scoped; protected runs
+  unchanged (347 files, 831,036 bytes). Record in `docs/SECURITY-REVIEW.md`.
+
 - **2026-10-09**: Created the Desktop ledger for 01-08, then consolidated nine
   P1-P9 prompts from `Desktop\p`, preserving names and bytes (SHA-256 9/9).
   README/ledger carry the order and gates; P4 is an older reference, P9 duplicates

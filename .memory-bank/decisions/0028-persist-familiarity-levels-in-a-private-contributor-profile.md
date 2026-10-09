@@ -1612,7 +1612,7 @@ on every run.
 **The set.** At each Position, 6 persistence cases, 3 `real-derived` and 3
 `synthetic-reviewed`, covering `new`, `familiar`, and `expert`; with 2 offer
 and 2 safety cases, 16 cases. The 3 real-derived cases come from the 3
-restatements of the RAANDREE3 version 2 finder run that state a level, each
+restatements, in the version 2 finder run, that state a level, each
 case serving both Positions; one shares its source with an approved Phase 1
 case and counts once in each set. A real-derived case carries only an
 HMAC-SHA256 digest under a salt that stays in the kit, and the finder's own
@@ -1666,6 +1666,15 @@ nothing was re-graded or re-run after the freeze.
 
 Criterion 28 is met, and TBD-8 is closed. Criterion 21 is not met; it returns
 to `software-architect` below.
+
+Review of 2026-10-09: an independent read-only review of the kit's privacy
+boundary found the checker accepted prohibited identifier forms and the runner
+had no working-tree refusal. Both are fixed, with the checker and the runner
+now refusing a repeated JSON property name. The review confirmed criterion 28
+for the current case set and kit location, as scoped by its known limitations:
+names and addresses absent from the private term list, letters-only Base64, one
+earlier commit that keeps its old attribution, and provider submissions as an
+intentional disclosure. See `docs/SECURITY-REVIEW.md`.
 
 ### Returned to software-architect, third round
 
