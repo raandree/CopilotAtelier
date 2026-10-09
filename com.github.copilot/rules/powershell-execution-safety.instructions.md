@@ -103,8 +103,9 @@ details. Never poll either path in a foreground sleep loop.
 
 ## Other One-Shot Commands
 
-- Run other one-shot commands synchronously. Monitoring waiters and heartbeat
-  ticks are the explicit async exception.
+- Run other installs, module imports, scripts, and DSC compilation through the
+  terminal tool in synchronous mode. Monitoring waiters and heartbeat ticks are
+  the explicit async exception.
 - Omit the timeout unless the command has a known hang risk.
 - Treat synchronous output as final. Read terminal output again only when the
     tool explicitly reports backgrounding, timeout, or input required.
