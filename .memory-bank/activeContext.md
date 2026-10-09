@@ -23,7 +23,8 @@ software-architect, third round*: a pinned judge for the persistence checks,
 non-inferiority for the guard, and one non-discriminating `expert` case. The
 rest is handed off as Desktop prompts 04 (a review of the kit's privacy
 boundary), 05 (the ruling), 06 (the fresh run), and 07 (the close-out); the
-session clock's shadowing goes to prompt 08.
+session clock's shadowing goes to prompt 08. The Desktop `LEDGER.md` now
+tracks status and dependencies for prompts 01-08.
 
 ## Previous focuses
 

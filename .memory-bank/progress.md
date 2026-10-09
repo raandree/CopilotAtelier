@@ -18,6 +18,9 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-09**: Created the Desktop `CopilotAtelier New\LEDGER.md` to track
+  prompts 01-08, their completed outcomes, dependencies, and next owner actions.
+  Its statuses are reconciled to the prompt files and README as of this date.
 - **2026-10-08**: Ran Decision 0028's A13 eval (`software-engineer`, Prox1, the
   owner's review and spend approval in chat). TBD-8 closed; 6 persistence cases
   per Position, 3 real-derived carrying only an HMAC digest. Frozen graders:
@@ -50,12 +53,9 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   the two-entry SDK cell, not reproduced in 400 launches on Prox1. The Meter
   now keeps stderr, retries a crashed launch once, and writes a CSV.
 
-- **2026-10-07**: Signed off and built Decision 0028 Amendment 3
-  (`software-architect` drafted and recorded A14 to A18; the owner accepted
-  all six recommended answers; `software-engineer` built A17 and A18
-  test-first). The unit is now a reader-shaped frozen reference under one
-  composite pin; the Prox1 Meter under it lost no replicate, spread at most
-  1.16, both stop lines clear. RAANDREE3 runs next, by the owner.
+- **2026-10-07**: Amendment 3 (A14-A18) signed off; A17/A18 built test-first.
+  The reader-shaped Prox1 Meter lost no replicate, spread at most 1.16; the
+  RAANDREE3 run followed.
 
 ## Stable capabilities
 
@@ -82,9 +82,8 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Open work
 
-- Contributor calibration, Decision 0028: Desktop prompts 04 (review of the
-  eval kit's privacy boundary), 05 (third-round ruling on criterion 21's
-  graders), 06 (rebuilt grader, fresh run), and 07 (close-out, pull request).
+- Decision 0028 follow-ups are tracked in Desktop `CopilotAtelier New\LEDGER.md`:
+  prompts 04-07, their dependencies, and the next criteria 21 gate.
 - Lessons of the 2026-10-08 live check, handed off as Desktop prompt 03 to run
   on another machine on its own branch from `origin/main` (Pester 5.7.1,
   Copilot Chat 0.69.0): the detached Pester templates fail only on
@@ -102,10 +101,9 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   in both hosts, a Meter run on Prox1 and RAANDREE3 shows the saving, and
   Decision 0028's levels are re-baselined in the same change.
 - `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
-  workspace, so a subagent or parallel chat there shadows the parent's clock
-  (06:29 on 2026-10-01; 10:25 and 13:24 in one SDK chat on 2026-10-04; 11:05
-  in a parallel agent-host chat on 2026-10-08). Desktop prompt 08: `-Path` from
-  SessionStart, the reader preferring `COPILOT_AGENT_SESSION_ID`.
+  workspace, so a parallel chat may shadow the parent's clock (06:29 on
+  2026-10-01; 10:25 and 13:24 on 2026-10-04; 11:05 on 2026-10-08). Desktop
+  prompt 08 and `CopilotAtelier New\LEDGER.md` track the `-Path` fix.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
