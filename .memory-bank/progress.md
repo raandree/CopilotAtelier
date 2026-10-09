@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-04
+last-verified: 2026-10-09
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -16,6 +16,17 @@ Releases and the PowerShell Gallery (verified 2026-10-04). Incremental work is
 tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-10-09**: Session lessons item 1 on `ai/session-lessons` from
+  `origin/main` (`9b6a341`): all ten detached Pester guards reject a result
+  other than `Passed` and name every failure count; E2 includes load failures.
+  Pester 5.7.1 probe matched Prox1: Parse and Discovery `Failed/0/1`, BeforeAll
+  `Failed/1/0`, Truthy and Skipped `Passed/0/0` (Result/FailedCount/containers);
+  no-tests returned nothing and printed its diagnostic. FailedCount rejection
+  in that order: false, false, true, false, false, false; Result rejection:
+  true, true, true, false, false, true. The supplied probe is outside the tree.
+  Guidance regression: 12 of 18 red, then 18 green, in both PowerShell
+  7.6.6 and Windows PowerShell 5.1. No paid eval or remote mutation.
 
 - **2026-10-04**: Fixed prompt 06 on `ai/hook-deny-reason`: Copilot SDK chats
   show the guard's block reason. A model-free probe of the bundled runtime found
@@ -51,20 +62,8 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
   `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
-  - The post-release review failed the v6.0.0 launcher fix: in VS Code Local
-    chats on Windows the push guard only warned, because VS Code's outer
-    `powershell.exe -Command` reports exit 2 as 1 (Blocker, reproduced).
-  - Nine re-reviews followed; every Blocker and Major was fixed test-first
-    (SEC-13 to SEC-33, assessment log). The guard now decides within about
-    5 s (1 MB parse, 20,000-field walk, 4 MB block caps) and joins split
-    command fields in document order and per object, and on its raw path also
-    across the payload. The last re-review approved.
-  - The override cannot reach a hook from an agent terminal, so an authorized
-    push runs in the user's own terminal; never persist it. The SDK host gets
-    its own `powershell` launcher and the reason on stdout.
-  - Hook suites: 559 passed, 0 failed; full gate of the merge (`634546e`)
-    2,536 passed, 0 failed. Deployed: hooks match the source, the deployment
-    is healthy, and a push exits 2 with its reason in both host spawns.
+  Ten reviews closed the launcher and guard findings; the full merge gate
+  (`634546e`) passed 2,536 tests. Detail stays in git and the assessment log.
 
 - **2026-10-02**: The version now rises only from Conventional Commit markers
   (`31042ea`, `bd60b7a`), approved by an independent review; `main` was then

@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix detached Pester templates that reported a test file which failed to load, or a run returning nothing, as passed: reject `Result -ne 'Passed'` and report the failed test, block, and container counts. See [Pester guidance](com.github.copilot/rules/pester.instructions.md).
 - Deliver the SessionStart context to Copilot SDK (agent host) and Copilot CLI sessions. `Add-SessionContext` wrote it only under `hookSpecificOutput`, which those hosts ignore; it now also writes the top-level `additionalContext` they read.
 - Keep the session clock when a Copilot SDK chat resumes. The runtime reruns the `SessionStart` hook with `source: resume` when it reloads a chat, and `Add-SessionContext` restarted the clock there, so the closing elapsed line and the turn count started over and the injected start time moved; it now keeps a readable clock of the same session.
 - Keep the `long-running-job-monitor` heartbeat state readable while it is rewritten. `Start-JobHeartbeat.ps1` wrote the state file in place, so `-Stop`, `-TouchStatus`, or a wake read at the same moment could find it empty or cut off and fail; it now renames a complete file over it, also on Windows PowerShell 5.1.

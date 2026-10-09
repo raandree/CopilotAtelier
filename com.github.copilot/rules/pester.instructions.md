@@ -30,8 +30,8 @@ Set-Location -LiteralPath '$workingDirectory'
 try {
     & {
         `$result = Invoke-Pester -Path './tests' -Output Detailed -PassThru
-        if (`$result.FailedCount -gt 0) {
-            throw "Pester failed `$(`$result.FailedCount) test(s)."
+        if (`$result.Result -ne 'Passed') {
+            throw "Pester Result='$(`$result.Result)'; FailedCount=$(`$result.FailedCount); FailedBlocksCount=$(`$result.FailedBlocksCount); FailedContainersCount=$(`$result.FailedContainersCount)."
         }
     } *>&1 | Out-File -LiteralPath '$escapedLogPath' -Encoding utf8
 }
@@ -578,13 +578,19 @@ never run these fragments in the current session:
 
 ```text
 $result = Invoke-Pester -TagFilter 'Unit' -Output Detailed -PassThru
-if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
+}
 
 $result = Invoke-Pester -ExcludeTagFilter 'Slow' -Output Detailed -PassThru
-if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
+}
 
 $result = Invoke-Pester -TagFilter 'Smoke' -Output Detailed -PassThru
-if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
+}
 ```
 
 ## Pester Configuration
@@ -611,8 +617,8 @@ $config.Filter.Tag = @('Unit')
 $config.Filter.ExcludeTag = @('Slow')
 
 $result = Invoke-Pester -Configuration $config
-if ($result.FailedCount -gt 0) {
-    throw "Pester failed $($result.FailedCount) test(s)."
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
 }
 ```
 
@@ -864,8 +870,8 @@ $config.CodeCoverage.OutputPath = './output/coverage.xml'
 $config.CodeCoverage.CoveragePercentTarget = 80
 
 $result = Invoke-Pester -Configuration $config
-if ($result.FailedCount -gt 0) {
-    throw "Pester failed $($result.FailedCount) test(s)."
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
 }
 ```
 

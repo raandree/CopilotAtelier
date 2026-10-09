@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-04
+last-verified: 2026-10-09
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,26 +9,16 @@ source: current task evidence
 
 ## Current focus
 
-Prompt 06 is done on `ai/hook-deny-reason` (`a3d888d`); the merge is pending. A
-model-free probe of the Copilot SDK runtime VS Code bundles
-(`session.rpc.tools.execute`, own `COPILOT_HOME`) found why A2 failed: on exit 2
-it merges a JSON deny from standard output only when a PascalCase event's object
-has no `hookSpecificOutput`, and the guard printed both shapes. VS Code reads
-only standard error on exit 2. The guard now prints the top-level pair alone;
-`tests/HookSdkRuntime.Tests.ps1` asserts the reason inside the real runtime
-(red, then 4 of 4) and skips without VS Code and node. Decision 0016 holds the
-probe matrix. Full gate: 2,542 passed, 0 failed. Deployed 2026-10-04 12:53 UTC;
-A2 and B2 then passed in new chats (Copilot SDK `d2788da5`, Local `874b1f34`),
-so all five live checks have passed. The resume clock fix (#28) is deployed.
-
-Pull request #27 is merged into `main` as `7a48abe` and published as
-`6.1.0-preview0001`; #19 is closed. So contributor calibration (Decision 0027)
-Phase 1 is on `main`; Phase 2 goes to `software-architect` through the Session
-handoff in `.memory-bank/session/`. The private behavior eval (17 real-chat
-cases, pinned `gpt-5.5` judge, 38 of 40 against human labels) scored 52.1%
-without the Instruction and 100% with it. `claude-opus-5` answers some English
-prompts in German under the eval's thin context, so arms are compared only
-when run concurrently. A parallel session also commits Memory Bank notes here.
+Applying the five lessons of the 2026-10-08 live check on `ai/session-lessons`,
+from `origin/main` (`9b6a341`), independently of the calibration branch.
+Item 1 is green: the Pester 5.7.1 probe matched every supplied row, then the
+guidance checks went 12 red to 18 green in both installed PowerShell editions.
+Items 2-5 and the full build/test gate remain. Keep one local commit per item;
+do not push or run a paid eval. The user delegated reversible wording choices
+and requested no questions; the chosen waiting Instruction wording was shown
+before editing and remains an assumption for expert review, not a new approval.
+After this task closes, continue with Desktop prompt
+`CopilotAtelier New\04-review-eval-kit-privacy-boundary.md`.
 
 ## Previous focuses
 
