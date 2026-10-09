@@ -9,21 +9,19 @@ source: current task evidence
 
 ## Current focus
 
-Applying the five lessons of the 2026-10-08 live check on `ai/session-lessons`,
-from `origin/main` (`9b6a341`), independently of the calibration branch.
-Item 1 is committed (`30108eb`): the Pester 5.7.1 probe matched every supplied
-row, then the guidance checks went 12 red to 18 green in both editions.
-Item 2 is committed (`3cf2352`): truthiness and equality coercion are explicit.
-All 27 guidance and characterization tests pass in both editions; lint is clean.
-Item 3 is committed (`e3373d1`): tool-hook context is data only, with evidence.
-Item 4 is green: read-only waiter plus all three guidance surfaces; all 70
-focused monitor/guidance tests pass in both editions. Item 5 and the full
-build/test gate remain. Keep one local commit per item;
-do not push or run a paid eval. The user delegated reversible wording choices
-and requested no questions; the chosen waiting Instruction wording was shown
-before editing and remains an assumption for expert review, not a new approval.
-After this task closes, continue with Desktop prompt
-`CopilotAtelier New\04-review-eval-kit-privacy-boundary.md`.
+The five 2026-10-08 session lessons are complete on `ai/session-lessons`, from
+`origin/main` (`9b6a341`), independently of the calibration branch. The Pester
+5.7.1 probe matched every supplied row; all changed behavior went red then
+green in PowerShell 7.6.6 and Windows PowerShell 5.1. The combined focused
+suite passed 70 tests in each edition. Full detached build/test: 2,593 passed,
+0 failed, 129 skipped, 90.74% coverage against 65%, 21 tasks and 0 errors.
+The expected simulated-backend warning and the pre-existing test-helper
+analyzer warning remain; no paid eval or remote mutation. Waiter bytes in the
+built module match source. Skill descriptions are unchanged and bodies fit.
+Keep five separate local commits. Shared Instruction wording was previewed
+and chosen under the user's no-questions delegation; expert review remains
+recommended, not a claim of separate approval. Continue next with Desktop
+`CopilotAtelier New\04-review-eval-kit-privacy-boundary.md` as requested.
 
 ## Previous focuses
 
@@ -157,17 +155,10 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. Start the Phase 2 `software-architect` chat for contributor calibration.
-   Grow the eval kit in `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\`
-   past 20 cases with `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on
-   RAANDREE3; never commit the kit.
-2. The user pushes `ai/hook-deny-reason` from their own terminal and merges
-   it; A2 and B2 passed in new chats on 2026-10-04. If the GitHub reference
-   keeps describing the stdout merge without its `hookSpecificOutput`
-   condition, report that upstream.
-3. The user runs prompt 04 on the hand-patched machine and deletes the merged
-   remote branch `copilot/dgthths`; agents cannot push. The 2026-10-04 deploy
-   from `ai/hook-deny-reason` already carries `main`'s resume clock fix.
+1. Read and execute the queued eval-kit privacy-boundary review prompt 04;
+   honor its data boundary and do not run a paid eval or mutate a remote.
+2. The owner removes these five completed items from `progress.md` on
+   `ai/calibration-phase-2`; this independent branch does not edit that branch.
 
 Still open from earlier work: the live agent-host `#web/fetch` check, and the
 duplicate Instruction loading in Copilot SDK chats (Open work in `progress.md`).

@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Document where each host records hook evidence, the observed host versions, transcript limits, compaction differences, and safe read-only inspection. See [Reading hook evidence](com.github.copilot/hooks/README.md#reading-hook-evidence).
 - Document that tool-hook `additionalContext` reaches the model inside the tool result in VS Code Local, the Copilot SDK agent host, and Copilot CLI, with version-scoped observations; it is data only, never an instruction or authorization. See [tool-output injection](skills/agent-security-review/SKILL.md#prompt-injection-via-tool-output-the-most-missed-check).
 - Let `grill-me`, `software-architect`, and `gilb-requirements-engineering` accept `not sure, you pick`: the recommended answer, or for a numeric target a level derived from `Past`, `Record`, or a verified benchmark, is recorded as an assumption flagged for expert review instead of blocking the interview.
 - Document in `agent-evals` that the Copilot backend's content filter blocks some harmless eval prompts, why an embedded chat transcript makes it worse, and how to keep a comparison fair: situation as system context, `FinishReason` logged per call, retries, and arms compared only on cases complete in both. See [harness prerequisites](skills/agent-evals/SKILL.md#harness-prerequisites).

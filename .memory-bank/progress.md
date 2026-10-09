@@ -17,6 +17,16 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-09**: Session lessons full gate: detached `build.ps1 -Tasks build,test`
+  passed 2,593 tests, 0 failed, 129 skipped, 90.74% coverage (65% threshold),
+  21 build tasks and 0 errors in 22m38s. The existing simulated-backend warning
+  remains. All five items are local only; no paid eval or remote mutation.
+
+- **2026-10-09**: Session lessons item 5: add Reading hook evidence for VS Code
+  Local, the SDK agent host, and Copilot CLI, scoped to the supplied Windows
+  versions/dates. Main's README names logs, transcript limits, compaction
+  differences, and read-only sharing flags without adding calibration state.
+
 - **2026-10-09**: Session lessons item 4: the read-only bounded async waiter,
   its full help, and matching Skill/Instruction wiring. Presence went red then
   green in both editions; 11 behavior checks and three wiring checks went red,
@@ -61,14 +71,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - **2026-10-04**: Fixed an intermittent Windows CI failure, also seen on `main`
   (runs 104, 106): warm the real guard once before asserting its 5-second limit.
-
-- **2026-10-02**: Live checks after the deploy (VS Code 1.140.0, SDK
-  1.0.15-preview.4): A1 and B1-B3 passed; A2 lacked the SDK deny reason, fixed
-  2026-10-04. Verified against host logs; detail stays in git.
-
-- **2026-10-02**: Pushed `main` and merged pull request #27 (contributor
-  calibration Phase 1) as `7a48abe`; CI run 37058264901 passed and published
-  `6.1.0-preview0001`; #19 closed. Review and history stay in git.
 
 - **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
   `main` (`d8cc6f5` to `fea564f`); only their live checks remain.

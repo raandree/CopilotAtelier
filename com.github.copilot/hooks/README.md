@@ -301,6 +301,58 @@ which survives because Instructions are re-sent with every request.
 3. Open the Output panel and select the `GitHub Copilot Chat Hooks` channel to
    read hook output and errors.
 
+### Reading hook evidence
+
+These are Windows observations from 2026-10-08, not a cross-version guarantee.
+Use the host's logs, not a model's account of its own context: a compaction
+summary can preserve injected text by chance, and a request for exactly one
+tool call produced three in Copilot CLI 1.0.92.
+
+#### VS Code Local: VS Code 1.141.0, bundled Copilot Chat 0.69.0
+
+- The Hooks output channel is persisted at
+  `%APPDATA%\Code\logs\<yyyyMMddTHHmmss>\window<N>\exthost\GitHub.copilot-chat\GitHub Copilot Chat Hooks.log`.
+  Lines have `<time> [info] [#<n>] [<Event>] <verb> ...`; group by `[#<n>]`.
+  `Input` carries `session_id`, `cwd`, and `tool_name`; `Output` is the exact
+  returned JSON. `Completed (Success) in <n>ms, no output` means nothing was
+  returned, not that context was injected.
+- The neighboring `GitHub Copilot Chat.log` records compaction through
+  `[ConversationHistorySummarizer]` and a `summarizeConversationHistory-full`
+  request.
+- Each hook input's `transcript_path` identifies
+  `%APPDATA%\Code\User\workspaceStorage\<hash>\GitHub.copilot-chat\transcripts\<session_id>.jsonl`.
+  It contains user/assistant messages and tool calls, but not tool results.
+- In Copilot Chat 0.68.0 and 0.69.0, neither `/compact` nor background
+  compaction ran PreCompact in VS Code Local; the checkpoint hook therefore
+  wrote nothing there. Do not infer a checkpoint from a compaction entry.
+
+#### Copilot SDK agent host and Copilot CLI 1.0.92
+
+Observed with VS Code 1.141.0 and Copilot CLI 1.0.92 on 2026-10-08:
+
+- `~\.copilot\session-state\<session id>\events.jsonl` records `hook.start`
+  and `hook.end` with `hookType` and `output`; that output is exactly what the
+  host injected. `session.compaction_start` carries its `trigger`.
+- The neighboring `workspace.yaml` names `client_name`: `vscode-agent-host`
+  or `github/cli`. Use it to distinguish otherwise similar event streams.
+- Copilot CLI starts `sessionStart` at the first prompt, not process launch;
+  those were 33 seconds apart in one observed session.
+- `/compact` ran neither Stop nor `agentStop` in either host, so the session
+  clock's `turns` does not count it. Copilot CLI ran PreCompact with
+  `trigger: manual`; VS Code Local did not, as scoped above.
+
+#### Inspecting host versions and hook-written files
+
+In the VS Code 1.141.0 observation, Copilot Chat ships inside VS Code at
+`<VS Code install folder>\<commit>\resources\app\extensions\copilot`.
+Its `package.json` names the version; `dist\extension.js` is the source to
+check when release documentation is silent, for example by searching for
+`executePreCompactHook`.
+
+Read a hook-written file, such as a session clock, with `FileShare.ReadWrite`
+and `FileShare.Delete`, using a read-only handle so inspection cannot block
+the hook's atomic replace. Never write the file to inspect or repair evidence.
+
 ## Troubleshooting
 
 - **Hook never fires.** Confirm `hooks.json` is present under
