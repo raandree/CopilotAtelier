@@ -18,6 +18,14 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-09**: Desktop prompt 06, stage 1 (`software-engineer`): built, tested,
+  and documented in the private eval kit what Amendment 5 rules, with no model
+  call and no spend. Eval version 3 (judge `gpt-5.5` version 2, quote check,
+  A24 vote rule, rubric per level row), guard gate (margin 2), freeze and
+  verifier, four offline self-checks (66, 9, 15, 12 checks), and the 40-item
+  calibration list with the owner's blind sheet. Waiting for the owner's labels;
+  the calibration, freeze, run, and record follow.
+
 - **2026-10-09**: Ran Desktop prompt 05 (`software-architect`, owner at the
   keyboard): Decision 0028 Amendment 5, rulings A20 to A24, signed off. A pinned
   judge replaces the persistence regex checks (calibrated on 40 owner labels,
@@ -63,16 +71,8 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   criteria 20, 26, and 29 met. The RAANDREE3 `FailFast` traced to the .NET
   10.0.6 runtime of its PowerShell 7.6.1, not to this repository's code.
 
-- **2026-10-08**: The owner ran the Meter on RAANDREE3: both runs of the first
-  invocation complete, the rule's Budgets computable from the ratios (2.25 and
-  0.75) and the transfer check passing for both tags, but the milliseconds lost
-  to the console's width. A second invocation hit an `Environment.FailFast` in
-  the two-entry SDK cell, not reproduced in 400 launches on Prox1. The Meter
-  now keeps stderr, retries a crashed launch once, and writes a CSV.
-
 - **2026-10-07**: Amendment 3 (A14-A18) signed off; A17/A18 built test-first.
-  The reader-shaped Prox1 Meter lost no replicate, spread at most 1.16; the
-  RAANDREE3 run followed.
+  The reader-shaped Prox1 Meter lost no replicate, spread at most 1.16.
 
 ## Stable capabilities
 

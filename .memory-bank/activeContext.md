@@ -33,8 +33,15 @@ case stays as a named limitation; the decisive run is fresh after a new freeze,
 with 8,000 and 3,000 output tokens. The owner set no spending ceiling and no cap
 on extra runs; the architect added a rerun safeguard, signed off with the rest.
 A built-in `security-review` agent substituted for the unavailable
-`security-reviewer` and returned approve with changes, all folded in. Prompt 06
-is next: it builds the judge and the missing quote check first; 07 closes out.
+`security-reviewer` and returned approve with changes, all folded in.
+
+Prompt 06 stage 1 ran on 2026-10-09 (`software-engineer`): the grader is built in
+the private kit (eval version 3, judge version 2 with the quote check, the
+freeze and its verifier, offline self-checks that found and fixed one runner bug
+before any paid call) and the 40-item calibration sheet waits at
+`calibration-phase2\sheet.md` for the owner's blind labels. Next: import and
+lock the labels, calibrate, freeze, run the four processes at once, judge, grade,
+read, and record in a new Confirmation subsection; 07 closes out.
 
 ## Previous focuses
 
@@ -80,9 +87,6 @@ is next: it builds the judge and the missing quote check first; 07 closes out.
   reviews ended in an approval. The guard decides within about five seconds
   (1 MB parse, 20,000-field walk, 4 MB block) and errs toward blocking; the
   override cannot reach a hook from an agent terminal. Deployed 2026-10-02.
-- **Version rules (`31042ea`, `bd60b7a`, on `main`).** Only the Conventional
-  Commit type in the subject, a `BREAKING CHANGE:` line, or `+semver:` raises
-  the version; review text such as "Major issues." no longer does.
 - **Runtime tool names (`a592832`, on `main`).** Every Custom agent pairs its
   VS Code tool names with runtime names, so agent-host sessions keep `web_fetch`,
   `grep`, `glob`, `ask_user`, browser, and session tools (Decision 0026,
@@ -92,9 +96,6 @@ is next: it builds the judge and the missing quote check first; 07 closes out.
   keep the contracts. Browser feedback never grants chat sign-off. The
   cross-platform artifact transfer stayed unproven, and `review: on` remains
   recommended for the combined HTTP and persistence corrections.
-- **Plugin manifest rollover (`6367e68`, on `main`).** `Update_PluginManifest_Version`
-  rewrites `plugin.json` before `Create_ChangeLog_GitHub_PR`, so a rollover no
-  longer fails its own manifest guard (CI run 36549550887).
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
