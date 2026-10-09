@@ -17,6 +17,11 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-09**: Session lessons item 3: record both hosts' tool-result delivery
+  of hook context and its data-only trust boundary in `agent-security-review`.
+  Version/date-scoped supplied observations remain explicit; lookalike-block
+  escaping is untested. Three checks went red, then green, in both editions; lint is clean.
+
 - **2026-10-09**: Session lessons item 2: name truthiness and the missing-field
   pitfall in both Pester guides. Pester 5.7.1 also coerces `'False'` in
   `Should -Be $true`, so a real boolean needs `Should -BeOfType ([bool])` too;
@@ -63,14 +68,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
   Ten reviews closed the launcher and guard findings; the full merge gate
   (`634546e`) passed 2,536 tests. Detail stays in git and the assessment log.
-
-- **2026-10-02**: The version now rises only from Conventional Commit markers
-  (`31042ea`, `bd60b7a`), approved by an independent review; `main` was then
-  merged into `ai/contributor-calibration` (`e0955fb`).
-
-- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake (`bff3ac4`):
-  the heartbeat state is renamed over atomically, also on Windows PowerShell
-  5.1; torn reads fell from 2 to 94 per run to none in 18.
 
 ## Stable capabilities
 
