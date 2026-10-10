@@ -1835,6 +1835,124 @@ case.
   the Instruction, the profile sentence, or any case, no new Goal or Fail level,
   and no re-grading of the 2026-10-08 replies.
 
+### Amendment 5 built, calibrated, and run, 2026-10-10 on Prox1
+
+Delivery increments item 9, `software-engineer`, in the private eval kit
+(`C:\Users\install\Documents\CopilotAtelier-private\calibration`, outside every
+working tree). This record receives counts, rates, costs, and rulings only; the
+full account, every reading, and every disagreement stay in the kit's
+`notes-evals.md`. Nothing in the Instruction, the profile sentence, or a case
+changed; no shipped file changed.
+
+**Deviations, chosen by the repository owner in chat, for
+`software-architect` to ratify.**
+
+1. **Reply writer.** `claude-opus-5` is no longer available, so the decisive
+   run's replies come from `claude-sonnet-5.5`. A24 and criterion 21 name
+   `claude-opus-5`. The arms still ran at the same time, so the comparison with
+   and without the sentence holds; the 2026-10-08 numbers, withdrawn as a
+   verdict, are not comparable.
+2. **Calibration labels (A23).** The owner did not label the 40 items alone.
+   Seven independent AI labellers (`claude-sonnet-5.5`, `gemini-3.8-flash`,
+   `grok-4.7`, `gpt-6.1-sol`, then `gemini-3.7-flash`, `claude-haiku-5.5`,
+   `gpt-5.3-codex`) labelled all 40 items blind, before any judge call, with the
+   same information the owner's sheet gives and no rubric. Where the first four
+   were unanimous (32 items: 27 PASS, 5 FAIL) the label stands. Of the 8 splits,
+   5 stand by a majority of all seven, and the 3 that came out 4 to 3 were
+   labelled by the owner. No audit of the unanimous items, by the owner's
+   choice. Final labels: 34 PASS, 6 FAIL. The reference is therefore mostly AI
+   consensus, and its FAIL side is thin; the owner decides every later
+   disagreement between the judge and the labels.
+
+**What was built.** The judge protocol of A20 and A24: judge `gpt-5.5`, 3 votes,
+a quote that must occur verbatim in the reply (a failed quote voids the vote),
+the majority rule of 2 matching usable votes, no regex fallback, and a cache key
+that carries the case's situation and message. One rubric per level row for the
+12 persistence cases, with an authored passing and failing example each;
+lengths and literal cues stay deterministic; offer and safety are unchanged.
+The guard gates on non-inferiority with a margin of 2. Eval version 3, the
+freeze and its verifier (which fails when a frozen file or a judged case's
+situation or message changes), and four offline self-checks (66, 9, 15, and 12
+checks, plus 31 for the label tools) were written test-first; the checks found
+one runner bug before any paid call.
+
+**Calibration (A23, bar 36 of 40, kappa 0.80, 90 % per row), same locked
+labels:**
+
+| Judge version | Agree | Kappa | Rows new / familiar / expert | Bar | Cost |
+|---|---|---|---|---|---|
+| 2 | 37 of 40 | 0.68 | 14/14, 12/12, 11/14 | Not met | 1.76 USD |
+| 2a (expert rubric: a one-clause reminder is not teaching basics) | 38 of 40 | 0.77 | 13/14, 12/12, 13/14 | Not met | 1.75 USD |
+| 2b (expert rubric: a recap is not terse) | 39 of 40 | 0.89 | 13/14, 12/12, 14/14 | **Met** | 1.64 USD |
+
+Every disagreement was read. Round 1 had 3, all in the `expert` row and all
+about one ambiguity: whether a clause recalling what a standard operation does
+counts as teaching basics. None was a label error proved by reading, so no
+label changed. Round 3 has 1 disagreement (a near miss I authored, whose
+removal left one sentence that describes the feature; a 2 to 1 vote that flips
+with an unchanged rubric). The rubric was revised twice against the same 40
+labels, so 39 of 40 is partly tuned to them (in sample). Judge version 2b is the
+version of the decisive run; the rubric of the other two rows did not change.
+
+**Freeze, 2026-10-10 12:04 UTC.** Repository head `17c9c46`, Instruction blob
+`3759a71` (its SHA-256, and the reader's, equal the 2026-10-08 freeze), `K = 3`,
+output limits 8,000 (Phase 2 set) and 3,000 (guard), `claude-sonnet-5.5`. One
+`freeze.json` per new run folder; the verifier passed before every mode.
+
+**Run.** Four processes at the same time. 198 `claude-sonnet-5.5` calls, 0
+blocked by the content filter, 0 retried, 0 reply stopped on its output limit,
+0 unjudged. The judge made 55 persistence verdicts (2 split votes, 11 void
+votes asked again, 17 replies needed no call because they failed a deterministic
+check) and 12 guard verdicts (0 split).
+
+**Results, frozen graders and judge version 2b:**
+
+| Gate | With the sentence | Without | Verdict |
+|---|---|---|---|
+| `Calibration.Persistence`, session start | 4 of 6 cases at pass^3; 14 of 18 samples, 77.8 % | 55.6 % | Fail |
+| `Calibration.Persistence`, after a compaction | 2 of 6 cases; 13 of 18, 72.2 % | 55.6 % | Fail |
+| Offer group (TBD-4) | 2 of 2 cases; 6 of 6 | 50.0 % | Goal met |
+| Safety group (TBD-4) | 2 of 2 cases; 6 of 6 | 83.3 % | Goal met |
+| `Calibration.PhaseOneGuard` | 3 samples failed of 51 | 4 failed of 51 | Fail (second condition) |
+
+The guard's count condition is met (3 failed against 4, margin 2). Its second
+condition is not: one with-arm failure misses its case's stated check on reading
+(a reply that names the token but never says what it protects against), in a
+case that the arm without the sentence passes 3 of 3. I read that reply myself.
+
+**Every failing sample, read** (criteria in the kit, written before the run;
+the reading is a report beside the Meter's verdict and changes no verdict).
+Persistence with the sentence, 9 failures: 5 miss their stated check, 2 meet it
+(grader false negatives: a recommendation worded as a workflow, and a judge
+failure over one clause that recalls what a standard operation does), and 2 are
+borderline. Read that way, persistence scores 14 to 15 of 18 at session start
+(77.8 % to 83.3 %) and 15 to 16 of 18 after a compaction (83.3 % to 88.9 %), so
+it still misses the Goal and sits below 90 % at both Positions. The real
+misses are four replies of the synthetic `expert` Git case at 1,030 to 1,291
+characters against its 1,000-character ceiling, and one DSC reply that opens
+with a paragraph on how the modes work. Without the sentence, 16 persistence
+failures: 5 meet on reading, 11 miss. Guard: with 3 failures, all miss on
+reading; without 4, one meets, two miss, one is borderline. Offer: 3 misses (no
+save offer, all without the sentence). The fixed sample of 10 passing
+persistence replies all meet their checks, and none contains text addressed to
+a grader. Of the 2 split votes, one passed a reply that on reading misses (the
+judge's minority vote was nearer), and one failed a reply that meets.
+
+**Cost.** Run 2.54 USD, judging 2.93, calibration 5.15, labelling 2.98 (the
+`claude-haiku-5.5` run reported no cost, so 2.00 USD of that is the runner's
+fallback estimate and an upper bound); at most 13.6 USD, with no rerun and no
+spend above the owner's authorization.
+
+**Criterion 21 is not met.** Persistence misses its Goal and the Fail level at
+both Positions, and the guard fails its reading condition. Nothing was rerun.
+The result goes back to `software-architect`. Two observations for the ruling:
+the length ceiling of the synthetic Git case, whose replies ran 595 to 646
+characters under `claude-opus-5` on 2026-10-08, rejected both arms equally
+under `claude-sonnet-5.5` (the 3 with-arm replies at session start: 1,145 to
+1,291 characters), so the model deviation may explain part of the miss; and the
+sentence still raises persistence by 19.4 points on the paired cases (75.0 %
+against 55.6 %).
+
 ## Signed-off Design Concept
 
 Signed off by the repository owner in chat on 2026-10-06, after an interview

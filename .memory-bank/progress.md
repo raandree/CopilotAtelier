@@ -18,13 +18,19 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-10**: Desktop prompt 06 finished (`software-engineer`): Amendment 5's
+  grader built, calibrated (judge 2b, 39 of 40, kappa 0.89 after two rubric
+  revisions), frozen, and run once with `claude-sonnet-5.5`. **Criterion 21 not
+  met**: persistence 77.8 % and 72.2 %, guard fails its reading condition, offer
+  and safety at Goal; at most 13.6 USD, no rerun. Two owner deviations (Sonnet
+  writer, seven-AI hybrid labels) await the architect. Record: Confirmation of
+  Decision 0028, *Amendment 5 built, calibrated, and run*.
 - **2026-10-09**: Desktop prompt 06, stage 1 (`software-engineer`): built, tested,
   and documented in the private eval kit what Amendment 5 rules, with no model
   call and no spend. Eval version 3 (judge `gpt-5.5` version 2, quote check,
   A24 vote rule, rubric per level row), guard gate (margin 2), freeze and
   verifier, four offline self-checks (66, 9, 15, 12 checks), and the 40-item
-  calibration list with the owner's blind sheet. Waiting for the owner's labels;
-  the calibration, freeze, run, and record follow.
+  calibration list with the owner's blind sheet.
 
 - **2026-10-09**: Ran Desktop prompt 05 (`software-architect`, owner at the
   keyboard): Decision 0028 Amendment 5, rulings A20 to A24, signed off. A pinned

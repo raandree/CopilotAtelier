@@ -9,45 +9,44 @@ source: current task evidence
 
 ## Current focus
 
-Decision 0028 **step 7.6 ran on 2026-10-08** (Prox1; 10.19 USD) and returned
-three questions to `software-architect`. TBD-8 and criterion 28 are met: the
-private eval kit lies outside every working tree and carries 6 persistence cases
-per Position (3 real-derived, 3 owner-approved synthetic). Criterion 21 was not
-met under the frozen regex graders, but on reading every miss but one was a
-grader false negative: persistence 15 of 18 at session start and 17 of 18 after
-a compaction, the guard 50 of 51, offer and safety at Goal. The rest is handed
-off as Desktop prompts 04 (done), 05 (done), 06 (the fresh run), and 07 (the
-close-out); the session clock's shadowing goes to prompt 08. The Desktop
-`LEDGER.md` tracks 01-08 and the nine P1-P9 imports.
+Decision 0028 **step 7.6 ran on 2026-10-08** (10.19 USD) and returned three
+questions to `software-architect`; TBD-8 and criterion 28 are met (the private
+eval kit lies outside every working tree). The first criterion 21 run was
+withdrawn as a verdict: its frozen regex graders measured their own miss rate.
+Desktop prompts 04 (privacy review, done), 05 (Amendment 5, done), 06 (the fresh
+run, done 2026-10-10), and 07 (the close-out) follow; the session clock's
+shadowing goes to prompt 08. The Desktop `LEDGER.md` tracks 01-08 and P1-P9.
 
-Prompt 04 ran on 2026-10-09 (`software-engineer`, owner away): an independent
-read-only review of the kit's privacy boundary took four rounds, every Major is
-fixed and verified, and criterion 28 holds as scoped by `docs/SECURITY-REVIEW.md`.
+Prompt 04 (2026-10-09): an independent read-only review of the kit's privacy
+boundary took four rounds, every Major is fixed and verified, and criterion 28
+holds as scoped by `docs/SECURITY-REVIEW.md`. Prompt 05 (2026-10-09,
+`software-architect`): **Amendment 5 (A20 to A24) is signed off**: persistence's
+semantic checks move to a pinned `gpt-5.5` judge calibrated on 40 labels, the
+guard gates on non-inferiority (margin 2) plus a read, the decisive run is fresh
+after a new freeze, no spending ceiling, and a rerun safeguard.
 
-Prompt 05 ran on 2026-10-09 (`software-architect`, the owner at the keyboard):
-**Amendment 5 (A20 to A24) is signed off.** Persistence's semantic checks move to
-a pinned `gpt-5.5` judge version 2, one rubric per level row, calibrated on 40
-blind owner labels (bar 36 of 40, kappa 0.80); the guard gates on
-non-inferiority with a margin of 2 samples plus a read; the weak `expert` DSC
-case stays as a named limitation; the decisive run is fresh after a new freeze,
-with 8,000 and 3,000 output tokens. The owner set no spending ceiling and no cap
-on extra runs; the architect added a rerun safeguard, signed off with the rest.
-A built-in `security-review` agent substituted for the unavailable
-`security-reviewer` and returned approve with changes, all folded in.
-
-Prompt 06 stage 1 ran on 2026-10-09 (`software-engineer`): the grader is built in
-the private kit (eval version 3, judge version 2 with the quote check, the
-freeze and its verifier, offline self-checks that found and fixed one runner bug
-before any paid call) and the 40-item calibration sheet waits at
-`calibration-phase2\sheet.md` for the owner's blind labels. Next: import and
-lock the labels, calibrate, freeze, run the four processes at once, judge, grade,
-read, and record in a new Confirmation subsection; 07 closes out.
+Prompt 06 ran on 2026-10-09 and 2026-10-10 (`software-engineer`): the grader of
+Amendment 5 is built, calibrated, frozen, and run, in the private kit, and
+**criterion 21 is not met.** Judge version 2b met the bar on the third round (39
+of 40, kappa 0.89; two rubric revisions against the same labels). The decisive
+run, `claude-sonnet-5.5`, K = 3, 198 calls, 0 blocked or truncated: persistence
+77.8 % at session start and 72.2 % after a compaction (Fail, 55.6 % without the
+sentence), offer and safety at Goal, and the guard fails its reading condition
+(one csrf-term reply misses its stated check in a case the other arm passes 3 of
+3). On reading, persistence is still 77.8 % to 88.9 %: the real misses are the
+synthetic Git case's 1,000-character ceiling (replies of 1,030 to 1,291
+characters, both arms) and one DSC reply. Numbers are in the Confirmation of
+Decision 0028; the account is in the kit's `notes-evals.md`. Nothing was rerun
+(the rerun safeguard). The result returns to `software-architect`; prompt 07
+closes out after that ruling.
 
 Deviations the owner chose on 2026-10-09, for `software-architect` to ratify:
-hybrid calibration labels (seven independent AI labellers: unanimity of the first four stands, a
-majority of seven stands for the splits unless 4 to 3; the owner labels only the 3 items left) and `claude-sonnet-5.5` as the reply writer,
-because `claude-opus-5` is no longer available. The owner's 3-item sheet is
-the next step.
+hybrid calibration labels (seven independent AI labellers: unanimity of the
+first four stands, a majority of seven stands for the splits unless 4 to 3; the
+owner labelled the 3 items left) and `claude-sonnet-5.5` as the reply writer,
+because `claude-opus-5` is no longer available. The Sonnet replies of the Git
+case ran longer than the Opus replies did on 2026-10-08, so the model may
+explain part of the miss.
 
 ## Previous focuses
 
