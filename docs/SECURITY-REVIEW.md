@@ -4,6 +4,54 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-10-10: labelling path of the private eval kit
+
+The built-in `security-review` agent reviewed, read-only and in a fresh context,
+the path by which 40 calibration items reached seven AI labellers. It had no
+model or network call, did not run the kit's scripts, and quoted no case or
+reply text. The Custom `security-reviewer` agent was unavailable because its
+first model was not offered. Decision record 0028 rules on it as A27.
+
+### Scope
+
+- The labelling scripts and their prompt, the way the model gateway routes each
+  labeller, the leak checks on the labelling input, where the labels are stored,
+  and the label combination rule. File names only; the kit lives outside every
+  git working tree.
+- The question: what widens when real-derived items reach Google and xAI, and is
+  the record's Security section still accurate?
+- Out of scope: provider-side data handling, which cannot be checked offline.
+
+### Verdict
+
+**Approve with changes.** No Blocker and no exploitable defect. The labeller call
+holds no tool, file, or write channel, is stateless, and sends six authored
+fields. The gaps are in the record's wording and in unenforced controls.
+
+### Findings
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| F-01 | Major | Record | The Security section called the widened path "the same provider and model" and omitted the labeller prompt, the recipients, and the submission counts. | Fixed in Decision 0028: a new Security paragraph; the case count is 6, 5 of them in the 40 items. |
+| F-02 | Major | Data handling | The retention and training use of Google and xAI traffic through the gateway, and the plan tier, are UNVERIFIED. | Open as TBD-11, owner, before the next freeze. |
+| F-03 | Major | Code control | The rule that a further provider needs a ruling is not enforced: the model id is free-form and nothing refuses an alternative backend. | Required before the next freeze: a model and backend allowlist (Delivery increments item 10). |
+| F-04 | Minor | Leak checks | Replies are not scanned before they leave, and the labeller is outside the guard test. | Required before the next freeze (item 10). |
+| F-05 | Minor | Review scope | The labelling scripts post-date the 2026-10-09 review's files. | Closed by this entry. |
+| F-06 | Minor | Integrity | Only the final labels file is hash-locked, not the seven labeller files. | Required before the next freeze (item 10). |
+| F-07 | Minor | Independence | The labellers are independent runs, not independent against an injection in a reply. | Stated in the Security section and in A26. |
+| F-08 | Nit | Path handling | A sample path is joined without a containment check; the input is kit-internal. | Optional. |
+
+### Remaining risks
+
+- Provider-side retention and training use are UNVERIFIED, and what was sent
+  cannot be recalled. The owner accepted the disclosure on 2026-10-10, subject
+  to this review.
+- Names and postal addresses absent from the private term list, and letters-only
+  Base64, are still caught only by the owner's read.
+- The reference labels are mostly AI consensus; two labellers share the judge's
+  provider and one wrote the replies.
+- A string that works on a model class could steer several labellers at once.
+
 ## 2026-10-09: privacy boundary of the private eval kit
 
 The built-in `security-review` agent reviewed the private calibration eval kit in

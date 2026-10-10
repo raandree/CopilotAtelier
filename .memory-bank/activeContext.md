@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-09
+last-verified: 2026-10-10
 owner: software-engineer
 source: current task evidence
 ---
@@ -37,16 +37,27 @@ sentence), offer and safety at Goal, and the guard fails its reading condition
 synthetic Git case's 1,000-character ceiling (replies of 1,030 to 1,291
 characters, both arms) and one DSC reply. Numbers are in the Confirmation of
 Decision 0028; the account is in the kit's `notes-evals.md`. Nothing was rerun
-(the rerun safeguard). The result returns to `software-architect`; prompt 07
-closes out after that ruling.
+(the rerun safeguard).
 
-Deviations the owner chose on 2026-10-09, for `software-architect` to ratify:
+**Prompt 05b ran on 2026-10-10 (`software-architect`): Amendment 6, A25 to A32,
+is signed off.** The deviations are ratified (Sonnet writer; hybrid labels with
+a held-out check of 12 new replies, bar 11 of 12), disclosure to Anthropic,
+OpenAI, Google, and xAI is accepted subject to the `security-review` (approve
+with changes; provider terms UNVERIFIED, TBD-11, the owner's to record before
+the next freeze), the Git `expert` ceiling becomes a judged "terse" with a
+3,000-character runaway guard, and one fresh run is authorized (no spending
+limit, for that run only); a miss closes criterion 21 as not met. Criterion 21
+stays **not met** until that run. Next: build the three kit controls (model and
+backend allowlist, reply leak scan, label-file hash locks), the Git grader
+change, and the held-out rule, freeze, run once (Delivery increments item 10,
+a Desktop prompt 06b if the owner wants the run), then prompt 07's close-out.
+The session clock's shadowing goes to prompt 08.
+
+Deviations ratified by A25 to A27 (previously the owner's, of 2026-10-09):
 hybrid calibration labels (seven independent AI labellers: unanimity of the
 first four stands, a majority of seven stands for the splits unless 4 to 3; the
 owner labelled the 3 items left) and `claude-sonnet-5.5` as the reply writer,
-because `claude-opus-5` is no longer available. The Sonnet replies of the Git
-case ran longer than the Opus replies did on 2026-10-08, so the model may
-explain part of the miss.
+because `claude-opus-5` is no longer available.
 
 ## Previous focuses
 

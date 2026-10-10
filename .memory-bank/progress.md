@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-09
+last-verified: 2026-10-10
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -18,6 +18,17 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-10**: Ran Desktop prompt 05b (`software-architect`, owner at the
+  keyboard): Decision 0028 **Amendment 6, rulings A25 to A32, signed off**. The
+  Sonnet writer and the hybrid labels are ratified, with a held-out check of 12
+  new replies (bar 11 of 12) in the next run; disclosure to Anthropic, OpenAI,
+  Google, and xAI is accepted subject to a read-only `security-review` (approve
+  with changes, no Blocker; provider terms UNVERIFIED, TBD-11); the Git `expert`
+  ceiling becomes a judged "terse" plus a 3,000-character runaway guard; DSC and
+  the Plan-mode cue and the guard stand; one fresh run, no spending limit for
+  that run only, and a miss closes criterion 21 as not met. Criterion 21 stays
+  not met. No model call, no spend. Record: Decision 0028, *Rulings,
+  2026-10-10*; review: `docs/SECURITY-REVIEW.md`.
 - **2026-10-10**: Desktop prompt 06 finished (`software-engineer`): Amendment 5's
   grader built, calibrated (judge 2b, 39 of 40, kappa 0.89 after two rubric
   revisions), frozen, and run once with `claude-sonnet-5.5`. **Criterion 21 not
