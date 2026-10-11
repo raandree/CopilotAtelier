@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-02
+last-verified: 2026-10-11
 owner: security-reviewer
 source: security assessments of this repository
 ---
@@ -10,6 +10,43 @@ source: security assessments of this repository
 Episodic record of completed security assessments. One entry per assessment:
 date, scope, verdict, and the findings that outlived the review. Retain two
 years; archive older entries to a dated Memory Bank topic.
+
+## 2026-10-11 independent review: session clock hand-over (`860d0b5`)
+
+Scope: `origin/main..860d0b5` on `ai/session-clock-path` — the reader command
+with `-Path` and its quoting, the budget ladder, and the
+`COPILOT_AGENT_SESSION_ID` fallback in `Add-SessionContext.ps1` and
+`Get-SessionElapsed.ps1`, the Session clock section of
+`postflight.instructions.md`, 20 new cases in `tests/Hooks.Tests.ps1`, and the
+README, CHANGELOG, Decision 0024, and Memory Bank edits. The built-in
+`security-review` agent reviewed it read-only, because the `security-reviewer`
+Custom agent's first-choice model is unavailable in the Copilot SDK runtime.
+
+Verdict: **Pass**, zero Blocker and zero Major. Three findings, all resolved in
+the next commit, each by a case that failed first:
+
+| ID | Severity | Finding | Resolution |
+|---|---|---|---|
+| SC-01 | Medium, pre-existing | Windows PowerShell 5.1 encodes the hook's standard output in the console's OEM code page, and its best fit turns U+201C and U+201D into a bare `"`. A workspace folder name holding one broke the JSON and let the rest of the name become `additionalContext`. | The hook's JSON is pure ASCII (`\uXXXX`). |
+| SC-02 | Low | The same encoder turns U+02BC, U+2032, U+FF07, and in code page 437 U+00B4 into a bare `'` after the quoting, so a profile or install path holding one ended the reader command's single-quoted path early. Decision 0024 said the reader "falls back", which understated it. | The same fix, an end-to-end round trip case, and the record corrected. |
+| SC-03 | Low | The key pattern ran case-insensitively (`-replace`), so U+0130 and U+212A passed `[^A-Za-z0-9._-]`. No traversal, and hook and reader agreed. | `-creplace` in the three copies, a case for each. |
+
+The reviewer verified, and the author reproduced the mechanisms of SC-01 to
+SC-03: the five characters at which PowerShell closes a single-quoted string
+hold in both editions against 20,000 random hostile strings; the budget ladder
+never lost the safety, PRE-FLIGHT, or POST-FLIGHT line over 240 combinations;
+the reader exits 0 with one line on every path tried; the change adds no leg of
+the lethal trifecta.
+
+Residual risk, with no finding left open:
+
+- A host that sends no `session_id` shares one clock per workspace, and after a
+  compaction the context carries no `-Path`, so only the
+  `COPILOT_AGENT_SESSION_ID` fallback protects the chat. Its meaning is
+  verified only in the agent host's terminal, and a stale inherited value would
+  make the reader pick that session's clock whenever `-Path` is absent.
+- The command is PowerShell syntax; a POSIX shell rejects the leading `&`.
+- Linux and macOS were not run locally; the new cases were traced by reading.
 
 ## 2026-10-01 contributor calibration Phase 1 and its private eval tooling
 

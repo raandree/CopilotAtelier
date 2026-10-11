@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-09
+last-verified: 2026-10-11
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,22 +9,38 @@ source: current task evidence
 
 ## Current focus
 
-The five 2026-10-08 session lessons are complete on `ai/session-lessons`, from
-`origin/main` (`9b6a341`), independently of the calibration branch. The Pester
-5.7.1 probe matched every supplied row; all changed behavior went red then
-green in PowerShell 7.6.6 and Windows PowerShell 5.1. The combined focused
-suite passed 70 tests in each edition. Full detached build/test: 2,593 passed,
-0 failed, 129 skipped, 90.74% coverage against 65%, 21 tasks and 0 errors.
-The expected simulated-backend warning and the pre-existing test-helper
-analyzer warning remain; no paid eval or remote mutation. Waiter bytes in the
-built module match source. Skill descriptions are unchanged and bodies fit.
-Keep five separate local commits. Shared Instruction wording was previewed
-and chosen under the user's no-questions delegation; expert review remains
-recommended, not a claim of separate approval. Continue next with Desktop
-`CopilotAtelier New\04-review-eval-kit-privacy-boundary.md` as requested.
+Prompts 03 (`ai/session-lessons`, six commits) and 08 (`ai/session-clock-path`,
+three commits) are merged into local `main`, which is not pushed. The merge ran
+in a scratch clone: a parallel chat held this working tree on
+`ai/calibration-phase-2`, which stays out of `main` until prompt 07 hands over
+its pull request.
+
+The session lessons: the detached Pester guards reject a result other than
+`Passed`, both Pester guides explain truthiness, `agent-security-review` treats
+hook context as data, `Wait-DetachedResult.ps1` waits a bounded time on a
+detached run, and the hooks README names where each host records hook evidence.
+The shared Instruction wording was chosen under a no-questions delegation, so an
+expert review stays recommended.
+
+The Post-flight elapsed line is pinned to its own chat's clock:
+`Add-SessionContext.ps1` hands the agent `& '<reader>' -Path '<clock>'`, and the
+reader prefers the session `COPILOT_AGENT_SESSION_ID` names. Decision 0024 holds
+the Prox1 evidence and what stays open: a host that sends no `session_id`, a
+chat after a compaction on a host without the variable, and VS Code Local and a
+new VS Code agent-host chat, not yet seen live.
 
 ## Previous focuses
 
+- **Hook deny reason and the resume clock (prompt 06, #28 to #30).** The bundled
+  Copilot SDK runtime drops a PascalCase deny that also carries
+  `hookSpecificOutput`, so the guard prints the top-level pair alone;
+  `tests/HookSdkRuntime.Tests.ps1` asserts the reason inside the real runtime
+  (Decision 0016). A resumed chat keeps its clock. Merged into `main`, deployed
+  2026-10-04; A2 and B2 then passed in new chats.
+- **Contributor calibration Phase 1 (#27, `7a48abe`).** On `main`; Phase 2 goes to
+  `software-architect` through the Session handoff. The private behavior eval
+  scored 52.1% without the Instruction and 100% with it, and arms are compared
+  only when run concurrently.
 - **Hook guard follow-ups (prompts 02, 05, 06; `d8cc6f5` to `fea564f`).** Ten
   reviews ended in an approval. The guard decides within about five seconds
   (1 MB parse, 20,000-field walk, 4 MB block) and errs toward blocking; the
@@ -41,9 +57,6 @@ recommended, not a claim of separate approval. Continue next with Desktop
   keep the contracts. Browser feedback never grants chat sign-off. The
   cross-platform artifact transfer stayed unproven, and `review: on` remains
   recommended for the combined HTTP and persistence corrections.
-- **Plugin manifest rollover (`6367e68`, on `main`).** `Update_PluginManifest_Version`
-  rewrites `plugin.json` before `Create_ChangeLog_GitHub_PR`, so a rollover no
-  longer fails its own manifest guard (CI run 36549550887).
 - **Client-specific adapters (task 06, `288a4ad`).** VS Code profiles remain the
   source; the adapter rewrites strictly parsed frontmatter through explicit
   capability mappings, rejects unsupported grants, and preserves the body bytes.
@@ -155,10 +168,11 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. Read and execute the queued eval-kit privacy-boundary review prompt 04;
-   honor its data boundary and do not run a paid eval or mutate a remote.
-2. The owner removes these five completed items from `progress.md` on
-   `ai/calibration-phase-2`; this independent branch does not edit that branch.
+1. The owner pushes `main` and deletes `origin/ai/session-clock-path` from their
+   own terminal; agents cannot push. Prompt 07 then merges `origin/main` into
+   `ai/calibration-phase-2` and resolves the conflicts in `Add-SessionContext.ps1`,
+   `tests/Hooks.Tests.ps1`, `CHANGELOG.md`, the hooks README, and these two files.
+2. Confirm the clock pin live in a new VS Code chat (Decision 0024 lists the cases).
 
 Still open from earlier work: the live agent-host `#web/fetch` check, and the
 duplicate Instruction loading in Copilot SDK chats (Open work in `progress.md`).

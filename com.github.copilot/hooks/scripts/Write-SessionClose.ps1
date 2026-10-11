@@ -43,7 +43,8 @@ function Get-SessionClockPath {
         Add-SessionContext.ps1: VS Code launches each hook by its own path, so a
         shared helper would need the same fragile path probing that hooks.json
         already carries. Both sides must derive the same name from the same
-        payload, so change them together.
+        payload, so change them together. Get-SessionElapsed.ps1 applies the same
+        key rules to COPILOT_AGENT_SESSION_ID, so it changes with them.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -78,8 +79,9 @@ function Get-SessionClockPath {
     }
 
     # The payload supplies this value, so it becomes a path component only after
-    # every character that could traverse a directory is gone.
-    $key = ($SessionId -replace '[^A-Za-z0-9._-]', '')
+    # every character that could traverse a directory is gone. -creplace, because
+    # -replace ignores case and so lets U+0130 and U+212A through the class.
+    $key = ($SessionId -creplace '[^A-Za-z0-9._-]', '')
 
     if ($key.Length -gt 64) {
         $key = $key.Substring(0, 64)

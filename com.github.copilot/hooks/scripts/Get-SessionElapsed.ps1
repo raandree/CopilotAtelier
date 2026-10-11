@@ -15,8 +15,11 @@
     Read-only by design. The Stop hook owns the turn counter, so this reports
     the turn in progress as one past the closed count and writes nothing back.
 .PARAMETER Path
-    Exact session clock file to read. Defaults to the newest clock recorded for
-    the current workspace, which is what survives a compaction that dropped the
+    Exact session clock file to read. The SessionStart hook hands it over with
+    the command, so a parallel chat cannot take over the measurement. Without
+    one that exists, the reader uses the clock of the session the host names in
+    COPILOT_AGENT_SESSION_ID, and failing that the newest clock recorded for the
+    current workspace, which is what survives a compaction that dropped the
     injected session context.
 .PARAMETER ClockRoot
     Directory holding the session clock files. Defaults to the per-user
@@ -28,6 +31,10 @@
     & "$HOME/.copilot/hooks/scripts/Get-SessionElapsed.ps1"
 
     POST-FLIGHT elapsed: 16m (started 09:15 UTC, measured 09:31 UTC, turn 3)
+.EXAMPLE
+    & "$HOME/.copilot/hooks/scripts/Get-SessionElapsed.ps1" -Path '/home/me/.local/share/CopilotAtelier/sessions/session-2270af6b.json'
+
+    POST-FLIGHT elapsed: 22m (started 09:09 UTC, measured 09:31 UTC, turn 1)
 .NOTES
     Never fails: every path exits 0, so an unreadable clock costs the duration
     line and nothing else.
@@ -102,6 +109,33 @@ if ([string]::IsNullOrWhiteSpace($ClockRoot)) {
 
 try {
     if ([string]::IsNullOrWhiteSpace($Path) -or -not [IO.File]::Exists($Path)) {
+        $Path = $null
+
+        <#
+            A host that names the chat in COPILOT_AGENT_SESSION_ID has said which
+            clock is this chat's: the key of that clock is the id. A parallel chat
+            in the same workspace may have written a newer one, so it comes before
+            every rule below. The id reaches a file name only after the same
+            sanitizing the hooks apply to a payload's session_id.
+        #>
+        # -creplace, as in the hooks' copies of this rule: -replace ignores case
+        # and so lets U+0130 and U+212A through the class.
+        $agentKey = ([string][Environment]::GetEnvironmentVariable('COPILOT_AGENT_SESSION_ID')) -creplace '[^A-Za-z0-9._-]', ''
+
+        if ($agentKey.Length -gt 64) {
+            $agentKey = $agentKey.Substring(0, 64)
+        }
+
+        if ($agentKey) {
+            $agentClock = [IO.Path]::Combine($ClockRoot, "session-$agentKey.json")
+
+            if ([IO.File]::Exists($agentClock)) {
+                $Path = $agentClock
+            }
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
         $candidates = @(
             Get-ChildItem -LiteralPath $ClockRoot -Filter 'session-*.json' -File -ErrorAction Stop |
                 Sort-Object -Property LastWriteTimeUtc -Descending

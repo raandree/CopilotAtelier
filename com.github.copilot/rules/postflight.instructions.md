@@ -51,11 +51,13 @@ Do all of these before concluding. Do not skip any step silently.
 
 ## Session clock
 
-Close every reply with the measured elapsed duration of the chat. The `SessionStart` hook puts the absolute path of the reader in the session context; run it as the last action of the turn, so the measurement lands as close to the end as it can:
+Close every reply with the measured elapsed duration of the chat. The `SessionStart` hook puts the command that measures it in the session context. Run that command exactly as given, `-Path` included, as the last action of the turn, so the measurement lands as close to the end as it can:
 
 ```powershell
-& '<path from the session context>'
+& '<reader from the session context>' -Path '<clock from the session context>'
 ```
+
+The `-Path` names the clock this chat started. Never drop or change it: without it the reader chooses a clock itself, and a parallel chat in the same workspace can make it choose that chat's.
 
 It prints exactly one line. Copy that line verbatim as the last line of the reply:
 
@@ -65,7 +67,7 @@ POST-FLIGHT elapsed: 16m (started 09:15 UTC, measured 09:31 UTC, turn 3)
 
 Never compose, reformat, or recompute either number. You cannot read a clock, and after a compaction you no longer know when the session began, so a duration you compose is a guess. The line appears on every turn, including a non-impacting one.
 
-When the session context no longer carries the path — a compaction dropped it — try `~/.copilot/hooks/scripts/Get-SessionElapsed.ps1`. When that is missing too the hooks are not installed: write `POST-FLIGHT elapsed: unavailable (hooks not installed)` rather than estimating one.
+When the session context carries no full command — a compaction dropped it, or the context was shortened — run `~/.copilot/hooks/scripts/Get-SessionElapsed.ps1`, adding the `-Path` the context names if it names one. Without a `-Path` it reads the clock of this chat when the host names it, and otherwise the newest clock of the workspace. When that script is missing too the hooks are not installed: write `POST-FLIGHT elapsed: unavailable (hooks not installed)` rather than estimating one.
 
 The opening `[YYYY-MM-DD HH:mm UTC]` that Pre-flight asks for is a different value: it is the session start supplied by the `SessionStart` hook, not the current time.
 

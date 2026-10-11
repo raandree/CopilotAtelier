@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-09
+last-verified: 2026-10-11
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -17,45 +17,41 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-10-09**: Session lessons full gate: detached `build.ps1 -Tasks build,test`
-  passed 2,593 tests, 0 failed, 129 skipped, 90.74% coverage (65% threshold),
-  21 build tasks and 0 errors in 22m38s. The existing simulated-backend warning
-  remains. All five items are local only; no paid eval or remote mutation.
+- **2026-10-11**: Fixed the elapsed line that a parallel chat could take over
+  (`ai/session-clock-path`, Desktop prompt 08; three commits, deployed from the
+  branch the same day). `Add-SessionContext.ps1` hands the agent `& '<reader>' -Path
+  '<clock>'` for the clock it wrote or resumed, quoted for PowerShell (a
+  typographic single quote ends a PowerShell string too), and the shortened
+  closing line keeps `-Path` while it fits. `Get-SessionElapsed.ps1`, given no
+  clock, takes the one `COPILOT_AGENT_SESSION_ID` names first. 20 cases, red
+  first (the fixture reproduced `5h 39m` for a 22-minute chat) and each caught by
+  a mutation; the owner approved the Instruction wording. An independent review
+  (the built-in `security-review` agent; the `security-reviewer` Custom agent's
+  model is unavailable in the Copilot SDK runtime) found no Blocker or Major and
+  three Low to Medium items, fixed test-first in the second commit: the hook's
+  output is pure ASCII, since Windows PowerShell 5.1's OEM encoding turns some
+  characters into a bare quote after the quoting, and the key pattern is
+  case-sensitive. Redeployed the same day and live-checked with headless Copilot
+  CLI sessions: Prox1 reproduced and fixed, and the old hook's silent loss of
+  the context in a smart-quote folder confirmed. Decision 0024 holds the
+  evidence and what stays open.
 
-- **2026-10-09**: Session lessons item 5: add Reading hook evidence for VS Code
-  Local, the SDK agent host, and Copilot CLI, scoped to the supplied Windows
-  versions/dates. Main's README names logs, transcript limits, compaction
-  differences, and read-only sharing flags without adding calibration state.
-
-- **2026-10-09**: Session lessons item 4: the read-only bounded async waiter,
-  its full help, and matching Skill/Instruction wiring. Presence went red then
-  green in both editions; 11 behavior checks and three wiring checks went red,
-  then the combined monitor and guidance suite passed all 70 in each edition.
-  Native async monitoring returned `DETACHED-RESULT 0 after 19.1 s` and 29.6 s.
-  Timeout is 124, not the 1 an outer EncodedCommand had collapsed it to; the
-  test runner now passes LASTEXITCODE through. No foreground polling or paid eval.
-
-- **2026-10-09**: Session lessons item 3: record both hosts' tool-result delivery
-  of hook context and its data-only trust boundary in `agent-security-review`.
-  Version/date-scoped supplied observations remain explicit; lookalike-block
-  escaping is untested. Three checks went red, then green, in both editions; lint is clean.
-
-- **2026-10-09**: Session lessons item 2: name truthiness and the missing-field
-  pitfall in both Pester guides. Pester 5.7.1 also coerces `'False'` in
-  `Should -Be $true`, so a real boolean needs `Should -BeOfType ([bool])` too;
-  the actual comparer uses `Expected -eq Actual`. Six guidance checks went red
-  in each edition, then all 27 passed; the three characterizations retain the evidence.
-
-- **2026-10-09**: Session lessons item 1 on `ai/session-lessons` from
-  `origin/main` (`9b6a341`): all ten detached Pester guards reject a result
-  other than `Passed` and name every failure count; E2 includes load failures.
-  Pester 5.7.1 probe matched Prox1: Parse and Discovery `Failed/0/1`, BeforeAll
-  `Failed/1/0`, Truthy and Skipped `Passed/0/0` (Result/FailedCount/containers);
-  no-tests returned nothing and printed its diagnostic. FailedCount rejection
-  in that order: false, false, true, false, false, false; Result rejection:
-  true, true, true, false, false, true. The supplied probe is outside the tree.
-  Guidance regression: 12 of 18 red, then 18 green, in both PowerShell
-  7.6.6 and Windows PowerShell 5.1. No paid eval or remote mutation.
+- **2026-10-09**: Applied the five session lessons on `ai/session-lessons` from
+  `origin/main` (`9b6a341`), test-first, one commit each; every change went red,
+  then green, in PowerShell 7.6.6 and Windows PowerShell 5.1. (1) All ten
+  detached Pester guards reject a result other than `Passed` and name every
+  failure count; the Pester 5.7.1 probe matched Prox1, and load failures count.
+  (2) Both Pester guides name truthiness and the missing-field pitfall: 5.7.1
+  also coerces `'False'` in `Should -Be $true`, so a real boolean needs
+  `Should -BeOfType ([bool])` too. (3) `agent-security-review` records that both
+  hosts deliver hook context in the tool result and that it is data only;
+  lookalike-block escaping is untested. (4) The read-only `Wait-DetachedResult.ps1`
+  waits a bounded time on a detached run, and a timeout is 124, not the 1 an
+  outer EncodedCommand collapsed it to. (5) The hooks README names where VS Code
+  Local, the SDK agent host, and Copilot CLI record hook evidence, scoped to the
+  supplied versions. Full detached gate: 2,593 passed, 0 failed, 129 skipped,
+  90.74% coverage (65% threshold), 21 build tasks in 22m38s. No paid eval or
+  remote mutation; detail stays in git.
 
 - **2026-10-04**: Fixed prompt 06 on `ai/hook-deny-reason`: Copilot SDK chats
   show the guard's block reason. A model-free probe of the bundled runtime found
@@ -106,16 +102,15 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - Contributor calibration: the Phase 2 Design Concept with `software-architect`
   (Session handoff), and growing the private eval past 20 real cases with a
   `-Since 2026-09-30` search on RAANDREE3.
-- `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
-  workspace, so a subagent or parallel chat there shadows the parent's clock
-  (2026-10-01: a 06:29 start). Inject the reader with this session's `-Path`.
+- Push `main` and delete `origin/ai/session-clock-path` from your own terminal;
+  the guard blocks an agent's remote mutation. The clock pin was redeployed on
+  2026-10-11; still to confirm live in a new VS Code agent-host chat and in VS
+  Code Local, which the Copilot CLI runtime stood in for. Decision 0024 lists
+  the cases that stay open.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
-- Delete the merged remote branch `copilot/dgthths` on GitHub or from your own
-  terminal; the guard blocks an agent's remote mutation.
-- Merge `ai/hook-deny-reason` (prompt 06; A2 and B2 passed on 2026-10-04),
-  and run prompt 04 on the hand-patched machine; `main` is pushed.
+- Run prompt 04 on the hand-patched machine.
 - Copilot SDK chats load every Instruction twice, once as `C:\Users\…` and once
   as `c:\Users\…`. VS Code discovers `~/.copilot/instructions` as a default
   `copilot-personal` source, and the SDK runtime has its own user-instruction
