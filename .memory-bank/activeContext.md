@@ -10,13 +10,15 @@ source: current task evidence
 ## Current focus
 
 The Post-flight elapsed line is pinned to its own chat's clock on
-`ai/session-clock-path` (Desktop prompt 08; committed locally, not pushed, not
+`ai/session-clock-path` (Desktop prompt 08; two local commits, not pushed, not
 deployed). `Add-SessionContext.ps1` hands the agent `& '<reader>' -Path
 '<clock>'`, the reader prefers the session `COPILOT_AGENT_SESSION_ID` names, and
 `postflight.instructions.md` says to run the command exactly as given (wording
-approved by the owner on 2026-10-11). The 2026-10-11 revision of Decision 0024
-holds the Prox1 evidence and what stays open: a host that sends no `session_id`,
-and a chat after a compaction on a host without the variable. Redeploy with
+approved by the owner on 2026-10-11). An independent review found no Blocker or
+Major; its three findings are fixed in the second commit (pure ASCII hook output,
+case-sensitive key pattern). Decision 0024's 2026-10-11 revision holds the Prox1
+evidence and what stays open: a host that sends no `session_id`, and a chat after
+a compaction on a host without the variable. Redeploy with
 `Setup-CopilotSettings.ps1` only with the owner's approval, then open a new chat.
 `ai/calibration-phase-2` reworks the same lines of `Add-SessionContext.ps1`, so
 expect a small merge conflict, which the owner reconciles.
@@ -49,9 +51,6 @@ expect a small merge conflict, which the owner reconciles.
   keep the contracts. Browser feedback never grants chat sign-off. The
   cross-platform artifact transfer stayed unproven, and `review: on` remains
   recommended for the combined HTTP and persistence corrections.
-- **Plugin manifest rollover (`6367e68`, on `main`).** `Update_PluginManifest_Version`
-  rewrites `plugin.json` before `Create_ChangeLog_GitHub_PR`, so a rollover no
-  longer fails its own manifest guard (CI run 36549550887).
 - **Client-specific adapters (task 06, `288a4ad`).** VS Code profiles remain the
   source; the adapter rewrites strictly parsed frontmatter through explicit
   capability mappings, rejects unsupported grants, and preserves the body bytes.

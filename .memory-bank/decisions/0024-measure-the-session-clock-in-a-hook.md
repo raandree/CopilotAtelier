@@ -92,9 +92,10 @@ turn 6)`. That line belongs to session `ae5e0f26`, a parallel agent-host chat in
 the same workspace that started at 11:05 and closed its fifth turn at 15:42:10
 UTC. Its clock file was newer than `2270af6b`'s, which `SessionStart` last wrote
 at 15:06, so the newest-for-this-workspace rule chose it. `2270af6b`'s own `Stop`
-hook wrote at 16:44:58, after the measurement. `progress.md` recorded earlier
-cases with the same symptom: a 06:29 start on 2026-10-01, and a 10:25 and a 13:24
-start in one Copilot SDK chat on 2026-10-04. The agent-host chat's terminal
+hook wrote at 16:44:58, after the measurement. The Open-work item this revision
+closes listed earlier cases with the same symptom: a 06:29 start on 2026-10-01
+and, on `ai/calibration-phase-2`, a 10:25 and a 13:24 start in one Copilot SDK
+chat on 2026-10-04. The agent-host chat's terminal
 carried `COPILOT_AGENT_SESSION_ID=2270af6b-deef-4da1-a4e6-d5c9c654cacb`, the key
 of its own clock file, `session-2270af6b-deef-4da1-a4e6-d5c9c654cacb.json`. VS
 Code Local's terminal was not checked.
@@ -118,6 +119,28 @@ which one it is:
   measure another chat and report it as this one.
 - `postflight.instructions.md` tells the agent to run the command exactly as
   given, `-Path` included. The owner approved that wording on 2026-10-11.
+
+An independent review of that change (`860d0b5`) added two fixes. The
+`security-reviewer` Custom agent could not run it, because its first-choice model
+is unavailable in the Copilot SDK runtime, so the built-in `security-review` agent
+did. It found no Blocker or Major.
+
+- The hook's output is pure ASCII: every other character of the JSON is written as
+  `\uXXXX`. The quoting above ends where Windows PowerShell 5.1 encodes standard
+  output in the console's OEM code page. That encoding's best fit turns U+02BC,
+  U+2032, U+FF07, and in code page 437 U+00B4 into a bare `'`, and U+201C and
+  U+201D into a bare `"`. After the quoting, a path component holding one ended
+  the single-quoted string early, so the agent's command broke or ran what
+  followed. The same mechanism broke the JSON around a workspace folder name
+  holding a typographic double quote, which the hook had always printed unescaped,
+  and let the rest of the name become `additionalContext`. ASCII reads the same in
+  every code page and in UTF-8, so the fix does not depend on how the host decodes.
+  The first wording of this record, that such a character is "replaced" and the
+  reader falls back, understated it.
+- The key pattern is matched case-sensitively (`-creplace`) in all three copies.
+  `-replace` ignores case, so it let U+0130 and U+212A through
+  `[^A-Za-z0-9._-]`. No separator survived, so there was no traversal, and hook
+  and reader agreed, but the documented rule was not exact.
 
 ## Consequences
 
@@ -170,15 +193,16 @@ which one it is:
 - Hosts load hooks when a session starts. The change reaches a chat only after a
   redeploy and a new chat.
 - Every path in the context reaches the agent through the hook's standard
-  output, which Windows PowerShell 5.1 writes in the console's OEM code page.
-  Where the host reads it as UTF-8 (not verified for VS Code), a character outside
-  that page is replaced: with the console set to code page 850, the `ü` of a
-  profile named `Jürgen` arrived as U+FFFD, so the clock path named no file and the
-  reader fell back as it did before this revision. The reader path and the Memory
-  Bank path suffer alike, and a lost reader path breaks the command outright. This
-  predates the revision and is not fixed here; writing the output as UTF-8 bytes,
-  the way the hook already decodes its input, would. Reproduced by simulating code
-  page 850 in the child process; no machine with a non-ASCII profile was at hand.
+  output, and that output is pure ASCII, so a console code page cannot change
+  what the agent reads. The other hooks that print JSON do not carry workspace
+  text into an instruction channel: `Write-SessionClose.ps1` and
+  `Block-RemoteMutation.ps1` print fixed text and a rule name, and
+  `Write-CompactionCheckpoint.ps1` prints a checkpoint name or, when a write
+  fails, an exception message that can hold a path, in a `systemMessage` the user
+  reads and the model does not. They keep the plain encoder.
+- The reader's and the hooks' key derivations are three copies of one rule, and
+  a test aims at each: a Kelvin sign in a session id, or in
+  `COPILOT_AGENT_SESSION_ID`, must leave the key without it.
 
 ## Confirmation
 
@@ -228,3 +252,15 @@ Framework lacks; CI runs only PowerShell 7. The full gate, `./build.ps1 -Tasks
 build, test`, passed with 2,562 tests, 129 skipped (none in the hook suite), none
 failed, and 90.74 % coverage. `Invoke-ScriptAnalyzer` over the three edited hook
 scripts reports nothing.
+
+Confirmation of the review fixes. Seven cases were added and each ran red first:
+the ASCII case and the quoted-path round trip failed on the encoder itself, not
+on a simulation of it. In the detached launcher's console the hook's JSON no
+longer parsed, and a typographic quote in the clock path came back as an
+apostrophe. The Kelvin-sign and dotted-I cases failed on the clock file name, and
+the Stop hook and reader cases on the clock they did not find. After the fix the
+three Describes pass 66 of 66 in PowerShell 7.6.6 and in Windows PowerShell 5.1.
+The whole file passes 166 of 166 in 7.6.6, and in 5.1 shows the same 25 guard
+cases as before, name for name. `Invoke-ScriptAnalyzer` reports nothing. The full
+gate passed with 2,569 tests, 129 skipped (none in the hook suite), none failed,
+and 90.74 % coverage.

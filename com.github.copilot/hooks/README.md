@@ -205,6 +205,15 @@ top-level `additionalContext` for the Copilot SDK host and Copilot CLI, and
 ignores the other's key, so dropping either one silently removes the context
 from that host's sessions.
 
+The JSON is pure ASCII: the hook writes every other character as `\uXXXX`.
+Windows PowerShell 5.1 encodes standard output in the console's OEM code page,
+and that encoding's best fit turns characters such as U+201C, U+02BC, and U+2032
+into a bare ASCII quote. In the workspace path that would break the JSON and let
+the rest of a folder name become context; in a quoted path it would end the
+string early, after the quoting had done its work. ASCII reads the same in every
+code page and in UTF-8, so the context does not depend on how the host decodes
+it.
+
 ### Session context budget
 
 Injected context defaults to a 4096-character limit. Set
@@ -245,11 +254,13 @@ It lives at `<LocalApplicationData>/CopilotAtelier/sessions/session-<key>.json` 
 `%LOCALAPPDATA%` on Windows, `~/.local/share` on Linux, `~/Library/Application
 Support` on macOS. Not the temp directory: `/tmp` is world-writable, and a
 predictable name there invites another local account to pre-create the path. The
-`<key>` is the payload's `session_id` with every character that could traverse a
-directory stripped, falling back to a hash of the working directory so two
-concurrent windows do not share one clock. Where the host supplies no session id,
-two chats of one workspace still share that one clock, and no `-Path` can tell
-them apart.
+`<key>` is the payload's `session_id` with every character outside
+`[A-Za-z0-9._-]` stripped, so none can traverse a directory. The match is
+case-sensitive: a case-insensitive one lets U+0130 and U+212A through. When the
+payload names no session, the key is a hash of the working directory instead, so
+two concurrent windows do not share one clock. Where the host supplies no
+session id, two chats of one workspace still share that one clock, and no
+`-Path` can tell them apart.
 
 ### Write-SessionClose
 

@@ -35,8 +35,10 @@
     Writes one JSON object that serves two host contracts with the same text: a
     top-level additionalContext, the only key the Copilot SDK host and Copilot
     CLI read, and hookSpecificOutput.additionalContext, the key the VS Code
-    Local harness reads. Always exits 0 so a probe failure never blocks a
-    session.
+    Local harness reads. The JSON is pure ASCII, every other character written
+    as \uXXXX, because Windows PowerShell 5.1 would otherwise encode it in the
+    console's OEM code page, whose best fit turns some characters into a quote.
+    Always exits 0 so a probe failure never blocks a session.
 #>
 
 [CmdletBinding()]
@@ -94,8 +96,9 @@ function Get-SessionClockPath {
     }
 
     # The payload supplies this value, so it becomes a path component only after
-    # every character that could traverse a directory is gone.
-    $key = ($SessionId -replace '[^A-Za-z0-9._-]', '')
+    # every character that could traverse a directory is gone. -creplace, because
+    # -replace ignores case and so lets U+0130 and U+212A through the class.
+    $key = ($SessionId -creplace '[^A-Za-z0-9._-]', '')
 
     if ($key.Length -gt 64) {
         $key = $key.Substring(0, 64)
@@ -135,6 +138,28 @@ function ConvertTo-SingleQuotedLiteral {
     )
 
     return "'" + ($Value -replace '([\u0027\u2018\u2019\u201A\u201B])', '$1$1') + "'"
+}
+
+function ConvertTo-AsciiJson {
+    <#
+        Writes every character of a JSON text outside ASCII as \uXXXX. Windows
+        PowerShell 5.1 encodes standard output in the console's OEM code page, and
+        that encoding's best fit turns characters such as U+201C, U+02BC, and U+2032
+        into a bare ASCII quote. In the workspace path that breaks the JSON and
+        lets the rest of a folder name become context; in a quoted path it ends the
+        string early, after the quoting. Quoting cannot cover what happens later,
+        but a JSON text that is pure ASCII reads the same in every code page and in
+        UTF-8.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Json
+    )
+
+    return [regex]::Replace($Json, '[^\x00-\x7F]', { param($match) '\u{0:x4}' -f [int][char]$match.Value })
 }
 
 if ([string]::IsNullOrEmpty($InputJson)) {
@@ -333,5 +358,6 @@ $output = [ordered]@{
     }
 }
 
-$output | ConvertTo-Json -Depth 5 -Compress
+$json = $output | ConvertTo-Json -Depth 5 -Compress
+ConvertTo-AsciiJson -Json $json
 exit 0

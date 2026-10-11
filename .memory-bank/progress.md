@@ -18,15 +18,20 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 ## Recent milestones
 
 - **2026-10-11**: Fixed the elapsed line that a parallel chat could take over
-  (`ai/session-clock-path`, Desktop prompt 08; one local commit, not pushed, not
+  (`ai/session-clock-path`, Desktop prompt 08; two local commits, not pushed, not
   deployed). `Add-SessionContext.ps1` hands the agent `& '<reader>' -Path
   '<clock>'` for the clock it wrote or resumed, quoted for PowerShell (a
   typographic single quote ends a PowerShell string too), and the shortened
   closing line keeps `-Path` while it fits. `Get-SessionElapsed.ps1`, given no
   clock, takes the one `COPILOT_AGENT_SESSION_ID` names first. 20 cases, red
   first (the fixture reproduced `5h 39m` for a 22-minute chat) and each caught by
-  a mutation; the owner approved the Instruction wording. Decision 0024 holds the
-  evidence and what stays open.
+  a mutation; the owner approved the Instruction wording. An independent review
+  (the built-in `security-review` agent; the `security-reviewer` Custom agent's
+  model is unavailable in the Copilot SDK runtime) found no Blocker or Major and
+  three Low to Medium items, fixed test-first in the second commit: the hook's
+  output is pure ASCII, since Windows PowerShell 5.1's OEM encoding turns some
+  characters into a bare quote after the quoting, and the key pattern is
+  case-sensitive. Decision 0024 holds the evidence and what stays open.
 
 - **2026-10-04**: Fixed prompt 06 on `ai/hook-deny-reason`: Copilot SDK chats
   show the guard's block reason. A model-free probe of the bundled runtime found
@@ -46,13 +51,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   (runs 104, 106): a cold runner's first Windows PowerShell run of the real
   guard overran its 5-second limit and blocked a benign command. The launcher
   integration block now warms it up once, unasserted.
-
-- **2026-10-02**: Live checks after the deploy (VS Code 1.140.0, SDK
-  1.0.15-preview.4), verified against the session logs on 2026-10-04. A1 and
-  B1 to B3 passed: SessionStart context once per chat in both hosts, measured
-  clocks, and Local blocks the probe with the full reason, also with the
-  override set in the agent's terminal. A2 failed: the SDK denied the probe,
-  but the model read only `hook exited with code 2` (fixed 2026-10-04).
 
 - **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
   `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
@@ -99,13 +97,10 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - Contributor calibration: the Phase 2 Design Concept with `software-architect`
   (Session handoff), and growing the private eval past 20 real cases with a
   `-Since 2026-09-30` search on RAANDREE3.
-- Merge `ai/session-clock-path` (one local commit, not pushed), redeploy with
+- Merge `ai/session-clock-path` (two local commits, not pushed), redeploy with
   `Setup-CopilotSettings.ps1` only with the owner's approval, and confirm in a
   new agent-host chat beside a parallel one that the closing line keeps this
   chat's start. Decision 0024 lists the cases that stay open.
-- Windows PowerShell 5.1 writes a hook's standard output in the console's OEM
-  code page, so a non-ASCII profile path reaches the agent mangled (simulated
-  with code page 850; Decision 0024, Consequences). Write the JSON as UTF-8 bytes.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.

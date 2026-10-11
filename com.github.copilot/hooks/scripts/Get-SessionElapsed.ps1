@@ -118,7 +118,9 @@ try {
             every rule below. The id reaches a file name only after the same
             sanitizing the hooks apply to a payload's session_id.
         #>
-        $agentKey = ([string][Environment]::GetEnvironmentVariable('COPILOT_AGENT_SESSION_ID')) -replace '[^A-Za-z0-9._-]', ''
+        # -creplace, as in the hooks' copies of this rule: -replace ignores case
+        # and so lets U+0130 and U+212A through the class.
+        $agentKey = ([string][Environment]::GetEnvironmentVariable('COPILOT_AGENT_SESSION_ID')) -creplace '[^A-Za-z0-9._-]', ''
 
         if ($agentKey.Length -gt 64) {
             $agentKey = $agentKey.Substring(0, 64)

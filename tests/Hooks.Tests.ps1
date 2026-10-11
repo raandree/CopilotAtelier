@@ -1153,6 +1153,71 @@ Describe 'Add-SessionContext' -Tag 'Unit' {
         $parsed.Strings[1] | Should -BeExactly $clockPath
     }
 
+    It 'prints only ASCII so that no console code page can change what the agent reads' {
+        <#
+            Windows PowerShell 5.1 writes standard output in the console's OEM
+            code page, and its best-fit encoding turns U+201C, U+02BC, and U+2032
+            into a bare ASCII quote. In the workspace path that breaks the JSON and
+            lets the rest of a folder name become context; in a quoted path it ends
+            the string early. JSON carries any character as \uXXXX, so the hook
+            sends none that is not ASCII. The payload is escaped the same way,
+            because a pipe to a native command is not UTF-8 in Windows PowerShell.
+        #>
+        $payload = '{"hook_event_name":"SessionStart","cwd":"C:\\x\u201Cy\u00FCz\u02BCw\u2019","session_id":"ascii-output"}'
+        $cwd = 'C:\x{0}y{1}z{2}w{3}' -f [char]0x201C, [char]0x00FC, [char]0x02BC, [char]0x2019
+
+        $result = script:Invoke-SessionStart -Payload $payload
+        $nonAscii = @($result.Output.ToCharArray() | Where-Object { [int]$_ -gt 127 })
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $nonAscii.Count | Should -Be 0 -Because 'every character outside ASCII must leave as a \uXXXX escape'
+
+        $parsed = $result.Output | ConvertFrom-Json
+        $parsed.hookSpecificOutput.additionalContext | Should -Match ([regex]::Escape($cwd))
+        $parsed.additionalContext | Should -BeExactly $parsed.hookSpecificOutput.additionalContext
+    }
+
+    It 'carries <Name> in a path through the JSON and back unchanged' -ForEach @(
+        @{ Name = 'a right single quotation mark'; Character = [string][char]0x2019 }
+        @{ Name = 'a modifier letter apostrophe'; Character = [string][char]0x02BC }
+    ) {
+        $clockRoot = Join-Path $TestDrive ('o{0}brien clocks' -f $Character)
+        $clockPath = Join-Path $clockRoot 'session-session-abc.json'
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+            session_id = 'session-abc'
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $result = script:Invoke-Hook `
+            -ScriptPath $script:sessionScript `
+            -Payload $payload `
+            -ExtraArgument @('-ClockRoot', $clockRoot)
+        $command = script:Get-ReaderCommand -Context ($result.Output | ConvertFrom-Json).additionalContext
+        $parsed = script:Read-CommandStrings -Command $command
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $parsed.ParseErrors | Should -Be 0 -Because $command
+        $parsed.Strings | Should -HaveCount 2 -Because $command
+        $parsed.Strings[1] | Should -BeExactly $clockPath
+    }
+
+    It 'strips <Name> from a session id, because the key pattern is case-sensitive' -ForEach @(
+        @{ Name = 'the Kelvin sign'; Escape = '\u212A' }
+        @{ Name = 'the dotted capital I'; Escape = '\u0130' }
+    ) {
+        # Each is the case fold of a letter in the class, so a case-insensitive
+        # -replace lets it through [^A-Za-z0-9._-].
+        $payload = '{"hook_event_name":"SessionStart","cwd":' + ($script:repoRoot | ConvertTo-Json) + ',"session_id":"a' + $Escape + 'b"}'
+
+        $result = script:Invoke-SessionStart -Payload $payload
+        $written = @(Get-ChildItem -LiteralPath $script:clockRoot -Filter '*.json' | ForEach-Object { $_.Name })
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $written | Should -HaveCount 1
+        $written[0] | Should -BeExactly 'session-ab.json'
+    }
+
     Context 'when it quotes a path for PowerShell' {
         BeforeAll {
             $definition = [Management.Automation.Language.Parser]::ParseFile($script:sessionScript, [ref]$null, [ref]$null).Find({
@@ -1375,6 +1440,22 @@ Describe 'Write-SessionClose' -Tag 'Unit' {
 
         $result.ExitCode | Should -Be 0 -Because $result.Output
         (Get-Content -LiteralPath $script:clockPath -Raw | ConvertFrom-Json).turns | Should -Be 4
+    }
+
+    It 'strips the Kelvin sign from a session id, because the key pattern is case-sensitive' {
+        # Add-SessionContext.ps1 strips it too, so both hooks name the same clock.
+        $ownPath = Join-Path $script:clockRoot 'session-ab.json'
+        [ordered]@{
+            startedUtc = [datetime]::UtcNow.AddMinutes(-90).ToString('o')
+            workspace = $script:repoRoot
+            turns = 3
+        } | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $ownPath -Encoding UTF8
+        $payload = (script:New-StopPayload -SessionId 'a@b').Replace('@', '\u212A')
+
+        $result = script:Invoke-Close -Payload $payload
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        (Get-Content -LiteralPath $ownPath -Raw | ConvertFrom-Json).turns | Should -Be 4
     }
 
     It 'does not advance the counter when the agent was resumed by a blocking hook' {
@@ -1600,6 +1681,18 @@ Describe 'Get-SessionElapsed' -Tag 'Unit' {
         script:Set-SessionClock -MinutesAgo 339
         (Get-Item -LiteralPath $script:clockPath).LastWriteTimeUtc = [datetime]::UtcNow.AddHours(1)
         script:Set-AgentSessionId -Value '../../pwned'
+
+        (script:Invoke-Elapsed).Output | Should -Match '^POST-FLIGHT elapsed: 22m '
+    }
+
+    It 'strips the Kelvin sign from the named session, because the key pattern is case-sensitive' {
+        # The hooks strip it from a session id, so a reader that kept it would
+        # look for a file they never wrote.
+        $ownPath = Join-Path $script:clockRoot 'session-ab.json'
+        script:Set-SessionClock -MinutesAgo 22 -Path $ownPath
+        script:Set-SessionClock -MinutesAgo 339
+        (Get-Item -LiteralPath $script:clockPath).LastWriteTimeUtc = [datetime]::UtcNow.AddHours(1)
+        script:Set-AgentSessionId -Value ('a{0}b' -f [char]0x212A)
 
         (script:Invoke-Elapsed).Output | Should -Match '^POST-FLIGHT elapsed: 22m '
     }
