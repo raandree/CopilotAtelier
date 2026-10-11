@@ -20,7 +20,7 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - **2026-10-11**: Ran Desktop prompt 05c (`software-architect`, owner at the
   keyboard): Decision 0028 **Amendment 7, rulings A33 to A39**, recorded and
-  committed locally, awaiting the owner's `SIGNED OFF`. Record-only: rubric 2b
+  committed locally, signed off by the owner in chat. Record-only: rubric 2b
   stays, the written criteria beat the owner's blind labels, the judged
   `expert` row is a report and not gate evidence; criterion 21 ships as not
   met with its limitation named and no further run is authorized; the DSC

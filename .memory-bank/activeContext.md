@@ -41,7 +41,7 @@ subject to the `security-review`, the Git `expert` ceiling becomes a judged
 "terse", and one fresh run was authorized; prompt 06b ran it.
 
 **Prompt 05c ran on 2026-10-11 (`software-architect`): Amendment 7, A33 to
-A39, is recorded and awaits the owner's `SIGNED OFF`.** Record-only: the judged
+A39, is signed off.** Record-only: the judged
 `expert` row is a report, not gate evidence, and the written criteria beat the
 owner's blind labels (A33); criterion 21 ships as not met with its limitation
 named and no further run is authorized (A34); the DSC case, the Plan-mode cue,
@@ -49,8 +49,8 @@ and the untrusted-text reply change nothing (A35 to A37); a further run needs
 TBD-11 closed and the 06c review first (A38); prompt 07 proceeds with the exact
 wording under A39.
 
-Next, for the owner (Desktop prompts, `HANDOFF-2026-10-11.md`): sign off
-Amendment 7; then prompt 07's close-out. Prompt 06c is optional and only a
+Next, for the owner (Desktop prompts, `HANDOFF-2026-10-11.md`): prompt 07's
+close-out. Prompt 06c is optional and only a
 precondition of a further run.
 
 ## Previous focuses
