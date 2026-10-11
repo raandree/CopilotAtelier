@@ -301,15 +301,19 @@ Describe 'SessionStart calibration sentence in <Edition>' -Tag 'Unit' -ForEach $
         $areas = '{' + (($names | ForEach-Object -Process { '"{0}":{{"level":"expert","updatedUtc":"2026-10-01T08:00:00Z"}}' -f $_ }) -join ',') + '}'
         $fixture = New-HookFixture -Area $names -ProfileText (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas $areas))
         $plain = New-HookFixture -Area @()
-        $limit = @{ COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS = '1024' }
+        # The reader command names this session's clock with -Path, which lengthens the lines before the sentence;
+        # 1400 still leaves room for some areas but not for all 16.
+        $limit = @{ COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS = '1400' }
 
         $withSentence = (Invoke-SessionStart -Fixture $fixture -Override $limit).Json.additionalContext
         $withoutSentence = (Invoke-SessionStart -Fixture $plain -Override $limit).Json.additionalContext
 
-        $withSentence.Length | Should -BeLessOrEqual 1024
+        $withSentence.Length | Should -BeLessOrEqual 1400
         $existing = $withSentence.Substring(0, $withSentence.IndexOf('Contributor familiarity levels'))
-        $existing.TrimEnd() -replace [regex]::Escape($fixture.Workspace), '<ws>' -replace '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', '<t>' |
-            Should -BeExactly ($withoutSentence -replace [regex]::Escape($plain.Workspace), '<ws>' -replace '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', '<t>')
+        # The reader command names this session's clock with -Path, and every fixture has its own clock path.
+        $clockPattern = "(?<=-Path ')[^']+(?=')"
+        $existing.TrimEnd() -replace [regex]::Escape($fixture.Workspace), '<ws>' -replace $clockPattern, '<clock>' -replace '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', '<t>' |
+            Should -BeExactly ($withoutSentence -replace [regex]::Escape($plain.Workspace), '<ws>' -replace $clockPattern, '<clock>' -replace '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', '<t>')
         $withSentence | Should -Match '"Area 01 x+" expert'
         $withSentence | Should -Not -Match '"Area 16 x+"' -Because 'trailing areas give way first under a tight budget'
     }

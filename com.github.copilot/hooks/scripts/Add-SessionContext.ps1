@@ -17,9 +17,14 @@
     read a clock, so neither number may be left to it. A payload with source
     'resume' keeps a readable clock of the same session and reports its start.
 
+    The command it hands the agent for reading that duration names the clock it
+    wrote or resumed with -Path, so a parallel chat in the same workspace cannot
+    take over the measurement. It names none when no clock is on disk.
+
     COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS bounds injected context to
     1024-16384 characters (default 4096). Invalid values use the default.
-    Long paths are omitted before lifecycle or safety guidance is shortened.
+    Long paths are omitted before lifecycle or safety guidance is shortened,
+    and the closing line keeps the clock path longer than the reader path.
 
     When the workspace declares Knowledge areas in .memory-bank/projectbrief.md,
     one more sentence carries the contributor's saved Familiarity levels for
@@ -38,8 +43,10 @@
     Writes one JSON object that serves two host contracts with the same text: a
     top-level additionalContext, the only key the Copilot SDK host and Copilot
     CLI read, and hookSpecificOutput.additionalContext, the key the VS Code
-    Local harness reads. Always exits 0 so a probe failure never blocks a
-    session.
+    Local harness reads. The JSON is pure ASCII, every other character written
+    as \uXXXX, because Windows PowerShell 5.1 would otherwise encode it in the
+    console's OEM code page, whose best fit turns some characters into a quote.
+    Always exits 0 so a probe failure never blocks a session.
 #>
 
 [CmdletBinding()]
@@ -62,7 +69,9 @@ function Get-SessionClockPath {
         Add-FamiliarityContext.ps1: VS Code launches each hook by its own path,
         so a shared helper would need the same fragile path probing that
         hooks.json already carries. Every copy must derive the same name from
-        the same payload, so change them together.
+        the same payload, so change them together. Get-SessionElapsed.ps1
+        applies the same key rules to COPILOT_AGENT_SESSION_ID, so it changes
+        with them.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -97,8 +106,9 @@ function Get-SessionClockPath {
     }
 
     # The payload supplies this value, so it becomes a path component only after
-    # every character that could traverse a directory is gone.
-    $key = ($SessionId -replace '[^A-Za-z0-9._-]', '')
+    # every character that could traverse a directory is gone. -creplace, because
+    # -replace ignores case and so lets U+0130 and U+212A through the class.
+    $key = ($SessionId -creplace '[^A-Za-z0-9._-]', '')
 
     if ($key.Length -gt 64) {
         $key = $key.Substring(0, 64)
@@ -284,6 +294,46 @@ function Enter-CalibrationStateLock {
     }
 }
 
+function ConvertTo-SingleQuotedLiteral {
+    <#
+        Quotes a value as a PowerShell single-quoted string, for a command the
+        agent pastes into its terminal. PowerShell ends such a string at a
+        typographic single quote just as it does at an apostrophe, so each of
+        them is doubled with itself, which the tokenizer reads back as one.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Value
+    )
+
+    return "'" + ($Value -replace '([\u0027\u2018\u2019\u201A\u201B])', '$1$1') + "'"
+}
+
+function ConvertTo-AsciiJson {
+    <#
+        Writes every character of a JSON text outside ASCII as \uXXXX. Windows
+        PowerShell 5.1 encodes standard output in the console's OEM code page, and
+        that encoding's best fit turns characters such as U+201C, U+02BC, and U+2032
+        into a bare ASCII quote. In the workspace path that breaks the JSON and
+        lets the rest of a folder name become context; in a quoted path it ends the
+        string early, after the quoting. Quoting cannot cover what happens later,
+        but a JSON text that is pure ASCII reads the same in every code page and in
+        UTF-8.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Json
+    )
+
+    return [regex]::Replace($Json, '[^\x00-\x7F]', { param($match) '\u{0:x4}' -f [int][char]$match.Value })
+}
+
 if ([string]::IsNullOrEmpty($InputJson)) {
     # Decode explicitly: Windows PowerShell would otherwise use the console input
     # encoding, which mangles non-ASCII payloads that pwsh reads as UTF-8.
@@ -353,7 +403,12 @@ $startedUtc = (Get-Date).ToUniversalTime()
     with source 'resume' when it reloads a chat, and restarting the clock there
     reset the elapsed duration and the turn count the Stop hook keeps. A clock
     that cannot be read, or that names no start, is replaced as before.
+
+    $pinnedClockPath stays empty unless a clock was written or resumed, so the
+    context never names a clock that is not on disk.
 #>
+$pinnedClockPath = $null
+
 try {
     $clockPath = $null
     $clockTurns = 0
@@ -384,6 +439,7 @@ try {
 
     if ($null -ne $resumedStartUtc) {
         $startedUtc = $resumedStartUtc
+        $pinnedClockPath = $clockPath
     } else {
         $clockDirectory = [IO.Path]::GetDirectoryName($clockPath)
 
@@ -398,6 +454,7 @@ try {
         } | ConvertTo-Json -Depth 3
 
         [IO.File]::WriteAllText($clockPath, $clock, [Text.UTF8Encoding]::new($false))
+        $pinnedClockPath = $clockPath
     }
 } catch {
     # A missing clock costs the closing duration line, nothing else. Reporting on
@@ -410,14 +467,27 @@ try {
     a measured duration, and the agent cannot resolve the reader itself: it sits
     under ~/.copilot when deployed and under the plugin root when installed as a
     plugin, which is the probe hooks.json already carries.
+
+    Also name the clock this hook just wrote or resumed. Given no clock, the
+    reader falls back to the newest one of the workspace, and a parallel chat in
+    the same workspace may have written a newer clock than this session's own.
 #>
 $elapsedReader = [IO.Path]::Combine($PSScriptRoot, 'Get-SessionElapsed.ps1')
+$readerCommand = '& ' + (ConvertTo-SingleQuotedLiteral -Value $elapsedReader)
+$shortClosingLine = 'Close every reply with the measured Get-SessionElapsed.ps1 output in POST-FLIGHT. The reader is beside the SessionStart hook.'
+$pinnedClosingLine = $null
+
+if ($pinnedClockPath) {
+    $quotedClockPath = ConvertTo-SingleQuotedLiteral -Value $pinnedClockPath
+    $readerCommand = "$readerCommand -Path $quotedClockPath"
+    $pinnedClosingLine = "Close every reply with the measured Get-SessionElapsed.ps1 output in POST-FLIGHT, run with -Path $quotedClockPath. The reader is beside the SessionStart hook."
+}
 
 $line = @(
     "Session started at $($startedUtc.ToString('yyyy-MM-dd HH:mm')) UTC."
     $memoryBankState
     'Open the reply with that UTC timestamp and a one-line PRE-FLIGHT acknowledgment.'
-    "Close every reply by running & '$elapsedReader' and copying its single line verbatim as the last line of the POST-FLIGHT block."
+    "Close every reply by running $readerCommand and copying its single line verbatim as the last line of the POST-FLIGHT block."
     'Never push or otherwise mutate a git remote unless the user asks in the current turn.'
 )
 
@@ -437,8 +507,18 @@ if ($additionalContext.Length -gt $contextLimit) {
     }
     $additionalContext = $line -join ' '
 }
+
+<#
+    The shortened closing line exists for a reader path too long to send, and
+    that is not the clock path. The first shortening therefore keeps -Path; the
+    second drops it as well when even that does not fit.
+#>
 if ($additionalContext.Length -gt $contextLimit) {
-    $line[3] = 'Close every reply with the measured Get-SessionElapsed.ps1 output in POST-FLIGHT. The reader is beside the SessionStart hook.'
+    $line[3] = if ($pinnedClosingLine) { $pinnedClosingLine } else { $shortClosingLine }
+    $additionalContext = $line -join ' '
+}
+if ($additionalContext.Length -gt $contextLimit) {
+    $line[3] = $shortClosingLine
     $additionalContext = $line -join ' '
 }
 
@@ -541,5 +621,6 @@ $output = [ordered]@{
     }
 }
 
-$output | ConvertTo-Json -Depth 5 -Compress
+$json = $output | ConvertTo-Json -Depth 5 -Compress
+ConvertTo-AsciiJson -Json $json
 exit 0

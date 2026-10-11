@@ -17,21 +17,31 @@ persistence 83.3 % at both Positions, the sentence still +30.6 points on the
 paired cases, `expert` terseness unreliable, the provider terms UNVERIFIED, and no
 further run. Criterion 23's gaps are fixed in the README, the hooks README, the
 CHANGELOG, and the Glossary check, and TBD-2 is the one question carried forward.
-`origin/main` (`9b6a341`) is an ancestor of `ai/calibration-phase-2`, so no merge
-was needed. The full gate: 3,165 passed, 0 failed, 129 skipped (none in a suite
-the matrix cites), coverage 90.84 %. The pull request title and body were drafted
+`origin/main` (`6286ad4`: the session lessons and the clock fix, pushed by the
+owner at 23:07 UTC) was merged into `ai/calibration-phase-2`, with 9 conflicts
+resolved. The full gate: @@GATE2@@. The pull request title and body were drafted
 in chat; the owner runs the push and `gh pr create` from their own terminal.
 Nothing is pushed by an agent.
 
 Still open, in the owner's order (Desktop `LEDGER.md`, `HANDOFF-2026-10-11.md`):
 prompt 06c, an optional independent review of the eval kit's egress code and a
-precondition of any further run; and the integration with `main`. The owner merged
-`ai/session-lessons` and `ai/session-clock-path` into `main` locally on 2026-10-11
-(`6286ad4`, 12 commits ahead of `origin/main`, not pushed), and `git merge-tree`
-forecasts 9 conflicting files with this branch, three of them hook scripts. After
-`main` is pushed, merge `origin/main` into this branch and rerun
-`tests/ContributorProfileHooks.Tests.ps1`, because a longer reader line leaves
-the calibration sentence fewer characters under the session context budget.
+precondition of any further run.
+
+Prompts 03 (`ai/session-lessons`) and 08 (`ai/session-clock-path`) are on `main`.
+The detached Pester guards reject a result other than `Passed`, both Pester
+guides explain truthiness, `agent-security-review` treats hook context as data,
+`Wait-DetachedResult.ps1` waits a bounded time on a detached run, and the hooks
+README names where each host records hook evidence; the shared Instruction
+wording was chosen under a no-questions delegation, so an expert review stays
+recommended. The Post-flight elapsed line is pinned to its own chat's clock:
+`Add-SessionContext.ps1` hands the agent `& '<reader>' -Path '<clock>'`, and the
+reader prefers the session `COPILOT_AGENT_SESSION_ID` names. Decision 0024 holds
+the Prox1 evidence and what stays open: a host that sends no `session_id`, a
+chat after a compaction on a host without the variable, and VS Code Local and a
+new VS Code agent-host chat, not yet seen live. The longer reader line leaves the
+calibration sentence fewer characters under the session context budget, so one
+test in `tests/ContributorProfileHooks.Tests.ps1` now squeezes at 1,400 characters
+and normalizes the clock path.
 
 ## Previous focuses
 
@@ -50,11 +60,16 @@ the calibration sentence fewer characters under the session context budget.
   VS Code Local backstop proved live (`b05efe3`, TBD-7 closed). The RAANDREE3
   `FailFast` is a .NET 10.0.6 runtime fault on PowerShell 7.6.1, not this
   repository's code. Evidence: the record's Confirmation.
-- **Prompt 06 close-out (#29 `9b6a341`, #30 `25d8233`).** CI run 112 published
-  `6.1.0-preview0003`. The SDK runtime drops a PascalCase `preToolUse` deny that
-  carries `hookSpecificOutput` (Decision 0016); `tests/HookSdkRuntime.Tests.ps1`
-  probes the runtime without a model. Phase 1 (#27, `7a48abe`) scored 52.1%
-  without the Instruction and 100% with it in the private behavior eval.
+- **Hook deny reason and the resume clock (prompt 06, #28 to #30).** The bundled
+  Copilot SDK runtime drops a PascalCase deny that also carries
+  `hookSpecificOutput`, so the guard prints the top-level pair alone;
+  `tests/HookSdkRuntime.Tests.ps1` asserts the reason inside the real runtime
+  (Decision 0016). A resumed chat keeps its clock. Merged into `main`, deployed
+  2026-10-04; A2 and B2 then passed in new chats.
+- **Contributor calibration Phase 1 (#27, `7a48abe`).** On `main`; Phase 2 is
+  Decision 0028 (`ai/calibration-phase-2`). The private behavior eval
+  scored 52.1% without the Instruction and 100% with it, and arms are compared
+  only when run concurrently.
 - **Hook guard follow-ups (prompts 02, 05, 06; `d8cc6f5` to `fea564f`).** Ten
   reviews ended in an approval. The guard decides within about five seconds
   (1 MB parse, 20,000-field walk, 4 MB block) and errs toward blocking; the
@@ -139,13 +154,13 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. The owner pushes `ai/calibration-phase-2` and opens the pull request from their
-   own terminal, with the title and body drafted in chat; agents cannot push.
-   After the merge, delete the merged remote branches and confirm that the CI
+1. The owner pushes `ai/calibration-phase-2`, which now contains `origin/main`,
+   and opens the pull request from their own terminal, with the title and body
+   drafted in chat; agents cannot push. After the merge, delete the merged remote
+   branches (`origin/ai/session-clock-path` among them) and confirm that the CI
    release run publishes the next `6.1.0` prerelease.
-2. Push `main` (`6286ad4`: the session lessons and the clock fix), then merge
-   `origin/main` into this branch, resolve the conflicts that *Close-out,
-   2026-10-11* forecasts, and rerun the affected suites.
+2. Confirm the clock pin live in a new VS Code chat (Decision 0024 lists the
+   cases).
 3. A further eval run needs a new amendment, TBD-11 closed with source and date,
    and prompt 06c's independent review of the kit's egress code first (A34, A38);
    none is authorized.
@@ -157,5 +172,4 @@ unproven — train reached 100 % while validation fell.
    exit-2 stdout merge without its `hookSpecificOutput` condition.
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
-`#web/fetch` check, the duplicate Instruction loading in Copilot SDK chats, and
-deleting the merged remote branch `copilot/dgthths`.
+`#web/fetch` check and the duplicate Instruction loading in Copilot SDK chats.

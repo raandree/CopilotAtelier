@@ -362,3 +362,279 @@ Describe 'Start-JobHeartbeat' -Tag 'Unit' {
         }
     }
 }
+
+Describe 'Wait-DetachedResult' -Tag 'Unit' {
+    BeforeAll {
+        $script:waiterPath = [IO.Path]::Combine(
+            (Split-Path -Parent $PSScriptRoot), 'skills', 'long-running-job-monitor',
+            'scripts', 'Wait-DetachedResult.ps1'
+        )
+        $script:waiterShell = (Get-Process -Id $PID).Path
+        $script:waiterContent = Get-Content -LiteralPath $script:waiterPath -Raw -Encoding UTF8
+
+        function Invoke-WaiterScript {
+            [CmdletBinding()]
+            [OutputType([pscustomobject])]
+            param(
+                [hashtable] $Arguments = @{},
+                [scriptblock] $OnReady
+            )
+
+            $parts = @("& '" + $script:waiterPath.Replace("'", "''") + "'")
+            foreach ($key in $Arguments.Keys) {
+                $parts += '-' + $key
+                $parts += "'" + ([string]$Arguments[$key]).Replace("'", "''") + "'"
+            }
+            # EncodedCommand otherwise reduces every nonzero script exit to 1.
+            $payload = '$ErrorActionPreference = ''Stop''; $ProgressPreference = ''SilentlyContinue''; ' +
+                '[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); ' +
+                '[Console]::Out.WriteLine(''WAITER-READY''); [Console]::Out.Flush(); ' +
+                ($parts -join ' ') + '; exit $LASTEXITCODE'
+            $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($payload))
+            $start = [Diagnostics.ProcessStartInfo]::new(
+                $script:waiterShell, '-NoProfile -NonInteractive -EncodedCommand ' + $encoded
+            )
+            $start.UseShellExecute = $false
+            $start.CreateNoWindow = $true
+            $start.WorkingDirectory = $TestDrive
+            $start.RedirectStandardOutput = $true
+            $start.RedirectStandardError = $true
+            $start.StandardOutputEncoding = [Text.UTF8Encoding]::new($false)
+            $start.StandardErrorEncoding = [Text.UTF8Encoding]::new($false)
+            $process = [Diagnostics.Process]::Start($start)
+            try {
+                $errorTask = $process.StandardError.ReadToEndAsync()
+                $ready = $process.StandardOutput.ReadLineAsync()
+                if (-not $ready.Wait(15000) -or $ready.Result -ne 'WAITER-READY') {
+                    throw 'Waiter child did not reach its readiness marker.'
+                }
+                $outputTask = $process.StandardOutput.ReadToEndAsync()
+                if ($OnReady) { & $OnReady }
+                if (-not $process.WaitForExit(15000)) {
+                    throw 'Waiter exceeded the 15-second test budget.'
+                }
+                [pscustomobject]@{
+                    ExitCode = $process.ExitCode
+                    Output = $outputTask.GetAwaiter().GetResult()
+                    Error = $errorTask.GetAwaiter().GetResult()
+                }
+            }
+            finally {
+                if (-not $process.HasExited) {
+                    Stop-Process -Id $process.Id -Force -ErrorAction Stop
+                    $process.WaitForExit()
+                }
+                $process.Dispose()
+            }
+        }
+
+        function Start-TestResultWriter {
+            [CmdletBinding(SupportsShouldProcess)]
+            [OutputType([pscustomobject])]
+            param([Parameter(Mandatory)] [string] $Path)
+
+            if (-not $PSCmdlet.ShouldProcess($Path, 'Write a delayed test result')) {
+                return
+            }
+
+            $writer = [powershell]::Create().AddScript({
+                param($ResultPath)
+                Start-Sleep -Milliseconds 1100
+                [IO.File]::WriteAllText($ResultPath, '0')
+            }).AddArgument($Path)
+            [pscustomobject]@{ Writer = $writer; Handle = $writer.BeginInvoke() }
+        }
+    }
+
+    It 'ships the bounded detached-result waiter' {
+        Test-Path -LiteralPath $script:waiterPath -PathType Leaf | Should -Be $true
+    }
+
+    It 'reports and preserves job result <Value>' -ForEach @(
+        @{ Value = '0'; Expected = 0 }
+        @{ Value = '1'; Expected = 1 }
+    ) {
+        $path = Join-Path $TestDrive 'completed.exit'
+        [IO.File]::WriteAllText($path, $Value)
+        $result = Invoke-WaiterScript -Arguments @{ ResultPath = $path }
+        $result.ExitCode | Should -Be $Expected
+        $result.Output | Should -Match "^DETACHED-RESULT $Value after \d+\.\d+ s\r?\n$"
+        $result.Error | Should -BeNullOrEmpty
+    }
+
+    It 'waits for a delayed result in measured half-second steps' {
+        $path = Join-Path $TestDrive 'delayed.exit'
+        $writerState = @{}
+        try {
+            $result = Invoke-WaiterScript -Arguments @{ ResultPath = $path; TimeoutSeconds = 5 } -OnReady {
+                $writerState.Job = Start-TestResultWriter -Path $path
+            }
+            $result.ExitCode | Should -Be 0
+            $match = [regex]::Match($result.Output, '^DETACHED-RESULT 0 after (?<Seconds>\d+\.\d+) s')
+            $match.Success | Should -Be $true
+            $seconds = [double]::Parse($match.Groups['Seconds'].Value, [cultureinfo]::InvariantCulture)
+            $seconds | Should -BeGreaterOrEqual 1
+            $seconds | Should -BeLessThan 5
+        }
+        finally {
+            if ($writerState.Job) {
+                $writerState.Job.Writer.EndInvoke($writerState.Job.Handle) | Out-Null
+                $writerState.Job.Writer.Dispose()
+            }
+        }
+    }
+
+    It 'does not mistake an empty result being written for success' {
+        $path = Join-Path $TestDrive 'empty.exit'
+        [IO.File]::WriteAllText($path, '')
+        $writerState = @{}
+        try {
+            $result = Invoke-WaiterScript -Arguments @{ ResultPath = $path; TimeoutSeconds = 5 } -OnReady {
+                $writerState.Job = Start-TestResultWriter -Path $path
+            }
+            $result.ExitCode | Should -Be 0
+            $match = [regex]::Match($result.Output, '^DETACHED-RESULT 0 after (?<Seconds>\d+\.\d+) s')
+            $match.Success | Should -Be $true
+            $seconds = [double]::Parse($match.Groups['Seconds'].Value, [cultureinfo]::InvariantCulture)
+            $seconds | Should -BeGreaterOrEqual 1
+            $seconds | Should -BeLessThan 5
+            $script:waiterContent | Should -Match 'Start-Sleep -Milliseconds 500'
+        }
+        finally {
+            if ($writerState.Job) {
+                $writerState.Job.Writer.EndInvoke($writerState.Job.Handle) | Out-Null
+                $writerState.Job.Writer.Dispose()
+            }
+        }
+    }
+
+    It 'times out with code 124 and still tails the log' {
+        $path = Join-Path $TestDrive 'missing.exit'
+        $log = Join-Path $TestDrive 'timeout.log'
+        [IO.File]::WriteAllLines($log, @('first', 'second', 'third'))
+        $result = Invoke-WaiterScript -Arguments @{
+            ResultPath = $path; LogPath = $log; TimeoutSeconds = 1; TailLines = 2
+        }
+        $result.ExitCode | Should -Be 124 -Because $result.Error
+        $result.Output | Should -Match '^DETACHED-RESULT timeout after 1\.[0-5] s\r?\nsecond\r?\nthird\r?\n$'
+        Test-Path -LiteralPath $path | Should -Be $false
+    }
+
+    It 'defaults to the last forty log lines' {
+        $path = Join-Path $TestDrive 'default-tail.exit'
+        $log = Join-Path $TestDrive 'default-tail.log'
+        [IO.File]::WriteAllText($path, '0')
+        [IO.File]::WriteAllLines($log, [string[]](1..60 | ForEach-Object { "line-$_" }))
+        $result = Invoke-WaiterScript -Arguments @{ ResultPath = $path; LogPath = $log }
+        $lines = $result.Output.TrimEnd() -split '\r?\n'
+        $result.ExitCode | Should -Be 0
+        $lines | Should -HaveCount 41
+        $lines[1] | Should -Be 'line-21'
+        $lines[-1] | Should -Be 'line-60'
+    }
+
+    It 'accepts literal relative paths with spaces and brackets' {
+        $path = Join-Path $TestDrive 'result [one].exit'
+        $log = Join-Path $TestDrive 'log [one].txt'
+        [IO.File]::WriteAllText($path, '1')
+        [IO.File]::WriteAllLines($log, @('first', 'last'))
+        $result = Invoke-WaiterScript -Arguments @{
+            ResultPath = 'result [one].exit'; LogPath = 'log [one].txt'; TailLines = 1
+        }
+        $result.ExitCode | Should -Be 1
+        $result.Output | Should -Match '^DETACHED-RESULT 1 after \d+\.\d+ s\r?\nlast\r?\n$'
+    }
+
+    It 'does not open the log when TailLines is zero' {
+        $path = Join-Path $TestDrive 'no-tail.exit'
+        $log = Join-Path $TestDrive 'locked.log'
+        [IO.File]::WriteAllText($path, '0')
+        [IO.File]::WriteAllText($log, 'not read')
+        $lock = [IO.File]::Open($log, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+        try {
+            $result = Invoke-WaiterScript -Arguments @{ ResultPath = $path; LogPath = $log; TailLines = 0 }
+            $result.ExitCode | Should -Be 0
+            $result.Output | Should -Match '^DETACHED-RESULT 0 after \d+\.\d+ s\r?\n$'
+            $result.Error | Should -BeNullOrEmpty
+        }
+        finally { $lock.Dispose() }
+    }
+
+    It 'rejects invalid result content <Value> explicitly' -ForEach @(
+        @{ Value = '2' }
+        @{ Value = 'Passed' }
+        @{ Value = "0`n1" }
+    ) {
+        $path = Join-Path $TestDrive 'invalid.exit'
+        [IO.File]::WriteAllText($path, $Value)
+        $result = Invoke-WaiterScript -Arguments @{ ResultPath = $path; TimeoutSeconds = 1 }
+        $result.ExitCode | Should -Be 1
+        $result.Error | Should -Match 'must contain 0 or 1'
+        $result.Output | Should -Not -Match 'DETACHED-RESULT 0'
+    }
+
+    It 'rejects out-of-range <Name>=<Value>' -ForEach @(
+        @{ Name = 'TimeoutSeconds'; Value = 0 }
+        @{ Name = 'TimeoutSeconds'; Value = 601 }
+        @{ Name = 'TailLines'; Value = -1 }
+        @{ Name = 'TailLines'; Value = 501 }
+    ) {
+        $arguments = @{ ResultPath = (Join-Path $TestDrive 'unused.exit') }
+        $arguments[$Name] = $Value
+        $result = Invoke-WaiterScript -Arguments $arguments
+        $result.ExitCode | Should -Be 1
+        $result.Error | Should -Match $Name
+    }
+
+    It 'only reads and preserves all input files and their write times' {
+        $directory = Join-Path $TestDrive 'read-only'
+        New-Item -ItemType Directory -Path $directory | Out-Null
+        $path = Join-Path $directory 'result.exit'
+        $log = Join-Path $directory 'job.log'
+        [IO.File]::WriteAllText($path, '0')
+        [IO.File]::WriteAllText($log, "first`nlast`n")
+        $resultTime = [IO.File]::GetLastWriteTimeUtc($path)
+        $logTime = [IO.File]::GetLastWriteTimeUtc($log)
+        $before = @([IO.Directory]::GetFiles($directory) | Sort-Object)
+        $result = Invoke-WaiterScript -Arguments @{ ResultPath = $path; LogPath = $log }
+        $result.ExitCode | Should -Be 0
+        [IO.File]::ReadAllText($path) | Should -Be '0'
+        [IO.File]::ReadAllText($log) | Should -Be "first`nlast`n"
+        [IO.File]::GetLastWriteTimeUtc($path) | Should -Be $resultTime
+        [IO.File]::GetLastWriteTimeUtc($log) | Should -Be $logTime
+        @([IO.Directory]::GetFiles($directory) | Sort-Object) | Should -Be $before
+    }
+
+    It 'documents async-only terminal execution and exact defaults' {
+        $script:waiterContent | Should -Match 'async mode only'
+        $script:waiterContent | Should -Match 'synchronous wait blocks'
+        $script:waiterContent | Should -Match 'detached waiter notifies nobody'
+        $command = Get-Command -Name $script:waiterPath
+        $command.Parameters['ResultPath'].Attributes.Mandatory | Should -Contain $true
+        $script:waiterContent | Should -Match '\$TimeoutSeconds = 120'
+        $script:waiterContent | Should -Match '\$TailLines = 40'
+    }
+
+    It '<Name> sanctions the bounded async waiter' -ForEach @(
+        @{
+            Name = 'Monitor Skill'
+            Segments = @('skills', 'long-running-job-monitor', 'SKILL.md')
+        }
+        @{
+            Name = 'Execution-safety Instruction'
+            Segments = @('com.github.copilot', 'rules', 'powershell-execution-safety.instructions.md')
+        }
+        @{
+            Name = 'Pester Instruction'
+            Segments = @('com.github.copilot', 'rules', 'pester.instructions.md')
+        }
+    ) {
+        $path = Split-Path -Parent $PSScriptRoot
+        foreach ($segment in $Segments) { $path = Join-Path -Path $path -ChildPath $segment }
+        $content = (Get-Content -LiteralPath $path -Raw -Encoding UTF8) -replace '\s+', ' '
+        $content | Should -Match 'Wait-DetachedResult\.ps1'
+        $content | Should -Match 'async mode'
+        $content | Should -Match 'two minutes'
+        $content | Should -Match '500 ms'
+    }
+}

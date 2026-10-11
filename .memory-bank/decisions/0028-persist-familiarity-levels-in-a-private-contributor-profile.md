@@ -2422,19 +2422,28 @@ reader's SHA-256 is `FC410C13…53AC`, both equal to the freezes of 2026-10-08 a
 changed a non-Markdown file was `47f8eb7`.
 
 **Integration.** `git fetch` on 2026-10-11, at 22:30 and at 23:26 UTC:
-`origin/main` is `9b6a341`, an ancestor of the branch, which is 0 behind and 51
-ahead, so no merge was needed. Between the two fetches the owner merged
-`ai/session-lessons` (22:35) and `ai/session-clock-path` (22:40) in an
-integration clone and fast-forwarded this repository's `main` to `6286ad4`, 12
-commits ahead of `origin/main` and not pushed. `git merge-tree` of this branch
-with that `main` forecasts conflicts in 9 files: the hook scripts
-`Add-SessionContext.ps1`, `Get-SessionElapsed.ps1`, and `Write-SessionClose.ps1`,
-the hooks README, `CHANGELOG.md`, `activeContext.md`, `progress.md`,
-`systemPatterns.md`, and `assessment-log.md`. When `main` is pushed, merge
-`origin/main` into this branch before the pull request and rerun the affected
-suites, `tests/ContributorProfileHooks.Tests.ps1` among them.
+`origin/main` was `9b6a341`, an ancestor of the branch, which was 0 behind and 51
+ahead. Between the two fetches the owner merged `ai/session-lessons` (22:35) and
+`ai/session-clock-path` (22:40) in an integration clone, and pushed `main`
+(`6286ad4`, 12 commits) at 23:07. It was merged into this branch with `git merge`,
+not a rebase, because the branch is published. Nine files conflicted: the hook
+scripts `Add-SessionContext.ps1`, `Get-SessionElapsed.ps1`, and
+`Write-SessionClose.ps1`, the hooks README, `CHANGELOG.md`, `activeContext.md`,
+`progress.md`, `systemPatterns.md`, and `assessment-log.md`. Both sides' intent
+is kept: `Add-SessionContext.ps1` carries the calibration step and the backstop
+seeding beside the `-Path` hand-over, the ASCII-only JSON, and the longer closing
+line, and `Get-SessionElapsed.ps1` carries the session-id preference beside the
+filter that skips the calibration state. The longer reader command leaves the
+calibration sentence fewer characters, so one test changed: *SessionStart
+calibration sentence* now compares the lines before the sentence with the clock
+path normalized, and squeezes the budget at 1,400 characters instead of 1,024.
+Before that change, `Hooks`, `ContributorProfileHooks`, `HookSdkRuntime`,
+`LifecycleInstructions`, `SharedLifecycle`, `ContributorCalibration`, and the
+Memory Bank suites passed 484 of 486 tests, and the 2 failures were that test in
+both editions.
 
-**Gate.** `./build.ps1 -Tasks build, test` on Prox1 (PowerShell 7.6.6, Pester
+**Gate before the merge.** `./build.ps1 -Tasks build, test` on Prox1 (PowerShell
+7.6.6, Pester
 5.7.1), launched 2026-10-11 22:51 UTC: 3,165 passed, 0 failed, 129 skipped, 0
 inconclusive, 0 not run, in 1,584 s; coverage 90.84 % against a threshold of
 65 %; 21 tasks, 0 errors, 16 warnings, which are the Meter tests' 15 simulated
@@ -2446,6 +2455,8 @@ cites skipped a test, and `HookSdkRuntime` ran in the runtime that VS Code
 bundles and in the standalone Copilot CLI. The numbers of this paragraph were
 written after the run; the Memory Bank health, routing, and QA suites were rerun
 on them.
+
+**Gate after the merge.** The same command on the merge commit: @@GATE2@@.
 
 **Static analysis.** PSScriptAnalyzer 1.24.0 with the default rules over the 40
 PowerShell files that the branch adds or changes: 28 findings (Information and

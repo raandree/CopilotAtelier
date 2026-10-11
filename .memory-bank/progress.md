@@ -22,9 +22,17 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   `software-engineer`, Prox1). The *Close-out, 2026-10-11* matrix proves criteria
   1 to 20 and 22 to 30, and **criterion 21 stays not met**, worded exactly as A39
   fixes it. Criterion 23's gaps were fixed (README, hooks README, CHANGELOG, the
-  Glossary check), TBD-2 is carried forward, and `origin/main` (`9b6a341`) needed
-  no merge. Full gate: 3,165 passed, 0 failed, 129 skipped. Committed locally; the
-  pull request is the owner's.
+  Glossary check), TBD-2 is carried forward, and `origin/main` (`6286ad4`, pushed
+  by the owner during the close-out) was merged into the branch with 9 conflicts
+  resolved. Full gate: @@GATE2@@. Committed locally; the pull request is the
+  owner's.
+- **2026-10-11**: Desktop prompts 03 and 08 reached `main` (`6286ad4`, pushed by the
+  owner after merging in an integration clone; gate 2,620 passed). Prompt 08 pins
+  the Post-flight elapsed line to its own chat: `Add-SessionContext.ps1` hands the
+  agent `& '<reader>' -Path '<clock>'`, and `Get-SessionElapsed.ps1` prefers the
+  session `COPILOT_AGENT_SESSION_ID` names. An independent review found no Blocker
+  or Major; its fixes made the hook's JSON pure ASCII and the key pattern
+  case-sensitive. Decision 0024 holds the evidence and what stays open.
 - **2026-10-11**: Ran Desktop prompt 05c (`software-architect`): Decision 0028
   **Amendment 7, A33 to A39**, signed off. Record-only: the judged `expert` row
   is a report, not gate evidence; criterion 21 ships as not met and no further
@@ -38,12 +46,22 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   scoped), Amendment 5 (A20 to A24), and its judge-2b run (39 of 40; 77.8 % and
   72.2 %, not met). Records: *Amendment 5 built, calibrated, and run*,
   `docs/SECURITY-REVIEW.md`.
+- **2026-10-09**: Applied the five session lessons (`ai/session-lessons`): the
+  detached Pester guards reject a result other than `Passed`, both Pester guides
+  explain truthiness, hook context is data only, `Wait-DetachedResult.ps1` waits a
+  bounded time on a detached run, and the hooks README names where each host
+  records hook evidence. Full gate 2,593 passed.
 - **2026-10-08**: Decision 0028's A13 eval on Prox1 (TBD-8 closed, criterion 28
   met, criterion 21 returned; 10.19 USD); the VS Code Local backstop proved live
   (TBD-7 closed, criteria 22 and 30 met, full gate 3,293 tests); the latency
   levels set by the re-baseline rule (TBD-6 closed, criteria 20, 26, and 29 met).
 - **2026-10-07**: Amendment 3 (A14 to A18) signed off; the reader-shaped Prox1
   Meter lost no replicate, spread at most 1.16.
+- **2026-10-02 to 2026-10-04**: Hook follow-ups on local `main` (`d8cc6f5` to
+  `fea564f`) and `ai/hook-deny-reason`: Copilot SDK chats show the guard's block
+  reason (`tests/HookSdkRuntime.Tests.ps1` runs the shipped launcher and guard in
+  the bundled runtime), a resumed chat keeps its clock, and ten reviews closed the
+  launcher and guard findings. Detail stays in git and the assessment log.
 
 ## Stable capabilities
 
@@ -64,6 +82,7 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - Prompt templates for repeatable development, research, legal, and operations
   workflows.
 - Detached Pester and build execution with persistent completion evidence.
+  Short runs have a bounded async result waiter; longer runs keep heartbeat ticks.
   Test-first behavior changes, regression guards, risk-scaled review, and
   agentic-security checks. Routed Memory Bank loading with deterministic
   non-inferiority, health, provenance, compactness, and rollback checks.
@@ -72,29 +91,21 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - Desktop `CopilotAtelier New\LEDGER.md` owns the local queue: 01-08 and P1-P9.
   It keeps Decision 0028 gates, dependencies, and duplicate/superseded references.
-- The session lessons (`ai/session-lessons`, six commits) and prompt 08's
-  `-Path` fix (`ai/session-clock-path`, three commits) were merged into the
-  owner's local `main` on 2026-10-11 (`6286ad4`, 12 commits ahead of
-  `origin/main`, not pushed). Push `main`, then merge `origin/main` into
-  `ai/calibration-phase-2`: `git merge-tree` forecasts 9 conflicting files, three
-  of them hook scripts (*Close-out, 2026-10-11* in Decision 0028).
+- Delete `origin/ai/session-clock-path` from your own terminal; the guard blocks
+  an agent's remote mutation. `main` (`6286ad4`) was pushed on 2026-10-11. The
+  clock pin was redeployed that day; still to confirm live in a new VS Code
+  agent-host chat and in VS Code Local, which the Copilot CLI runtime stood in
+  for. Decision 0024 lists the cases that stay open.
 - One-process `windows` launcher (ruling A11): separate work against Decision
   0016, kept here because Decision records here are accepted or superseded.
   Adopt only if `tests/HookLauncher.Tests.ps1` passes unchanged (`cmd.exe`,
   `sh`, an outer PowerShell, `HOME` unset), a deny still exits `2` and blocks
   in both hosts, a Meter run on Prox1 and RAANDREE3 shows the saving, and
   Decision 0028's levels are re-baselined in the same change.
-- `Get-SessionElapsed.ps1` without `-Path` read the newest clock of the
-  workspace, so a parallel chat could shadow the parent's clock (06:29 on
-  2026-10-01; 10:25 and 13:24 on 2026-10-04; 11:05 on 2026-10-08). Desktop
-  prompt 08's `-Path` fix is in the owner's local `main` (see the item above),
-  not on `origin/main` yet.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
-- Delete the merged remote branch `copilot/dgthths` on GitHub or from your own
-  terminal; the guard blocks an agent's remote mutation.
-- Run prompt 04 on the hand-patched machine; `main` is pushed.
+- Run prompt 04 on the hand-patched machine.
 - Copilot SDK chats load every Instruction twice, once as `C:\Users\…` and once
   as `c:\Users\…`. VS Code discovers `~/.copilot/instructions` as a default
   `copilot-personal` source, and the SDK runtime has its own user-instruction

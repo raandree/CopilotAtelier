@@ -75,9 +75,9 @@ passing the text on unexpanded.
 |---|---|---|
 | [`hooks.json`](hooks.json) | — | Hook configuration loaded by VS Code and the Copilot SDK host |
 | [`scripts/Block-RemoteMutation.ps1`](scripts/Block-RemoteMutation.ps1) | `PreToolUse` | Blocks remote-mutating and irreversible commands |
-| [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank, injects the UTC timestamp, starts the session clock |
+| [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank, injects the UTC timestamp, starts the session clock and names it in the reader command |
 | [`scripts/Write-SessionClose.ps1`](scripts/Write-SessionClose.ps1) | `Stop` | Advances the session clock's turn counter |
-| [`scripts/Get-SessionElapsed.ps1`](scripts/Get-SessionElapsed.ps1) | — | Agent-run reader that prints the Post-flight elapsed line |
+| [`scripts/Get-SessionElapsed.ps1`](scripts/Get-SessionElapsed.ps1) | — | Agent-run reader that prints the Post-flight elapsed line of the clock it is given |
 | [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated, and counts the compaction for contributor calibration |
 | [`scripts/Add-FamiliarityContext.ps1`](scripts/Add-FamiliarityContext.ps1) | `PostToolUse` | Re-sends saved familiarity levels after a compaction and, where no `PreCompact` runs, within one turn; registered only by `~/.copilot/hooks/contributor-profile.json` |
 
@@ -183,20 +183,37 @@ failure where an agent concludes "no Memory Bank" from the workspace summary,
 which omits dotfile folders.
 
 It also starts the session clock described below, and hands the agent the
-absolute path of `Get-SessionElapsed.ps1`. The agent cannot resolve that path
-itself — the script sits under `~/.copilot` when deployed and under the plugin
-root when installed as a plugin, which is the probe `hooks.json` already carries.
+command that reads it: `& '<reader>' -Path '<clock>'`, the absolute paths of
+`Get-SessionElapsed.ps1` and of the clock this hook wrote or resumed. The agent
+cannot resolve the reader itself — the script sits under `~/.copilot` when
+deployed and under the plugin root when installed as a plugin, which is the probe
+`hooks.json` already carries. The `-Path` is what keeps the measurement on this
+chat's own clock: without it the reader has to choose one, and a parallel chat in
+the same workspace can make it choose that chat's (Prox1, 2026-10-08: a chat
+closed with the duration of its parallel chat). A hook that wrote or resumed no
+clock hands over the reader alone. Both paths are quoted for PowerShell, and an
+apostrophe or a typographic single quote in either is doubled, because
+PowerShell ends a single-quoted string at all of them.
 
 A resumed session keeps its clock. The Copilot SDK runtime reruns the hook with
 `source: resume` when it reloads a chat; when a readable clock of that session
-exists, the hook leaves it untouched and injects its original start time.
-Restarting it there reset the elapsed line and the turn count.
+exists, the hook leaves it untouched, injects its original start time, and names
+it in the command. Restarting it there reset the elapsed line and the turn count.
 
 The context goes into one JSON object twice, under the key each host reads: a
 top-level `additionalContext` for the Copilot SDK host and Copilot CLI, and
 `hookSpecificOutput.additionalContext` for the VS Code Local harness. Each host
 ignores the other's key, so dropping either one silently removes the context
 from that host's sessions.
+
+The JSON is pure ASCII: the hook writes every other character as `\uXXXX`.
+Windows PowerShell 5.1 encodes standard output in the console's OEM code page,
+and that encoding's best fit turns characters such as U+201C, U+02BC, and U+2032
+into a bare ASCII quote. In the workspace path that would break the JSON and let
+the rest of a folder name become context; in a quoted path it would end the
+string early, after the quoting had done its work. ASCII reads the same in every
+code page and in UTF-8, so the context does not depend on how the host decodes
+it.
 
 When the workspace declares Knowledge areas under `## Knowledge areas` in
 `.memory-bank/projectbrief.md`, one more sentence follows with the
@@ -216,6 +233,13 @@ budget for one hook, not a token count or a live context-window estimate. The
 contributor-profile sentence has the lowest priority: it gets only what the
 other lines leave, giving up its unrated count, then trailing areas, then
 itself, and never shortens another line.
+
+Over the limit, the hook first shortens the Memory Bank line, which carries the
+workspace path. If that is not enough it shortens the closing line, which drops
+the reader path because that is the path that outgrew the budget, and keeps
+`-Path` while the context then fits. Only when it still does not fit does the
+closing line lose `-Path` too, and the agent falls back to the reader's own
+choice of clock.
 
 There is no master-off profile: all four shipped hooks serve lifecycle or
 safety obligations. The context budget never disables remote-mutation checks.
@@ -242,9 +266,13 @@ It lives at `<LocalApplicationData>/CopilotAtelier/sessions/session-<key>.json` 
 `%LOCALAPPDATA%` on Windows, `~/.local/share` on Linux, `~/Library/Application
 Support` on macOS. Not the temp directory: `/tmp` is world-writable, and a
 predictable name there invites another local account to pre-create the path. The
-`<key>` is the payload's `session_id` with every character that could traverse a
-directory stripped, falling back to a hash of the working directory so two
-concurrent windows do not share one clock.
+`<key>` is the payload's `session_id` with every character outside
+`[A-Za-z0-9._-]` stripped, so none can traverse a directory. The match is
+case-sensitive: a case-insensitive one lets U+0130 and U+212A through. When the
+payload names no session, the key is a hash of the working directory instead, so
+two concurrent windows do not share one clock. Where the host supplies no
+session id, two chats of one workspace still share that one clock, and no
+`-Path` can tell them apart.
 
 Beside each clock sits `session-<key>.familiarity.json`, the calibration state
 of the same session: `compactions`, which `PreCompact` advances; `injected`,
@@ -288,10 +316,25 @@ POST-FLIGHT elapsed: 16m (started 09:15 UTC, measured 09:31 UTC, turn 3)
 ```
 
 Read-only: `Stop` owns `turns`, so the reader reports the turn in progress as one
-past the closed count and writes nothing back. Given no `-Path` it picks the
-newest clock recorded for the current workspace, which is what survives a
-compaction that dropped the injected path. An unreadable clock yields
-`POST-FLIGHT elapsed: unavailable (no session clock on disk).` and exit `0`.
+past the closed count and writes nothing back. The command in the session context
+hands it the clock to read with `-Path`. Given no `-Path`, or one that names no
+file, it chooses a clock in this order, which is what survives a compaction that
+dropped the injected command:
+
+1. The clock whose key is `COPILOT_AGENT_SESSION_ID`, when the host sets it and
+   that clock exists. The agent host's terminal carries its chat's id in it, and
+   that id is the key of the chat's own clock. The value is stripped to the same
+   `[A-Za-z0-9._-]` characters and 64-character cap as a payload's `session_id`,
+   so it cannot name a file outside the clock directory. This clock comes before
+   a newer one of the same workspace, which a parallel chat may have written.
+2. The newest clock recorded for the current workspace, a `session-<id>` clock
+   before a `session-cwd-<hash>` one.
+3. The newest clock overall.
+
+A named clock that exists but cannot be read reports `unavailable` instead of
+falling through to another chat's clock, which would read as this chat's. An
+unreadable clock yields `POST-FLIGHT elapsed: unavailable (no session clock on
+disk).` and exit `0`.
 
 ## Write-CompactionCheckpoint
 
@@ -392,6 +435,58 @@ exits `0` on every path.
 2. Look for `Load Hooks` and confirm `~/.copilot/hooks` is listed.
 3. Open the Output panel and select the `GitHub Copilot Chat Hooks` channel to
    read hook output and errors.
+
+### Reading hook evidence
+
+These are Windows observations from 2026-10-08, not a cross-version guarantee.
+Use the host's logs, not a model's account of its own context: a compaction
+summary can preserve injected text by chance, and a request for exactly one
+tool call produced three in Copilot CLI 1.0.92.
+
+#### VS Code Local: VS Code 1.141.0, bundled Copilot Chat 0.69.0
+
+- The Hooks output channel is persisted at
+  `%APPDATA%\Code\logs\<yyyyMMddTHHmmss>\window<N>\exthost\GitHub.copilot-chat\GitHub Copilot Chat Hooks.log`.
+  Lines have `<time> [info] [#<n>] [<Event>] <verb> ...`; group by `[#<n>]`.
+  `Input` carries `session_id`, `cwd`, and `tool_name`; `Output` is the exact
+  returned JSON. `Completed (Success) in <n>ms, no output` means nothing was
+  returned, not that context was injected.
+- The neighboring `GitHub Copilot Chat.log` records compaction through
+  `[ConversationHistorySummarizer]` and a `summarizeConversationHistory-full`
+  request.
+- Each hook input's `transcript_path` identifies
+  `%APPDATA%\Code\User\workspaceStorage\<hash>\GitHub.copilot-chat\transcripts\<session_id>.jsonl`.
+  It contains user/assistant messages and tool calls, but not tool results.
+- In Copilot Chat 0.68.0 and 0.69.0, neither `/compact` nor background
+  compaction ran PreCompact in VS Code Local; the checkpoint hook therefore
+  wrote nothing there. Do not infer a checkpoint from a compaction entry.
+
+#### Copilot SDK agent host and Copilot CLI 1.0.92
+
+Observed with VS Code 1.141.0 and Copilot CLI 1.0.92 on 2026-10-08:
+
+- `~\.copilot\session-state\<session id>\events.jsonl` records `hook.start`
+  and `hook.end` with `hookType` and `output`; that output is exactly what the
+  host injected. `session.compaction_start` carries its `trigger`.
+- The neighboring `workspace.yaml` names `client_name`: `vscode-agent-host`
+  or `github/cli`. Use it to distinguish otherwise similar event streams.
+- Copilot CLI starts `sessionStart` at the first prompt, not process launch;
+  those were 33 seconds apart in one observed session.
+- `/compact` ran neither Stop nor `agentStop` in either host, so the session
+  clock's `turns` does not count it. Copilot CLI ran PreCompact with
+  `trigger: manual`; VS Code Local did not, as scoped above.
+
+#### Inspecting host versions and hook-written files
+
+In the VS Code 1.141.0 observation, Copilot Chat ships inside VS Code at
+`<VS Code install folder>\<commit>\resources\app\extensions\copilot`.
+Its `package.json` names the version; `dist\extension.js` is the source to
+check when release documentation is silent, for example by searching for
+`executePreCompactHook`.
+
+Read a hook-written file, such as a session clock, with `FileShare.ReadWrite`
+and `FileShare.Delete`, using a read-only handle so inspection cannot block
+the hook's atomic replace. Never write the file to inspect or repair evidence.
 
 ## Troubleshooting
 
