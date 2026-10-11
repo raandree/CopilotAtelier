@@ -53,10 +53,11 @@ held-out check, disclosure to Anthropic, OpenAI, Google, and xAI is accepted
 subject to the `security-review`, the Git `expert` ceiling becomes a judged
 "terse", and one fresh run was authorized; prompt 06b ran it.
 
-Next, for the owner: take the held-out miss and the `expert` rubric question to
-`software-architect` (a new amendment, if any further run is wanted), then
-prompt 07's close-out. The independent review of the new `PrivacyGuard.ps1`
-code is recommended (`review: on`) before any further paid run.
+Next, for the owner (Desktop prompts, `HANDOFF-2026-10-11.md`): 05c, the
+architect's ruling on the held-out miss and the `expert` rubric (a new
+amendment, if any further run is wanted); 06c, an optional independent review
+of the new `PrivacyGuard.ps1` code before any further paid run; then prompt 07's
+close-out.
 
 ## Previous focuses
 
