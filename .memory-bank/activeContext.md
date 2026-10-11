@@ -19,23 +19,10 @@ close-out) follow; the session clock's shadowing goes to prompt 08. The Desktop
 `LEDGER.md` tracks 01-08 and P1-P9.
 
 **Prompt 06b ran on 2026-10-10 (`software-engineer`): the one fresh run
-Amendment 6 authorized is done, and criterion 21 is closed as NOT MET.** The
-kit gained its three A27 controls (model and backend allowlist before every
-batch call, reply leak scan, a lock on each labels file) and the Git grader
-change (3,000-character guard plus the `expert` row's "terse"), all test-first;
-TBD-11 was recorded UNVERIFIED by the owner; the freeze (head `9305035`) and the
-run, `claude-sonnet-5.5`, K = 3, 198 calls, 0 blocked or truncated, cost 5.92
-USD. Persistence: 15 of 18 (83.3 %) at both Positions (Fail; 50.0 % and 55.6 %
-without; read 94.4 % and 88.9 %), the Git case now separates the arms, the real
-misses are 3 DSC `expert` replies that explain the modes and 3 Plan-mode
-replies the literal cue misses; offer and safety at Goal; guard Goal met (its
-one read-list case meets on reading). **The held-out check missed: 10 of 12
-against 11** (`expert` 2 of 4, both unanimous judge FAILs on replies the owner
-passed; all 12 owner labels were PASS), so TBD-10 closed "no" and, under A26,
-the judge question returns to `software-architect`. No further run without a
-new amendment (A31). The record is in Decision 0028, *Amendment 6 built and
-run*; the review is in `docs/SECURITY-REVIEW.md`; the account is in the kit's
-`notes-evals.md`. Nothing is pushed.
+Amendment 6 authorized is done, and criterion 21 is closed as NOT MET**
+(persistence 83.3 % at both Positions, held-out check 10 of 12 against 11; 5.92
+USD; head `9305035`). The record is in Decision 0028, *Amendment 6 built and
+run*; the review is in `docs/SECURITY-REVIEW.md`. Nothing is pushed.
 
 Prompt 04 (2026-10-09): an independent read-only review of the kit's privacy
 boundary took four rounds, every Major is fixed and verified, and criterion 28
@@ -53,11 +40,18 @@ held-out check, disclosure to Anthropic, OpenAI, Google, and xAI is accepted
 subject to the `security-review`, the Git `expert` ceiling becomes a judged
 "terse", and one fresh run was authorized; prompt 06b ran it.
 
-Next, for the owner (Desktop prompts, `HANDOFF-2026-10-11.md`): 05c, the
-architect's ruling on the held-out miss and the `expert` rubric (a new
-amendment, if any further run is wanted); 06c, an optional independent review
-of the new `PrivacyGuard.ps1` code before any further paid run; then prompt 07's
-close-out.
+**Prompt 05c ran on 2026-10-11 (`software-architect`): Amendment 7, A33 to
+A39, is recorded and awaits the owner's `SIGNED OFF`.** Record-only: the judged
+`expert` row is a report, not gate evidence, and the written criteria beat the
+owner's blind labels (A33); criterion 21 ships as not met with its limitation
+named and no further run is authorized (A34); the DSC case, the Plan-mode cue,
+and the untrusted-text reply change nothing (A35 to A37); a further run needs
+TBD-11 closed and the 06c review first (A38); prompt 07 proceeds with the exact
+wording under A39.
+
+Next, for the owner (Desktop prompts, `HANDOFF-2026-10-11.md`): sign off
+Amendment 7; then prompt 07's close-out. Prompt 06c is optional and only a
+precondition of a further run.
 
 ## Previous focuses
 

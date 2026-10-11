@@ -2259,6 +2259,87 @@ sentence as untrusted text. The sentence does raise persistence by 30.6 points.
 
 TBD-10 and TBD-11 are closed in *Open questions*.
 
+### Rulings, 2026-10-11
+
+`software-architect` interviewed the repository owner in chat on 2026-10-11 at
+named-subset depth, in the 7 questions that the held-out miss returned (prompt
+05c), one at a time. The owner answered each with the recommended answer.
+Nothing was delegated with `not sure, you pick`, and the override log is empty.
+No model was called, no eval money was spent, and the kit's files were not
+touched; the record receives counts and rulings only. One correction was made
+in the interview: a figure that the architect gave with Q5 was not in the
+record and was withdrawn before the owner answered; the ruling below uses only
+the record's counts.
+
+No Instruction, sentence, case, grader, rubric, Goal, or Fail level changes.
+No ruling is a change made to pass a gate, because no gate is run again and
+nothing that a gate reads is edited. The rulings fix what the record says about
+the result and close the question that A26 returned.
+
+- **A33.** The judge. Rubric 2b stays byte-identical. Where the owner's blind
+  labels and the criteria written before the run disagree, the **written
+  criteria are authoritative**: they were fixed before any reply existed, and 12
+  blind labels from one labeller, all PASS, cannot overrule them or test the
+  judge's FAIL side. The judged `expert` verdict is a **report with its limit
+  named, not gate evidence**: all 9 split verdicts are in that row, the
+  calibration's 14 of 14 there was in sample, and the held-out agreement on it
+  was 2 of 4. It stays gate evidence for the `new` and `familiar` rows, where the
+  held-out check agreed 4 of 4 and 4 of 4. A future run may gate the `expert`
+  row again only with new labels that include FAIL-side items, a recorded
+  ruling, and a freeze. Revising the rubric and re-labelling was rejected,
+  because a revision tuned against these labels is in sample again and its test
+  is a run that A34 does not authorize. Gating the `expert` row on the
+  deterministic part plus a reading was rejected as unneeded now, because no
+  run follows. Dropping the judged check was rejected, because it throws away
+  the one measure of the row.
+- **A34.** Criterion 21 ships as **not met, with its limitation named**, in the
+  record, the matrix, and the PR body. **No further run is authorized**, and
+  nothing in this record invites one. The Goal is every sample and the best
+  reading (94.4 % and 88.9 %) misses it; a run now would need new rulings on
+  the `expert` row, a writer or labels, and the review of the egress code, and
+  would repeat a gate that A31 (4) closed. The evidence that stands is the
+  paired figure (83.3 % against 52.8 %, 30.6 points) and the Git case
+  separating the arms. Reopening needs a new amendment that names the gates,
+  cases, writer, labels, and spending, and the review of the egress code first.
+- **A35.** The DSC `expert` case keeps A22's and A29's treatment: no Goal, Fail,
+  case, or rubric change. Its limitation is named: under `claude-sonnet-5.5`
+  the sentence does not make `expert` replies terse reliably (2 of 3 and 1 of 3
+  with it, 0 of 6 without). It avoids the pattern A24 forbids because nothing a
+  gate reads moves after the miss. Whether `expert` terseness needs a different
+  mechanism, such as a stronger sentence, is a separate product decision and not
+  a calibration ruling.
+- **A36.** The Plan-mode literal cue stays unchanged. It is recorded as a known
+  false negative: it failed 3 with-arm and 6 without-arm samples on a wording
+  that meets its check on reading, and the read figures already account for it.
+  Widening it after a shown miss is what A20 rejected, and moving it to the judge
+  needs labels the 40 do not cover and a run that A34 does not authorize.
+- **A37.** The reply that treated the profile sentence as text that did not come
+  from the contributor is an **observation, not a finding**: 1 of the 24 with-arm
+  replies after a compaction, and none of the other 98 with-arm replies. No
+  shipped file changes. It is to be re-checked if it recurs; the cost of noise
+  is that a more frequent pattern in real sessions would go uncaught.
+- **A38.** TBD-11. A27's acceptance stands **for what was already sent**. Any
+  further run requires TBD-11 closed first, with the Copilot plan tier, the
+  endpoint host class, and each provider's retention and training-use statement
+  recorded with source and date, before its freeze, and it also requires the
+  independent review of the kit's `PrivacyGuard.ps1` code (prompt 06c), which
+  has not run. A delegated or standing acceptance does not authorize a new
+  disclosure.
+- **A39.** Prompt 07 **does not wait**: it proceeds with criterion 21 as not
+  met. Criterion 28 stays as scoped by `docs/SECURITY-REVIEW.md`, with the
+  egress code's independent review not done, and the PR body says so. The
+  matrix row and the PR body carry this wording, exactly:
+
+  > Criterion 21 (Calibration.Persistence): NOT MET. Under claude-sonnet-5.5
+  > the profile sentence raised persistence by 30.6 points on the paired cases
+  > (83.3 % against 52.8 %), but persistence missed its Goal at both Positions
+  > (83.3 % as measured, 94.4 % and 88.9 % as read). Limitations: the sentence
+  > does not make `expert` DSC replies terse reliably; the judged `expert` row
+  > is not gate evidence, because the judge split on it and the owner's blind
+  > held-out labels agreed on 10 of 12; the Plan-mode literal cue can fail a
+  > valid wording; the provider terms are UNVERIFIED. No further run is
+  > authorized.
+
 ## Signed-off Design Concept
 
 Signed off by the repository owner in chat on 2026-10-06, after an interview
@@ -2816,6 +2897,13 @@ Limitation: Three whole histories, 2,706 user messages, yield at most 3
        held-out labels were all PASS, so the judge's FAIL side is untested
        there. One reply after a compaction treated the sentence as untrusted
        text. (A26, A28, A29)
+       Ruled on 2026-10-11: where the owner's blind labels and the written
+       criteria disagree the written criteria are authoritative, and the
+       judged `expert` verdict is a report, not gate evidence. The DSC
+       `expert` case, the Plan-mode cue, and the Goal and Fail levels stand
+       unchanged. The one reply that treated the sentence as untrusted text
+       (1 of 24 after a compaction, none of the other 98 with-arm replies) is
+       an observation. (A33, A35, A36, A37)
 Authority: Repository owner
 
 Tag: Calibration.Delivery
@@ -3396,6 +3484,12 @@ calibration records, and a disclosure path in the same kit *(A25 to A32)*.
        costs, and rulings only to Confirmation. Mark criterion 21 met or not
        met. A miss closes it as not met with its limitation named; a further
        run needs a new amendment.
+11. **Amendment 7 (A33 to A39), 2026-10-11 (Confirmation, *Rulings,
+    2026-10-11*):** a record-only ruling; no code, case, grader, or shipped
+    file changes and no run is authorized. Desktop prompt 07 closes out with
+    criterion 21 as not met, using the wording under A39. Prompt 06c, the
+    independent review of the kit's `PrivacyGuard.ps1` code, becomes a
+    precondition of any further run and not of prompt 07 (A38).
 
 ## Failure modes
 
@@ -3803,7 +3897,10 @@ exists only in sessions started while a registration file exists.
     both Positions (Fail), the held-out check 10 of 12 against 11, the guard and
     the offer and safety groups at Goal (Confirmation, *Amendment 6 built and
     run*). It closes as not met with its limitation named, and no further run
-    is authorized without a new amendment *(A13, A20 to A32)*.
+    is authorized without a new amendment. Ruled on 2026-10-11: it ships as
+    not met with its limitation named, no further run is authorized, and
+    prompt 07's matrix and PR body carry the wording under A39 *(A13, A20 to
+    A39)*.
 22. `Calibration.Delivery`: every cell inside the promise delivers the
     sentence, and the reported cells are measured and recorded. The SDK runtime
     probe shows the PostToolUse `additionalContext` reaching the model and the
@@ -3863,8 +3960,8 @@ exists only in sessions started while a registration file exists.
 | TBD-7 | Closed: **yes.** `turns` advances between turns in every host inside the promise: VS Code Local to 3 over three turns on Copilot Chat 0.69.0, Copilot CLI 1.0.92 to 2, and VS Code's agent host to 1, 4, and 6, on 2026-10-06 to 2026-10-08. No host needs the grace fallback, so it is not built | — | Closed by the delivery matrix, *VS Code Local backstop and TBD-7* |
 | TBD-8 | Closed: **outside every working tree.** The kit lives at `C:\Users\install\Documents\CopilotAtelier-private\calibration` on Prox1. On 2026-10-08 `Test-ContributorPathInsideRepository -ResolveLinks` returned false for all 1,314 of its paths and true for a file of this repository and for a junction into it | — | Closed by *The persistence set and its eval (A13)* |
 | TBD-9 | Closed: **yes.** Judge version 2b met the bar on the third round on 2026-10-10: 39 of 40, kappa 0.89, rows 13/14, 12/12, 14/14, on the hybrid labels, with two rubric revisions against the same labels | — | Closed by *Amendment 5 built, calibrated, and run*; the limits are under A26 |
-| TBD-10 | Closed: **no.** The judge agreed with the owner's blind labels on 10 of 12 new replies on 2026-10-10 (bar 11): `new` 4 of 4, `familiar` 4 of 4, `expert` 2 of 4, both misses unanimous judge FAILs on replies the owner passed; all 12 owner labels were PASS | — | Closed by *Amendment 6 built and run*; the verdict's reliability on the `expert` row returns to software-architect (A26) |
-| TBD-11 | Closed: **UNVERIFIED, by the owner's choice.** On 2026-10-10 the owner recorded the Copilot plan tier, the endpoint host class, and each provider's published retention and training-use statement for Anthropic, OpenAI, Google, and xAI as UNVERIFIED, with no source or date; nothing was guessed. The kit now enforces the default GitHub host and the model allowlist, so only the unknown provider terms remain | — | Closed by *Amendment 6 built and run*; A27's acceptance stands on those unknown terms, and a finding that contradicts them returns to software-architect |
+| TBD-10 | Closed: **no.** The judge agreed with the owner's blind labels on 10 of 12 new replies on 2026-10-10 (bar 11): `new` 4 of 4, `familiar` 4 of 4, `expert` 2 of 4, both misses unanimous judge FAILs on replies the owner passed; all 12 owner labels were PASS | — | Closed by *Amendment 6 built and run*; the verdict's reliability on the `expert` row returned to software-architect (A26) and was ruled on 2026-10-11: the judged `expert` row is a report, not gate evidence (A33) |
+| TBD-11 | Closed: **UNVERIFIED, by the owner's choice.** On 2026-10-10 the owner recorded the Copilot plan tier, the endpoint host class, and each provider's published retention and training-use statement for Anthropic, OpenAI, Google, and xAI as UNVERIFIED, with no source or date; nothing was guessed. The kit now enforces the default GitHub host and the model allowlist, so only the unknown provider terms remain | — | Closed by *Amendment 6 built and run*; A27's acceptance stands on those unknown terms for what was sent, and a finding that contradicts them returns to software-architect. Ruled on 2026-10-11: any further run requires these terms recorded with source and date before its freeze (A38) |
 
 Delegated answers: none.
 
@@ -3980,6 +4077,25 @@ are under *Rulings, 2026-10-10* in the Confirmation. The built-in
 | A32 | `Calibration.Persistence`: Past; criterion 21 |
 | A25 to A32 | Durable choices and their reversibility; Delivery increments: new item 10 |
 
+Amendment 7, 2026-10-11: rulings A33 to A39, answering the held-out miss that
+the Amendment 6 run returned to `software-architect`: the judge's `expert` row,
+criterion 21's end state, the DSC `expert` case, the Plan-mode cue, the
+untrusted-text reply, TBD-11, and prompt 07. The rulings are record-only and
+change no Goal, Fail level, case, rubric, or shipped file. The reasons are
+under *Rulings, 2026-10-11* in the Confirmation. No independent review was
+commissioned: no ruling introduces or alters an attack surface.
+
+| Ruling | Passages amended |
+|---|---|
+| A33 | `Calibration.Persistence`: Limitation; Open questions: TBD-10 |
+| A34 | criterion 21 |
+| A35 | `Calibration.Persistence`: Limitation |
+| A36 | `Calibration.Persistence`: Limitation |
+| A37 | `Calibration.Persistence`: Limitation |
+| A38 | Open questions: TBD-11; Delivery increments: item 11 |
+| A39 | criterion 21; Delivery increments: item 11 |
+| A33 to A39 | Delivery increments: new item 11 |
+
 ## Sign-off
 
 - [x] The user read this document end to end.
@@ -4046,3 +4162,10 @@ Amendment 6:
   `not sure, you pick`.
 - [x] The repository owner signed it off in chat on 2026-10-10, choosing
   "SIGNED OFF" to the question that named the spending and the disclosure.
+
+Amendment 7:
+
+- [x] The repository owner answered the 7 interview questions with the
+  recommended answers. Nothing was delegated with `not sure, you pick`.
+- [ ] The repository owner read the rulings A33 to A39 as written and typed
+  `SIGNED OFF` in chat.

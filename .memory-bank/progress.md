@@ -18,44 +18,34 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-10-10**: Ran Desktop prompt 06b (`software-engineer`, owner at the
-  keyboard for TBD-11 and the held-out labels): Amendment 6's controls (model
-  and backend allowlist, reply leak scan, labels-file locks, the labeller under
-  the guard test; privacy guards 86 to 171 checks) and the Git grader change
-  were built test-first, the run was frozen at head `9305035`, and the one fresh
-  run executed with `claude-sonnet-5.5`. **Criterion 21 closed as not met**:
-  persistence 83.3 % at both Positions, offer, safety, and the guard at Goal,
-  and the held-out check 10 of 12 against 11 (TBD-10 closed "no", returned to
-  `software-architect`); TBD-11 closed UNVERIFIED by the owner. 5.92 USD, no
-  rerun, nothing pushed. Record: Decision 0028, *Amendment 6 built and run*;
-  review: `docs/SECURITY-REVIEW.md`.
-- **2026-10-10**: Ran Desktop prompt 05b (`software-architect`, owner at the
-  keyboard): Decision 0028 **Amendment 6, rulings A25 to A32, signed off**. The
-  Sonnet writer and the hybrid labels are ratified, with a held-out check of 12
-  new replies (bar 11 of 12) in the next run; disclosure to Anthropic, OpenAI,
-  Google, and xAI is accepted subject to a read-only `security-review` (approve
-  with changes, no Blocker; provider terms UNVERIFIED, TBD-11); the Git `expert`
-  ceiling becomes a judged "terse" plus a 3,000-character runaway guard; DSC and
-  the Plan-mode cue and the guard stand; one fresh run, no spending limit for
-  that run only, and a miss closes criterion 21 as not met. Criterion 21 stays
-  not met. No model call, no spend. Record: Decision 0028, *Rulings,
-  2026-10-10*; review: `docs/SECURITY-REVIEW.md`.
+- **2026-10-11**: Ran Desktop prompt 05c (`software-architect`, owner at the
+  keyboard): Decision 0028 **Amendment 7, rulings A33 to A39**, recorded and
+  committed locally, awaiting the owner's `SIGNED OFF`. Record-only: rubric 2b
+  stays, the written criteria beat the owner's blind labels, the judged
+  `expert` row is a report and not gate evidence; criterion 21 ships as not
+  met with its limitation named and no further run is authorized; the DSC
+  case, Plan-mode cue, and untrusted-text reply change nothing; TBD-11 must be
+  closed (and 06c done) before any further run; prompt 07 proceeds with the
+  wording under A39. No model call, no spending, nothing pushed.
+- **2026-10-10**: Ran Desktop prompt 06b (`software-engineer`): Amendment 6's
+  controls and the Git grader change built test-first, one fresh run frozen at
+  `9305035`. **Criterion 21 closed as not met** (persistence 83.3 %, held-out 10
+  of 12 against 11; TBD-11 UNVERIFIED); 5.92 USD, nothing pushed. Record:
+  Decision 0028, *Amendment 6 built and run*.
+- **2026-10-10**: Ran Desktop prompt 05b (`software-architect`): Decision 0028
+  **Amendment 6, A25 to A32, signed off**: Sonnet writer and hybrid labels
+  ratified with a held-out check, disclosure accepted subject to a read-only
+  `security-review`, the Git `expert` ceiling becomes a judged "terse", one
+  fresh run authorized. Record: *Rulings, 2026-10-10*.
 - **2026-10-10**: Desktop prompt 06 finished (`software-engineer`): Amendment 5's
-  grader built, calibrated (judge 2b, 39 of 40, kappa 0.89 after two rubric
-  revisions), frozen, and run once with `claude-sonnet-5.5`. **Criterion 21 not
-  met**: persistence 77.8 % and 72.2 %, guard fails its reading condition, offer
-  and safety at Goal; at most 13.6 USD, no rerun. Two owner deviations (Sonnet
-  writer, seven-AI hybrid labels) await the architect. Record: Confirmation of
-  Decision 0028, *Amendment 5 built, calibrated, and run*.
+  grader built, calibrated (judge 2b, 39 of 40), frozen, and run once.
+  **Criterion 21 not met** (77.8 % and 72.2 %); two owner deviations awaited the
+  architect. Record: *Amendment 5 built, calibrated, and run*.
 - **2026-10-09**: Desktop prompt 06, stage 1 (`software-engineer`): built and
-  tested, with no model call, what Amendment 5 rules (eval version 3, judge
-  `gpt-5.5` with a quote check, the guard gate, the freeze and its verifier).
-
+  tested, with no model call, what Amendment 5 rules.
 - **2026-10-09**: Ran Desktop prompt 05 (`software-architect`): Decision 0028
-  Amendment 5, rulings A20 to A24, signed off: a pinned judge replaces the
-  persistence regex checks, the guard gates on non-inferiority plus a read, the
-  decisive run is fresh, no spending ceiling; a read-only review (approve with
-  changes) is in the record. No model call, no eval spend.
+  Amendment 5, A20 to A24, signed off: a pinned judge, a non-inferiority guard,
+  a fresh decisive run.
 - **2026-10-09**: Ran Desktop prompt 04 (`software-engineer`): an independent
   read-only review of the private eval kit's privacy boundary, four rounds,
   every Major fixed and verified; the kit refuses a working-tree location, an
