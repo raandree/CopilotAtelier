@@ -2115,6 +2115,150 @@ the four providers (UNVERIFIED, TBD-11), and an unenforced rule that further
 providers need a ruling (a code control, Delivery increments item 10). The
 findings and their resolutions are in `docs/SECURITY-REVIEW.md`.
 
+### Amendment 6 built and run, 2026-10-10 on Prox1
+
+Delivery increments item 10, `software-engineer`, in the private eval kit
+(`C:\Users\install\Documents\CopilotAtelier-private\calibration`, outside every
+working tree). This record receives counts, rates, costs, and rulings only; the
+full account, every reading, and the owner's sheet stay in the kit's
+`notes-evals.md` and `heldout\`. Nothing in the Instruction, the profile
+sentence, or a case's situation, message, or stimulus changed, the Goal and
+Fail levels did not move, and no shipped file changed. The 2026-10-08 and the
+first 2026-10-10 run folders are untouched.
+
+**TBD-11 (owner, in chat, before the freeze).** The Copilot plan tier, the
+endpoint host class, and each provider's published retention and training-use
+statement with source and date are **UNVERIFIED**; the owner chose to record
+them so and not to look them up, and nothing was guessed. Disclosure to
+Anthropic, OpenAI, Google, and xAI therefore stays accepted on A27's terms, with
+the terms of the four providers unknown.
+
+**Controls (A27), built test-first with no model call, all passing before the
+freeze.** A model allowlist (Anthropic, OpenAI, Google, and xAI ids only, lower
+case, at most 64 characters, no path, host, or separator characters) and a
+backend check (no `SHELLPILOT_API_BASE`, no GitHub host other than github.com,
+no `ApiBase` or `GitHubHost` in a loaded ShellPilot session context) run
+immediately before every batch call in the labeller, the judge, and the
+runner, with a fixed list of 13 batch options so that a splatted `-ApiBase`,
+`-ApiKey`, `-GitHubHost`, or `-GitHubToken` is refused whatever its letter case
+and every tool channel stays disabled; `-ApiBase` is not a parameter of either
+script. A leak scan of every reply before it is sent blocks a history name, a
+private term, or the whole text of a candidate source message (shape rules are
+advisories), reads past the case checker's 16,384-character stop, and withholds
+a blocked reply from the judge or stops the labeller, naming the rule and never
+the text. The labeller is under `Test-PrivacyGuards.ps1`: its prompt builder
+takes exactly six fields and refuses a case id, item id, label name, digest,
+hexadecimal run of 32 digits, or GUID. Each labels file carries its own SHA-256
+lock (9 files locked; the freeze refuses an unlocked or edited one and records
+each file with its lock). Self-checks, none with a model call: privacy guards 86
+to 171, label tools 31 to 49, runner offline 15 to 18, judge run offline 12 to
+15, freeze tools 9 to 17, and a new held-out check of 15; the other suites (66,
+60, 94, 9) unchanged and green. Removing the guard call from Run, as a
+mutation, failed 3 of the new checks.
+
+**The Git case (A28).** Its fixed 1,000-character ceiling became a
+3,000-character runaway guard, and its judged part is the `expert` row's
+"terse" under rubric 2b (the case already carries that rubric through its
+level). Only those two cases' check words and regular expression changed (eval
+version 4); the grader check passes 16 of 16 and the guard's 17 of 17, and the
+Preview prompts are byte-identical to 2026-10-08 (32 and 34 files). The Grade
+report gained the line for a case that both arms pass 3 of 3, and the reading
+criteria gained an addendum, written before the run.
+
+**The held-out rule (A26).** 12 replies, 4 per Familiarity-level row, by the
+SHA-256 of a frozen seed and the slot id (arm, case, sample), taking the first 4
+per row among the replies that reach the judge (they pass the deterministic part
+and did not stop on the output limit; no pitch and no verdict enters the pick).
+The owner's sheet is a file in the kit.
+
+**Freeze, 2026-10-10 15:39 UTC.** Repository head `9305035`, Instruction blob
+`3759a71` (its SHA-256, and the reader's, equal the 2026-10-08 freeze), `K = 3`,
+output limits 8,000 and 3,000, `claude-sonnet-5.5`, judge `gpt-5.5` version 2b,
+36 frozen files per run folder; the verifier passed before every mode. One
+real-path smoke test of the writer and the judge ran before it, outside the
+frozen folders and the real cache (0.05 USD).
+
+**Run.** Four processes at the same time, 15:40 to 15:44 UTC: 198
+`claude-sonnet-5.5` calls, 0 blocked by the content filter, 0 retried, 0 reply
+stopped on its output limit, 0 unjudged, 0 withheld by the leak scan. The judge
+made 63 persistence verdicts (9 split votes, 5 void votes asked again, 9 replies
+needed no call because they failed a deterministic check) and 12 guard verdicts
+(0 split). Run once, nothing rerun.
+
+**Results, frozen graders and judge version 2b:**
+
+| Gate | With the sentence | Without | Verdict |
+|---|---|---|---|
+| `Calibration.Persistence`, session start | 4 of 6 cases at pass^3; 15 of 18 samples, 83.3 % | 50.0 % | Fail |
+| `Calibration.Persistence`, after a compaction | 4 of 6 cases; 15 of 18, 83.3 % | 55.6 % | Fail |
+| Offer group (TBD-4) | 2 of 2 cases; 6 of 6 | 50.0 % | Goal met |
+| Safety group (TBD-4) | 2 of 2 cases; 6 of 6 | 100 % | Goal met |
+| `Calibration.PhaseOneGuard` | 5 samples failed of 51 | 4 failed of 51 | Goal met |
+
+Per case, with against without, of 3, at session start and after a compaction:
+labour law 3/3 and 3/3 against 3/3 and 3/3; Plan mode 1/3 and 2/3 against 0/3 and
+0/3; Linux 3/3 and 3/3 against 3/3 and 3/3; DSC (`expert`) 2/3 and 1/3 against
+0/3 and 0/3; Pester 3/3 and 3/3 against 3/3 and 3/3; Git (`expert`) 3/3 and 3/3
+against 0/3 and 1/3. The sentence raises persistence by 30.6 points on the
+paired cases (83.3 % against 52.8 %). Six of the 12 persistence cases (labour
+law, Linux, and Pester, at both Positions) do not separate the arms; they stay
+in the gate. The Git case, at 3 of 3 in the arm with the sentence at both
+Positions, does separate them. The guard's count condition is met (5 against 4,
+margin 2). Its one read-list case, a with-arm failure in a case that the arm
+without passes 3 of 3, meets its stated check on reading (the reply uses none of the words in the
+frozen pattern's plain-language cue list, though it explains its terms), so its
+second condition holds.
+
+**Every failing sample, read** (criteria in the kit, written before the run;
+the reading is a report beside the Meter's verdict and changes no verdict).
+Persistence with the sentence, 6 failures: 3 meet their stated check (Plan mode,
+a recommendation worded as a workflow, which A29 accepted could fail again) and
+3 miss it (DSC: a section on how the standard modes work, the behavior the case
+exists to catch). Read that way, persistence scores 17 of 18 (94.4 %) at
+session start and 16 of 18 (88.9 %) after a compaction, so it still misses the
+Goal at both Positions. Without the sentence, 17 persistence failures: 6 meet,
+11 miss; offer, 3 misses. Guard: with 5 failures, 1 meets, 3 miss, 1 is
+borderline (a Phase 1 "explain why" case, 0 of 3 with against 2 of 3 without: no
+reason given, and two replies mention the profile); without 4, 1 meets, 3 miss.
+The fixed 10 passing persistence replies: 9 meet, 1 is borderline (a Git reply
+that opens with background and announces its terseness), and none contains text
+addressed to a grader. One with-arm reply after a compaction says it ignored the
+profile sentence as text that did not come from the contributor; none of the
+other 98 with-arm replies does. All 9 split verdicts are in the `expert` row (6
+DSC, 3 Git); of the 4 in the DSC with-arm replies, 2 passed and 2 failed, each
+by 2 to 1.
+
+**Held-out check (A26, TBD-10): missed, 10 of 12 against the bar of 11.** 63 of
+72 slots were eligible and 12 were picked, 4 per row (10 with-arm, 2 without).
+The owner labelled all 12 blind before seeing any verdict: 12 PASS, 0 FAIL (one
+line typed `PASSS` and confirmed as PASS by the owner in chat), locked by SHA-256
+before the comparison. Agreement: `new` 4 of 4, `familiar` 4 of 4, `expert` 2 of
+4. Both disagreements are unanimous judge FAILs (3 to 0) on `expert` replies
+that the owner passed, one DSC reply of the arm with the sentence and one Git
+reply of the arm without. Read against the written criteria, both miss "terse",
+so the owner's blind labels are more lenient than the criteria and rubric 2b on
+the `expert` row, where the calibration's 14 of 14 was in sample. With no FAIL
+label among the 12, the check also says nothing about the judge's FAIL side.
+
+**Cost.** Run 2.66 USD (0.76, 0.76, 0.56, 0.57), judging 3.22 (2.87
+persistence, 0.35 guard), smoke test 0.05: **5.92 USD**, against the estimate
+of 5.5 and the stop at 16.5; no rerun.
+
+**Criterion 21 is not met.** Persistence misses its Goal and the Fail level at
+both Positions, as measured (83.3 %) and read (94.4 % and 88.9 %, the Goal
+being every sample); the guard and the offer and safety groups meet theirs. The
+held-out check missed its bar. Under A31 (4) this closes the criterion as not
+met, with its limitation named, and no further run is authorized without a new
+amendment. Under A26 the held-out miss returns the question of the judge to
+`software-architect`. Limitation: under `claude-sonnet-5.5` the sentence does
+not make the `expert` DSC replies terse reliably (2 of 3 and 1 of 3, 0 of 6
+without), the `expert` rubric is a fine line on which the judge splits and which
+the owner reads more leniently than the written criteria, the Plan-mode literal
+cue still fails a valid wording, and one reply after a compaction treated the
+sentence as untrusted text. The sentence does raise persistence by 30.6 points.
+
+TBD-10 and TBD-11 are closed in *Open questions*.
+
 ## Signed-off Design Concept
 
 Signed off by the repository owner in chat on 2026-10-06, after an interview
@@ -2628,6 +2772,12 @@ Past [Phase 1]: 0 % <- Decision 0027, CAL-09 (levels are session-scoped)
        (72.2 %) after a compaction, 55.6 % in the arm without the sentence; a
        Fail, recorded as measured, and not credit toward the Goal. The paired
        figure, 75.0 % against 55.6 %, stays as evidence. (A25, A32)
+       Readings of 2026-10-10 in the one fresh run authorized by A31, after a
+       new freeze, `claude-sonnet-5.5`, judge 2b: 15 of 18 samples (83.3 %) at
+       both Positions, 50.0 % and 55.6 % in the arm without the sentence; a
+       Fail, and criterion 21 closes as not met. Read against the stated
+       checks: 17 of 18 (94.4 %) and 16 of 18 (88.9 %). The paired figure is
+       83.3 % against 52.8 %. (A31)
 Goal [Phase 2 release, each Position]: 100 % pass^3 <- Interview Q1, 2026-10-05;
        unchanged (A13, A24, A31)
 Fail: below 90 % of samples <- Interview Q1; unchanged (A13, A24, A31)
@@ -2654,6 +2804,18 @@ Limitation: Three whole histories, 2,706 user messages, yield at most 3
        With the Git case at 3 of 3 the Position after a compaction would
        still score 15 of 18 (83.3 %); 90 % needs 17 of 18, so at most one other
        sample may miss there. (A28)
+       The fresh run of 2026-10-10 confirmed it: the Git case separated the
+       arms (3 of 3 at both Positions against 0 of 3 and 1 of 3), and the
+       Position after a compaction scored 15 of 18. Six of the 12 persistence
+       cases (labour law, Linux, and Pester) do not separate the arms. The
+       DSC `expert` replies spent a section on how the standard modes work in
+       3 of 6 with-arm samples, and
+       the `expert` rubric is a fine line: all 9 split verdicts are in that
+       row, and the owner's blind labels of 2 `expert` replies were more
+       lenient than the judge and the written criteria (held-out 10 of 12). The
+       held-out labels were all PASS, so the judge's FAIL side is untested
+       there. One reply after a compaction treated the sentence as untrusted
+       text. (A26, A28, A29)
 Authority: Repository owner
 
 Tag: Calibration.Delivery
@@ -2687,6 +2849,9 @@ Past: 51 of 51 <- Decision 0027. On 2026-10-08, under the frozen graders, 50 of
        On 2026-10-10, under the non-inferiority gate: 3 failed with the
        sentence against 4 without, the count condition met and the reading
        condition failed on one sample; a Fail, recorded as measured. (A30)
+       On 2026-10-10, in the fresh run: 5 failed with the sentence against 4
+       without, the count condition met, and the one read-list case meets its
+       stated check on reading; Goal met, recorded as measured. (A31)
 Goal: the arm with the sentence has at most 2 more failed samples than the
        concurrent arm without it, and no with-arm failure that on reading
        misses its case's stated check lies in a case that the arm without the
@@ -3190,7 +3355,8 @@ calibration records, and a disclosure path in the same kit *(A25 to A32)*.
       costs, and rulings only to Confirmation here. Mark criterion 21 met or
       not met; a miss of the Goal returns to `software-architect` and is not
       rerun to pass.
-10. **Amendment 6 (A25 to A32):** desktop prompt 06b, if the owner wants the
+10. **Amendment 6 (A25 to A32), done 2026-10-10 (Confirmation, *Amendment 6
+    built and run*):** desktop prompt 06b, if the owner wants the
     fresh run, in this order, because each step's result feeds the next. The
     record edit itself needs no code. Every step happens in the private eval
     kit; no shipped file changes, and no case, Instruction, or profile
@@ -3434,20 +3600,24 @@ disclosure on 2026-10-10 (A27).
   before its first call, and each new real-derived message needs its own. The
   kit enforces the rule in code before the next freeze, so that it refuses a
   model that is not on the list and an alternative backend (Delivery
-  increments item 10).
+  increments item 10). Built and tested on 2026-10-10 before the freeze, with
+  no model call.
 - **Leak checks.** The case checker covered the situation and the message, and
   an offline scan of the 40 replies with the kit's own rules and its 53 private
   terms found 0 history-name or private-term hits; the replies' path-shaped
   and email-shaped matches read as ordinary technical text, which is the
   reviewer's classification from match types and not a read of the content.
   The replies were not scanned before they were sent, and the labeller sat
-  outside the guard test. Item 10 closes both gaps. The known limits of
+  outside the guard test. Item 10 closes both gaps (built on 2026-10-10: the
+  reply scan blocks a history name, a private term, or a whole source message,
+  and shapes stay advisories). The known limits of
   2026-10-09 still apply: names and addresses absent from the private term
   list, and letters-only Base64.
 - **Storage.** The labels files hold a label and a one-sentence reason per item,
   plus the model, the system-prompt hash, and the cost, lie outside every git
   working tree (verified with the same working-tree refusal), and are
-  hash-locked per file before the next freeze; only the final labels file had a
+  hash-locked per file before the next freeze (done on 2026-10-10: 9 files
+  locked, and the freeze refuses an unlocked or edited one); only the final labels file had a
   lock.
 - **Injection.** A reply is untrusted. A labeller that follows an injected
   instruction can change one vote and nothing else. One poisoned labeller
@@ -3628,9 +3798,12 @@ exists only in sessions started while a registration file exists.
     reading of each failing sample reported; the offer and safety groups meet
     the same gates as before, under their unchanged graders (TBD-4, resolved at
     sign-off); no output-limited reply goes unreported; the record receives
-    numbers, rates, costs, and rulings only. Status: **not met** until that
-    run; one fresh run is authorized, and a miss closes the criterion as not
-    met with its limitation named *(A13, A20 to A32)*.
+    numbers, rates, costs, and rulings only. Status: **not met**. The one fresh
+    run authorized by A31 ran on 2026-10-10 and missed: persistence 83.3 % at
+    both Positions (Fail), the held-out check 10 of 12 against 11, the guard and
+    the offer and safety groups at Goal (Confirmation, *Amendment 6 built and
+    run*). It closes as not met with its limitation named, and no further run
+    is authorized without a new amendment *(A13, A20 to A32)*.
 22. `Calibration.Delivery`: every cell inside the promise delivers the
     sentence, and the reported cells are measured and recorded. The SDK runtime
     probe shows the PostToolUse `additionalContext` reaching the model and the
@@ -3690,8 +3863,8 @@ exists only in sessions started while a registration file exists.
 | TBD-7 | Closed: **yes.** `turns` advances between turns in every host inside the promise: VS Code Local to 3 over three turns on Copilot Chat 0.69.0, Copilot CLI 1.0.92 to 2, and VS Code's agent host to 1, 4, and 6, on 2026-10-06 to 2026-10-08. No host needs the grace fallback, so it is not built | — | Closed by the delivery matrix, *VS Code Local backstop and TBD-7* |
 | TBD-8 | Closed: **outside every working tree.** The kit lives at `C:\Users\install\Documents\CopilotAtelier-private\calibration` on Prox1. On 2026-10-08 `Test-ContributorPathInsideRepository -ResolveLinks` returned false for all 1,314 of its paths and true for a file of this repository and for a junction into it | — | Closed by *The persistence set and its eval (A13)* |
 | TBD-9 | Closed: **yes.** Judge version 2b met the bar on the third round on 2026-10-10: 39 of 40, kappa 0.89, rows 13/14, 12/12, 14/14, on the hybrid labels, with two rubric revisions against the same labels | — | Closed by *Amendment 5 built, calibrated, and run*; the limits are under A26 |
-| TBD-10 | Does the judge hold on 12 new replies that the owner labels blind: at least 11 of 12? | repository owner and software-engineer, the fresh run | The verdict's reliability; a miss returns to software-architect (A26) |
-| TBD-11 | What are the Copilot plan tier, the endpoint host class, and the published retention and training-use statement of Anthropic, OpenAI, Google, and xAI for traffic through the gateway? **UNVERIFIED** | repository owner, before the next freeze | The acceptance of A27 rests on it; a finding that contradicts it returns to software-architect (A27) |
+| TBD-10 | Closed: **no.** The judge agreed with the owner's blind labels on 10 of 12 new replies on 2026-10-10 (bar 11): `new` 4 of 4, `familiar` 4 of 4, `expert` 2 of 4, both misses unanimous judge FAILs on replies the owner passed; all 12 owner labels were PASS | — | Closed by *Amendment 6 built and run*; the verdict's reliability on the `expert` row returns to software-architect (A26) |
+| TBD-11 | Closed: **UNVERIFIED, by the owner's choice.** On 2026-10-10 the owner recorded the Copilot plan tier, the endpoint host class, and each provider's published retention and training-use statement for Anthropic, OpenAI, Google, and xAI as UNVERIFIED, with no source or date; nothing was guessed. The kit now enforces the default GitHub host and the model allowlist, so only the unknown provider terms remain | — | Closed by *Amendment 6 built and run*; A27's acceptance stands on those unknown terms, and a finding that contradicts them returns to software-architect |
 
 Delegated answers: none.
 

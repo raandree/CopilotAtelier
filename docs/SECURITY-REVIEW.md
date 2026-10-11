@@ -4,6 +4,61 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-10-10: egress controls of the private eval kit (Amendment 6, A27)
+
+A self-review by the `software-engineer` Custom agent of the controls that close
+findings F-03, F-04, and F-06 of the entry below. It is not an independent
+review: the independent-review switch was off, so none was run, and the work is
+named for one under *Remaining risks*. The kit lives outside every git working
+tree; no case, reply, or label text is quoted here, and no shipped file changed.
+Decision record 0028 records the run that used the controls.
+
+### Scope
+
+- A model allowlist, a backend check, and a fixed batch-option list, called
+  immediately before every batch call in the runner, the judge, and the
+  labeller; the reply scan before a reply is sent; the labeller's prompt check;
+  and a SHA-256 lock on every labels file, refused by the freeze when missing or
+  edited.
+- The question: does the kit now refuse a further provider, an alternative
+  backend, a leaking reply, and an unlocked label file before the first paid
+  call, and is each refusal tested against a stand-in so that a refusal is
+  distinguishable from an inert test?
+
+### Verdict
+
+**Controls hold, with limits named below.** Every control is covered by a test
+that failed without it: the privacy-guard suite grew from 86 to 171 checks, and
+removing the guard call from the runner's Run mode, as a mutation, failed 3 of
+them. Each refusal test has a positive control that reaches the stand-in, and a
+smoke test of the real writer and judge path ran before the run (0.05 USD).
+
+### Findings
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| F-03 | Major | Code control | A further provider or an alternative backend was not refused. | Closed. The allowlist (Anthropic, OpenAI, Google, and xAI ids), the backend check (no `SHELLPILOT_API_BASE`, no GitHub host other than github.com, no ApiBase or GitHubHost in a loaded ShellPilot context), and a 13-option batch list run before every batch call; `-ApiBase` is not a parameter of the runner or the labeller; a static test proves the call precedes every `Invoke-ShpBatch`. |
+| F-04 | Minor | Leak checks | Replies were not scanned before they left, and the labeller was outside the guard test. | Closed. A history name, a private term, or a whole candidate source message blocks a reply, which is withheld and never sent; the scan reads past the case checker's 16,384-character stop. The labeller is under the guard test, and its prompt carries no identifier. |
+| F-06 | Minor | Integrity | Only the final labels file was hash-locked. | Closed. 9 labels files are locked; the labeller locks its own output; Calibrate requires a lock for every protocol; the freeze refuses an unlocked or edited file and records each one. |
+| F-09 | Minor | Leak checks | A scan that blocks on every path, identifier, or e-mail shape would withhold ordinary technical replies. | Accepted. Those shapes are advisories; only history names, private terms, and source messages block. |
+| F-10 | Nit | Backend check | The ShellPilot session context is read only when the module is already loaded, so the check never imports it. | Accepted. A context set later in the same process is seen at the next call, since the check runs before every batch. |
+
+### Remaining risks
+
+- **No independent review of the new code.** It touches a disclosure boundary;
+  a `review: on` pass over `PrivacyGuard.ps1` and the two callers is
+  recommended before any further paid run.
+- The scan catches only what its rules and the private term list name: names and
+  addresses absent from that list, and letters-only Base64, remain the owner's
+  read.
+- Provider-side retention and training use are UNVERIFIED (TBD-11, recorded as
+  UNVERIFIED by the owner on 2026-10-10), and what was sent cannot be recalled.
+- A model id on the allowlist can still be served by an upstream the kit cannot
+  see; the allowlist names recipients, not infrastructure.
+- A reply under attack could steer one judge vote; the votes are not independent
+  against an injection inside it, and the fixed reading of 10 passing replies
+  found no text addressed to a grader.
+
 ## 2026-10-10: labelling path of the private eval kit
 
 The built-in `security-review` agent reviewed, read-only and in a fresh context,

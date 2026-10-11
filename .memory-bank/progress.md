@@ -18,6 +18,17 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-10**: Ran Desktop prompt 06b (`software-engineer`, owner at the
+  keyboard for TBD-11 and the held-out labels): Amendment 6's controls (model
+  and backend allowlist, reply leak scan, labels-file locks, the labeller under
+  the guard test; privacy guards 86 to 171 checks) and the Git grader change
+  were built test-first, the run was frozen at head `9305035`, and the one fresh
+  run executed with `claude-sonnet-5.5`. **Criterion 21 closed as not met**:
+  persistence 83.3 % at both Positions, offer, safety, and the guard at Goal,
+  and the held-out check 10 of 12 against 11 (TBD-10 closed "no", returned to
+  `software-architect`); TBD-11 closed UNVERIFIED by the owner. 5.92 USD, no
+  rerun, nothing pushed. Record: Decision 0028, *Amendment 6 built and run*;
+  review: `docs/SECURITY-REVIEW.md`.
 - **2026-10-10**: Ran Desktop prompt 05b (`software-architect`, owner at the
   keyboard): Decision 0028 **Amendment 6, rulings A25 to A32, signed off**. The
   Sonnet writer and the hybrid labels are ratified, with a held-out check of 12
@@ -36,57 +47,36 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   and safety at Goal; at most 13.6 USD, no rerun. Two owner deviations (Sonnet
   writer, seven-AI hybrid labels) await the architect. Record: Confirmation of
   Decision 0028, *Amendment 5 built, calibrated, and run*.
-- **2026-10-09**: Desktop prompt 06, stage 1 (`software-engineer`): built, tested,
-  and documented in the private eval kit what Amendment 5 rules, with no model
-  call and no spend. Eval version 3 (judge `gpt-5.5` version 2, quote check,
-  A24 vote rule, rubric per level row), guard gate (margin 2), freeze and
-  verifier, four offline self-checks (66, 9, 15, 12 checks), and the 40-item
-  calibration list with the owner's blind sheet.
+- **2026-10-09**: Desktop prompt 06, stage 1 (`software-engineer`): built and
+  tested, with no model call, what Amendment 5 rules (eval version 3, judge
+  `gpt-5.5` with a quote check, the guard gate, the freeze and its verifier).
 
-- **2026-10-09**: Ran Desktop prompt 05 (`software-architect`, owner at the
-  keyboard): Decision 0028 Amendment 5, rulings A20 to A24, signed off. A pinned
-  judge replaces the persistence regex checks (calibrated on 40 owner labels,
-  bar 36 of 40 and kappa 0.80); the guard gates on non-inferiority (margin 2 in
-  51) plus a read; the decisive run is fresh; no spending ceiling set by the
-  owner. A read-only security review (approve with changes) found the runner
-  lacks a quote check and the labelling sheet needs a local-only rule; both are
-  in the record and prompt 06's build order. No model call, no eval spend.
-- **2026-10-09**: Ran Desktop prompt 04 (`software-engineer`, owner away): an
-  independent read-only review of the private eval kit's privacy boundary,
-  four rounds, findings P-01..P-03, V-01..V-04, S-01..S-04. Every Major fixed
-  and verified by the reviewer; the last Minor fixed by the author's tests. The
-  kit now refuses a working-tree location, an unsafe case id or destination,
-  and a repeated JSON key. Criterion 28 holds as scoped; protected runs
-  unchanged (347 files, 831,036 bytes). Record in `docs/SECURITY-REVIEW.md`.
-
-- **2026-10-09**: Created the Desktop ledger for 01-08, then consolidated nine
-  P1-P9 prompts from `Desktop\p`, preserving names and bytes (SHA-256 9/9).
-  README/ledger carry the order and gates; P4 is an older reference, P9 duplicates
-  03. All 43 metadata links resolve; imported tasks were not executed.
-- **2026-10-08**: Ran Decision 0028's A13 eval (`software-engineer`, Prox1, the
-  owner's review and spend approval in chat). TBD-8 closed; 6 persistence cases
-  per Position, 3 real-derived carrying only an HMAC digest. Frozen graders:
-  persistence 15 of 18 at session start (Fail), 17 of 18 after a compaction,
-  guard 50 of 51 (Fail), offer and safety at Goal; 10.19 USD. Criterion 28 met,
-  criterion 21 returned to `software-architect`; on reading, every miss but one
-  is a grader false negative.
-
-- **2026-10-08**: Proved Decision 0028's backstop live and answered TBD-7
-  (`software-engineer`; the owner at the keyboard on Prox1, the branch head
-  redeployed): in VS Code Local on Copilot Chat 0.69.0 the first tool call
-  after `/compact` re-sent the levels with the backstop suffix and no
-  PreCompact ran; Copilot CLI re-sent them through PreCompact on the deployed
-  head. `turns` advances in every host, so the grace fallback is not built;
-  criteria 22 and 30 met. Ruling A19 (Amendment 4) keeps the Meter's retry and
-  makes a run with a failed measured launch evidence only; built test-first.
-  Full gate: 3,293 tests, 0 failed. Prox1 runs `main` again, scratch removed.
-
-- **2026-10-08**: Set Decision 0028's latency levels by the re-baseline rule
-  (`software-engineer`, from the owner's third RAANDREE3 invocation and its
-  CSV): `SessionStart.AddedLatency` Budget 2.0, `PostToolUse.CallLatency` 0.75;
-  transfer check passed for both tags (TBD-6 closed); stop lines clear;
-  criteria 20, 26, and 29 met. The RAANDREE3 `FailFast` traced to the .NET
-  10.0.6 runtime of its PowerShell 7.6.1, not to this repository's code.
+- **2026-10-09**: Ran Desktop prompt 05 (`software-architect`): Decision 0028
+  Amendment 5, rulings A20 to A24, signed off: a pinned judge replaces the
+  persistence regex checks, the guard gates on non-inferiority plus a read, the
+  decisive run is fresh, no spending ceiling; a read-only review (approve with
+  changes) is in the record. No model call, no eval spend.
+- **2026-10-09**: Ran Desktop prompt 04 (`software-engineer`): an independent
+  read-only review of the private eval kit's privacy boundary, four rounds,
+  every Major fixed and verified; the kit refuses a working-tree location, an
+  unsafe case id or destination, and a repeated JSON key. Criterion 28 holds as
+  scoped; record in `docs/SECURITY-REVIEW.md`.
+- **2026-10-09**: Created the Desktop ledger for 01-08 and consolidated nine
+  P1-P9 prompts (SHA-256 9/9); README and ledger carry the order and gates.
+- **2026-10-08**: Ran Decision 0028's A13 eval (`software-engineer`, Prox1):
+  TBD-8 closed; 6 persistence cases per Position, 3 real-derived carrying only
+  an HMAC digest; frozen graders gave persistence 15 of 18 and 17 of 18, guard
+  50 of 51, offer and safety at Goal; 10.19 USD. Criterion 28 met, criterion 21
+  returned to `software-architect`.
+- **2026-10-08**: Proved Decision 0028's backstop live and answered TBD-7: in VS
+  Code Local the first tool call after `/compact` re-sent the levels with the
+  backstop suffix and no PreCompact ran; Copilot CLI re-sent them through
+  PreCompact. `turns` advances in every host, so the grace fallback is not
+  built; criteria 22 and 30 met; A19 built test-first; full gate 3,293 tests.
+- **2026-10-08**: Set Decision 0028's latency levels by the re-baseline rule:
+  `SessionStart.AddedLatency` Budget 2.0, `PostToolUse.CallLatency` 0.75; TBD-6
+  closed; criteria 20, 26, and 29 met. The RAANDREE3 `FailFast` is a .NET
+  10.0.6 runtime fault, not this repository's code.
 
 - **2026-10-07**: Amendment 3 (A14-A18) signed off; A17/A18 built test-first.
   The reader-shaped Prox1 Meter lost no replicate, spread at most 1.16.

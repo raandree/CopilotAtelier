@@ -14,8 +14,28 @@ questions to `software-architect`; TBD-8 and criterion 28 are met (the private
 eval kit lies outside every working tree). The first criterion 21 run was
 withdrawn as a verdict: its frozen regex graders measured their own miss rate.
 Desktop prompts 04 (privacy review, done), 05 (Amendment 5, done), 06 (the fresh
-run, done 2026-10-10), and 07 (the close-out) follow; the session clock's
-shadowing goes to prompt 08. The Desktop `LEDGER.md` tracks 01-08 and P1-P9.
+run, done 2026-10-10), 06b (the Amendment 6 run, done 2026-10-10), and 07 (the
+close-out) follow; the session clock's shadowing goes to prompt 08. The Desktop
+`LEDGER.md` tracks 01-08 and P1-P9.
+
+**Prompt 06b ran on 2026-10-10 (`software-engineer`): the one fresh run
+Amendment 6 authorized is done, and criterion 21 is closed as NOT MET.** The
+kit gained its three A27 controls (model and backend allowlist before every
+batch call, reply leak scan, a lock on each labels file) and the Git grader
+change (3,000-character guard plus the `expert` row's "terse"), all test-first;
+TBD-11 was recorded UNVERIFIED by the owner; the freeze (head `9305035`) and the
+run, `claude-sonnet-5.5`, K = 3, 198 calls, 0 blocked or truncated, cost 5.92
+USD. Persistence: 15 of 18 (83.3 %) at both Positions (Fail; 50.0 % and 55.6 %
+without; read 94.4 % and 88.9 %), the Git case now separates the arms, the real
+misses are 3 DSC `expert` replies that explain the modes and 3 Plan-mode
+replies the literal cue misses; offer and safety at Goal; guard Goal met (its
+one read-list case meets on reading). **The held-out check missed: 10 of 12
+against 11** (`expert` 2 of 4, both unanimous judge FAILs on replies the owner
+passed; all 12 owner labels were PASS), so TBD-10 closed "no" and, under A26,
+the judge question returns to `software-architect`. No further run without a
+new amendment (A31). The record is in Decision 0028, *Amendment 6 built and
+run*; the review is in `docs/SECURITY-REVIEW.md`; the account is in the kit's
+`notes-evals.md`. Nothing is pushed.
 
 Prompt 04 (2026-10-09): an independent read-only review of the kit's privacy
 boundary took four rounds, every Major is fixed and verified, and criterion 28
@@ -23,41 +43,20 @@ holds as scoped by `docs/SECURITY-REVIEW.md`. Prompt 05 (2026-10-09,
 `software-architect`): **Amendment 5 (A20 to A24) is signed off**: persistence's
 semantic checks move to a pinned `gpt-5.5` judge calibrated on 40 labels, the
 guard gates on non-inferiority (margin 2) plus a read, the decisive run is fresh
-after a new freeze, no spending ceiling, and a rerun safeguard.
-
-Prompt 06 ran on 2026-10-09 and 2026-10-10 (`software-engineer`): the grader of
-Amendment 5 is built, calibrated, frozen, and run, in the private kit, and
-**criterion 21 is not met.** Judge version 2b met the bar on the third round (39
-of 40, kappa 0.89; two rubric revisions against the same labels). The decisive
-run, `claude-sonnet-5.5`, K = 3, 198 calls, 0 blocked or truncated: persistence
-77.8 % at session start and 72.2 % after a compaction (Fail, 55.6 % without the
-sentence), offer and safety at Goal, and the guard fails its reading condition
-(one csrf-term reply misses its stated check in a case the other arm passes 3 of
-3). On reading, persistence is still 77.8 % to 88.9 %: the real misses are the
-synthetic Git case's 1,000-character ceiling (replies of 1,030 to 1,291
-characters, both arms) and one DSC reply. Numbers are in the Confirmation of
-Decision 0028; the account is in the kit's `notes-evals.md`. Nothing was rerun
-(the rerun safeguard).
+after a new freeze, no spending ceiling, and a rerun safeguard. Prompt 06 ran on
+2026-10-09 and 2026-10-10: judge 2b met the bar (39 of 40, kappa 0.89) and the
+first decisive run missed (77.8 % and 72.2 %), ruled on in Amendment 6.
 
 **Prompt 05b ran on 2026-10-10 (`software-architect`): Amendment 6, A25 to A32,
-is signed off.** The deviations are ratified (Sonnet writer; hybrid labels with
-a held-out check of 12 new replies, bar 11 of 12), disclosure to Anthropic,
-OpenAI, Google, and xAI is accepted subject to the `security-review` (approve
-with changes; provider terms UNVERIFIED, TBD-11, the owner's to record before
-the next freeze), the Git `expert` ceiling becomes a judged "terse" with a
-3,000-character runaway guard, and one fresh run is authorized (no spending
-limit, for that run only); a miss closes criterion 21 as not met. Criterion 21
-stays **not met** until that run. Next: build the three kit controls (model and
-backend allowlist, reply leak scan, label-file hash locks), the Git grader
-change, and the held-out rule, freeze, run once (Delivery increments item 10,
-a Desktop prompt 06b if the owner wants the run), then prompt 07's close-out.
-The session clock's shadowing goes to prompt 08.
+is signed off**: the Sonnet writer and the hybrid labels are ratified with a
+held-out check, disclosure to Anthropic, OpenAI, Google, and xAI is accepted
+subject to the `security-review`, the Git `expert` ceiling becomes a judged
+"terse", and one fresh run was authorized; prompt 06b ran it.
 
-Deviations ratified by A25 to A27 (previously the owner's, of 2026-10-09):
-hybrid calibration labels (seven independent AI labellers: unanimity of the
-first four stands, a majority of seven stands for the splits unless 4 to 3; the
-owner labelled the 3 items left) and `claude-sonnet-5.5` as the reply writer,
-because `claude-opus-5` is no longer available.
+Next, for the owner: take the held-out miss and the `expert` rubric question to
+`software-architect` (a new amendment, if any further run is wanted), then
+prompt 07's close-out. The independent review of the new `PrivacyGuard.ps1`
+code is recommended (`review: on`) before any further paid run.
 
 ## Previous focuses
 
@@ -84,13 +83,8 @@ because `claude-opus-5` is no longer available.
   reference scripts, the two verdicts withdrawn, per-machine Consequences, the
   bounded backstop, and derived plus reviewed synthetic persistence cases.
 
-- **Amendment 1 rulings (`b72ac98`).** `software-architect` and the owner ruled
-  A1 to A8 on the five returned questions and seven interpretations; latency
-  counts in no-op hook launches over 20 paired replicates.
-- **Phase 2 implementation (`dc6c26a` to `279c07e`).** Built test-first; the
-  SDK delivery probe passes in both runtimes. The latency Meter failed both
-  budgets on Prox1 (+349 to +380 ms p95 SessionStart in the VS Code spawn), and
-  five results went back to `software-architect`; ruled in Amendment 1.
+- **Amendment 1 rulings (`b72ac98`).** A1 to A8 on the five returned questions;
+  latency counts in no-op hook launches over 20 paired replicates.
 - **Phase 2 design (Decision 0028, `b568c8c`).** Signed off 2026-10-06 after 26
   questions; the per-call PostToolUse cost applies only to machines with an
   active Contributor profile.
