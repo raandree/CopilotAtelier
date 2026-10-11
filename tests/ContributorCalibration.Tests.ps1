@@ -180,6 +180,7 @@ Describe 'Familiarity levels stay out of the Memory Bank' -Tag 'Unit' {
     It 'the Glossary defines <Term> as a Canonical term' -ForEach @(
         @{ Term = 'Knowledge area' }
         @{ Term = 'Familiarity level' }
+        @{ Term = 'Contributor profile' }
     ) {
         Get-RepositoryText -RelativePath '.memory-bank/glossary.md' |
             Should -Match ('(?m)^\| {0} \|' -f [regex]::Escape($Term))
