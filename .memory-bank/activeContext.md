@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-04
+last-verified: 2026-10-09
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,26 +9,19 @@ source: current task evidence
 
 ## Current focus
 
-Prompt 06 is done on `ai/hook-deny-reason` (`a3d888d`); the merge is pending. A
-model-free probe of the Copilot SDK runtime VS Code bundles
-(`session.rpc.tools.execute`, own `COPILOT_HOME`) found why A2 failed: on exit 2
-it merges a JSON deny from standard output only when a PascalCase event's object
-has no `hookSpecificOutput`, and the guard printed both shapes. VS Code reads
-only standard error on exit 2. The guard now prints the top-level pair alone;
-`tests/HookSdkRuntime.Tests.ps1` asserts the reason inside the real runtime
-(red, then 4 of 4) and skips without VS Code and node. Decision 0016 holds the
-probe matrix. Full gate: 2,542 passed, 0 failed. Deployed 2026-10-04 12:53 UTC;
-A2 and B2 then passed in new chats (Copilot SDK `d2788da5`, Local `874b1f34`),
-so all five live checks have passed. The resume clock fix (#28) is deployed.
-
-Pull request #27 is merged into `main` as `7a48abe` and published as
-`6.1.0-preview0001`; #19 is closed. So contributor calibration (Decision 0027)
-Phase 1 is on `main`; Phase 2 goes to `software-architect` through the Session
-handoff in `.memory-bank/session/`. The private behavior eval (17 real-chat
-cases, pinned `gpt-5.5` judge, 38 of 40 against human labels) scored 52.1%
-without the Instruction and 100% with it. `claude-opus-5` answers some English
-prompts in German under the eval's thin context, so arms are compared only
-when run concurrently. A parallel session also commits Memory Bank notes here.
+The five 2026-10-08 session lessons are complete on `ai/session-lessons`, from
+`origin/main` (`9b6a341`), independently of the calibration branch. The Pester
+5.7.1 probe matched every supplied row; all changed behavior went red then
+green in PowerShell 7.6.6 and Windows PowerShell 5.1. The combined focused
+suite passed 70 tests in each edition. Full detached build/test: 2,593 passed,
+0 failed, 129 skipped, 90.74% coverage against 65%, 21 tasks and 0 errors.
+The expected simulated-backend warning and the pre-existing test-helper
+analyzer warning remain; no paid eval or remote mutation. Waiter bytes in the
+built module match source. Skill descriptions are unchanged and bodies fit.
+Keep five separate local commits. Shared Instruction wording was previewed
+and chosen under the user's no-questions delegation; expert review remains
+recommended, not a claim of separate approval. Continue next with Desktop
+`CopilotAtelier New\04-review-eval-kit-privacy-boundary.md` as requested.
 
 ## Previous focuses
 
@@ -162,17 +155,10 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. Start the Phase 2 `software-architect` chat for contributor calibration.
-   Grow the eval kit in `%USERPROFILE%\Documents\CopilotAtelier-private\calibration\`
-   past 20 cases with `Find-CalibrationCandidates.ps1 -Since 2026-09-30` on
-   RAANDREE3; never commit the kit.
-2. The user pushes `ai/hook-deny-reason` from their own terminal and merges
-   it; A2 and B2 passed in new chats on 2026-10-04. If the GitHub reference
-   keeps describing the stdout merge without its `hookSpecificOutput`
-   condition, report that upstream.
-3. The user runs prompt 04 on the hand-patched machine and deletes the merged
-   remote branch `copilot/dgthths`; agents cannot push. The 2026-10-04 deploy
-   from `ai/hook-deny-reason` already carries `main`'s resume clock fix.
+1. Read and execute the queued eval-kit privacy-boundary review prompt 04;
+   honor its data boundary and do not run a paid eval or mutate a remote.
+2. The owner removes these five completed items from `progress.md` on
+   `ai/calibration-phase-2`; this independent branch does not edit that branch.
 
 Still open from earlier work: the live agent-host `#web/fetch` check, and the
 duplicate Instruction loading in Copilot SDK chats (Open work in `progress.md`).

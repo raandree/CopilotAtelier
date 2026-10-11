@@ -46,15 +46,21 @@ current PowerShell session:
 ```text
 # All tests
 $result = Invoke-Pester -Path './tests' -Output Detailed -PassThru
-if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
+}
 
 # One file
 $result = Invoke-Pester -Path './tests/Unit/Get-Widget.Tests.ps1' -Output Detailed -PassThru
-if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
+}
 
 # One tag
 $result = Invoke-Pester -TagFilter 'Unit' -Output Detailed -PassThru
-if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
+}
 
 # Sampler test workflow
 .\build.ps1 -Tasks test
@@ -62,8 +68,11 @@ if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) tes
 
 For a full configuration, set `$config.Run.PassThru = $true` and
 `$config.Run.Exit = $false`, capture `$result = Invoke-Pester -Configuration
-$config`, then throw when `$result.FailedCount` is greater than zero. Do not use
-`-PassThru` with `-Configuration`; they are different parameter sets.
+$config`, then throw when `$result.Result -ne 'Passed'`, naming `Result`,
+`FailedCount`, `FailedBlocksCount`, and `FailedContainersCount`. A file that
+fails to load can have zero failed tests; a run returning nothing must fail
+too. A `Passed` result with skipped or filtered-out tests remains passed.
+Do not use `-PassThru` with `-Configuration`; they are different parameter sets.
 
 ### Key Rules
 
@@ -85,6 +94,20 @@ $config`, then throw when `$result.FailedCount` is greater than zero. Do not use
 
 Detached-execution regression prompts live in
 [`notes-evals.md`](notes-evals.md).
+
+## Assertion pitfall: truthiness
+
+`-BeTrue` and `-BeFalse` check truthiness, not existence or boolean type:
+`$null | Should -BeFalse` and `'False' | Should -BeTrue` both pass. A missing
+property can therefore give a false green. Use `Should -Be $true` or
+`Should -Be $false` for the expected value; equality can also coerce types
+(`'False' | Should -Be $true` passes in Pester 5.7.1), so require the type too
+when the value must be a real boolean:
+
+```powershell
+$record.Measured | Should -BeOfType ([bool])
+$record.Measured | Should -Be $false
+```
 
 ## Recipes
 

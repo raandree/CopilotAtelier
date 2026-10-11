@@ -131,9 +131,9 @@ $configuration.Output.Verbosity = 'Detailed'
 
 $result = Invoke-Pester -Configuration $configuration
 
-if ($result.FailedCount -gt 0)
+if ($result.Result -ne 'Passed')
 {
-    throw ('Pester failed {0} test(s).' -f $result.FailedCount)
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
 }
 ```
 

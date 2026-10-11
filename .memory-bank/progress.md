@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-04
+last-verified: 2026-10-09
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -17,6 +17,46 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-09**: Session lessons full gate: detached `build.ps1 -Tasks build,test`
+  passed 2,593 tests, 0 failed, 129 skipped, 90.74% coverage (65% threshold),
+  21 build tasks and 0 errors in 22m38s. The existing simulated-backend warning
+  remains. All five items are local only; no paid eval or remote mutation.
+
+- **2026-10-09**: Session lessons item 5: add Reading hook evidence for VS Code
+  Local, the SDK agent host, and Copilot CLI, scoped to the supplied Windows
+  versions/dates. Main's README names logs, transcript limits, compaction
+  differences, and read-only sharing flags without adding calibration state.
+
+- **2026-10-09**: Session lessons item 4: the read-only bounded async waiter,
+  its full help, and matching Skill/Instruction wiring. Presence went red then
+  green in both editions; 11 behavior checks and three wiring checks went red,
+  then the combined monitor and guidance suite passed all 70 in each edition.
+  Native async monitoring returned `DETACHED-RESULT 0 after 19.1 s` and 29.6 s.
+  Timeout is 124, not the 1 an outer EncodedCommand had collapsed it to; the
+  test runner now passes LASTEXITCODE through. No foreground polling or paid eval.
+
+- **2026-10-09**: Session lessons item 3: record both hosts' tool-result delivery
+  of hook context and its data-only trust boundary in `agent-security-review`.
+  Version/date-scoped supplied observations remain explicit; lookalike-block
+  escaping is untested. Three checks went red, then green, in both editions; lint is clean.
+
+- **2026-10-09**: Session lessons item 2: name truthiness and the missing-field
+  pitfall in both Pester guides. Pester 5.7.1 also coerces `'False'` in
+  `Should -Be $true`, so a real boolean needs `Should -BeOfType ([bool])` too;
+  the actual comparer uses `Expected -eq Actual`. Six guidance checks went red
+  in each edition, then all 27 passed; the three characterizations retain the evidence.
+
+- **2026-10-09**: Session lessons item 1 on `ai/session-lessons` from
+  `origin/main` (`9b6a341`): all ten detached Pester guards reject a result
+  other than `Passed` and name every failure count; E2 includes load failures.
+  Pester 5.7.1 probe matched Prox1: Parse and Discovery `Failed/0/1`, BeforeAll
+  `Failed/1/0`, Truthy and Skipped `Passed/0/0` (Result/FailedCount/containers);
+  no-tests returned nothing and printed its diagnostic. FailedCount rejection
+  in that order: false, false, true, false, false, false; Result rejection:
+  true, true, true, false, false, true. The supplied probe is outside the tree.
+  Guidance regression: 12 of 18 red, then 18 green, in both PowerShell
+  7.6.6 and Windows PowerShell 5.1. No paid eval or remote mutation.
+
 - **2026-10-04**: Fixed prompt 06 on `ai/hook-deny-reason`: Copilot SDK chats
   show the guard's block reason. A model-free probe of the bundled runtime found
   that on exit 2 it drops a PascalCase event's JSON deny that also carries
@@ -26,53 +66,16 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   A2 and B2 then passed in new chats (sessions `d2788da5`, `874b1f34`).
 
 - **2026-10-04**: Fixed the clock restart on resume that the live checks found:
-  `Add-SessionContext.ps1` keeps a readable clock of the same session when
-  `sessionStart` arrives with `source: resume` (red, then 18 of 18). Corrected
-  the `[Unreleased]` changelog entry and the hooks README, which claimed the
-  SDK host reads the guard's reason on exit 2. Not deployed yet.
+  `Add-SessionContext.ps1` preserves a readable same-session clock on resume
+  (red, then 18 of 18); corrected the changelog and hooks README. Detail stays in git.
 
 - **2026-10-04**: Fixed an intermittent Windows CI failure, also seen on `main`
-  (runs 104, 106): a cold runner's first Windows PowerShell run of the real
-  guard overran its 5-second limit and blocked a benign command. The launcher
-  integration block now warms it up once, unasserted.
-
-- **2026-10-02**: Live checks after the deploy (VS Code 1.140.0, SDK
-  1.0.15-preview.4), verified against the session logs on 2026-10-04. A1 and
-  B1 to B3 passed: SessionStart context once per chat in both hosts, measured
-  clocks, and Local blocks the probe with the full reason, also with the
-  override set in the agent's terminal. A2 failed: the SDK denied the probe,
-  but the model read only `hook exited with code 2` (fixed 2026-10-04).
-
-- **2026-10-02**: Pushed `main` and merged pull request #27 (contributor
-  calibration Phase 1, with review finding F-03 closed and
-  `docs/SECURITY-REVIEW.md`) as `7a48abe`; CI run 37058264901 passed and
-  published `6.1.0-preview0001`. Closed #19, the API key question. Only `main`
-  and the merged `copilot/dgthths` remain on GitHub.
+  (runs 104, 106): warm the real guard once before asserting its 5-second limit.
 
 - **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
   `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
-  - The post-release review failed the v6.0.0 launcher fix: in VS Code Local
-    chats on Windows the push guard only warned, because VS Code's outer
-    `powershell.exe -Command` reports exit 2 as 1 (Blocker, reproduced).
-  - Nine re-reviews followed; every Blocker and Major was fixed test-first
-    (SEC-13 to SEC-33, assessment log). The guard now decides within about
-    5 s (1 MB parse, 20,000-field walk, 4 MB block caps) and joins split
-    command fields in document order and per object, and on its raw path also
-    across the payload. The last re-review approved.
-  - The override cannot reach a hook from an agent terminal, so an authorized
-    push runs in the user's own terminal; never persist it. The SDK host gets
-    its own `powershell` launcher and the reason on stdout.
-  - Hook suites: 559 passed, 0 failed; full gate of the merge (`634546e`)
-    2,536 passed, 0 failed. Deployed: hooks match the source, the deployment
-    is healthy, and a push exits 2 with its reason in both host spawns.
-
-- **2026-10-02**: The version now rises only from Conventional Commit markers
-  (`31042ea`, `bd60b7a`), approved by an independent review; `main` was then
-  merged into `ai/contributor-calibration` (`e0955fb`).
-
-- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake (`bff3ac4`):
-  the heartbeat state is renamed over atomically, also on Windows PowerShell
-  5.1; torn reads fell from 2 to 94 per run to none in 18.
+  Ten reviews closed the launcher and guard findings; the full merge gate
+  (`634546e`) passed 2,536 tests. Detail stays in git and the assessment log.
 
 ## Stable capabilities
 
@@ -93,6 +96,7 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - Prompt templates for repeatable development, research, legal, and operations
   workflows.
 - Detached Pester and build execution with persistent completion evidence.
+  Short runs have a bounded async result waiter; longer runs keep heartbeat ticks.
   Test-first behavior changes, regression guards, risk-scaled review, and
   agentic-security checks. Routed Memory Bank loading with deterministic
   non-inferiority, health, provenance, compactness, and rollback checks.

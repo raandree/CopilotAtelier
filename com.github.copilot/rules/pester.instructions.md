@@ -30,8 +30,8 @@ Set-Location -LiteralPath '$workingDirectory'
 try {
     & {
         `$result = Invoke-Pester -Path './tests' -Output Detailed -PassThru
-        if (`$result.FailedCount -gt 0) {
-            throw "Pester failed `$(`$result.FailedCount) test(s)."
+        if (`$result.Result -ne 'Passed') {
+            throw "Pester Result='$(`$result.Result)'; FailedCount=$(`$result.FailedCount); FailedBlocksCount=$(`$result.FailedBlocksCount); FailedContainersCount=$(`$result.FailedContainersCount)."
         }
     } *>&1 | Out-File -LiteralPath '$escapedLogPath' -Encoding utf8
 }
@@ -64,9 +64,14 @@ $launch = & $launcherPath -EncodedCommand $encodedPayload
 .\build.ps1 -Tasks test
 ```
 
-Do not poll with `Start-Sleep`. On a later status check, read `ResultPath`
-(`0` success, `1` failure) and the log tail; use the PID only for liveness while
-the child still exists. Apply `long-running-job-monitor` for continuing reports.
+Never poll with `Start-Sleep` in a foreground command. Launch Pester detached,
+then arm `Wait-DetachedResult.ps1` from `long-running-job-monitor` through the
+terminal tool in async mode with the returned `ResultPath` and `LogPath` for
+a run expected to finish within about two minutes. The waiter checks in 500 ms
+steps with a bounded timeout and notifies on completion; do not run it
+synchronously or launch it detached. For longer runs, arm the Skill's async
+heartbeat. On notification or a later status check, read `ResultPath` (`0`
+success, `1` failure) and the log; use the PID only for liveness.
 
 ### Why the Detached Launcher (not pwsh -Command)?
 
@@ -331,7 +336,7 @@ $result | Should Not BeNullOrEmpty
 | `-Be` | Equality (case-insensitive) | `$x \| Should -Be 'hello'` |
 | `-BeExactly` | Equality (case-sensitive) | `$x \| Should -BeExactly 'Hello'` |
 | `-BeNullOrEmpty` | Null or empty check | `$x \| Should -Not -BeNullOrEmpty` |
-| `-BeTrue` / `-BeFalse` | Boolean check | `$flag \| Should -BeTrue` |
+| `-BeTrue` / `-BeFalse` | Truthiness, not existence or boolean type; use `Should -Be $true` / `Should -Be $false` for values and `Should -BeOfType ([bool])` for type | `$flag \| Should -Be $true` |
 | `-BeOfType` | Type check | `$x \| Should -BeOfType [string]` |
 | `-BeGreaterThan` | Numeric comparison | `$count \| Should -BeGreaterThan 0` |
 | `-BeLessThan` | Numeric comparison | `$count \| Should -BeLessThan 100` |
@@ -342,6 +347,18 @@ $result | Should Not BeNullOrEmpty
 | `-BeLike` | Wildcard match | `$x \| Should -BeLike 'prefix-*'` |
 | `-Throw` | Exception check | `{ Get-Foo } \| Should -Throw` |
 | `-Not` | Negation modifier | `$x \| Should -Not -Be $null` |
+
+`-BeTrue` and `-BeFalse` check truthiness: `$null | Should -BeFalse` and
+`'False' | Should -BeTrue` both pass. A missing object property therefore
+passes `-BeFalse` without proving the property exists.
+Use `Should -Be $true` or `Should -Be $false` for the expected boolean value.
+Equality also permits type coercion: in Pester 5.7.1, `'False' | Should -Be
+$true` passes. Add `Should -BeOfType ([bool])` when a real boolean is required:
+
+```powershell
+$record.Measured | Should -BeOfType ([bool])
+$record.Measured | Should -Be $false
+```
 
 ### Testing for Exceptions
 
@@ -578,13 +595,19 @@ never run these fragments in the current session:
 
 ```text
 $result = Invoke-Pester -TagFilter 'Unit' -Output Detailed -PassThru
-if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
+}
 
 $result = Invoke-Pester -ExcludeTagFilter 'Slow' -Output Detailed -PassThru
-if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
+}
 
 $result = Invoke-Pester -TagFilter 'Smoke' -Output Detailed -PassThru
-if ($result.FailedCount -gt 0) { throw "Pester failed $($result.FailedCount) test(s)." }
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
+}
 ```
 
 ## Pester Configuration
@@ -611,8 +634,8 @@ $config.Filter.Tag = @('Unit')
 $config.Filter.ExcludeTag = @('Slow')
 
 $result = Invoke-Pester -Configuration $config
-if ($result.FailedCount -gt 0) {
-    throw "Pester failed $($result.FailedCount) test(s)."
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
 }
 ```
 
@@ -864,8 +887,8 @@ $config.CodeCoverage.OutputPath = './output/coverage.xml'
 $config.CodeCoverage.CoveragePercentTarget = 80
 
 $result = Invoke-Pester -Configuration $config
-if ($result.FailedCount -gt 0) {
-    throw "Pester failed $($result.FailedCount) test(s)."
+if ($result.Result -ne 'Passed') {
+    throw "Pester Result='$($result.Result)'; FailedCount=$($result.FailedCount); FailedBlocksCount=$($result.FailedBlocksCount); FailedContainersCount=$($result.FailedContainersCount)."
 }
 ```
 

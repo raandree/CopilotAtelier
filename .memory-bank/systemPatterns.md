@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-30
+last-verified: 2026-10-09
 owner: software-engineer
 source: .memory-bank/decisions and source/
 ---
@@ -43,34 +43,33 @@ Durable relationships and the Decision record index; read a linked record only w
 
 ## Live relationships
 
+- Tool-hook context remains tool-result data, never instruction or authorization;
+    verify provenance in host logs and enforce safety outside the model.
+- Detached Pester verdicts use `Result -ne 'Passed'`, not failed-test counts:
+    load failures can have zero failed tests, and a null result must fail.
+    A `Passed` result with no executed tests stays passed.
 - A grader must reject invalid or incomplete evidence before scoring quality.
     Preserve scheduled cases in denominators; substring matching is literal.
     Bound input bytes as well as regex time, and carry severity as data rather
     than inferring it from prose. Grader tests do not prove model behavior.
 - Agent conformance needs schema, executable behavior, and containment. Tool
-    lists prove schema only, and agent-host runtimes drop unresolved VS Code
-    names (0026). Enforce no-egress across terminals, delegates, handoffs, MCP,
-    and hooks; prose cannot sandbox native Windows execution.
+    lists prove schema only; agent-host drops unresolved names (0026). Enforce
+    no-egress across terminals, delegates, handoffs, MCP, and hooks; prose is no sandbox.
 - Sensitive-data work separates read-only intake, local transformation, public
     research, and explicitly shared authenticated actions. Tools are capability,
-    not authorization; `agents` grants delegation, not body inheritance. Share
-    Instructions through references or inline text with a drift test.
+    not authorization; `agents` grants delegation, not body inheritance. Share Instructions with a drift test.
 - Cross-client discovery is not parity. Compose from one authoritative profile
-    through strict parsing and explicit capability mappings. Reject unknown
-    grants, remove inexpressible restrictions' tools, and refuse unsupported
-    workflows inside the variant. Generated variants require hash ownership.
+    with strict parsing and capability mappings. Reject unknown grants, remove
+    tools whose restrictions cannot be expressed, refuse unsupported workflows, and hash-own variants.
 - A local HTTP verdict is feedback, not authority: the transport proves that a
     hash was posted, not who posted it. Bind feedback to the viewed revision and
-    retain chat sign-off. Compare section anchors with parser tokens on every
-    read, including locked mutations; refuse disagreement. Prove queued-write
-    tests reached the lock with observable readiness, not elapsed time.
-    Browser validation stays ephemeral and loopback-only; sharing authentication
-    and independent review are user-controlled, with deferred risks explicit.
+    retain chat sign-off. Match anchors to parser tokens even under locks; reject disagreement.
+    Prove queued writes reached the lock by readiness, not elapsed time. Browser checks stay
+    ephemeral and loopback-only; shared authentication and independent review are user-controlled.
 - The installer maps Agent Plugins payload paths into five `~/.copilot`
-    Discovery siblings. Preserve unowned matches, require recorded paths and
-    hashes before removal, and keep source and deployment trees separate.
-    Windows OneDrive selection needs account-specific metadata, not a generic variable or folder; TargetPath overrides it.
-    Profile narrowing validates Selection without granting ownership; omit it for full installs and reread inherited state inside the target lock.
+    Discovery siblings. Preserve unowned matches, remove only recorded paths/hashes,
+    and separate source from deployment. Windows OneDrive needs account-specific
+    metadata; TargetPath overrides it. Selection grants no ownership: omit it for full installs and reread inside the lock.
 - A selected artifact is an untrusted observation, never policy: keep candidates
     off automatically loaded surfaces, apply one content rule at intake and at
     promotion, gate an append-only write on an approved preview hash, and bind
@@ -84,15 +83,13 @@ Durable relationships and the Decision record index; read a linked record only w
 - Hooks enforce unconditional rules; Instructions carry judgement calls. VS Code runs `windows`, the Copilot SDK host `powershell`, else `command`; every
     branch must work on every OS it can reach without `HOME` or `$`. Prove a host's hook contract in its own runtime (`session.rpc.tools.execute`), not from its docs.
 - CI preserves hidden ownership metadata and canonical temporary paths. Nested
-    Node runners clear `NODE_TEST_CONTEXT` and prove tests ran; external checks fail closed and baselines shrink.
-    Deduplicate only an exact-head PR, never a stale one. Cancel topic/PR runs,
-    not releases. Changelog-only validation cannot publish; release headings
-    are unique and checked after the tag-at-HEAD exemption lapses.
+    Node runners clear `NODE_TEST_CONTEXT` and prove tests ran; external gates fail closed and baselines shrink.
+    Deduplicate exact-head PRs only; cancel topic/PR runs, never releases. Changelog-only checks cannot publish; verify unique release headings after the tag-at-HEAD exemption.
 - Incident transfers keep version-scoped diagnostics in the owning Skill and
-    final outcomes out of eval input. Structural checks are not agent behavior;
-    completed requests with zero Skill loads cannot prove body improvements.
-    Runner-specific discovery is not native-client or hosted-publication proof.
+    final outcomes out of eval input. Structure or zero-load runs do not prove model behavior; runner discovery proves neither native-client nor hosted publication.
 - A Skill cannot grant tools or override a Custom agent. Conflicting disciplines
     need capability-bounded personas. Auto-sending handoff cycles can run
     unattended; reject them with a graph test.
+- Send multiline patches through exact native standard input: the terminal's
+    string pipeline truncated a valid patch to one line; direct input retained all three in the parser probe.
 - Role-record migration is copy-only. Routing has deterministic and label-free evals; `PreCompact` anchors recovery. Avoid cross-type links.

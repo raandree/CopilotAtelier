@@ -25,7 +25,10 @@ Pass:
 - Builds `New-PesterConfiguration` inside the detached child payload.
 - Sets `Run.PassThru = $true`, leaves `Run.Exit = $false`, and captures the
   result from `Invoke-Pester -Configuration $config`.
-- Makes failed tests produce a nonzero child outcome.
+- Makes failed tests, failed blocks, a test file that fails to load, and a run
+  returning nothing produce a nonzero child outcome (`Result -ne 'Passed'`).
+  Names `Result`, `FailedCount`, `FailedBlocksCount`, and
+  `FailedContainersCount` in the failure message.
 - Treats the configuration snippet as child code, not a foreground command.
 
 ## E3 — Run Sampler tests
