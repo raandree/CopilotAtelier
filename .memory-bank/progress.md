@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-04
+last-verified: 2026-10-11
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -16,6 +16,17 @@ Releases and the PowerShell Gallery (verified 2026-10-04). Incremental work is
 tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
+
+- **2026-10-11**: Fixed the elapsed line that a parallel chat could take over
+  (`ai/session-clock-path`, Desktop prompt 08; one local commit, not pushed, not
+  deployed). `Add-SessionContext.ps1` hands the agent `& '<reader>' -Path
+  '<clock>'` for the clock it wrote or resumed, quoted for PowerShell (a
+  typographic single quote ends a PowerShell string too), and the shortened
+  closing line keeps `-Path` while it fits. `Get-SessionElapsed.ps1`, given no
+  clock, takes the one `COPILOT_AGENT_SESSION_ID` names first. 20 cases, red
+  first (the fixture reproduced `5h 39m` for a 22-minute chat) and each caught by
+  a mutation; the owner approved the Instruction wording. Decision 0024 holds the
+  evidence and what stays open.
 
 - **2026-10-04**: Fixed prompt 06 on `ai/hook-deny-reason`: Copilot SDK chats
   show the guard's block reason. A model-free probe of the bundled runtime found
@@ -43,12 +54,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   override set in the agent's terminal. A2 failed: the SDK denied the probe,
   but the model read only `hook exited with code 2` (fixed 2026-10-04).
 
-- **2026-10-02**: Pushed `main` and merged pull request #27 (contributor
-  calibration Phase 1, with review finding F-03 closed and
-  `docs/SECURITY-REVIEW.md`) as `7a48abe`; CI run 37058264901 passed and
-  published `6.1.0-preview0001`. Closed #19, the API key question. Only `main`
-  and the merged `copilot/dgthths` remain on GitHub.
-
 - **2026-10-02**: Worked through hook follow-up prompts 02, 05, and 06 on local
   `main` (`d8cc6f5` to `fea564f`); only their live checks remain.
   - The post-release review failed the v6.0.0 launcher fix: in VS Code Local
@@ -65,14 +70,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   - Hook suites: 559 passed, 0 failed; full gate of the merge (`634546e`)
     2,536 passed, 0 failed. Deployed: hooks match the source, the deployment
     is healthy, and a push exits 2 with its reason in both host spawns.
-
-- **2026-10-02**: The version now rises only from Conventional Commit markers
-  (`31042ea`, `bd60b7a`), approved by an independent review; `main` was then
-  merged into `ai/contributor-calibration` (`e0955fb`).
-
-- **2026-10-02**: Fixed the `LongRunningJobMonitor.Tests.ps1` flake (`bff3ac4`):
-  the heartbeat state is renamed over atomically, also on Windows PowerShell
-  5.1; torn reads fell from 2 to 94 per run to none in 18.
 
 ## Stable capabilities
 
@@ -102,9 +99,13 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - Contributor calibration: the Phase 2 Design Concept with `software-architect`
   (Session handoff), and growing the private eval past 20 real cases with a
   `-Since 2026-09-30` search on RAANDREE3.
-- `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
-  workspace, so a subagent or parallel chat there shadows the parent's clock
-  (2026-10-01: a 06:29 start). Inject the reader with this session's `-Path`.
+- Merge `ai/session-clock-path` (one local commit, not pushed), redeploy with
+  `Setup-CopilotSettings.ps1` only with the owner's approval, and confirm in a
+  new agent-host chat beside a parallel one that the closing line keeps this
+  chat's start. Decision 0024 lists the cases that stay open.
+- Windows PowerShell 5.1 writes a hook's standard output in the console's OEM
+  code page, so a non-ASCII profile path reaches the agent mangled (simulated
+  with code page 850; Decision 0024, Consequences). Write the JSON as UTF-8 bytes.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.

@@ -90,6 +90,43 @@ BeforeAll {
             tool_input = [ordered]@{ command = $Command }
         } | ConvertTo-Json -Depth 5 -Compress
     }
+
+    # The reader takes COPILOT_AGENT_SESSION_ID as the key of the current
+    # session's clock, and this suite may itself run inside an agent-host chat
+    # whose terminal sets it. Every test that runs the reader sets or clears it
+    # through here and restores the caller's value afterwards.
+    function script:Set-AgentSessionId {
+        param(
+            [Parameter()]
+            [AllowNull()]
+            [AllowEmptyString()]
+            [string]$Value
+        )
+
+        $text = if ([string]::IsNullOrEmpty($Value)) { $null } else { $Value }
+        [Environment]::SetEnvironmentVariable('COPILOT_AGENT_SESSION_ID', $text)
+    }
+
+    # Reads a command back the way PowerShell does, so a quoting test checks the
+    # parser rather than the code that wrote the quotes.
+    function script:Read-CommandStrings {
+        param(
+            [Parameter(Mandatory)]
+            [string]$Command
+        )
+
+        $tokens = $null
+        $parseErrors = $null
+        $ast = [Management.Automation.Language.Parser]::ParseInput($Command, [ref]$tokens, [ref]$parseErrors)
+
+        [pscustomobject]@{
+            ParseErrors = @($parseErrors).Count
+            Strings = @(
+                $ast.FindAll({ $args[0] -is [Management.Automation.Language.StringConstantExpressionAst] }, $true) |
+                    ForEach-Object { $_.Value }
+            )
+        }
+    }
 }
 
 Describe 'Block-RemoteMutation' -Tag 'Unit' {
@@ -696,6 +733,79 @@ Describe 'Add-SessionContext' -Tag 'Unit' {
                 -Payload $Payload `
                 -ExtraArgument (@('-ClockRoot', $script:clockRoot) + $ExtraArgument)
         }
+
+        # The context carries the command the agent runs as the last action of
+        # every turn. These tests read it back out and run it the way the agent does.
+        function script:Get-ReaderCommand {
+            param(
+                [Parameter(Mandatory)]
+                [string]$Context
+            )
+
+            $found = [regex]::Match($Context, 'running (?<command>& .+?) and copying its single line verbatim')
+            $found.Success | Should -BeTrue -Because $Context
+
+            $found.Groups['command'].Value
+        }
+
+        function script:Invoke-ReaderCommand {
+            param(
+                [Parameter(Mandatory)]
+                [string]$Command
+            )
+
+            <#
+                The command exactly as the context hands it over, plus the two
+                pins every reader test needs: a command that names no clock would
+                otherwise read the real clocks of the machine running the suite.
+            #>
+            $text = "`$ProgressPreference = 'SilentlyContinue'; {0} -ClockRoot '{1}' -WorkingDirectory '{2}'" -f
+                $Command, $script:clockRoot.Replace("'", "''"), $script:repoRoot.Replace("'", "''")
+            $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($text))
+
+            (& $script:powerShellPath -NoProfile -NonInteractive -EncodedCommand $encoded | Out-String).Trim()
+        }
+
+        # A clock root whose clock path is ClockPathLength characters long. The
+        # dot segments make the path as long as a case needs while it still
+        # resolves to the short directory the hook writes to, which keeps it under
+        # the 260-character limit of Windows PowerShell.
+        function script:New-PaddedClockRoot {
+            param(
+                [Parameter(Mandatory)]
+                [int]$ClockPathLength,
+
+                [Parameter(Mandatory)]
+                [string]$FileName
+            )
+
+            $padding = $ClockPathLength - ($script:clockRoot.Length + 1 + $FileName.Length)
+            $segments = [Math]::Max(0, [int][Math]::Ceiling($padding / 2))
+
+            $script:clockRoot + (([string][IO.Path]::DirectorySeparatorChar + '.') * $segments)
+        }
+
+        # A copy of the hook beneath Directory, so the directory's name sets how
+        # long the path of the reader beside it is.
+        function script:Copy-HookToDirectory {
+            param(
+                [Parameter(Mandatory)]
+                [string]$Directory
+            )
+
+            New-Item -ItemType Directory -Path $Directory -Force | Out-Null
+            $copy = Join-Path $Directory 'Add-SessionContext.ps1'
+            Copy-Item -LiteralPath $script:sessionScript -Destination $copy
+
+            $copy
+        }
+
+        $script:originalAgentSessionId = [Environment]::GetEnvironmentVariable('COPILOT_AGENT_SESSION_ID')
+        script:Set-AgentSessionId -Value $null
+    }
+
+    AfterEach {
+        script:Set-AgentSessionId -Value $script:originalAgentSessionId
     }
 
     It 'reports the Memory Bank as present when index.md exists' {
@@ -913,6 +1023,240 @@ Describe 'Add-SessionContext' -Tag 'Unit' {
         Test-Path -LiteralPath $script:elapsedScript -PathType Leaf | Should -BeTrue
     }
 
+    It 'measures its own clock even when a parallel chat has written a newer one' {
+        <#
+            Prox1, 2026-10-08: a chat in the agent host closed with 5h 39m, the
+            elapsed line of a parallel chat in the same workspace. That chat's
+            clock was the newest one of the workspace, which is what the reader
+            picks when it is given no clock. The context has to name the clock
+            this session started, so the fallback is never reached.
+        #>
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+            session_id = 'session-abc'
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $result = script:Invoke-SessionStart -Payload $payload
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+
+        # Age this session's clock so the expected duration does not depend on how
+        # long the child processes took, then add the parallel chat's newer clock.
+        $ownClockPath = Join-Path $script:clockRoot 'session-session-abc.json'
+        $parallelClockPath = Join-Path $script:clockRoot 'session-parallel.json'
+        foreach ($clock in @(
+                @{ Path = $ownClockPath; MinutesAgo = 22; Turns = 0 }
+                @{ Path = $parallelClockPath; MinutesAgo = 339; Turns = 5 }
+            )) {
+            [ordered]@{
+                startedUtc = [datetime]::UtcNow.AddMinutes(-$clock.MinutesAgo).ToString('o')
+                workspace = $script:repoRoot
+                turns = $clock.Turns
+            } | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $clock.Path -Encoding UTF8
+        }
+        (Get-Item -LiteralPath $parallelClockPath).LastWriteTimeUtc = [datetime]::UtcNow.AddHours(1)
+
+        $command = script:Get-ReaderCommand -Context ($result.Output | ConvertFrom-Json).additionalContext
+
+        script:Invoke-ReaderCommand -Command $command |
+            Should -Match '^POST-FLIGHT elapsed: 22m ' -Because $command
+    }
+
+    It 'names the clock it wrote in the command it hands over' {
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+            session_id = 'session-abc'
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $result = script:Invoke-SessionStart -Payload $payload
+        $context = ($result.Output | ConvertFrom-Json).additionalContext
+        $clockPath = Join-Path $script:clockRoot 'session-session-abc.json'
+
+        Test-Path -LiteralPath $clockPath | Should -BeTrue -Because $result.Output
+        $context | Should -Match ([regex]::Escape(
+                "Close every reply by running & '$script:elapsedScript' -Path '$clockPath' and copying its single line verbatim as the last line of the POST-FLIGHT block."))
+    }
+
+    It 'names the clock it resumed in the command it hands over' {
+        New-Item -ItemType Directory -Path $script:clockRoot -Force | Out-Null
+        $clockPath = Join-Path $script:clockRoot 'session-session-abc.json'
+        $recorded = [ordered]@{
+            startedUtc = [datetime]::UtcNow.AddMinutes(-90).ToString('o')
+            workspace = $script:repoRoot
+            turns = 3
+        } | ConvertTo-Json -Depth 3
+        [IO.File]::WriteAllText($clockPath, $recorded, [Text.UTF8Encoding]::new($false))
+
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+            session_id = 'session-abc'
+            source = 'resume'
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $result = script:Invoke-SessionStart -Payload $payload
+
+        [IO.File]::ReadAllText($clockPath) | Should -BeExactly $recorded
+        ($result.Output | ConvertFrom-Json).additionalContext |
+            Should -Match ([regex]::Escape("running & '$script:elapsedScript' -Path '$clockPath' and copying"))
+    }
+
+    It 'hands over the reader alone when no clock could be written' {
+        # A file where the clock directory belongs makes every write fail, on
+        # every platform.
+        $blocker = Join-Path $TestDrive 'not-a-directory'
+        Set-Content -LiteralPath $blocker -Value 'x'
+
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+            session_id = 'session-abc'
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $result = script:Invoke-Hook `
+            -ScriptPath $script:sessionScript `
+            -Payload $payload `
+            -ExtraArgument @('-ClockRoot', (Join-Path $blocker 'sessions'))
+        $context = ($result.Output | ConvertFrom-Json).additionalContext
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $context | Should -Match ([regex]::Escape("running & '$script:elapsedScript' and copying its single line verbatim"))
+        $context | Should -Not -Match '-Path' -Because 'no clock was written, so there is none to name'
+    }
+
+    It 'doubles an apostrophe in the clock path and in the reader path' {
+        $clockRoot = Join-Path $TestDrive "o'brien clocks"
+        $hook = script:Copy-HookToDirectory -Directory (Join-Path $TestDrive "o'brien hooks")
+        $reader = Join-Path (Split-Path -Parent $hook) 'Get-SessionElapsed.ps1'
+        $clockPath = Join-Path $clockRoot 'session-session-abc.json'
+
+        $payload = [ordered]@{
+            hook_event_name = 'SessionStart'
+            cwd = $script:repoRoot
+            session_id = 'session-abc'
+        } | ConvertTo-Json -Depth 5 -Compress
+
+        $result = script:Invoke-Hook `
+            -ScriptPath $hook `
+            -Payload $payload `
+            -ExtraArgument @('-ClockRoot', $clockRoot)
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        Test-Path -LiteralPath $clockPath | Should -BeTrue -Because $result.Output
+
+        $command = script:Get-ReaderCommand -Context ($result.Output | ConvertFrom-Json).additionalContext
+        $parsed = script:Read-CommandStrings -Command $command
+
+        $parsed.ParseErrors | Should -Be 0 -Because $command
+        $parsed.Strings | Should -HaveCount 2 -Because $command
+        $parsed.Strings[0] | Should -BeExactly $reader
+        $parsed.Strings[1] | Should -BeExactly $clockPath
+    }
+
+    Context 'when it quotes a path for PowerShell' {
+        BeforeAll {
+            $definition = [Management.Automation.Language.Parser]::ParseFile($script:sessionScript, [ref]$null, [ref]$null).Find({
+                    param($node)
+                    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+                    $node.Name -eq 'ConvertTo-SingleQuotedLiteral'
+                }, $true)
+
+            $definition | Should -Not -BeNullOrEmpty -Because 'Add-SessionContext.ps1 quotes every path it puts into a command'
+            . ([scriptblock]::Create($definition.Extent.Text))
+        }
+
+        # PowerShell closes a single-quoted string at a typographic quote just as
+        # it does at an apostrophe, so each of them has to be doubled.
+        It 'reads back as the original path when it holds <Name>' -ForEach @(
+            @{ Name = 'an apostrophe'; Quote = [string][char]0x0027 }
+            @{ Name = 'a left single quotation mark'; Quote = [string][char]0x2018 }
+            @{ Name = 'a right single quotation mark'; Quote = [string][char]0x2019 }
+            @{ Name = 'a single low-9 quotation mark'; Quote = [string][char]0x201A }
+            @{ Name = 'a single high-reversed-9 quotation mark'; Quote = [string][char]0x201B }
+            @{ Name = 'two different quotes in a row'; Quote = ([string][char]0x2019) + [char]0x0027 }
+        ) {
+            $path = 'C:\Users\O{0}Brien\clock.json' -f $Quote
+            $command = '& {0}' -f (ConvertTo-SingleQuotedLiteral -Value $path)
+
+            $parsed = script:Read-CommandStrings -Command $command
+
+            $parsed.ParseErrors | Should -Be 0 -Because $command
+            $parsed.Strings | Should -HaveCount 1 -Because $command
+            $parsed.Strings[0] | Should -BeExactly $path
+        }
+    }
+
+    Context 'when the context outgrows its budget' {
+        BeforeEach {
+            $script:originalLimit = $env:COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS
+            $env:COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS = '1024'
+        }
+
+        AfterEach {
+            $env:COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS = $script:originalLimit
+        }
+
+        It 'keeps the clock in the shortened closing line while the context still fits' {
+            <#
+                The shortened line exists for a reader path too long to send. The
+                clock path did not outgrow the budget, so dropping it there would
+                give back the pin the line exists to carry.
+            #>
+            $readerLength = 240
+            $directoryName = 'r' * ($readerLength - ($TestDrive.Length + 1) - 1 - 'Get-SessionElapsed.ps1'.Length)
+            $hook = script:Copy-HookToDirectory -Directory (Join-Path $TestDrive $directoryName)
+            $reader = Join-Path (Split-Path -Parent $hook) 'Get-SessionElapsed.ps1'
+            $clockRoot = script:New-PaddedClockRoot -ClockPathLength 450 -FileName 'session-session-abc.json'
+            $clockPath = [IO.Path]::Combine($clockRoot, 'session-session-abc.json')
+
+            $payload = [ordered]@{
+                hook_event_name = 'SessionStart'
+                cwd = $script:repoRoot
+                session_id = 'session-abc'
+            } | ConvertTo-Json -Depth 5 -Compress
+
+            $result = script:Invoke-Hook `
+                -ScriptPath $hook `
+                -Payload $payload `
+                -ExtraArgument @('-ClockRoot', $clockRoot)
+            $context = ($result.Output | ConvertFrom-Json).additionalContext
+
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $reader.Length | Should -Be $readerLength
+            $clockPath.Length | Should -BeGreaterOrEqual 450
+            $context.Length | Should -BeLessOrEqual 1024
+            $context | Should -Not -Match ([regex]::Escape($reader)) -Because 'the shortened line leaves out the reader path that outgrew the budget'
+            $context | Should -Match ([regex]::Escape("-Path '$clockPath'"))
+            $context | Should -Match 'POST-FLIGHT'
+            $context | Should -Match 'Never push'
+        }
+
+        It 'drops the clock from the shortened closing line when that cannot fit either' {
+            $clockRoot = script:New-PaddedClockRoot -ClockPathLength 700 -FileName 'session-session-abc.json'
+
+            $payload = [ordered]@{
+                hook_event_name = 'SessionStart'
+                cwd = $script:repoRoot
+                session_id = 'session-abc'
+            } | ConvertTo-Json -Depth 5 -Compress
+
+            $result = script:Invoke-Hook `
+                -ScriptPath $script:sessionScript `
+                -Payload $payload `
+                -ExtraArgument @('-ClockRoot', $clockRoot)
+            $context = ($result.Output | ConvertFrom-Json).additionalContext
+
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $context.Length | Should -BeLessOrEqual 1024
+            $context | Should -Not -Match '-Path'
+            $context | Should -Match 'The reader is beside the SessionStart hook'
+            $context | Should -Match 'POST-FLIGHT'
+            $context | Should -Match 'Never push'
+            Test-Path -LiteralPath (Join-Path $script:clockRoot 'session-session-abc.json') |
+                Should -BeTrue -Because 'the clock still runs when the context cannot name it'
+        }
+    }
+
     It 'writes no clock outside the root it was given' {
         $realRoot = [IO.Path]::Combine(
             [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData),
@@ -1085,6 +1429,11 @@ Describe 'Get-SessionElapsed' -Tag 'Unit' {
         New-Item -ItemType Directory -Path $script:clockRoot -Force | Out-Null
         $script:clockPath = Join-Path $script:clockRoot 'session-session-abc.json'
 
+        # The suite may run inside an agent-host chat whose terminal names its
+        # own session, which would steer every case below to that session's clock.
+        $script:originalAgentSessionId = [Environment]::GetEnvironmentVariable('COPILOT_AGENT_SESSION_ID')
+        script:Set-AgentSessionId -Value $null
+
         function script:Set-SessionClock {
             param(
                 [Parameter()]
@@ -1134,6 +1483,10 @@ Describe 'Get-SessionElapsed' -Tag 'Unit' {
                 Output = ($output | Out-String).Trim()
             }
         }
+    }
+
+    AfterEach {
+        script:Set-AgentSessionId -Value $script:originalAgentSessionId
     }
 
     It 'reports the elapsed duration, both timestamps, and the turn in progress' {
@@ -1214,6 +1567,75 @@ Describe 'Get-SessionElapsed' -Tag 'Unit' {
         script:Set-SessionClock -MinutesAgo 200 -Workspace 'somewhere else' -Path $exactPath
 
         (script:Invoke-Elapsed -Argument @('-Path', $exactPath)).Output | Should -Match '3h 20m'
+    }
+
+    It 'reads the clock of the session the host names over a newer clock of the same workspace' {
+        <#
+            Prox1, 2026-10-08: the agent host's terminal carries the id of its own
+            chat in COPILOT_AGENT_SESSION_ID, which is the key of that chat's
+            clock. A parallel chat in the same workspace had written a newer
+            clock, and the newest-of-the-workspace rule picked it.
+        #>
+        $sessionId = '2270af6b-deef-4da1-a4e6-d5c9c654cacb'
+        $ownPath = Join-Path $script:clockRoot "session-$sessionId.json"
+        $parallelPath = Join-Path $script:clockRoot 'session-ae5e0f26-0000-4000-8000-000000000000.json'
+        script:Set-SessionClock -MinutesAgo 22 -Path $ownPath
+        script:Set-SessionClock -MinutesAgo 339 -Path $parallelPath
+        (Get-Item -LiteralPath $parallelPath).LastWriteTimeUtc = [datetime]::UtcNow.AddHours(1)
+        script:Set-AgentSessionId -Value $sessionId
+
+        (script:Invoke-Elapsed).Output | Should -Match '^POST-FLIGHT elapsed: 22m '
+    }
+
+    It 'derives the key of the named session the way the hooks do' {
+        <#
+            The hooks strip every character outside [A-Za-z0-9._-] from a session
+            id, so this id keys session-....pwned.json. A reader that used it raw
+            would reach pwned.json, beside the clocks on Windows.
+        #>
+        $ownPath = Join-Path $script:clockRoot 'session-....pwned.json'
+        $decoyPath = Join-Path $script:clockRoot 'pwned.json'
+        script:Set-SessionClock -MinutesAgo 22 -Path $ownPath
+        script:Set-SessionClock -MinutesAgo 600 -Path $decoyPath
+        script:Set-SessionClock -MinutesAgo 339
+        (Get-Item -LiteralPath $script:clockPath).LastWriteTimeUtc = [datetime]::UtcNow.AddHours(1)
+        script:Set-AgentSessionId -Value '../../pwned'
+
+        (script:Invoke-Elapsed).Output | Should -Match '^POST-FLIGHT elapsed: 22m '
+    }
+
+    It 'falls back to this workspace when the host <Case>' -ForEach @(
+        @{ Case = 'names a session that has no clock'; Id = 'a-session-with-no-clock' }
+        @{ Case = 'names a session with no usable character'; Id = '///\\' }
+        @{ Case = 'names no session'; Id = '' }
+    ) {
+        script:Set-SessionClock -MinutesAgo 90
+        script:Set-AgentSessionId -Value $Id
+
+        (script:Invoke-Elapsed).Output | Should -Match '^POST-FLIGHT elapsed: 1h 30m '
+    }
+
+    It 'reads the exact clock it is handed even when the host names another session' {
+        $exactPath = Join-Path $script:clockRoot 'session-exact.json'
+        $namedPath = Join-Path $script:clockRoot 'session-named.json'
+        script:Set-SessionClock -MinutesAgo 200 -Workspace 'somewhere else' -Path $exactPath
+        script:Set-SessionClock -MinutesAgo 22 -Path $namedPath
+        script:Set-AgentSessionId -Value 'named'
+
+        (script:Invoke-Elapsed -Argument @('-Path', $exactPath)).Output | Should -Match '3h 20m'
+    }
+
+    It 'reports the duration as unavailable when the clock of the named session is corrupt' {
+        # Another chat's duration would read as this chat's, which is the failure
+        # the named session exists to prevent.
+        Set-Content -LiteralPath (Join-Path $script:clockRoot 'session-named.json') -Value 'not json at all' -Encoding UTF8
+        script:Set-SessionClock -MinutesAgo 90
+        script:Set-AgentSessionId -Value 'named'
+
+        $result = script:Invoke-Elapsed
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $result.Output | Should -Be 'POST-FLIGHT elapsed: unavailable (no session clock on disk).'
     }
 
     It 'reports the duration as unavailable when no clock exists' {

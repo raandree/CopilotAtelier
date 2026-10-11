@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-04
+last-verified: 2026-10-11
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,29 +9,30 @@ source: current task evidence
 
 ## Current focus
 
-Prompt 06 is done on `ai/hook-deny-reason` (`a3d888d`); the merge is pending. A
-model-free probe of the Copilot SDK runtime VS Code bundles
-(`session.rpc.tools.execute`, own `COPILOT_HOME`) found why A2 failed: on exit 2
-it merges a JSON deny from standard output only when a PascalCase event's object
-has no `hookSpecificOutput`, and the guard printed both shapes. VS Code reads
-only standard error on exit 2. The guard now prints the top-level pair alone;
-`tests/HookSdkRuntime.Tests.ps1` asserts the reason inside the real runtime
-(red, then 4 of 4) and skips without VS Code and node. Decision 0016 holds the
-probe matrix. Full gate: 2,542 passed, 0 failed. Deployed 2026-10-04 12:53 UTC;
-A2 and B2 then passed in new chats (Copilot SDK `d2788da5`, Local `874b1f34`),
-so all five live checks have passed. The resume clock fix (#28) is deployed.
-
-Pull request #27 is merged into `main` as `7a48abe` and published as
-`6.1.0-preview0001`; #19 is closed. So contributor calibration (Decision 0027)
-Phase 1 is on `main`; Phase 2 goes to `software-architect` through the Session
-handoff in `.memory-bank/session/`. The private behavior eval (17 real-chat
-cases, pinned `gpt-5.5` judge, 38 of 40 against human labels) scored 52.1%
-without the Instruction and 100% with it. `claude-opus-5` answers some English
-prompts in German under the eval's thin context, so arms are compared only
-when run concurrently. A parallel session also commits Memory Bank notes here.
+The Post-flight elapsed line is pinned to its own chat's clock on
+`ai/session-clock-path` (Desktop prompt 08; committed locally, not pushed, not
+deployed). `Add-SessionContext.ps1` hands the agent `& '<reader>' -Path
+'<clock>'`, the reader prefers the session `COPILOT_AGENT_SESSION_ID` names, and
+`postflight.instructions.md` says to run the command exactly as given (wording
+approved by the owner on 2026-10-11). The 2026-10-11 revision of Decision 0024
+holds the Prox1 evidence and what stays open: a host that sends no `session_id`,
+and a chat after a compaction on a host without the variable. Redeploy with
+`Setup-CopilotSettings.ps1` only with the owner's approval, then open a new chat.
+`ai/calibration-phase-2` reworks the same lines of `Add-SessionContext.ps1`, so
+expect a small merge conflict, which the owner reconciles.
 
 ## Previous focuses
 
+- **Hook deny reason and the resume clock (prompt 06, #28 to #30).** The bundled
+  Copilot SDK runtime drops a PascalCase deny that also carries
+  `hookSpecificOutput`, so the guard prints the top-level pair alone;
+  `tests/HookSdkRuntime.Tests.ps1` asserts the reason inside the real runtime
+  (Decision 0016). A resumed chat keeps its clock. Merged into `main`, deployed
+  2026-10-04; A2 and B2 then passed in new chats.
+- **Contributor calibration Phase 1 (#27, `7a48abe`).** On `main`; Phase 2 goes to
+  `software-architect` through the Session handoff. The private behavior eval
+  scored 52.1% without the Instruction and 100% with it, and arms are compared
+  only when run concurrently.
 - **Hook guard follow-ups (prompts 02, 05, 06; `d8cc6f5` to `fea564f`).** Ten
   reviews ended in an approval. The guard decides within about five seconds
   (1 MB parse, 20,000-field walk, 4 MB block) and errs toward blocking; the

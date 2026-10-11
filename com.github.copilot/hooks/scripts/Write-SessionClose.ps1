@@ -43,7 +43,8 @@ function Get-SessionClockPath {
         Add-SessionContext.ps1: VS Code launches each hook by its own path, so a
         shared helper would need the same fragile path probing that hooks.json
         already carries. Both sides must derive the same name from the same
-        payload, so change them together.
+        payload, so change them together. Get-SessionElapsed.ps1 applies the same
+        key rules to COPILOT_AGENT_SESSION_ID, so it changes with them.
     #>
     [CmdletBinding()]
     [OutputType([string])]

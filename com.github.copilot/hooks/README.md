@@ -75,9 +75,9 @@ passing the text on unexpanded.
 |---|---|---|
 | [`hooks.json`](hooks.json) | — | Hook configuration loaded by VS Code and the Copilot SDK host |
 | [`scripts/Block-RemoteMutation.ps1`](scripts/Block-RemoteMutation.ps1) | `PreToolUse` | Blocks remote-mutating and irreversible commands |
-| [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank, injects the UTC timestamp, starts the session clock |
+| [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank, injects the UTC timestamp, starts the session clock and names it in the reader command |
 | [`scripts/Write-SessionClose.ps1`](scripts/Write-SessionClose.ps1) | `Stop` | Advances the session clock's turn counter |
-| [`scripts/Get-SessionElapsed.ps1`](scripts/Get-SessionElapsed.ps1) | — | Agent-run reader that prints the Post-flight elapsed line |
+| [`scripts/Get-SessionElapsed.ps1`](scripts/Get-SessionElapsed.ps1) | — | Agent-run reader that prints the Post-flight elapsed line of the clock it is given |
 | [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated |
 
 ## Block-RemoteMutation
@@ -182,14 +182,22 @@ failure where an agent concludes "no Memory Bank" from the workspace summary,
 which omits dotfile folders.
 
 It also starts the session clock described below, and hands the agent the
-absolute path of `Get-SessionElapsed.ps1`. The agent cannot resolve that path
-itself — the script sits under `~/.copilot` when deployed and under the plugin
-root when installed as a plugin, which is the probe `hooks.json` already carries.
+command that reads it: `& '<reader>' -Path '<clock>'`, the absolute paths of
+`Get-SessionElapsed.ps1` and of the clock this hook wrote or resumed. The agent
+cannot resolve the reader itself — the script sits under `~/.copilot` when
+deployed and under the plugin root when installed as a plugin, which is the probe
+`hooks.json` already carries. The `-Path` is what keeps the measurement on this
+chat's own clock: without it the reader has to choose one, and a parallel chat in
+the same workspace can make it choose that chat's (Prox1, 2026-10-08: a chat
+closed with the duration of its parallel chat). A hook that wrote or resumed no
+clock hands over the reader alone. Both paths are quoted for PowerShell, and an
+apostrophe or a typographic single quote in either is doubled, because
+PowerShell ends a single-quoted string at all of them.
 
 A resumed session keeps its clock. The Copilot SDK runtime reruns the hook with
 `source: resume` when it reloads a chat; when a readable clock of that session
-exists, the hook leaves it untouched and injects its original start time.
-Restarting it there reset the elapsed line and the turn count.
+exists, the hook leaves it untouched, injects its original start time, and names
+it in the command. Restarting it there reset the elapsed line and the turn count.
 
 The context goes into one JSON object twice, under the key each host reads: a
 top-level `additionalContext` for the Copilot SDK host and Copilot CLI, and
@@ -204,6 +212,13 @@ Injected context defaults to a 4096-character limit. Set
 16384 to change it; invalid values use the default. Oversized paths are omitted
 before any lifecycle guidance, and the clock still runs. This is a character
 budget for one hook, not a token count or a live context-window estimate.
+
+Over the limit, the hook first shortens the Memory Bank line, which carries the
+workspace path. If that is not enough it shortens the closing line, which drops
+the reader path because that is the path that outgrew the budget, and keeps
+`-Path` while the context then fits. Only when it still does not fit does the
+closing line lose `-Path` too, and the agent falls back to the reader's own
+choice of clock.
 
 There is no master-off profile: all four shipped hooks serve lifecycle or
 safety obligations. The context budget never disables remote-mutation checks.
@@ -232,7 +247,9 @@ Support` on macOS. Not the temp directory: `/tmp` is world-writable, and a
 predictable name there invites another local account to pre-create the path. The
 `<key>` is the payload's `session_id` with every character that could traverse a
 directory stripped, falling back to a hash of the working directory so two
-concurrent windows do not share one clock.
+concurrent windows do not share one clock. Where the host supplies no session id,
+two chats of one workspace still share that one clock, and no `-Path` can tell
+them apart.
 
 ### Write-SessionClose
 
@@ -268,10 +285,25 @@ POST-FLIGHT elapsed: 16m (started 09:15 UTC, measured 09:31 UTC, turn 3)
 ```
 
 Read-only: `Stop` owns `turns`, so the reader reports the turn in progress as one
-past the closed count and writes nothing back. Given no `-Path` it picks the
-newest clock recorded for the current workspace, which is what survives a
-compaction that dropped the injected path. An unreadable clock yields
-`POST-FLIGHT elapsed: unavailable (no session clock on disk).` and exit `0`.
+past the closed count and writes nothing back. The command in the session context
+hands it the clock to read with `-Path`. Given no `-Path`, or one that names no
+file, it chooses a clock in this order, which is what survives a compaction that
+dropped the injected command:
+
+1. The clock whose key is `COPILOT_AGENT_SESSION_ID`, when the host sets it and
+   that clock exists. The agent host's terminal carries its chat's id in it, and
+   that id is the key of the chat's own clock. The value is stripped to the same
+   `[A-Za-z0-9._-]` characters and 64-character cap as a payload's `session_id`,
+   so it cannot name a file outside the clock directory. This clock comes before
+   a newer one of the same workspace, which a parallel chat may have written.
+2. The newest clock recorded for the current workspace, a `session-<id>` clock
+   before a `session-cwd-<hash>` one.
+3. The newest clock overall.
+
+A named clock that exists but cannot be read reports `unavailable` instead of
+falling through to another chat's clock, which would read as this chat's. An
+unreadable clock yields `POST-FLIGHT elapsed: unavailable (no session clock on
+disk).` and exit `0`.
 
 ## Write-CompactionCheckpoint
 

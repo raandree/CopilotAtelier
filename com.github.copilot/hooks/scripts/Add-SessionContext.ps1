@@ -17,9 +17,14 @@
     read a clock, so neither number may be left to it. A payload with source
     'resume' keeps a readable clock of the same session and reports its start.
 
+    The command it hands the agent for reading that duration names the clock it
+    wrote or resumed with -Path, so a parallel chat in the same workspace cannot
+    take over the measurement. It names none when no clock is on disk.
+
     COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS bounds injected context to
     1024-16384 characters (default 4096). Invalid values use the default.
-    Long paths are omitted before lifecycle or safety guidance is shortened.
+    Long paths are omitted before lifecycle or safety guidance is shortened,
+    and the closing line keeps the clock path longer than the reader path.
 .PARAMETER InputJson
     Hook payload as JSON. Defaults to reading standard input. Tests pass the
     payload directly so they do not depend on redirected input.
@@ -53,7 +58,8 @@ function Get-SessionClockPath {
         Write-SessionClose.ps1: VS Code launches each hook by its own path, so a
         shared helper would need the same fragile path probing that hooks.json
         already carries. Both sides must derive the same name from the same
-        payload, so change them together.
+        payload, so change them together. Get-SessionElapsed.ps1 applies the same
+        key rules to COPILOT_AGENT_SESSION_ID, so it changes with them.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -111,6 +117,24 @@ function Get-SessionClockPath {
     }
 
     return [IO.Path]::Combine($Root, "session-$key.json")
+}
+
+function ConvertTo-SingleQuotedLiteral {
+    <#
+        Quotes a value as a PowerShell single-quoted string, for a command the
+        agent pastes into its terminal. PowerShell ends such a string at a
+        typographic single quote just as it does at an apostrophe, so each of
+        them is doubled with itself, which the tokenizer reads back as one.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Value
+    )
+
+    return "'" + ($Value -replace '([\u0027\u2018\u2019\u201A\u201B])', '$1$1') + "'"
 }
 
 if ([string]::IsNullOrEmpty($InputJson)) {
@@ -182,7 +206,12 @@ $startedUtc = (Get-Date).ToUniversalTime()
     with source 'resume' when it reloads a chat, and restarting the clock there
     reset the elapsed duration and the turn count the Stop hook keeps. A clock
     that cannot be read, or that names no start, is replaced as before.
+
+    $pinnedClockPath stays empty unless a clock was written or resumed, so the
+    context never names a clock that is not on disk.
 #>
+$pinnedClockPath = $null
+
 try {
     $clockPath = Get-SessionClockPath `
         -SessionId ([string]$payload.session_id) `
@@ -209,6 +238,7 @@ try {
 
     if ($null -ne $resumedStartUtc) {
         $startedUtc = $resumedStartUtc
+        $pinnedClockPath = $clockPath
     } else {
         $clockDirectory = [IO.Path]::GetDirectoryName($clockPath)
 
@@ -223,6 +253,7 @@ try {
         } | ConvertTo-Json -Depth 3
 
         [IO.File]::WriteAllText($clockPath, $clock, [Text.UTF8Encoding]::new($false))
+        $pinnedClockPath = $clockPath
     }
 } catch {
     # A missing clock costs the closing duration line, nothing else. Reporting on
@@ -235,14 +266,27 @@ try {
     a measured duration, and the agent cannot resolve the reader itself: it sits
     under ~/.copilot when deployed and under the plugin root when installed as a
     plugin, which is the probe hooks.json already carries.
+
+    Also name the clock this hook just wrote or resumed. Given no clock, the
+    reader falls back to the newest one of the workspace, and a parallel chat in
+    the same workspace may have written a newer clock than this session's own.
 #>
 $elapsedReader = [IO.Path]::Combine($PSScriptRoot, 'Get-SessionElapsed.ps1')
+$readerCommand = '& ' + (ConvertTo-SingleQuotedLiteral -Value $elapsedReader)
+$shortClosingLine = 'Close every reply with the measured Get-SessionElapsed.ps1 output in POST-FLIGHT. The reader is beside the SessionStart hook.'
+$pinnedClosingLine = $null
+
+if ($pinnedClockPath) {
+    $quotedClockPath = ConvertTo-SingleQuotedLiteral -Value $pinnedClockPath
+    $readerCommand = "$readerCommand -Path $quotedClockPath"
+    $pinnedClosingLine = "Close every reply with the measured Get-SessionElapsed.ps1 output in POST-FLIGHT, run with -Path $quotedClockPath. The reader is beside the SessionStart hook."
+}
 
 $line = @(
     "Session started at $($startedUtc.ToString('yyyy-MM-dd HH:mm')) UTC."
     $memoryBankState
     'Open the reply with that UTC timestamp and a one-line PRE-FLIGHT acknowledgment.'
-    "Close every reply by running & '$elapsedReader' and copying its single line verbatim as the last line of the POST-FLIGHT block."
+    "Close every reply by running $readerCommand and copying its single line verbatim as the last line of the POST-FLIGHT block."
     'Never push or otherwise mutate a git remote unless the user asks in the current turn.'
 )
 
@@ -262,8 +306,18 @@ if ($additionalContext.Length -gt $contextLimit) {
     }
     $additionalContext = $line -join ' '
 }
+
+<#
+    The shortened closing line exists for a reader path too long to send, and
+    that is not the clock path. The first shortening therefore keeps -Path; the
+    second drops it as well when even that does not fit.
+#>
 if ($additionalContext.Length -gt $contextLimit) {
-    $line[3] = 'Close every reply with the measured Get-SessionElapsed.ps1 output in POST-FLIGHT. The reader is beside the SessionStart hook.'
+    $line[3] = if ($pinnedClosingLine) { $pinnedClosingLine } else { $shortClosingLine }
+    $additionalContext = $line -join ' '
+}
+if ($additionalContext.Length -gt $contextLimit) {
+    $line[3] = $shortClosingLine
     $additionalContext = $line -join ' '
 }
 
