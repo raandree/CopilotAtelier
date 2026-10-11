@@ -10,10 +10,10 @@ source: current task evidence
 ## Current focus
 
 Prompts 03 (`ai/session-lessons`, six commits) and 08 (`ai/session-clock-path`,
-three commits) are merged into local `main`, which is not pushed. The merge ran
-in a scratch clone: a parallel chat held this working tree on
-`ai/calibration-phase-2`, which stays out of `main` until prompt 07 hands over
-its pull request.
+three commits) are merged into local `main`, which is not pushed; the full gate
+passed with 2,620 tests. The merge ran in a scratch clone because a parallel
+chat held this working tree on `ai/calibration-phase-2`, which stays out of
+`main` until prompt 07 hands over its pull request.
 
 The session lessons: the detached Pester guards reject a result other than
 `Passed`, both Pester guides explain truthiness, `agent-security-review` treats

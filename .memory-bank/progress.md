@@ -17,24 +17,27 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-11**: Merged `ai/session-lessons` and `ai/session-clock-path` into
+  local `main` (not pushed), in a scratch clone while a parallel chat held the
+  working tree. Full detached gate: 2,620 passed, 0 failed, 129 skipped, 90.74%
+  coverage. Four branches, two of them squash-merged #29 and #30, are deleted.
+
 - **2026-10-11**: Fixed the elapsed line that a parallel chat could take over
   (`ai/session-clock-path`, Desktop prompt 08; three commits, deployed from the
   branch the same day). `Add-SessionContext.ps1` hands the agent `& '<reader>' -Path
-  '<clock>'` for the clock it wrote or resumed, quoted for PowerShell (a
-  typographic single quote ends a PowerShell string too), and the shortened
-  closing line keeps `-Path` while it fits. `Get-SessionElapsed.ps1`, given no
-  clock, takes the one `COPILOT_AGENT_SESSION_ID` names first. 20 cases, red
-  first (the fixture reproduced `5h 39m` for a 22-minute chat) and each caught by
-  a mutation; the owner approved the Instruction wording. An independent review
-  (the built-in `security-review` agent; the `security-reviewer` Custom agent's
-  model is unavailable in the Copilot SDK runtime) found no Blocker or Major and
-  three Low to Medium items, fixed test-first in the second commit: the hook's
-  output is pure ASCII, since Windows PowerShell 5.1's OEM encoding turns some
-  characters into a bare quote after the quoting, and the key pattern is
-  case-sensitive. Redeployed the same day and live-checked with headless Copilot
-  CLI sessions: Prox1 reproduced and fixed, and the old hook's silent loss of
-  the context in a smart-quote folder confirmed. Decision 0024 holds the
-  evidence and what stays open.
+  '<clock>'` for the clock it wrote or resumed, quoted for PowerShell, and the
+  shortened closing line keeps `-Path` while it fits. `Get-SessionElapsed.ps1`,
+  given no clock, takes the one `COPILOT_AGENT_SESSION_ID` names first. 20 cases,
+  red first (the fixture reproduced `5h 39m` for a 22-minute chat) and each
+  caught by a mutation; the owner approved the Instruction wording. An
+  independent review (the built-in `security-review` agent; the
+  `security-reviewer` Custom agent's model is unavailable in the Copilot SDK
+  runtime) found no Blocker or Major and three Low to Medium items, fixed
+  test-first: the hook's output is pure ASCII, because Windows PowerShell 5.1's
+  OEM encoding can turn a character into a bare quote, and the key pattern is
+  case-sensitive. Redeployed and live-checked the same day with headless Copilot
+  CLI sessions: Prox1 reproduced and fixed. Decision 0024 holds the evidence and
+  what stays open.
 
 - **2026-10-09**: Applied the five session lessons on `ai/session-lessons` from
   `origin/main` (`9b6a341`), test-first, one commit each; every change went red,
@@ -50,8 +53,7 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   outer EncodedCommand collapsed it to. (5) The hooks README names where VS Code
   Local, the SDK agent host, and Copilot CLI record hook evidence, scoped to the
   supplied versions. Full detached gate: 2,593 passed, 0 failed, 129 skipped,
-  90.74% coverage (65% threshold), 21 build tasks in 22m38s. No paid eval or
-  remote mutation; detail stays in git.
+  90.74% coverage. No paid eval or remote mutation.
 
 - **2026-10-04**: Fixed prompt 06 on `ai/hook-deny-reason`: Copilot SDK chats
   show the guard's block reason. A model-free probe of the bundled runtime found
