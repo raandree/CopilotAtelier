@@ -264,3 +264,41 @@ The whole file passes 166 of 166 in 7.6.6, and in 5.1 shows the same 25 guard
 cases as before, name for name. `Invoke-ScriptAnalyzer` reports nothing. The full
 gate passed with 2,569 tests, 129 skipped (none in the hook suite), none failed,
 and 90.74 % coverage.
+
+Confirmation of the live checks, 2026-10-11, after `Setup-CopilotSettings.ps1`
+deployed `c6621a0` at 21:59 UTC. The deployment had come from a clean `main`
+clone on 2026-10-08, and exactly the five changed files differed from it. After
+the redeploy all 238 owned files match the payload and their recorded hashes,
+`Test-CopilotAtelier` reports the deployment healthy, and the VS Code settings
+and keybindings are byte-identical to before.
+
+The sessions were headless Copilot CLI 1.0.93 turns in scratch workspaces, each
+with its `COPILOT_*` environment cleaned of the parent chat's. ShellPilot was not
+used: it is an API-level chat client with its own tool loop and starts no Copilot
+host, so no hook runs in it. The evidence is each session's `events.jsonl`, whose
+`hook.end` event records the context the host received and whose tool events
+record the command the agent ran.
+
+- Before the redeploy the context named the reader alone, and the agent ran it
+  without `-Path`. In a workspace whose folder name held `“Quote”` and `ü` the old
+  hook delivered no context at all: the host recorded success and no
+  `additionalContext`, so the session lost its timestamp, its Memory Bank probe,
+  the reader command, and the safety line. That is the encoder fault of the review
+  reproduced in the real host.
+- After the redeploy the context named the session's own clock, the agent ran the
+  command exactly as given, and the clock showed `turns=1` after the turn. The
+  smart-quote workspace's context arrived with the exact folder name.
+- Prox1 reproduced. Chat A started at 22:01 and chat B at 22:02 in one workspace;
+  resuming A made A's the newest clock file. The pre-fix reader, asked from B's
+  workspace, printed A's line (`started 22:01`, `turn 3`). B's resumed turn ran
+  its own `-Path` and closed with `started 22:02`, `turn 2`. A resume ran the
+  hook again with `source: resume`, kept both clocks, and the counters continued.
+- In this chat, a VS Code agent-host session, `COPILOT_AGENT_SESSION_ID` equals the
+  session id. Beside a newer same-workspace decoy, the deployed reader with no
+  `-Path` printed this chat's start, 16:06, and the pre-fix reader the decoy's,
+  08:00.
+
+Not checked: VS Code Local's terminal and context, a new VS Code agent-host chat's
+own SessionStart (the Copilot CLI runtime stood in for it), whether the CLI
+runtime sets `COPILOT_AGENT_SESSION_ID` in its own terminal, and any non-Windows
+host.

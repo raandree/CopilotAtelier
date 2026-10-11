@@ -10,16 +10,16 @@ source: current task evidence
 ## Current focus
 
 The Post-flight elapsed line is pinned to its own chat's clock on
-`ai/session-clock-path` (Desktop prompt 08; two local commits, not pushed, not
-deployed). `Add-SessionContext.ps1` hands the agent `& '<reader>' -Path
-'<clock>'`, the reader prefers the session `COPILOT_AGENT_SESSION_ID` names, and
-`postflight.instructions.md` says to run the command exactly as given (wording
-approved by the owner on 2026-10-11). An independent review found no Blocker or
-Major; its three findings are fixed in the second commit (pure ASCII hook output,
-case-sensitive key pattern). Decision 0024's 2026-10-11 revision holds the Prox1
-evidence and what stays open: a host that sends no `session_id`, and a chat after
-a compaction on a host without the variable. Redeploy with
-`Setup-CopilotSettings.ps1` only with the owner's approval, then open a new chat.
+`ai/session-clock-path` (Desktop prompt 08; two local commits, not pushed;
+deployed and live-checked on 2026-10-11). `Add-SessionContext.ps1` hands the
+agent `& '<reader>' -Path '<clock>'`, the reader prefers the session
+`COPILOT_AGENT_SESSION_ID` names, and `postflight.instructions.md` says to run
+the command exactly as given (wording approved by the owner on 2026-10-11). An
+independent review found no Blocker or Major; its three findings are fixed in
+the second commit (pure ASCII hook output, case-sensitive key pattern). Decision
+0024 holds the Prox1 evidence, the live checks, and what stays open: a host that
+sends no `session_id`, a chat after a compaction on a host without the variable,
+and VS Code Local and a new VS Code agent-host chat, not yet seen live.
 `ai/calibration-phase-2` reworks the same lines of `Add-SessionContext.ps1`, so
 expect a small merge conflict, which the owner reconciles.
 

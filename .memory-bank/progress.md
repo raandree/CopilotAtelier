@@ -31,7 +31,10 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   three Low to Medium items, fixed test-first in the second commit: the hook's
   output is pure ASCII, since Windows PowerShell 5.1's OEM encoding turns some
   characters into a bare quote after the quoting, and the key pattern is
-  case-sensitive. Decision 0024 holds the evidence and what stays open.
+  case-sensitive. Redeployed the same day and live-checked with headless Copilot
+  CLI sessions: Prox1 reproduced and fixed, and the old hook's silent loss of
+  the context in a smart-quote folder confirmed. Decision 0024 holds the
+  evidence and what stays open.
 
 - **2026-10-04**: Fixed prompt 06 on `ai/hook-deny-reason`: Copilot SDK chats
   show the guard's block reason. A model-free probe of the bundled runtime found
@@ -97,10 +100,10 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - Contributor calibration: the Phase 2 Design Concept with `software-architect`
   (Session handoff), and growing the private eval past 20 real cases with a
   `-Since 2026-09-30` search on RAANDREE3.
-- Merge `ai/session-clock-path` (two local commits, not pushed), redeploy with
-  `Setup-CopilotSettings.ps1` only with the owner's approval, and confirm in a
-  new agent-host chat beside a parallel one that the closing line keeps this
-  chat's start. Decision 0024 lists the cases that stay open.
+- Merge `ai/session-clock-path` (two local commits, not pushed). Redeployed on
+  2026-10-11; still to confirm live in a new VS Code agent-host chat and in VS
+  Code Local, which the Copilot CLI runtime stood in for. Decision 0024 lists
+  the cases that stay open.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.
