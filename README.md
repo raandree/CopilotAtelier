@@ -111,6 +111,8 @@ What gets **deployed** to your machine — unchanged by the plugin migration:
 └── hooks/           # Lifecycle hooks (hook config JSON plus scripts)
 ```
 
+Saving a familiarity level adds one more folder beside these, `contributor/`, which holds your private Contributor profile. Install, Update, and `-Repair` never read or change it, and `Uninstall-CopilotAtelier` leaves it in place; see [How Much Explanation You Want](#how-much-explanation-you-want) and [Removal and rollback](#removal-and-rollback).
+
 How the **repository** stores them, which is also the installable plugin package ([Agent Plugins 1.0](https://agent-plugins.org/)):
 
 ```text
@@ -198,6 +200,17 @@ you name with `-Contributor`; it never falls back to someone else's entry.
 A workspace that declares Knowledge areas offers a short interview once, which
 you can snooze or turn off. See the
 [`contributor-profile`](skills/contributor-profile/SKILL.md) Skill.
+
+A saved level steers the model; it does not bind it. In the project's
+measurements the model kept a saved level in most replies but not in every one,
+and a saved `expert` level does not reliably make replies terse, so say so in
+words when a reply misses your level. After a compaction the levels return on the
+next successful tool call (in VS Code Local, on the first call after a turn
+ends), so a reply that makes no tool call does not receive them again. A
+plugin-only installation has no `~/.copilot/hooks` registration and receives the
+levels at session start only, and Claude Code reads the Skill only. The
+measurements are in
+[Decision record 0028](.memory-bank/decisions/0028-persist-familiarity-levels-in-a-private-contributor-profile.md).
 
 Every technical question comes with a recommended answer. In `new` and
 `familiar` areas it also says why, what changes with another choice, and whether
@@ -921,6 +934,17 @@ removes only recorded files with matching hashes, and cleans empty managed
 directories and matching Discovery links. Modified files, untracked files,
 links serving retained content, settings, keybindings, environment variables,
 installed module versions, and native plugins remain untouched.
+
+Your Contributor profile is personal content, and Uninstall never deletes it.
+When the profile commands have registered the `PostToolUse` hook, Uninstall
+removes that registration, `~/.copilot/hooks/contributor-profile.json`, before
+any file, because a registration whose script is gone would warn on every tool
+call. It stops before removing anything, and names the file, when the
+registration is not the one the profile commands wrote or has changed since, when
+a OneDrive record arrived without its file, or when another profile writer holds
+the lock. `Get-CopilotAtelierContributorProfile` reports the registration state,
+and `Remove-CopilotAtelierContributorProfile -RegistrationOnly` clears an
+orphaned or pending one after you confirm.
 
 Older Deployment records have no ownership hashes. Uninstall leaves them
 alone; install preserves matching untracked files without claiming ownership

@@ -343,6 +343,14 @@ the host (Decision record 0028 has the measurements).
 Hosts load hook files when a session starts, so a change affects later sessions;
 an open chat keeps calling the script, which then finds nothing to send.
 
+The re-send has limits that the design reports and does not gate. A plugin-only
+installation has no `~/.copilot/hooks` folder, so no registration can exist and
+nothing is re-sent after a compaction, although `SessionStart` still reads the
+profile from LocalApplicationData. A reply that makes no tool call before the
+next turn receives nothing either, and Claude Code gets the portable Skill only.
+`tests/HookSdkRuntime.Tests.ps1` measures the plugin-only and the no-tool-call
+cells in the runtime that VS Code bundles and in the standalone Copilot CLI.
+
 The writers own the registration through a record beside the profile that
 holds the file's SHA-256, whichever template wrote it, and replace one from an
 earlier template with the current template at the next write, so a launcher fix
@@ -460,6 +468,17 @@ exits `0` on every path.
 - **A redeployed hook does not take effect.** The Copilot SDK host reads hook
   configuration when a session starts; a chat that was already open, and the
   subagents it starts, keep what they loaded. Start a new chat.
+- **Saved levels do not reach a session.** Run
+  `Get-CopilotAtelierContributorProfile -WorkspacePath .` in the workspace: it
+  shows where the profile lives, which entry the identity rule selects and why,
+  the levels, the exact sentence the workspace receives, and the registration
+  state. The workspace must declare the area under `## Knowledge areas` in
+  `.memory-bank/projectbrief.md`; without a declaration the hook neither reads
+  the profile nor runs git. A registration written after a chat opened takes
+  effect in the next chat, and after a compaction the levels return on the next
+  successful tool call, so a reply without a tool call still lacks them.
+  `Remove-CopilotAtelierContributorProfile -RegistrationOnly` clears an
+  orphaned or pending registration.
 - **Deployment drift.** Run `(Test-CopilotAtelier).Checks` to inspect missing
   scripts, changed files, and Discovery targets. This is read-only and never
   executes a hook as a health check.

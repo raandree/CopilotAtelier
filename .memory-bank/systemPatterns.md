@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-06
+last-verified: 2026-10-11
 owner: software-engineer
 source: .memory-bank/decisions and source/
 ---
@@ -83,6 +83,8 @@ Durable relationships and the Decision record index; read a linked record only w
 - Remove verified Discovery links non-recursively, dangling Unix links too. Make POSIX filename fixtures with .NET path APIs; `Join-Path` normalizes.
 - Hooks enforce unconditional rules; Instructions carry judgement calls. VS Code runs `windows`, the Copilot SDK host `powershell`, else `command`; every
     branch must work on every OS it can reach without `HOME` or `$`. Prove a host's hook contract in its own runtime (`session.rpc.tools.execute`), not from its docs. State hook latency as a step over a no-op hook divided by a hash-pinned frozen reference's step in the same replicate, the reference being the measured step's own kind of work (0028, A9, A17), with one `w` per tag (A16), never in launches: launch costs diverge across machines and editions (TBD-5). Every writer of a shared state file keeps every field and records before it emits (A12).
+- A gate that a run misses ships as not met, with its limitation named in the record, the matrix, and the PR body; nothing a gate reads moves after the miss (0028, A24, A34).
+    A further run needs a new amendment, a spending ruling, and an independent review of any egress code first (A31, A38).
 - CI preserves hidden ownership metadata and canonical temporary paths. Nested
     Node runners clear `NODE_TEST_CONTEXT` and prove tests ran; external checks fail closed and baselines shrink.
     Deduplicate only an exact-head PR, never a stale one. Cancel topic/PR runs,

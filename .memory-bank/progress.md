@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-10
+last-verified: 2026-10-11
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -18,58 +18,32 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-10-11**: Ran Desktop prompt 05c (`software-architect`, owner at the
-  keyboard): Decision 0028 **Amendment 7, rulings A33 to A39**, recorded and
-  committed locally, signed off by the owner in chat. Record-only: rubric 2b
-  stays, the written criteria beat the owner's blind labels, the judged
-  `expert` row is a report and not gate evidence; criterion 21 ships as not
-  met with its limitation named and no further run is authorized; the DSC
-  case, Plan-mode cue, and untrusted-text reply change nothing; TBD-11 must be
-  closed (and 06c done) before any further run; prompt 07 proceeds with the
-  wording under A39. No model call, no spending, nothing pushed.
-- **2026-10-10**: Ran Desktop prompt 06b (`software-engineer`): Amendment 6's
-  controls and the Git grader change built test-first, one fresh run frozen at
-  `9305035`. **Criterion 21 closed as not met** (persistence 83.3 %, held-out 10
-  of 12 against 11; TBD-11 UNVERIFIED); 5.92 USD, nothing pushed. Record:
-  Decision 0028, *Amendment 6 built and run*.
-- **2026-10-10**: Ran Desktop prompt 05b (`software-architect`): Decision 0028
-  **Amendment 6, A25 to A32, signed off**: Sonnet writer and hybrid labels
-  ratified with a held-out check, disclosure accepted subject to a read-only
-  `security-review`, the Git `expert` ceiling becomes a judged "terse", one
-  fresh run authorized. Record: *Rulings, 2026-10-10*.
-- **2026-10-10**: Desktop prompt 06 finished (`software-engineer`): Amendment 5's
-  grader built, calibrated (judge 2b, 39 of 40), frozen, and run once.
-  **Criterion 21 not met** (77.8 % and 72.2 %); two owner deviations awaited the
-  architect. Record: *Amendment 5 built, calibrated, and run*.
-- **2026-10-09**: Desktop prompt 06, stage 1 (`software-engineer`): built and
-  tested, with no model call, what Amendment 5 rules.
-- **2026-10-09**: Ran Desktop prompt 05 (`software-architect`): Decision 0028
-  Amendment 5, A20 to A24, signed off: a pinned judge, a non-inferiority guard,
-  a fresh decisive run.
-- **2026-10-09**: Ran Desktop prompt 04 (`software-engineer`): an independent
-  read-only review of the private eval kit's privacy boundary, four rounds,
-  every Major fixed and verified; the kit refuses a working-tree location, an
-  unsafe case id or destination, and a repeated JSON key. Criterion 28 holds as
-  scoped; record in `docs/SECURITY-REVIEW.md`.
-- **2026-10-09**: Created the Desktop ledger for 01-08 and consolidated nine
-  P1-P9 prompts (SHA-256 9/9); README and ledger carry the order and gates.
-- **2026-10-08**: Ran Decision 0028's A13 eval (`software-engineer`, Prox1):
-  TBD-8 closed; 6 persistence cases per Position, 3 real-derived carrying only
-  an HMAC digest; frozen graders gave persistence 15 of 18 and 17 of 18, guard
-  50 of 51, offer and safety at Goal; 10.19 USD. Criterion 28 met, criterion 21
-  returned to `software-architect`.
-- **2026-10-08**: Proved Decision 0028's backstop live and answered TBD-7: in VS
-  Code Local the first tool call after `/compact` re-sent the levels with the
-  backstop suffix and no PreCompact ran; Copilot CLI re-sent them through
-  PreCompact. `turns` advances in every host, so the grace fallback is not
-  built; criteria 22 and 30 met; A19 built test-first; full gate 3,293 tests.
-- **2026-10-08**: Set Decision 0028's latency levels by the re-baseline rule:
-  `SessionStart.AddedLatency` Budget 2.0, `PostToolUse.CallLatency` 0.75; TBD-6
-  closed; criteria 20, 26, and 29 met. The RAANDREE3 `FailFast` is a .NET
-  10.0.6 runtime fault, not this repository's code.
-
-- **2026-10-07**: Amendment 3 (A14-A18) signed off; A17/A18 built test-first.
-  The reader-shaped Prox1 Meter lost no replicate, spread at most 1.16.
+- **2026-10-11**: Closed out Decision 0028 (Desktop prompt 07,
+  `software-engineer`, Prox1). The *Close-out, 2026-10-11* matrix proves criteria
+  1 to 20 and 22 to 30, and **criterion 21 stays not met**, worded exactly as A39
+  fixes it. Criterion 23's gaps were fixed (README, hooks README, CHANGELOG, the
+  Glossary check), TBD-2 is carried forward, and `origin/main` (`9b6a341`) needed
+  no merge. Full gate: 3,165 passed, 0 failed, 129 skipped. Committed locally; the
+  pull request is the owner's.
+- **2026-10-11**: Ran Desktop prompt 05c (`software-architect`): Decision 0028
+  **Amendment 7, A33 to A39**, signed off. Record-only: the judged `expert` row
+  is a report, not gate evidence; criterion 21 ships as not met and no further
+  run is authorized; a further run needs TBD-11 closed and prompt 06c first.
+- **2026-10-10**: Ran Desktop prompts 05b and 06b: Amendment 6 (A25 to A32)
+  ratified the Sonnet writer and the hybrid labels, and the one fresh run, frozen
+  at `9305035`, closed **criterion 21 as not met** (persistence 83.3 %, held-out
+  10 of 12 against 11; TBD-11 UNVERIFIED; 5.92 USD).
+- **2026-10-09 and 2026-10-10**: Desktop prompts 04, 05, and 06: an independent
+  review of the eval kit's privacy boundary (four rounds; criterion 28 as
+  scoped), Amendment 5 (A20 to A24), and its judge-2b run (39 of 40; 77.8 % and
+  72.2 %, not met). Records: *Amendment 5 built, calibrated, and run*,
+  `docs/SECURITY-REVIEW.md`.
+- **2026-10-08**: Decision 0028's A13 eval on Prox1 (TBD-8 closed, criterion 28
+  met, criterion 21 returned; 10.19 USD); the VS Code Local backstop proved live
+  (TBD-7 closed, criteria 22 and 30 met, full gate 3,293 tests); the latency
+  levels set by the re-baseline rule (TBD-6 closed, criteria 20, 26, and 29 met).
+- **2026-10-07**: Amendment 3 (A14 to A18) signed off; the reader-shaped Prox1
+  Meter lost no replicate, spread at most 1.16.
 
 ## Stable capabilities
 
@@ -98,22 +72,23 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - Desktop `CopilotAtelier New\LEDGER.md` owns the local queue: 01-08 and P1-P9.
   It keeps Decision 0028 gates, dependencies, and duplicate/superseded references.
-- Merge `ai/session-lessons` (six local commits, not pushed) into `main`: the
-  five lessons of the 2026-10-08 live check (Pester `Result` check, `-BeTrue`
-  truthiness, hook context in the tool result, `Wait-DetachedResult.ps1`, hook
-  evidence locations) are done there, with the Instruction wording reviewed by
-  the owner on 2026-10-09. Expect small conflicts in `CHANGELOG.md`, the Memory
-  Bank, and the hooks README.
+- The session lessons (`ai/session-lessons`, six commits) and prompt 08's
+  `-Path` fix (`ai/session-clock-path`, three commits) were merged into the
+  owner's local `main` on 2026-10-11 (`6286ad4`, 12 commits ahead of
+  `origin/main`, not pushed). Push `main`, then merge `origin/main` into
+  `ai/calibration-phase-2`: `git merge-tree` forecasts 9 conflicting files, three
+  of them hook scripts (*Close-out, 2026-10-11* in Decision 0028).
 - One-process `windows` launcher (ruling A11): separate work against Decision
   0016, kept here because Decision records here are accepted or superseded.
   Adopt only if `tests/HookLauncher.Tests.ps1` passes unchanged (`cmd.exe`,
   `sh`, an outer PowerShell, `HOME` unset), a deny still exits `2` and blocks
   in both hosts, a Meter run on Prox1 and RAANDREE3 shows the saving, and
   Decision 0028's levels are re-baselined in the same change.
-- `Get-SessionElapsed.ps1` without `-Path` reads the newest clock of the
-  workspace, so a parallel chat may shadow the parent's clock (06:29 on
+- `Get-SessionElapsed.ps1` without `-Path` read the newest clock of the
+  workspace, so a parallel chat could shadow the parent's clock (06:29 on
   2026-10-01; 10:25 and 13:24 on 2026-10-04; 11:05 on 2026-10-08). Desktop
-  prompt 08 and `CopilotAtelier New\LEDGER.md` track the `-Path` fix.
+  prompt 08's `-Path` fix is in the owner's local `main` (see the item above),
+  not on `origin/main` yet.
 - Confirm live in a fresh agent-host chat that `software-engineer` calls
   `web_fetch` for `#web/fetch`; drop the paired runtime names once
   github/copilot-cli#4594 ships fixed, per decision 0026's removal condition.

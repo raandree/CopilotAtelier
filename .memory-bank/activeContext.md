@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-10
+last-verified: 2026-10-11
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,80 +9,47 @@ source: current task evidence
 
 ## Current focus
 
-Decision 0028 **step 7.6 ran on 2026-10-08** (10.19 USD) and returned three
-questions to `software-architect`; TBD-8 and criterion 28 are met (the private
-eval kit lies outside every working tree). The first criterion 21 run was
-withdrawn as a verdict: its frozen regex graders measured their own miss rate.
-Desktop prompts 04 (privacy review, done), 05 (Amendment 5, done), 06 (the fresh
-run, done 2026-10-10), 06b (the Amendment 6 run, done 2026-10-10), and 07 (the
-close-out) follow; the session clock's shadowing goes to prompt 08. The Desktop
-`LEDGER.md` tracks 01-08 and P1-P9.
+**Decision 0028 was closed out on 2026-10-11 (Desktop prompt 07,
+`software-engineer`, Prox1) and waits for the owner to push.** Criteria 1 to 20
+and 22 to 30 are met, with the evidence named in the record's *Close-out,
+2026-10-11* matrix. **Criterion 21 is not met**, worded exactly as A39 fixes it:
+persistence 83.3 % at both Positions, the sentence still +30.6 points on the
+paired cases, `expert` terseness unreliable, the provider terms UNVERIFIED, and no
+further run. Criterion 23's gaps are fixed in the README, the hooks README, the
+CHANGELOG, and the Glossary check, and TBD-2 is the one question carried forward.
+`origin/main` (`9b6a341`) is an ancestor of `ai/calibration-phase-2`, so no merge
+was needed. The full gate: 3,165 passed, 0 failed, 129 skipped (none in a suite
+the matrix cites), coverage 90.84 %. The pull request title and body were drafted
+in chat; the owner runs the push and `gh pr create` from their own terminal.
+Nothing is pushed by an agent.
 
-**Prompt 06b ran on 2026-10-10 (`software-engineer`): the one fresh run
-Amendment 6 authorized is done, and criterion 21 is closed as NOT MET**
-(persistence 83.3 % at both Positions, held-out check 10 of 12 against 11; 5.92
-USD; head `9305035`). The record is in Decision 0028, *Amendment 6 built and
-run*; the review is in `docs/SECURITY-REVIEW.md`. Nothing is pushed.
-
-Prompt 04 (2026-10-09): an independent read-only review of the kit's privacy
-boundary took four rounds, every Major is fixed and verified, and criterion 28
-holds as scoped by `docs/SECURITY-REVIEW.md`. Prompt 05 (2026-10-09,
-`software-architect`): **Amendment 5 (A20 to A24) is signed off**: persistence's
-semantic checks move to a pinned `gpt-5.5` judge calibrated on 40 labels, the
-guard gates on non-inferiority (margin 2) plus a read, the decisive run is fresh
-after a new freeze, no spending ceiling, and a rerun safeguard. Prompt 06 ran on
-2026-10-09 and 2026-10-10: judge 2b met the bar (39 of 40, kappa 0.89) and the
-first decisive run missed (77.8 % and 72.2 %), ruled on in Amendment 6.
-
-**Prompt 05b ran on 2026-10-10 (`software-architect`): Amendment 6, A25 to A32,
-is signed off**: the Sonnet writer and the hybrid labels are ratified with a
-held-out check, disclosure to Anthropic, OpenAI, Google, and xAI is accepted
-subject to the `security-review`, the Git `expert` ceiling becomes a judged
-"terse", and one fresh run was authorized; prompt 06b ran it.
-
-**Prompt 05c ran on 2026-10-11 (`software-architect`): Amendment 7, A33 to
-A39, is signed off.** Record-only: the judged
-`expert` row is a report, not gate evidence, and the written criteria beat the
-owner's blind labels (A33); criterion 21 ships as not met with its limitation
-named and no further run is authorized (A34); the DSC case, the Plan-mode cue,
-and the untrusted-text reply change nothing (A35 to A37); a further run needs
-TBD-11 closed and the 06c review first (A38); prompt 07 proceeds with the exact
-wording under A39.
-
-Next, for the owner (Desktop prompts, `HANDOFF-2026-10-11.md`): prompt 07's
-close-out. Prompt 06c is optional and only a
-precondition of a further run.
+Still open, in the owner's order (Desktop `LEDGER.md`, `HANDOFF-2026-10-11.md`):
+prompt 06c, an optional independent review of the eval kit's egress code and a
+precondition of any further run; and the integration with `main`. The owner merged
+`ai/session-lessons` and `ai/session-clock-path` into `main` locally on 2026-10-11
+(`6286ad4`, 12 commits ahead of `origin/main`, not pushed), and `git merge-tree`
+forecasts 9 conflicting files with this branch, three of them hook scripts. After
+`main` is pushed, merge `origin/main` into this branch and rerun
+`tests/ContributorProfileHooks.Tests.ps1`, because a longer reader line leaves
+the calibration sentence fewer characters under the session context budget.
 
 ## Previous focuses
 
-- **Step 7.5, the VS Code Local backstop (`b05efe3`).** Copilot Chat 0.69.0
-  re-sent the levels with the backstop suffix on the first tool call after
-  `/compact`, with no PreCompact; TBD-7 closed in every host, so the grace
-  fallback is not built; criteria 22 and 30 met; A19 built test-first.
-- **Step 7.3, the levels (`3bef6b9`).** `SessionStart.AddedLatency` Budget
-  2.0 and `PostToolUse.CallLatency` Budget 0.75, one `w` per tag; TBD-6
-  closed; criteria 20, 26, and 29 met. The RAANDREE3 `FailFast` is a .NET
-  10.0.6 runtime fault on PowerShell 7.6.1, not this repository's code.
-- **RAANDREE3 Meter and the Meter hardening (`8fc71a8`, `012682c`).** The
-  first invocation's milliseconds were lost to the console's width; the
-  Meter now keeps stderr, retries a crashed launch once, and writes a CSV.
-- **Amendment 3 (`1c2f9b7`, `82f6541`).** Signed off 2026-10-07 with all six
-  recommended answers; the reader-shaped frozen reference under one composite
-  pin (`30fb3229…9c79`), and the two A18 tests. Prox1 Meter under it: unit
-  433 to 435 ms (VS Code) and 348 to 362 ms (SDK), spread at most 1.16.
-- **Amendment 2 steps 7.1 and 7.2 (`23a861a`, `e15a123`).** The A12 backstop in
-  the three calibration hooks and the first Meter cells; the full gate passed
-  3,138 tests. The first Prox1 run stopped on an 80 ms straight-line unit,
-  which Amendment 3 replaced.
-- **Amendment 2 rulings (`61ce515`).** A9 to A13, signed off 2026-10-07: frozen
-  reference scripts, the two verdicts withdrawn, per-machine Consequences, the
-  bounded backstop, and derived plus reviewed synthetic persistence cases.
-
-- **Amendment 1 rulings (`b72ac98`).** A1 to A8 on the five returned questions;
-  latency counts in no-op hook launches over 20 paired replicates.
-- **Phase 2 design (Decision 0028, `b568c8c`).** Signed off 2026-10-06 after 26
-  questions; the per-call PostToolUse cost applies only to machines with an
-  active Contributor profile.
+- **Prompts 04 to 06b and 05c (2026-10-09 to 2026-10-11).** A privacy review of
+  the eval kit (four rounds; criterion 28 as scoped by `docs/SECURITY-REVIEW.md`);
+  Amendment 5 (judge 2b, 39 of 40) and its first run (77.8 % and 72.2 %);
+  Amendment 6 (A25 to A32) and its one fresh run (83.3 % at both Positions,
+  held-out check 10 of 12 against 11, 5.92 USD); Amendment 7 (A33 to A39),
+  record-only: criterion 21 ships as not met, no further run, 06c and TBD-11
+  first.
+- **Decision 0028, steps 7.1 to 7.5 (2026-10-06 to 2026-10-08).** The design
+  (`b568c8c`, signed off after 26 questions), Amendments 1 to 4 (A1 to A19), the
+  A12 backstop (`23a861a`), the hash-pinned reader-shaped frozen reference
+  (`30fb3229…9c79`, A17), the latency levels (`3bef6b9`: `SessionStart.AddedLatency`
+  Budget 2.0, `PostToolUse.CallLatency` Budget 0.75, one `w` per tag), and the
+  VS Code Local backstop proved live (`b05efe3`, TBD-7 closed). The RAANDREE3
+  `FailFast` is a .NET 10.0.6 runtime fault on PowerShell 7.6.1, not this
+  repository's code. Evidence: the record's Confirmation.
 - **Prompt 06 close-out (#29 `9b6a341`, #30 `25d8233`).** CI run 112 published
   `6.1.0-preview0003`. The SDK runtime drops a PascalCase `preToolUse` deny that
   carries `hookSpecificOutput` (Decision 0016); `tests/HookSdkRuntime.Tests.ps1`
@@ -172,23 +139,23 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. Decision 0028 continues with A13: record the eval kit's location and prove
-   the working-tree refusal (TBD-8), rebuild the persistence set with
-   `provenance`, get the owner's review of the synthetic cases, and get
-   approval and a budget before any paid eval (criteria 21 and 28).
-   Recommended to the owner, not required: update PowerShell 7 on RAANDREE3
-   from 7.6.1. Never set the summarization threshold below about 1.3 times the
-   base prompt (*Compactions*). Prox1 runs `main` (`9b6a341`) again since
-   2026-10-08 13:09 UTC: with the owner's explicit yes to each step, the
-   scratch profile entry and its registration were removed and the scratch
-   workspace's files deleted; its empty folder stays for the owner to delete.
-   Prompt 02's runner reads the Instruction and the reader from the clone, so
-   it needs no branch deployment. Criterion 21 now waits for prompt 06
-   (Amendment 5's build order).
-2. The user runs prompt 04 on the hand-patched machine and deletes the merged
-   remote branch `copilot/dgthths`; agents cannot push.
-3. Optional: report upstream that the GitHub hooks reference describes the
+1. The owner pushes `ai/calibration-phase-2` and opens the pull request from their
+   own terminal, with the title and body drafted in chat; agents cannot push.
+   After the merge, delete the merged remote branches and confirm that the CI
+   release run publishes the next `6.1.0` prerelease.
+2. Push `main` (`6286ad4`: the session lessons and the clock fix), then merge
+   `origin/main` into this branch, resolve the conflicts that *Close-out,
+   2026-10-11* forecasts, and rerun the affected suites.
+3. A further eval run needs a new amendment, TBD-11 closed with source and date,
+   and prompt 06c's independent review of the kit's egress code first (A34, A38);
+   none is authorized.
+4. Recommended to the owner, not required: update PowerShell 7 on RAANDREE3 from
+   7.6.1, and delete the empty scratch folder on Prox1 (its profile entry,
+   registration, and files were removed on 2026-10-08). Never set the
+   summarization threshold below about 1.3 times the base prompt (*Compactions*).
+5. Optional: report upstream that the GitHub hooks reference describes the
    exit-2 stdout merge without its `hookSpecificOutput` condition.
 
-Still open from earlier work: the live agent-host `#web/fetch` check, and the
-duplicate Instruction loading in Copilot SDK chats (Open work in `progress.md`).
+Still open from earlier work (Open work in `progress.md`): the live agent-host
+`#web/fetch` check, the duplicate Instruction loading in Copilot SDK chats, and
+deleting the merged remote branch `copilot/dgthths`.

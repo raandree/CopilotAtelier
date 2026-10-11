@@ -1,9 +1,9 @@
 ---
 status: accepted
 date: 2026-10-06
-last-verified: 2026-10-10
+last-verified: 2026-10-11
 owner: software-architect
-source: software-architect Design Concept interview 2026-10-05 to 2026-10-06 and sign-off 2026-10-06; amendment interview 2026-10-06 (rulings A1 to A7); Amendment 2 rulings 2026-10-07 (A9 to A13), signed off by the repository owner in chat on 2026-10-07; Decision record 0027; hook host references (VS Code, GitHub, Claude Code), fetched during the interview; Amendment 3 rulings 2026-10-07 (A14 to A18), signed off by the repository owner in chat on 2026-10-07; Amendment 4 ruling 2026-10-08 (A19), signed off by the repository owner in chat on 2026-10-08; Amendment 5 rulings 2026-10-09 (A20 to A24), signed off by the repository owner in chat on 2026-10-09; Amendment 6 rulings 2026-10-10 (A25 to A32), signed off by the repository owner in chat on 2026-10-10
+source: software-architect Design Concept interview 2026-10-05 to 2026-10-06 and sign-off 2026-10-06; amendment interview 2026-10-06 (rulings A1 to A7); Amendment 2 rulings 2026-10-07 (A9 to A13), signed off by the repository owner in chat on 2026-10-07; Decision record 0027; hook host references (VS Code, GitHub, Claude Code), fetched during the interview; Amendment 3 rulings 2026-10-07 (A14 to A18), signed off by the repository owner in chat on 2026-10-07; Amendment 4 ruling 2026-10-08 (A19), signed off by the repository owner in chat on 2026-10-08; Amendment 5 rulings 2026-10-09 (A20 to A24), signed off by the repository owner in chat on 2026-10-09; Amendment 6 rulings 2026-10-10 (A25 to A32), signed off by the repository owner in chat on 2026-10-10; Amendment 7 rulings 2026-10-11 (A33 to A39), signed off by the repository owner in chat on 2026-10-11; close-out evidence of 2026-10-11
 supersedes: none
 ---
 
@@ -104,15 +104,19 @@ fixed or ruled, as recorded below.
 
 ## Confirmation
 
-Implemented by `software-engineer` on 2026-10-06, Amendment 1 included, except
-as recorded below: criterion 20 waits for RAANDREE3, and criteria 21 and 22 are
-open. The five questions it returned to `software-architect` were ruled on the
-same day (*Rulings, 2026-10-06*), and Amendment 1 applies the rulings to the
-concept. The signed-off Acceptance criteria 1 to 25 below, as amended, are the
-contract; the spike TBD-1 ran before increment 2. Implementation records its
-evidence here: the eval results against
-`Calibration.Persistence` and `Calibration.PhaseOneGuard`, the
-`Calibration.Delivery` matrix, and the latency Meter on Prox1 and RAANDREE3.
+Implemented by `software-engineer` from 2026-10-06 to 2026-10-10, Amendments 1
+to 6 included, and closed out on 2026-10-11 (*Close-out, 2026-10-11*). Criteria
+1 to 20 and 22 to 30 are met. **Criterion 21 (`Calibration.Persistence`) is not
+met**, with its limitation named under A39: persistence missed its Goal at both
+Positions, and the sentence still raised it by 30.6 points on the paired cases.
+Every Open question is closed except TBD-2, which is carried forward with its
+reason. The questions that implementation returned to `software-architect` were
+ruled on in Amendments 1 to 7 (the *Rulings* subsections dated 2026-10-06 to
+2026-10-11), and each amendment applies its rulings to the concept. The
+signed-off Acceptance criteria 1 to 30 below, as amended, are the contract; the
+spike TBD-1 ran before increment 2. Implementation records its evidence here: the
+eval results against `Calibration.Persistence` and `Calibration.PhaseOneGuard`,
+the `Calibration.Delivery` matrix, and the latency Meter on Prox1 and RAANDREE3.
 
 ### Spike TBD-1, 2026-10-06 on Prox1
 
@@ -2340,6 +2344,130 @@ the result and close the question that A26 returned.
   > valid wording; the provider terms are UNVERIFIED. No further run is
   > authorized.
 
+### Close-out, 2026-10-11 on Prox1
+
+Step 7.7 of the delivery increments, `software-engineer`, closing the branch at
+head `3068977`. No model was called and nothing was spent. The close-out changed
+documentation and one test list, and no shipped script. This subsection holds
+references and numbers only.
+
+**Result: 29 of 30 criteria are met, and criterion 21 is not met.** The matrix
+row and the pull request body carry A39's wording for criterion 21, exactly:
+
+> Criterion 21 (Calibration.Persistence): NOT MET. Under claude-sonnet-5.5
+> the profile sentence raised persistence by 30.6 points on the paired cases
+> (83.3 % against 52.8 %), but persistence missed its Goal at both Positions
+> (83.3 % as measured, 94.4 % and 88.9 % as read). Limitations: the sentence
+> does not make `expert` DSC replies terse reliably; the judged `expert` row
+> is not gate evidence, because the judge split on it and the owner's blind
+> held-out labels agreed on 10 of 12; the Plan-mode literal cue can fail a
+> valid wording; the provider terms are UNVERIFIED. No further run is
+> authorized.
+
+**The matrix.** `Reader`, `Hooks`, `Writer`, `Calibration`, `Meter`, `Runtime`,
+and `Commands` name `tests/ContributorProfileReader.Tests.ps1`,
+`tests/ContributorProfileHooks.Tests.ps1`,
+`tests/ContributorProfileWriter.Tests.ps1`,
+`tests/ContributorCalibration.Tests.ps1`, `tests/CalibrationMeter.Tests.ps1`,
+`tests/HookSdkRuntime.Tests.ps1`, and
+`tests/Unit/Public/*ContributorProfile.Tests.ps1`. An italic name after a colon
+is a `Describe` block; an italic name alone is a Confirmation subsection.
+
+| # | Criterion | Status | Evidence |
+|---|---|---|---|
+| 1 | One profile path in the hook, the Skill script, and the five commands | Met | Hooks: *Every entry point agrees on the shared fixture set*, *The module commands agree with the hooks on the shared fixture set*; Reader: *Location rule* |
+| 2 | One reason code per schema violation; `.NET` valid, `.`, `..`, and `. NET` invalid | Met | Reader: *Reading the shared fixture set*, *Area-name rule*, *Strict JSON parsing*; Hooks: *Every entry point agrees on the shared fixture set* |
+| 3 | Hook output holds only matched area names and level values | Met | Hooks: *SessionStart calibration sentence*; Reader: *Calibration sentence* |
+| 4 | `inside-repository` under a `.git` ancestor; every writer and Export refuse it | Met | Reader: *Read guards*; Writer: *No Familiarity level lands under a git working tree*; Commands: Export |
+| 5 | A recall-on-data-access, recall-on-open, or offline file is never opened | Met | Reader: *Read guards* |
+| 6 | Identity rule; git killed after 2 s | Met | Reader: *Identity rule* |
+| 7 | Only `## Knowledge areas`, at most 64 KB and 16 valid bullets | Met | Reader: *Knowledge areas declaration* |
+| 8 | The SessionStart sentence matches the Outputs table and degrades in order | Met | Reader: *Calibration sentence*; Hooks: *SessionStart calibration sentence* |
+| 9 | Without declared areas, no profile read and no git | Met | Reader: *Calibration step*; Hooks: *SessionStart calibration sentence*, *SessionStart declaration check* |
+| 10 | PreCompact counter, compaction re-send, backstop, locking, bounds | Met | Hooks: *Compaction re-injection*, *Backstop re-send*, in both editions (A12, A14, A18); `23a861a`; the live checks under criterion 22 |
+| 11 | Registration file: template, record, crash points, OneDrive orders | Met | Writer: *Registration file*; Hooks: *Registration template* |
+| 12 | No payload carries `hooks/contributor-profile.json` | Met | Hooks: *Registration template*, over the source tree and the built module |
+| 13 | Instruction within 4,096 characters and 60 lines; `/simpler` and `/deeper`; Pre-flight counts | Met | Calibration: *Contributor calibration Instruction*, *Contributor profile offers* |
+| 14 | No `not sure, you pick` on rating and save questions; every re-send suppresses offers | Met | Calibration: *Contributor profile offers*; Reader: *Calibration sentence*; offer and safety groups at Goal, 6 of 6 each (*Amendment 6 built and run*) |
+| 15 | Five commands: help, tests, `-WhatIf`, `ConfirmImpact`, masking, write selection | Met | Commands (5 files); Writer: *Setting a contributor profile*; `tests/QA/module.tests.ps1`: *Quality for module*, *Help for module* |
+| 16 | Import merge rules and whole-file refusals | Met | Writer: *Importing a contributor profile* |
+| 17 | Lock, temporary file, atomic replace; a 5 s timeout writes nothing | Met | Writer: *Setting a contributor profile* |
+| 18 | `contributor-profile` mandatory in every installation profile | Met | `tests/Unit/Public/InstallationProfile.Tests.ps1`; `source/Private/Get-CopilotAtelierProfileCatalog.ps1` |
+| 19 | Install, Update, and `-Repair` never touch `contributor/`; Uninstall reconciles first | Met | `tests/Unit/Public/Uninstall-CopilotAtelier.Tests.ps1`: *Uninstall-CopilotAtelier with a contributor profile* |
+| 20 | Latency levels on Prox1 and RAANDREE3 | Met | *Step 7.3, the levels, 2026-10-08*; Meter; `3bef6b9` |
+| 21 | Persistence eval | **Not met** | A39's wording above; *Amendment 6 built and run*; *Rulings, 2026-10-11* (A34, A39) |
+| 22 | Delivery cells; SDK probe; Copilot CLI and VS Code Local compactions | Met | Runtime: *Contributor levels delivered by*, *Contributor levels in the reported delivery cells of*, each per runtime; *Compactions, 2026-10-06 on Prox1*; *VS Code Local backstop and TBD-7* |
+| 23 | Glossary, hooks README, README, CHANGELOG; record accepted and indexed | Met | The *Criterion 23* paragraph below |
+| 24 | Every writer against a temporary git repository | Met | Writer: *No Familiarity level lands under a git working tree* |
+| 25 | One session clock path in every script | Met | Hooks: *Session clock path in*, per edition |
+| 26 | Frozen reference pinned by one composite hash | Met | Meter: *Frozen reference*; `1c2f9b7`; pin `30fb3229…9c79` |
+| 27 | `Context.SessionBudget` at 12,000 and 60,000 characters | Met | Hooks: *the session character budget (Context.SessionBudget)*, in *Backstop re-send* |
+| 28 | Eval privacy, location, egress limits, locked labels | Met, as scoped | *The persistence set and its eval (A13)*; *Amendment 6 built and run*; `docs/SECURITY-REVIEW.md`; the egress code has had a self-review only |
+| 29 | Inject-path cells beside the common path | Met | *Step 7.3, the levels, 2026-10-08* |
+| 30 | `turns` per host; the grace fallback only where needed | Met | *VS Code Local backstop and TBD-7*: not built, per-host values recorded |
+
+**Criterion 23.** Checked on 2026-10-11 against the shipped behavior. Gaps found
+and fixed: the Glossary row *Contributor profile* had no guard test, so
+`Calibration`'s Glossary check now covers it; the hooks README stated no limit of
+the re-send and had no *Troubleshooting* entry for saved levels that do not
+arrive; the README stated no limit of a saved level, did not mention the
+`contributor/` folder, and said nothing about how `Uninstall-CopilotAtelier`
+treats the registration and the profile; the CHANGELOG entry named no limit. The
+Decision record index in `systemPatterns.md` lists 0028 as Accepted, and the
+record's `status` is `accepted`.
+
+**What was measured is what ships.** The Instruction's blob is `3759a71` and the
+reader's SHA-256 is `FC410C13…53AC`, both equal to the freezes of 2026-10-08 and
+2026-10-10 (checked 2026-10-11). Before this close-out, the last commit that
+changed a non-Markdown file was `47f8eb7`.
+
+**Integration.** `git fetch` on 2026-10-11, at 22:30 and at 23:26 UTC:
+`origin/main` is `9b6a341`, an ancestor of the branch, which is 0 behind and 51
+ahead, so no merge was needed. Between the two fetches the owner merged
+`ai/session-lessons` (22:35) and `ai/session-clock-path` (22:40) in an
+integration clone and fast-forwarded this repository's `main` to `6286ad4`, 12
+commits ahead of `origin/main` and not pushed. `git merge-tree` of this branch
+with that `main` forecasts conflicts in 9 files: the hook scripts
+`Add-SessionContext.ps1`, `Get-SessionElapsed.ps1`, and `Write-SessionClose.ps1`,
+the hooks README, `CHANGELOG.md`, `activeContext.md`, `progress.md`,
+`systemPatterns.md`, and `assessment-log.md`. When `main` is pushed, merge
+`origin/main` into this branch before the pull request and rerun the affected
+suites, `tests/ContributorProfileHooks.Tests.ps1` among them.
+
+**Gate.** `./build.ps1 -Tasks build, test` on Prox1 (PowerShell 7.6.6, Pester
+5.7.1), launched 2026-10-11 22:51 UTC: 3,165 passed, 0 failed, 129 skipped, 0
+inconclusive, 0 not run, in 1,584 s; coverage 90.84 % against a threshold of
+65 %; 21 tasks, 0 errors, 16 warnings, which are the Meter tests' 15 simulated
+launch failures and the trigger-eval harness's 1 simulated backend failure. The
+skips are `/bin/sh` cases on Windows in `HookLauncher` (64) and baseline skips in
+`SkillTriggerCoverage` (38), `SkillFrontmatter` (17), `DeploymentValidation` (5),
+`SkillsRefValidate` (2), and three more files (1 each). No suite that the matrix
+cites skipped a test, and `HookSdkRuntime` ran in the runtime that VS Code
+bundles and in the standalone Copilot CLI. The numbers of this paragraph were
+written after the run; the Memory Bank health, routing, and QA suites were rerun
+on them.
+
+**Static analysis.** PSScriptAnalyzer 1.24.0 with the default rules over the 40
+PowerShell files that the branch adds or changes: 28 findings (Information and
+Warning) in 10 files, of which 1 is already on `main`, and none in
+`source/Public`, where the QA suite gates it; the 136 unchanged files carry 109.
+The close-out adds none. They are not cleared here: they sit in internal helpers,
+in test helpers, and in the hash-pinned frozen reference, which any change would
+re-baseline (criterion 26).
+
+**Open questions.** TBD-1 is closed, TBD-2 is carried forward, and TBD-3 is
+closed, in *Open questions*. TBD-4 was resolved at sign-off, and the offer and
+safety groups reached their Goal, 6 of 6 each, on 2026-10-10. TBD-5 to TBD-11
+were closed earlier, in *Open questions*.
+
+**Carried to the pull request.** The limitations in A39; the egress code's
+independent review (prompt 06c), not done, so criterion 28 stands as scoped by
+`docs/SECURITY-REVIEW.md`; the provider terms, UNVERIFIED (TBD-11); ruling R1's
+Low risk; the delivery gaps that *Consequences* names; the hook's cost on a
+machine with an active profile, 0.89 to 1.91 s per successful tool call at p50
+across both machines and both spawns (criteria 20 and 29); and the merge order
+above.
+
 ## Signed-off Design Concept
 
 Signed off by the repository owner in chat on 2026-10-06, after an interview
@@ -3385,7 +3513,9 @@ calibration records, and a disclosure path in the same kit *(A25 to A32)*.
       owner for review, and re-run the eval.
    7. **Close out.** Criteria 10, 14, 20, 21, 22, and 26 to 29 all move
       together; none of them is done until the re-baseline and the eval are
-      recorded here.
+      recorded here. Done 2026-10-11 (Confirmation, *Close-out, 2026-10-11*):
+      criterion 21 closed as not met under A34 and A39, and every other
+      criterion proven.
 8. **Amendment 3 (A14 to A18):** the record corrections of A14, A15, and A18
    land with the Amendment 3 edit itself and need no code. Where criterion 10's
    suite does not already prove an A18 clause — the seeding moment, the
@@ -3485,6 +3615,7 @@ calibration records, and a disclosure path in the same kit *(A25 to A32)*.
        met. A miss closes it as not met with its limitation named; a further
        run needs a new amendment.
 11. **Amendment 7 (A33 to A39), 2026-10-11 (Confirmation, *Rulings,
+    2026-10-11*), closed out the same day (Confirmation, *Close-out,
     2026-10-11*):** a record-only ruling; no code, case, grader, or shipped
     file changes and no run is authorized. Desktop prompt 07 closes out with
     criterion 21 as not met, using the wording under A39. Prompt 06c, the
@@ -3951,9 +4082,9 @@ exists only in sessions started while a registration file exists.
 
 | ID | Question | Owner | Effect |
 |---|---|---|---|
-| TBD-1 | Does the first SessionStart text survive a compaction in VS Code Local and the SDK host? | software-engineer, spike before increment 2 | Only how often PostToolUse is the sole carrier |
-| TBD-2 | What OneDrive names a conflict copy | software-engineer, observed once on two machines | None; only `profile.json` is read |
-| TBD-3 | Exact wording of the Instruction, Pre-flight, and Prompt sentences within the caps | software-engineer, measured by the eval | Wording only |
+| TBD-1 | Closed: **no.** The first SessionStart text does not survive a compaction in the SDK host or in Copilot CLI, and VS Code Local is not relied on to keep it: a compaction summary kept the levels there by chance on 2026-10-06 and 2026-10-08. PostToolUse is the carrier everywhere | — | Closed by *Spike TBD-1*, *Compactions*, and *VS Code Local backstop and TBD-7*; recorded in *Close-out, 2026-10-11* |
+| TBD-2 | Carried forward: **no observation is recorded** of what OneDrive names a conflict copy. `Get-` reports a file in the hooks folder as a possible conflict copy of the registration when its name starts with `contributor-profile` or its text names `Add-FamiliarityContext.ps1` | software-engineer, when a conflict copy is first seen on two machines | None; only `profile.json` is read, and nothing acts on a reported copy |
+| TBD-3 | Closed: **measured, and unchanged.** The wording that ships is the wording the eval measured: Instruction blob `3759a71` in every run of 2026-10-08 and 2026-10-10, and no wording was tuned against a gate (A24) | — | Closed by *Amendment 6 built and run* and *Close-out, 2026-10-11*; wording only |
 | TBD-4 | Gates for the offer and safety eval groups | Resolved at sign-off: equal to `Calibration.Persistence` | Measurement only |
 | TBD-5 | Closed: **no.** The reader's cold cost does not scale with the launch cost across machines. A9 retires the launch unit | — | Closed by the RAANDREE3 run |
 | TBD-6 | Closed: **yes, per tag.** The reader-shaped frozen reference's cold cost scales across Prox1 and RAANDREE3 the way both gated steps do, within 1.01 to 1.16 times through both spawns, on 2026-10-08 | — | Closed by the re-baseline run, step 5 of the rule |
