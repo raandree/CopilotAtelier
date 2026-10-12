@@ -2478,12 +2478,27 @@ safety groups reached their Goal, 6 of 6 each, on 2026-10-10. TBD-5 to TBD-11
 were closed earlier, in *Open questions*.
 
 **Carried to the pull request.** The limitations in A39; the egress code's
-independent review (prompt 06c), not done, so criterion 28 stands as scoped by
+independent review (prompt 06c), not done when this close-out was written and
+done afterwards (see the update below), so criterion 28 stands as scoped by
 `docs/SECURITY-REVIEW.md`; the provider terms, UNVERIFIED (TBD-11); ruling R1's
 Low risk; the delivery gaps that *Consequences* names; the hook's cost on a
 machine with an active profile, 0.89 to 1.91 s per successful tool call at p50
 across both machines and both spawns (criteria 20 and 29); and the merge order
 above.
+
+**Update, 2026-10-12: prompt 06c ran.** The built-in `security-review` agent
+reviewed the kit's egress code in four rounds, read-only, and a background agent
+fixed what it found test-first in the kit. The first reading returned 2 Blockers
+and 5 Majors, all fixed; the second round closed both Blockers and found 2 more
+Majors and a regression, fixed in the third; the fourth found no Blocker and no
+unconditional Major. The kit's offline self-checks grew from 171 to 394 checks
+for the privacy guards and by 7 to 63 checks in six of the other seven (the
+freeze tools from 17 to 80), and the author reran all eight. A38's precondition "06c first" is therefore met, and nothing else changes:
+TBD-11 is still UNVERIFIED, no further run is authorized (A34), and the next
+freeze needs the owner's term file and a freeze digest recorded outside the kit.
+Open, in `docs/SECURITY-REVIEW.md`: E-08, E-09, E-15, and E-16 (Minor), and the
+runner's Run mode, the labeller, and the freeze writer were never run for real
+after the fixes. The record keeps findings, resolutions, and numbers only.
 
 ## Signed-off Design Concept
 

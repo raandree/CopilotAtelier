@@ -4,6 +4,115 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-10-12: independent review of the egress controls of the private eval kit (prompt 06c)
+
+The built-in `security-review` agent reviewed, read-only and in a fresh context,
+the code that Amendment 6 added to the private eval kit: the model allowlist and
+backend check, the reply scan and the labeller's prompt check, the batch call
+sites in the runner, the judge, and the labeller, the label lock, the run freeze,
+and the held-out selection. It ran no kit script, opened no data file, made no
+network call, and quoted no case, reply, or label text. The Custom
+`security-reviewer` agent was not tried, because its first model was unavailable
+in this runtime in earlier reviews. This entry closes the first risk that the
+entry below leaves open, "no independent review of the new code". The fixes were
+made in the kit by a background agent, test-first and with the kit's offline
+self-checks only, and the same reviewer checked them in four rounds. The kit
+lives outside every git working tree, no shipped file changed, and no run or
+model call was made.
+
+### Scope
+
+- The five questions of prompt 06c: can any model id, URL, header, or
+  environment value other than the allowlist and the Copilot default reach the
+  batch call; can a reply, a situation, or a message reach a model without the
+  reply scan or the prompt check; does the blocking rule set miss a case that the
+  shape rules would have caught; can a labels file or the held-out selection
+  change after the freeze without the verifier failing; and which controls have a
+  test that would still pass if the control were removed.
+
+### Verdict
+
+**Approve with changes, after four rounds.** The first reading found 2 Blockers
+and 5 Majors and advised no further paid call before E-01 and E-02 were fixed.
+The fixes closed both Blockers; the second round found 2 new Majors (E-12, E-13)
+and a regression (E-14), the third round fixed them, and the fourth found no
+Blocker and no unconditional Major. Nothing found blocks a further paid run if it
+starts as `pwsh -NoProfile -File … -RequireFreeze`, and the reviewer lists what
+must happen before the next freeze under *Before the next freeze*. The minors
+E-08, E-09, E-15, and E-16 stay open. The kit is a seatbelt against accidents and
+kit defects, not a boundary against the owner's own account: the freeze ledger
+lives in the kit, so only a freeze digest recorded outside it makes the freeze
+tamper-evident against the same user.
+
+### Findings
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| E-01 | Blocker | Egress | A session default parameter value for the batch command, by name, wildcard, or alias, binds a parameter such as the API base past the guard, which checked only the call's own options, two environment variables, and the session context; ShellPilot replays it to its workers. | Closed. The guard refuses a matching entry, and every call site runs the batch in a child scope with the defaults disabled; verified against the exact, wildcard, alias, cased, and padded key forms. See E-12 for the residual. |
+| E-02 | Blocker | Integrity | The verdict cache is frozen as a byte prefix and may grow, but the reader let the last record per key win, so an appended repeat with the other verdict changed the grade and the held-out comparison while the verifier stayed silent. | Closed. The reader keeps the first record and refuses a repeated key; the freeze writer and the verifier reject a key that repeats one in the frozen prefix. |
+| E-03 | Major | Integrity | The verifier re-hashed only what the freeze lists, so a label file added after it passed, and the freeze file itself was unanchored. | Closed as far as one folder allows: an anchor ledger records the freeze's digest, and the verifier fails on a missing ledger entry, an empty file list, and a kit label file absent from the freeze. The ledger sits beside the freeze, so a rewrite of both by the same user still verifies; the next freeze therefore records the freeze's digest outside the kit and checks it with `-ExpectedSha256` before each paid step, and a damaged ledger line now fails closed. A missing ledger file still reads as "unfrozen" without `-RequireFreeze`. |
+| E-04 | Major | Integrity | Calibrating the judge never asked for a frozen run folder and trusted a label file's own sidecar. | Closed. In a frozen folder the label file must be a frozen artifact with its frozen hash. |
+| E-05 | Major | Integrity | Neither the lock nor the freeze hashed the reply files that labels reference, or the item list. | Closed. The lock carries a manifest of the referenced files' digests, and the freeze lists them and the item list. |
+| E-06 | Major | Path handling | The labeller joined an item's sample path to the kit folder without a containment check, so a parent-relative path was read and sent. | Closed. The labeller and the calibration command resolve the path, links included, and refuse one outside the kit; the two joins of the list builder that the first fix missed use the same resolver since round 3. A check-then-read race and the symlink branch (no elevation here to test it) remain. |
+| E-07 | Major | Leak checks | The owner's term list, the control for names and addresses, is required nowhere: a missing file was skipped silently, and nothing asserted a non-empty scan context. | Closed. An empty scan context is refused centrally, the runner and the labeller print its counts, and a freeze requires the file and pins the candidate and seed files. The file does not exist today, so the next freeze stops until it does. |
+| E-08 | Minor | Leak checks | Advisories (an e-mail, a token, a hex id, a path) are computed and dropped by every caller, and a provenance digest goes out on the judge path. | Open. What to block is the owner's decision. |
+| E-09 | Minor | Backend check | The guard encodes ShellPilot 0.4.0's resolution order, but the scripts accept a later module by name, and a session function of the same name shadows it. | Open. Which versions to accept is the owner's decision. |
+| E-10 | Minor | Held-out check | The header claimed that the selection depends on no reply's content, but eligibility reads the reply, and the independence test mutated a property the function never reads. | Closed. The claim is corrected and the test replaced by checks that mutate reply content. |
+| E-11 | Nit | Output | The calibration command printed the judge's quote and label text to the host, where a transcript keeps it. | Closed. It prints ids and counts; the text sits behind an explicit switch. |
+| E-12 | Major | Egress (found in round 2) | A session default for `-ErrorAction`, also by wildcard, turned an uncaught `throw` in a guard into a statement that the caller continued past when the guard was a bare call, which silenced every guard, the E-01 refusal included. | Closed in round 3 by three independent layers: the runner and the labeller read the incoming defaults and exit with code 2 when they would bind the batch; nine scripts shadow the session defaults with a disabled table before anything else runs; and the 28 advanced functions that throw set a stopping error preference first. A session alias named like a guard, or a script trace, is ambient code of the E-09 class; `pwsh -NoProfile` closes both. |
+| E-13 | Major | Integrity (found in round 2) | The cache path was never required to equal the frozen one, so a judge, a grade, or a comparison could read another file while the freeze verified the original. | Closed for the judge, the grade, and the held-out comparison. The calibration command keeps its own cache path, which the reviewer would bind too (open). |
+| E-14 | Minor | Integrity (regression of the E-03 fix, found in round 2) | The completeness check demanded that every kit label file be in the freeze, but a held-out import creates label files after it. | Closed. Only the held-out labels are exempt from the run freeze and the import anchors them; run both verifiers. |
+| E-15 | Minor | Egress (found in round 4) | The default expressions in the parameter blocks of the entry scripts use a cmdlet that runs before the shadow. | Open. Use the .NET path combiner; `pwsh -NoProfile` closes it meanwhile. |
+| E-16 | Minor | Integrity (found in round 4) | The frozen-folder check binds the label file, the cache, and the token limit, but not the eval file, the instruction, the fixture, or the reader path. | Open. An integrity gap, not an egress path. |
+
+### Tests
+
+The kit's offline self-checks grew from 171 to 394 checks for the privacy guards,
+from 15 to 25, 18 to 30, 49 to 56, 17 to 80, 15 to 32, and 66 to 108 for the
+judge run, the runner, the label tools, the freeze tools, the held-out sheet, and
+the judge protocol, and the repository-records check stays at 9. Each new test
+failed without its fix, shown by scratch reversions or in-test mutations, and the
+author reran all eight after the last round. The reviewer's list of 14 controls
+whose test would still pass if the control were removed is now covered for the
+ones this entry fixes; still uncovered are the model pattern's trailing-newline
+case, the GitHub host's equality against a prefix match, the reply and identifier
+arm of the labeller's prompt check, and the advisories that no caller acts on.
+
+### Before the next freeze
+
+1. Create the owner's term file beside the kit; the freeze refuses without it,
+   and it does not exist today.
+2. Record the freeze's SHA-256 in the decision record, outside the kit, and run
+   the freeze verifier with `-ExpectedSha256` before each paid step.
+3. Count repeated keys in the real verdict cache with a count-only script,
+   because a repeat now stops a read.
+4. Treat the pre-fix held-out set and the freezes of 2026-10-10 as unverifiable,
+   since they have no anchor, and redo them.
+5. Start the kit as `pwsh -NoProfile -File … -RequireFreeze`.
+6. Optionally close E-15 and E-16, bind the calibration command's cache path,
+   refuse a comparison without a freeze, and switch script tracing and strict
+   mode off in the shadow block.
+
+### Remaining risks
+
+- E-08, E-09, E-15, and E-16 stay open until the owner rules on or closes them.
+  The kit is a seatbelt against accidents and kit defects, not a boundary against
+  an operator or an agent that can run a shell.
+- The runner's Run mode, the labeller, and the freeze writer were checked with
+  stand-ins and sandbox copies, and never run for real after the fixes.
+- The freezes of 2026-10-10 are unverifiable by design, and the next freeze needs
+  the owner's term file and every referenced reply file inside the kit. A cache
+  that already repeats a key now stops a read.
+- Build and fixture scripts of the kit count as data files from now on: the
+  reviewer's structural reading shows that such scripts can hold case and reply
+  text, and one probe of the fixing step printed up to 70 characters of each of
+  eight statements of one of them into that agent's context. Nothing else of the
+  kind was found.
+- Provider-side retention and training use stay UNVERIFIED (TBD-11), and what was
+  sent cannot be recalled.
+- Not assessed: provider handling, proxy or TLS interception, a real run, and the
+  owner's session defaults, which decide whether E-01 was live.
+
 ## 2026-10-10: egress controls of the private eval kit (Amendment 6, A27)
 
 A self-review by the `software-engineer` Custom agent of the controls that close
@@ -47,7 +156,8 @@ smoke test of the real writer and judge path ran before the run (0.05 USD).
 
 - **No independent review of the new code.** It touches a disclosure boundary;
   a `review: on` pass over `PrivacyGuard.ps1` and the two callers is
-  recommended before any further paid run.
+  recommended before any further paid run. Done on 2026-10-12: see the entry
+  above.
 - The scan catches only what its rules and the private term list name: names and
   addresses absent from that list, and letters-only Base64, remain the owner's
   read.

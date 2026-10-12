@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-11
+last-verified: 2026-10-12
 owner: software-engineer
 source: current task evidence
 ---
@@ -25,9 +25,9 @@ title and body were drafted
 in chat; the owner runs the push and `gh pr create` from their own terminal.
 Nothing is pushed by an agent.
 
-Still open, in the owner's order (Desktop `LEDGER.md`, `HANDOFF-2026-10-11.md`):
-prompt 06c, an optional independent review of the eval kit's egress code and a
-precondition of any further run.
+Prompt 06c ran on 2026-10-12 (`docs/SECURITY-REVIEW.md`): four review rounds over
+the eval kit's egress code, 2 Blockers and 7 Majors fixed test-first in the kit;
+the Desktop `LEDGER.md` and `HANDOFF-2026-10-12.md` list what is open.
 
 Prompts 03 (`ai/session-lessons`) and 08 (`ai/session-clock-path`) are on `main`.
 The detached Pester guards reject a result other than `Passed`, both Pester
@@ -52,8 +52,8 @@ and normalizes the clock path.
   Amendment 5 (judge 2b, 39 of 40) and its first run (77.8 % and 72.2 %);
   Amendment 6 (A25 to A32) and its one fresh run (83.3 % at both Positions,
   held-out check 10 of 12 against 11, 5.92 USD); Amendment 7 (A33 to A39),
-  record-only: criterion 21 ships as not met, no further run, 06c and TBD-11
-  first.
+  record-only: criterion 21 ships as not met, no further run, TBD-11 first
+  (prompt 06c ran on 2026-10-12).
 - **Decision 0028, steps 7.1 to 7.5 (2026-10-06 to 2026-10-08).** The design
   (`b568c8c`, signed off after 26 questions), Amendments 1 to 4 (A1 to A19), the
   A12 backstop (`23a861a`), the hash-pinned reader-shaped frozen reference
@@ -164,8 +164,9 @@ unproven — train reached 100 % while validation fell.
 2. Confirm the clock pin live in a new VS Code chat (Decision 0024 lists the
    cases).
 3. A further eval run needs a new amendment, TBD-11 closed with source and date,
-   and prompt 06c's independent review of the kit's egress code first (A34, A38);
-   none is authorized.
+   the owner's term file, and a freeze digest recorded outside the kit
+   (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is
+   authorized.
 4. Recommended to the owner, not required: update PowerShell 7 on RAANDREE3 from
    7.6.1, and delete the empty scratch folder on Prox1 (its profile entry,
    registration, and files were removed on 2026-10-08). Never set the

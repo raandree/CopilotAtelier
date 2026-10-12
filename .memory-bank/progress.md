@@ -18,6 +18,12 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-12**: Ran Desktop prompt 06c (`review: on`, Prox1): the built-in
+  `security-review` agent reviewed the eval kit's egress code in four rounds, and a
+  background agent fixed 2 Blockers and 7 Majors test-first in the kit (self-checks
+  all green, reproduced). E-08, E-09, E-15, E-16 stay open; no further run is
+  authorized (A34), and the next freeze needs the owner's term file and a digest
+  recorded outside the kit. `docs/SECURITY-REVIEW.md` holds the entry.
 - **2026-10-11**: Closed out Decision 0028 (Desktop prompt 07,
   `software-engineer`, Prox1). The *Close-out, 2026-10-11* matrix proves criteria
   1 to 20 and 22 to 30, and **criterion 21 stays not met**, worded exactly as A39
@@ -37,7 +43,8 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - **2026-10-11**: Ran Desktop prompt 05c (`software-architect`): Decision 0028
   **Amendment 7, A33 to A39**, signed off. Record-only: the judged `expert` row
   is a report, not gate evidence; criterion 21 ships as not met and no further
-  run is authorized; a further run needs TBD-11 closed and prompt 06c first.
+  run is authorized; a further run needs TBD-11 closed and prompt 06c first
+  (06c ran on 2026-10-12).
 - **2026-10-10**: Ran Desktop prompts 05b and 06b: Amendment 6 (A25 to A32)
   ratified the Sonnet writer and the hybrid labels, and the one fresh run, frozen
   at `9305035`, closed **criterion 21 as not met** (persistence 83.3 %, held-out
@@ -47,11 +54,10 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   scoped), Amendment 5 (A20 to A24), and its judge-2b run (39 of 40; 77.8 % and
   72.2 %, not met). Records: *Amendment 5 built, calibrated, and run*,
   `docs/SECURITY-REVIEW.md`.
-- **2026-10-09**: Applied the five session lessons (`ai/session-lessons`): the
-  detached Pester guards reject a result other than `Passed`, both Pester guides
-  explain truthiness, hook context is data only, `Wait-DetachedResult.ps1` waits a
-  bounded time on a detached run, and the hooks README names where each host
-  records hook evidence. Full gate 2,593 passed.
+- **2026-10-09**: Applied the five session lessons (`ai/session-lessons`, on `main`
+  since 2026-10-11; gate 2,593 passed): detached Pester guards reject a result
+  other than `Passed`, `Wait-DetachedResult.ps1`, hook context as data, and the
+  hook-evidence locations.
 - **2026-10-08**: Decision 0028's A13 eval on Prox1 (TBD-8 closed, criterion 28
   met, criterion 21 returned; 10.19 USD); the VS Code Local backstop proved live
   (TBD-7 closed, criteria 22 and 30 met, full gate 3,293 tests); the latency
@@ -92,11 +98,10 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - Desktop `CopilotAtelier New\LEDGER.md` owns the local queue: 01-08 and P1-P9.
   It keeps Decision 0028 gates, dependencies, and duplicate/superseded references.
-- Delete `origin/ai/session-clock-path` from your own terminal; the guard blocks
-  an agent's remote mutation. `main` (`6286ad4`) was pushed on 2026-10-11. The
-  clock pin was redeployed that day; still to confirm live in a new VS Code
-  agent-host chat and in VS Code Local, which the Copilot CLI runtime stood in
-  for. Decision 0024 lists the cases that stay open.
+- Confirm the clock pin live in a new VS Code agent-host chat and in VS Code Local
+  (the Copilot CLI runtime stood in for them when it was redeployed on
+  2026-10-11; `main` is pushed and `origin/ai/session-clock-path` is gone).
+  Decision 0024 lists the cases that stay open.
 - One-process `windows` launcher (ruling A11): separate work against Decision
   0016, kept here because Decision records here are accepted or superseded.
   Adopt only if `tests/HookLauncher.Tests.ps1` passes unchanged (`cmd.exe`,
