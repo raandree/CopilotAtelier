@@ -307,8 +307,9 @@ function Block-ToolCall {
 
     $reason = "Blocked by Copilot Atelier: $Because, and the house rules forbid remote-mutating " +
         'or irreversible commands without explicit per-turn authorization from the user. If the user ' +
-        'asked for it in this turn, hand them the exact command to run in their own terminal; an agent ' +
-        'cannot lift this block. Do not rewrite the command to evade this check.'
+        'asked for it in this turn, hand them the exact command as a fenced code block in your reply, ' +
+        'to run in their own terminal; an agent cannot lift this block. Do not rewrite the command to ' +
+        'evade this check.'
 
     # VS Code reads the reason from standard error on exit 2 and ignores standard
     # output. The Copilot SDK host ignores standard error then and merges one JSON

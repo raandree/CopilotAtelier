@@ -280,8 +280,8 @@ variants first, then light. Sibling boards share this quirk; keep it for family 
 - **The user says "add the logo" with several repositories open.** Ask which one. Do not infer from
   the active editor or the last repository discussed.
 - **The project is not yours to change.** Render into the library only, and hand the user the
-  README block and the metadata line to paste. Integration is opt-in, never a side effect of
-  producing the assets.
+  README block and the metadata line to paste, each as its own fenced code block in your reply,
+  never in a question dialog. Integration is opt-in, never a side effect of producing the assets.
 - **The README already has a header.** Replace it rather than adding a second mark, and say in the
   change record what the old header was, so the swap is reviewable.
 - **The repository is private.** A raw metadata URL will not resolve for anyone outside it. Say so

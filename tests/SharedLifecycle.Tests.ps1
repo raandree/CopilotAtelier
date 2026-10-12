@@ -194,6 +194,11 @@ Describe 'Shared lifecycle Customizations' {
         $script:postflightContent | Should -Match '(?i)residual risk'
     }
 
+    It 'hands a command the user runs over as a fenced code block in the reply, never through a question dialog' {
+        $script:postflightContent | Should -Match '(?i)hand the user each command to run as its own fenced code block at the end of the reply'
+        $script:postflightContent | Should -Match '(?i)never put a command in a question dialog'
+    }
+
     It 'ships the Memory Bank initialization Skill with templates and safeguards' {
         Test-Path -LiteralPath $script:memoryBankSkillPath -PathType Leaf | Should -BeTrue
         $script:memoryBankSkillContent | Should -Match '(?m)^name: memory-bank\r?$'
