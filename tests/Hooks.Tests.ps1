@@ -175,6 +175,7 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
 
         $result.ExitCode | Should -Be 2 -Because $result.Output
         $result.Output | Should -Match 'in their own terminal'
+        $result.Output | Should -Match 'fenced code block in your reply' -Because 'a command in the question dialog is one joined paragraph without a copy button'
         $result.Output | Should -Not -Match 'set COPILOT_ATELIER_ALLOW_REMOTE'
     }
 

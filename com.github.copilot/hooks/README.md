@@ -164,8 +164,10 @@ the variable inside the blocked command cannot work either, because the hook
 judges the command before it runs.
 
 So the user runs an authorized push in their own terminal. The agent hands over
-the exact command and does not retry it. A value persisted in the user
-environment, for example with `setx`, is different: every host started
+the exact command as a fenced code block in its reply and does not retry it. It
+never puts the command in a question dialog, which shows the question as one
+joined paragraph with no code block and no copy button. A value persisted in
+the user environment, for example with `setx`, is different: every host started
 afterwards inherits it and runs with the guard off, so never persist it.
 
 `COPILOT_ATELIER_ALLOW_REMOTE=1` still allows a blocked command when it is set

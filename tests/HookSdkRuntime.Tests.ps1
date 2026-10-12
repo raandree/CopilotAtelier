@@ -175,6 +175,7 @@ Describe 'PreToolUse guard in the Copilot SDK runtime' -Tag 'Integration' -Skip:
         $result.resultType | Should -BeExactly 'denied' -Because $result.textResultForLlm
         $result.textResultForLlm | Should -Match '\ADenied by preToolUse hook: Blocked by Copilot Atelier: this command pushes to a git remote'
         $result.textResultForLlm | Should -Match 'in their own terminal'
+        $result.textResultForLlm | Should -Match 'fenced code block in your reply'
     }
 
     It 'lets a command the guard allows past the hook' {
