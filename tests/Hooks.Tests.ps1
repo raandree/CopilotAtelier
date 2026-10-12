@@ -1320,6 +1320,42 @@ Describe 'Add-SessionContext' -Tag 'Unit' {
             Test-Path -LiteralPath (Join-Path $script:clockRoot 'session-session-abc.json') |
                 Should -BeTrue -Because 'the clock still runs when the context cannot name it'
         }
+
+        It 'quotes the clock in the shortened closing line so that PowerShell reads the path back' {
+            <#
+                The shortened line quotes the clock path the way the long line
+                does. A path with an apostrophe or a typographic quotation mark
+                has to come back as itself, not end the string early (review
+                finding M-05 of the merge of main).
+            #>
+            $directoryName = 'r' * (240 - ($TestDrive.Length + 1) - 1 - 'Get-SessionElapsed.ps1'.Length)
+            $hook = script:Copy-HookToDirectory -Directory (Join-Path $TestDrive $directoryName)
+            $script:clockRoot = Join-Path $TestDrive ("O'Brien{0}s" -f [char]0x2019)
+            $clockRoot = script:New-PaddedClockRoot -ClockPathLength 450 -FileName 'session-session-abc.json'
+            $clockPath = [IO.Path]::Combine($clockRoot, 'session-session-abc.json')
+
+            $payload = [ordered]@{
+                hook_event_name = 'SessionStart'
+                cwd = $script:repoRoot
+                session_id = 'session-abc'
+            } | ConvertTo-Json -Depth 5 -Compress
+
+            $result = script:Invoke-Hook `
+                -ScriptPath $hook `
+                -Payload $payload `
+                -ExtraArgument @('-ClockRoot', $clockRoot)
+            $context = ($result.Output | ConvertFrom-Json).additionalContext
+            $found = [regex]::Match($context, "(?s)run with (?<argument>-Path '.*')\. The reader is beside the SessionStart hook")
+
+            $result.ExitCode | Should -Be 0 -Because $result.Output
+            $context | Should -Not -Match 'by running &' -Because 'the line that names the reader path was shortened'
+            $found.Success | Should -BeTrue -Because $context
+
+            $parsed = script:Read-CommandStrings -Command ('& reader ' + $found.Groups['argument'].Value)
+
+            $parsed.ParseErrors | Should -Be 0 -Because $found.Groups['argument'].Value
+            $parsed.Strings[-1] | Should -BeExactly $clockPath
+        }
     }
 
     It 'writes no clock outside the root it was given' {

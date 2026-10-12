@@ -18,9 +18,9 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-10-12**: PR #32 opened; a POSIX-only test defect that CI found is fixed in
-  `8eaa991`. The independent review of the hand-merged hook scripts approved with
-  changes: `ddf5430` fixes a key-rule drift and a non-ASCII gap; four minors open.
+- **2026-10-12**: PR #32 merged (`807b572`, squash); CI published `6.1.0-preview0005`.
+  CI's POSIX-only test defect was fixed in `8eaa991`; the review of the hand-merged
+  hooks led to `ddf5430` (a key rule, a non-ASCII gap) and to a tests-only follow-up.
 - **2026-10-12**: Ran Desktop prompt 06c (`review: on`, Prox1): the built-in
   `security-review` agent reviewed the eval kit's egress code in four rounds, and a
   background agent fixed 2 Blockers and 7 Majors test-first in the kit (self-checks

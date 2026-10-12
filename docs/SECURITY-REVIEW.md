@@ -25,9 +25,9 @@ first model was unavailable in this runtime in earlier reviews. The owner chose
 ### Verdict
 
 **Approve with changes.** No Blocker: no lost behaviour, no broken hook contract,
-and no injectable command or path traversal. One Major and one Minor are fixed
-with this entry; the other four findings are test or hardening items and stay
-open.
+and no injectable command or path traversal. One Major and one Minor were fixed
+with this entry. A follow-up change closes three of the four test findings
+(M-03, M-05, and M-06); M-04, a hardening item, stays open.
 
 ### Findings
 
@@ -35,15 +35,19 @@ open.
 |---|---|---|---|---|
 | M-01 | Major | Hooks | Main's case-sensitive session-key rule reached only the copies that main knew. Two hooks of the calibration side still derived the key with the case-insensitive `-replace`, so a session id holding U+0130 or U+212A named another state file in the PreCompact and PostToolUse hooks than in SessionStart and Stop, and the compaction count and the backstop used a different file than the one SessionStart seeded. | Fixed. The three sites use `-creplace`; a session id with those letters runs through every hook in both editions, and a static check demands the rule in all five scripts. |
 | M-02 | Minor | Hooks | The re-send after a compaction wrote plain JSON, so Windows PowerShell 5.1's OEM code page turned a non-ASCII area name into a byte that is no UTF-8, or into a quote. | Fixed. The hook escapes every character above ASCII as SessionStart does; a test with an umlaut and U+02BA checks both editions, and a test keeps the two copies of the helper verbatim. |
-| M-03 | Minor | Tests | No test combines the shortened closing line with a calibration sentence, so the documented 1024-character minimum is no longer exercised with a sentence. | Open. |
+| M-03 | Minor | Tests | No test combines the shortened closing line with a calibration sentence, so the documented 1024-character minimum is no longer exercised with a sentence. | Fixed in the follow-up. At the 1024-character minimum, a reader path of 225 characters with a clock path of 360 or of 430 ends the shortened lines with the sentence or with the omitted notice; two more cases set the limit to the character, so a sentence fits exactly or gives up its last area. Mutations: moving the closing-line shortening below the calibration block fails the first two, `-1` changed to `-0` fails the "one character over" case, and `-2` fails the exact fit, each in both editions. |
 | M-04 | Nit | Hooks | The key alphabet allows a dot, so a session id of the form `X.familiarity` gives a clock path equal to the state path of `X`; it needs a host-assigned id of that shape. | Open. |
-| M-05 | Nit | Tests | The shortened closing line's quoting is tested only with a quote-free path. | Open. |
-| M-06 | Nit | Tests | The only guard of the state-file filter in the elapsed reader asserts `turn 1`, which an unfiltered reader might also print (speculative, confidence 4). | Open. |
+| M-05 | Nit | Tests | The shortened closing line's quoting is tested only with a quote-free path. | Fixed in the follow-up. A clock root with an apostrophe and a right single quotation mark is read back by the PowerShell parser from the shortened line. A mutation that drops the quote doubling there fails the new test while the existing tests stay green. |
+| M-06 | Nit | Tests | The only guard of the state-file filter in the elapsed reader asserts `turn 1`, which an unfiltered reader might also print (speculative, confidence 4). | Closed, not a gap. The cast of `$null` to `[datetimeoffset]` throws in both editions, so a reader that took the state file prints `unavailable`, and the existing assertion fails; removing the filter confirmed it in both editions. The test now also compares the printed start time with the clock's. |
 
 ### Not assessed
 
-- Windows PowerShell 5.1 for `Hooks.Tests.ps1`, which runs in the Pester host's
-  edition; the new tests run in both editions.
+- Windows PowerShell 5.1 for `Hooks.Tests.ps1`, which a gate runs in the Pester
+  host's edition only. Run once under 5.1 on 2026-10-12: 143 passed, 25 failed.
+  All 25 failures are in the `Block-RemoteMutation` timeout Context, whose helper
+  uses `ProcessStartInfo.ArgumentList` and `Process.Kill($true)`, which exist only
+  in PowerShell 7. Every test of the session hooks passed, the new quoting test
+  (M-05) among them.
 - The OEM best-fit table itself, and the agent terminal's own encoding.
 
 ## 2026-10-12: independent review of the egress controls of the private eval kit (prompt 06c)
