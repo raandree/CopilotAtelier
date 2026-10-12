@@ -217,7 +217,7 @@ Describe 'SessionStart calibration sentence in <Edition>' -Tag 'Unit' -ForEach $
 
         function script:Invoke-SessionStart
         {
-            param ($Fixture, [hashtable] $Override = @{}, [switch] $WithoutCwd)
+            param ($Fixture, [hashtable] $Override = @{}, [switch] $WithoutCwd, [string] $HookPath = $script:sessionStart)
 
             $payload = @{ hook_event_name = 'SessionStart'; session_id = $Fixture.SessionId; source = 'new' }
             if (-not $WithoutCwd)
@@ -231,7 +231,34 @@ Describe 'SessionStart calibration sentence in <Edition>' -Tag 'Unit' -ForEach $
                 $environment[$name] = $Override[$name]
             }
 
-            Invoke-Hook -Executable $Executable -Script $script:sessionStart -Payload $payload -Environment $environment -Argument '-ClockRoot', $Fixture.ClockRoot
+            Invoke-Hook -Executable $Executable -Script $HookPath -Payload $payload -Environment $environment -Argument '-ClockRoot', $Fixture.ClockRoot
+        }
+
+        function script:New-LongReaderHook
+        {
+            <#
+                A deployed layout under TestDrive whose reader path, the one
+                the hook hands the agent, is ReaderPathLength characters long:
+                a copy of the hook, and beside it the calibration reader the
+                hook finds two levels up. Returns the path of the hook copy.
+            #>
+            param ([int] $ReaderPathLength)
+
+            $tail = [System.IO.Path]::Combine('hooks', 'scripts', 'Get-SessionElapsed.ps1')
+            $nameLength = $ReaderPathLength - ($TestDrive.Length + 1) - 1 - $tail.Length
+            if ($nameLength -lt 1)
+            {
+                throw "TestDrive is too long for a reader path of $ReaderPathLength characters."
+            }
+
+            $root = Join-Path -Path $TestDrive -ChildPath ('r' * $nameLength)
+            $hookFolder = [System.IO.Path]::Combine($root, 'hooks', 'scripts')
+            $readerFolder = [System.IO.Path]::Combine($root, 'skills', 'contributor-profile', 'scripts')
+            $null = New-Item -ItemType Directory -Path $hookFolder, $readerFolder -Force
+            Copy-Item -LiteralPath $script:sessionStart -Destination $hookFolder
+            Copy-Item -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'skills/contributor-profile/scripts/ContributorProfileReader.ps1') -Destination $readerFolder
+
+            Join-Path -Path $hookFolder -ChildPath 'Add-SessionContext.ps1'
         }
     }
 
@@ -316,6 +343,75 @@ Describe 'SessionStart calibration sentence in <Edition>' -Tag 'Unit' -ForEach $
             Should -BeExactly ($withoutSentence -replace [regex]::Escape($plain.Workspace), '<ws>' -replace $clockPattern, '<clock>' -replace '\d{4}-\d{2}-\d{2} \d{2}:\d{2}', '<t>')
         $withSentence | Should -Match '"Area 01 x+" expert'
         $withSentence | Should -Not -Match '"Area 16 x+"' -Because 'trailing areas give way first under a tight budget'
+    }
+
+    It 'ends the shortened lines with <Outcome> at the 1024-character minimum' -ForEach @(
+        @{ Outcome = 'the sentence'; ClockPathLength = 360; Notice = $false }
+        @{ Outcome = 'the omitted notice'; ClockPathLength = 430; Notice = $true }
+    ) {
+        <#
+            A reader path of 225 characters and a long clock path outgrow the
+            minimum, so the Memory Bank line gives way, then the closing line
+            (which keeps -Path). A clock path of 360 characters leaves room for
+            the 151-character sentence of one area, one of 430 only for the
+            omitted notice. Computed before the shortening, the sentence would
+            be thrown away with the lines it was appended to (review finding
+            M-03 of the merge of main).
+        #>
+        $areas = '{"A":{"level":"new","updatedUtc":"2026-10-01T08:00:00Z"}}'
+        $fixture = New-HookFixture -Area 'A' -ProfileText (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas $areas))
+        $hook = New-LongReaderHook -ReaderPathLength 225
+        $fileName = 'session-{0}.json' -f $fixture.SessionId
+        $segments = [Math]::Max(0, [int] [Math]::Ceiling(($ClockPathLength - ($fixture.ClockRoot.Length + 1 + $fileName.Length)) / 2))
+        $fixture.ClockRoot = $fixture.ClockRoot + (([string] [System.IO.Path]::DirectorySeparatorChar + '.') * $segments)
+        $clockPath = Join-Path -Path $fixture.ClockRoot -ChildPath $fileName
+        $expected = if ($Notice) { 'Contributor familiarity levels omitted for the context budget.' } else { $script:prefix + '"A" new. ' + $script:treat }
+
+        $result = Invoke-SessionStart -Fixture $fixture -Override @{ COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS = '1024' } -HookPath $hook
+        $context = $result.Json.additionalContext
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $clockPath.Length | Should -BeGreaterOrEqual $ClockPathLength
+        $context.Length | Should -BeLessOrEqual 1024
+        $context | Should -Not -Match 'by running &' -Because 'the line that names the reader path was shortened'
+        $context | Should -Match ('run with -Path ' + [regex]::Escape("'$clockPath'")) -Because 'the shortened line keeps the clock'
+        $context | Should -Match ([regex]::Escape($expected) + '\z')
+    }
+
+    It 'leaves one character for the joining space of a sentence that is <Case>' -ForEach @(
+        @{ Case = 'as long as the room'; Over = 0 }
+        @{ Case = 'one character over the room'; Over = 1 }
+    ) {
+        <#
+            The sentence is joined to the other lines with a space, so its
+            budget is the limit minus those lines minus one. The limit is set
+            from a run without a constraint, to the character: first a sentence
+            that fits exactly, then the same one with one character too little
+            room (review finding M-03).
+        #>
+        $names = 1..12 | ForEach-Object -Process { ('Area {0:D2} ' -f $_) + ('x' * 22) }
+        $areas = '{' + (($names | ForEach-Object -Process { '"{0}":{{"level":"expert","updatedUtc":"2026-10-01T08:00:00Z"}}' -f $_ }) -join ',') + '}'
+        $fixture = New-HookFixture -Area $names -ProfileText (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas $areas))
+        $marker = 'Contributor familiarity levels'
+        $unconstrained = (Invoke-SessionStart -Fixture $fixture).Json.additionalContext
+        $start = $unconstrained.IndexOf($marker)
+        $sentence = $unconstrained.Substring($start)
+        $limit = $start + $sentence.Length - $Over
+
+        $limit | Should -BeGreaterOrEqual 1024 -Because 'the limit cannot be set lower'
+        $constrained = (Invoke-SessionStart -Fixture $fixture -Override @{ COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS = [string] $limit }).Json.additionalContext
+
+        $constrained.Length | Should -BeLessOrEqual $limit
+        if ($Over -eq 0)
+        {
+            $constrained.Length | Should -Be $limit
+            $constrained.EndsWith($sentence) | Should -BeTrue
+        }
+        else
+        {
+            $constrained | Should -Match 'Area 11 x+' -Because 'the sentence gave up its last area'
+            $constrained | Should -Not -Match 'Area 12 x+'
+        }
     }
 
     It 'never puts an alias, the profile path, or an unmatched declared name into its output' {
@@ -893,6 +989,12 @@ Describe 'Session clock path in <Edition>' -Tag 'Unit' -ForEach $script:editions
         $elapsed = Invoke-Hook -Executable $Executable -Script $script:scripts.Elapsed -Payload @{} -Argument '-ClockRoot', $fixture.ClockRoot, '-WorkingDirectory', $TestDrive
 
         $elapsed.Output | Should -Match '\APOST-FLIGHT elapsed: .+ turn 1\)\z'
+        # The state file has no startedUtc, so a reader that took it would print
+        # 'unavailable' today; the start time pins which file was read, whatever
+        # a later PowerShell makes of the missing value (review finding M-06).
+        $startedAt = [regex]::Match([System.IO.File]::ReadAllText((Get-ClockPath -Fixture $fixture)), '"startedUtc"\s*:\s*"\d{4}-\d{2}-\d{2}T(\d{2}:\d{2})').Groups[1].Value
+        $startedAt | Should -Match '\A\d{2}:\d{2}\z'
+        $elapsed.Output | Should -Match ('\(started {0} UTC,' -f $startedAt)
     }
 }
 

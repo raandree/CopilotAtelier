@@ -20,11 +20,11 @@ CHANGELOG, and the Glossary check, and TBD-2 is the one question carried forward
 `origin/main` (`6286ad4`: the session lessons and the clock fix, pushed by the
 owner at 23:07 UTC) was merged into `ai/calibration-phase-2`, with 9 conflicts
 resolved. The full gate on the merge commit `ef96c2d`: 3,243 passed, 0 failed, 129
-skipped (the same files as before the merge), 90.84 % coverage. The owner pushed
-and opened the PR on 2026-10-12; CI then failed one test on Linux and macOS, a
-POSIX test defect fixed in `8eaa991` (pushed). An independent review of the
-hand-merged hook scripts approved with changes: `ddf5430` fixes M-01 and M-02
-and waits for the owner's push; M-03 to M-06 stay open. Nothing is pushed by an agent.
+skipped, 90.84 % coverage. The owner pushed and opened the PR on 2026-10-12; CI
+then failed one test on Linux and macOS, a POSIX test defect fixed in `8eaa991`.
+An independent review of the hand-merged hook scripts approved with changes:
+`ddf5430` fixes M-01 and M-02 (both pushed), and the tests-only follow-up on
+`ai/hook-review-followups` (local) closes M-03, M-05, and M-06; M-04 stays open.
 
 Prompt 06c ran on 2026-10-12 (`docs/SECURITY-REVIEW.md`): four review rounds over
 the eval kit's egress code, 2 Blockers and 7 Majors fixed test-first in the kit;
@@ -157,11 +157,11 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. The owner pushes `ddf5430` on `ai/calibration-phase-2` (pull request #32, head
-   `8eaa991`) from their own terminal; agents cannot push. When CI is green the
-   owner merges it. After the merge, delete the merged remote branches
-   (`origin/ai/session-clock-path` among them) and confirm that the CI release
-   run publishes the next `6.1.0` prerelease.
+1. The owner merges pull request #32 (head `a7f00c9`) when CI is green. Then the
+   follow-up `ai/hook-review-followups` is rebuilt on the new `origin/main` and
+   pushed by the owner; agents cannot push. After the merges, delete the merged
+   remote branches (`origin/ai/session-clock-path` among them) and confirm that the
+   CI release run publishes the next `6.1.0` prerelease.
 2. Confirm the clock pin live in a new VS Code chat (Decision 0024 lists the
    cases).
 3. A further eval run needs a new amendment, TBD-11 closed with source and date,
