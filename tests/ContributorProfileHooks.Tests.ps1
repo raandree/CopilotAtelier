@@ -364,6 +364,22 @@ Describe 'Compaction re-injection in <Edition>' -Tag 'Unit' -ForEach $script:edi
         (Get-State -Fixture $fixture).injected | Should -Be 1
     }
 
+    It 're-sends the levels of a non-ASCII area name as pure ASCII JSON that reads back unchanged' {
+        # Windows PowerShell 5.1 writes standard output in the OEM code page, which turns ü into
+        # a byte that is no UTF-8 and U+02BA into a bare quote (review finding M-02).
+        $name = 'B' + [char]0x00FC + 'ro ' + [char]0x02BA
+        $areas = '{"' + $name + '":{"level":"expert","updatedUtc":"2026-10-01T08:00:00Z"}}'
+        $fixture = New-HookFixture -Area $name -ProfileText (New-ContributorFixtureProfile -Entry (New-ContributorFixtureEntry -Areas $areas))
+        $null = Invoke-Event -Fixture $fixture -Event 'PreCompact'
+
+        $result = Invoke-Event -Fixture $fixture -Event 'PostToolUse'
+
+        $result.ExitCode | Should -Be 0
+        $result.Output | Should -Not -Match '[^\x00-\x7F]' -Because 'the hook output must read the same in every code page'
+        $result.Json.additionalContext | Should -Match ([regex]::Escape('"' + $name + '" expert'))
+        $result.Json.hookSpecificOutput.additionalContext | Should -BeExactly $result.Json.additionalContext
+    }
+
     It 'stays silent without a pending compaction' {
         $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
 
@@ -831,6 +847,7 @@ Describe 'Session clock path in <Edition>' -Tag 'Unit' -ForEach $script:editions
         @{ Case = 'a plain session id'; SessionId = 'b1946ac9-2a55-4f71-9a7d-1a5e5f1c6d01' }
         @{ Case = 'a session id with unsafe characters'; SessionId = '../evil id:1' }
         @{ Case = 'a session id over 64 characters'; SessionId = ('s' * 70) }
+        @{ Case = 'a session id with letters that fold to ASCII under -replace'; SessionId = ('a' + [char]0x212A + 'b' + [char]0x0130 + 'c') }
         @{ Case = 'no session id'; SessionId = $null }
     ) {
         $fixture = New-HookFixture -ProfileText (New-ContributorFixtureProfile)
@@ -897,6 +914,43 @@ Describe 'Calibration state helpers' -Tag 'Unit' {
             $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path -Path $script:hookRoot -ChildPath $file), [ref] $tokens, [ref] $errors)
             $definition = @($ast.FindAll({ param ($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $Name }, $false))
             $definition.Count | Should -Be 1 -Because "$file defines $Name once"
+            $definition[0].Extent.Text.Replace("`r`n", "`n")
+        }
+
+        @($texts | Sort-Object -Unique).Count | Should -Be 1
+    }
+
+    It 'derives the session key with the case-sensitive -creplace in <File>' -ForEach @(
+        @{ File = 'Add-SessionContext.ps1' }
+        @{ File = 'Write-SessionClose.ps1' }
+        @{ File = 'Write-CompactionCheckpoint.ps1' }
+        @{ File = 'Add-FamiliarityContext.ps1' }
+        @{ File = 'Get-SessionElapsed.ps1' }
+    ) {
+        <#
+            -replace ignores case, so U+0130 and U+212A pass the negated class
+            and a copy that uses it names another file than the others do
+            (review finding M-01 of the merge of main and Decision record 0028).
+        #>
+        $text = Get-Content -LiteralPath (Join-Path -Path $script:hookRoot -ChildPath $File) -Raw
+
+        $text | Should -Match "-creplace\s+'\[\^A-Za-z0-9\._-\]'"
+        $text | Should -Not -Match "-replace\s+'\[\^A-Za-z0-9\._-\]'"
+    }
+
+    It 'keeps ConvertTo-AsciiJson verbatim in both hooks that write session context' {
+        <#
+            Windows PowerShell 5.1 writes standard output in the OEM code page, so
+            SessionStart and the re-send after a compaction both escape every
+            character above ASCII; each hook carries its own copy (review finding M-02).
+        #>
+        $texts = foreach ($file in 'Add-SessionContext.ps1', 'Add-FamiliarityContext.ps1')
+        {
+            $tokens = $null
+            $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path -Path $script:hookRoot -ChildPath $file), [ref] $tokens, [ref] $errors)
+            $definition = @($ast.FindAll({ param ($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'ConvertTo-AsciiJson' }, $false))
+            $definition.Count | Should -Be 1 -Because "$file defines ConvertTo-AsciiJson once"
             $definition[0].Extent.Text.Replace("`r`n", "`n")
         }
 

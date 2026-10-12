@@ -102,8 +102,9 @@ function Get-SessionClockPath {
     }
 
     # The payload supplies this value, so it becomes a path component only after
-    # every character that could traverse a directory is gone.
-    $key = ($SessionId -replace '[^A-Za-z0-9._-]', '')
+    # every character that could traverse a directory is gone. -creplace, because
+    # -replace ignores case and so lets U+0130 and U+212A through the class.
+    $key = ($SessionId -creplace '[^A-Za-z0-9._-]', '')
 
     if ($key.Length -gt 64) {
         $key = $key.Substring(0, 64)
@@ -125,6 +126,28 @@ function Get-SessionClockPath {
     }
 
     return [IO.Path]::Combine($Root, "session-$key.json")
+}
+
+function ConvertTo-AsciiJson {
+    <#
+        Writes every character of a JSON text outside ASCII as \uXXXX. Windows
+        PowerShell 5.1 encodes standard output in the console's OEM code page, and
+        that encoding's best fit turns characters such as U+201C, U+02BC, and U+2032
+        into a bare ASCII quote. In the workspace path that breaks the JSON and
+        lets the rest of a folder name become context; in a quoted path it ends the
+        string early, after the quoting. Quoting cannot cover what happens later,
+        but a JSON text that is pure ASCII reads the same in every code page and in
+        UTF-8.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Json
+    )
+
+    return [regex]::Replace($Json, '[^\x00-\x7F]', { param($match) '\u{0:x4}' -f [int][char]$match.Value })
 }
 
 function Read-CalibrationState {
@@ -383,7 +406,7 @@ try {
     }
 
     $workingDirectoryForKey = if ($payload) { [string]$payload.cwd } else { $null }
-    if ([string]::IsNullOrWhiteSpace(($sessionId -replace '[^A-Za-z0-9._-]', '')) -and $null -eq $payload) {
+    if ([string]::IsNullOrWhiteSpace(($sessionId -creplace '[^A-Za-z0-9._-]', '')) -and $null -eq $payload) {
         $payload = $InputJson | ConvertFrom-Json -ErrorAction Stop
         $workingDirectoryForKey = [string]$payload.cwd
     }
@@ -498,13 +521,15 @@ try {
     }
 
     if ($recorded -and $sentence) {
-        [ordered]@{
+        # The levels carry the contributor's area names, which may be letters of any script.
+        $json = [ordered]@{
             additionalContext = $sentence
             hookSpecificOutput = [ordered]@{
                 hookEventName = 'PostToolUse'
                 additionalContext = $sentence
             }
         } | ConvertTo-Json -Depth 5 -Compress
+        ConvertTo-AsciiJson -Json $json
     }
 } catch {
     # Any fault costs the re-sent levels, nothing else; a tool call is never blocked.

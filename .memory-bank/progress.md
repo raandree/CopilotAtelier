@@ -18,6 +18,8 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-12**: Independent review of the hand-merged hook scripts: approve with
+  changes; a key-rule drift and a non-ASCII output gap fixed, four minors open.
 - **2026-10-12**: Ran Desktop prompt 06c (`review: on`, Prox1): the built-in
   `security-review` agent reviewed the eval kit's egress code in four rounds, and a
   background agent fixed 2 Blockers and 7 Majors test-first in the kit (self-checks
@@ -58,12 +60,10 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   since 2026-10-11; gate 2,593 passed): detached Pester guards reject a result
   other than `Passed`, `Wait-DetachedResult.ps1`, hook context as data, and the
   hook-evidence locations.
-- **2026-10-08**: Decision 0028's A13 eval on Prox1 (TBD-8 closed, criterion 28
-  met, criterion 21 returned; 10.19 USD); the VS Code Local backstop proved live
-  (TBD-7 closed, criteria 22 and 30 met, full gate 3,293 tests); the latency
-  levels set by the re-baseline rule (TBD-6 closed, criteria 20, 26, and 29 met).
-- **2026-10-07**: Amendment 3 (A14 to A18) signed off; the reader-shaped Prox1
-  Meter lost no replicate, spread at most 1.16.
+- **2026-10-07 and 2026-10-08**: Amendment 3 (A14 to A18) signed off; the Prox1
+  Meter lost no replicate (spread at most 1.16); the A13 eval (TBD-8 closed,
+  criterion 28 met; 10.19 USD); the VS Code Local backstop live (TBD-7 closed,
+  criteria 22 and 30 met); the latency levels (TBD-6 closed, criteria 20, 26, 29).
 - **2026-10-02 to 2026-10-04**: Hook follow-ups on local `main` (`d8cc6f5` to
   `fea564f`) and `ai/hook-deny-reason`: Copilot SDK chats show the guard's block
   reason (`tests/HookSdkRuntime.Tests.ps1` runs the shipped launcher and guard in

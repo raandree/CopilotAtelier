@@ -86,8 +86,9 @@ function Get-SessionClockPath {
     }
 
     # The payload supplies this value, so it becomes a path component only after
-    # every character that could traverse a directory is gone.
-    $key = ($SessionId -replace '[^A-Za-z0-9._-]', '')
+    # every character that could traverse a directory is gone. -creplace, because
+    # -replace ignores case and so lets U+0130 and U+212A through the class.
+    $key = ($SessionId -creplace '[^A-Za-z0-9._-]', '')
 
     if ($key.Length -gt 64) {
         $key = $key.Substring(0, 64)

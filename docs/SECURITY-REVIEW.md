@@ -4,6 +4,48 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-10-12: hand-resolved merge of `main` into the calibration branch (hook scripts)
+
+The built-in `security-review` agent reviewed, read-only and in a fresh context,
+the merge commit `ef96c2d`, which brought `origin/main` (prompts 03 and 08) into
+`ai/calibration-phase-2` with 9 hand-resolved conflicts, three of them in hook
+scripts that run at every session start and close. It ran nothing and made no
+network call. The Custom `security-reviewer` agent was not tried, because its
+first model was unavailable in this runtime in earlier reviews. The owner chose
+`review: on` for this change after the pull request was open.
+
+### Scope
+
+- Did the resolution keep both sides' behaviour; do the hooks keep their
+  contracts (one JSON object, exit 0, pure ASCII, syntax that Windows PowerShell
+  5.1 reads); can a session id or a path alter the command that the context hands
+  to the agent, or move the clock or the state file; and which merged behaviours
+  have no test.
+
+### Verdict
+
+**Approve with changes.** No Blocker: no lost behaviour, no broken hook contract,
+and no injectable command or path traversal. One Major and one Minor are fixed
+with this entry; the other four findings are test or hardening items and stay
+open.
+
+### Findings
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| M-01 | Major | Hooks | Main's case-sensitive session-key rule reached only the copies that main knew. Two hooks of the calibration side still derived the key with the case-insensitive `-replace`, so a session id holding U+0130 or U+212A named another state file in the PreCompact and PostToolUse hooks than in SessionStart and Stop, and the compaction count and the backstop used a different file than the one SessionStart seeded. | Fixed. The three sites use `-creplace`; a session id with those letters runs through every hook in both editions, and a static check demands the rule in all five scripts. |
+| M-02 | Minor | Hooks | The re-send after a compaction wrote plain JSON, so Windows PowerShell 5.1's OEM code page turned a non-ASCII area name into a byte that is no UTF-8, or into a quote. | Fixed. The hook escapes every character above ASCII as SessionStart does; a test with an umlaut and U+02BA checks both editions, and a test keeps the two copies of the helper verbatim. |
+| M-03 | Minor | Tests | No test combines the shortened closing line with a calibration sentence, so the documented 1024-character minimum is no longer exercised with a sentence. | Open. |
+| M-04 | Nit | Hooks | The key alphabet allows a dot, so a session id of the form `X.familiarity` gives a clock path equal to the state path of `X`; it needs a host-assigned id of that shape. | Open. |
+| M-05 | Nit | Tests | The shortened closing line's quoting is tested only with a quote-free path. | Open. |
+| M-06 | Nit | Tests | The only guard of the state-file filter in the elapsed reader asserts `turn 1`, which an unfiltered reader might also print (speculative, confidence 4). | Open. |
+
+### Not assessed
+
+- Windows PowerShell 5.1 for `Hooks.Tests.ps1`, which runs in the Pester host's
+  edition; the new tests run in both editions.
+- The OEM best-fit table itself, and the agent terminal's own encoding.
+
 ## 2026-10-12: independent review of the egress controls of the private eval kit (prompt 06c)
 
 The built-in `security-review` agent reviewed, read-only and in a fresh context,
