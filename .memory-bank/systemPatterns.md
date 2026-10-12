@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-09
+last-verified: 2026-10-11
 owner: software-engineer
 source: .memory-bank/decisions and source/
 ---
@@ -40,6 +40,7 @@ Durable relationships and the Decision record index; read a linked record only w
 | 25 | [Package specification completion as capability-isolated agents](decisions/0025-package-specification-completion-as-capability-isolated-agents.md) | Accepted | 2026-09-02 |
 | 26 | [Declare runtime tool names next to VS Code names](decisions/0026-declare-runtime-tool-names-next-to-vs-code-names.md) | Accepted | 2026-09-29 |
 | 27 | [Calibrate answers to the contributor](decisions/0027-calibrate-answers-to-the-contributor.md) | Accepted | 2026-09-30 |
+| 28 | [Persist Familiarity levels in a private Contributor profile](decisions/0028-persist-familiarity-levels-in-a-private-contributor-profile.md) | Accepted | 2026-10-06 |
 
 ## Live relationships
 
@@ -77,11 +78,12 @@ Durable relationships and the Decision record index; read a linked record only w
 - Persist each pending operation before atomic replacement and checkpoint after.
     Reconcile observed hashes, not assumed completion. Guard every ancestor
     below the selected root; trusted aliases sit above it. Placeholders are not
-    links, and hashes do not provide a transaction or sandbox.
-- Remove verified Discovery links non-recursively, dangling Unix links too.
-    Make POSIX filename fixtures with .NET path APIs; `Join-Path` normalizes.
+    links, and hashes do not provide a transaction or sandbox. A record and a file that sync separately are pending while half arrived, never inferred. A write goes only to a positively chosen target; only reads fall back to a single or default entry.
+- Remove verified Discovery links non-recursively, dangling Unix links too. Make POSIX filename fixtures with .NET path APIs; `Join-Path` normalizes. `Remove-Item` of a dot-file needs `-Force` on Linux and macOS, which a Windows gate never shows (PR #32, CI).
 - Hooks enforce unconditional rules; Instructions carry judgement calls. VS Code runs `windows`, the Copilot SDK host `powershell`, else `command`; every
-    branch must work on every OS it can reach without `HOME` or `$`. Prove a host's hook contract in its own runtime (`session.rpc.tools.execute`), not from its docs.
+    branch must work on every OS it can reach without `HOME` or `$`. Prove a host's hook contract in its own runtime (`session.rpc.tools.execute`), not from its docs. State hook latency as a step over a no-op hook divided by a hash-pinned frozen reference's step in the same replicate, the reference being the measured step's own kind of work (0028, A9, A17), with one `w` per tag (A16), never in launches: launch costs diverge across machines and editions (TBD-5). Every writer of a shared state file keeps every field and records before it emits (A12).
+- A gate that a run misses ships as not met, with its limitation named in the record, the matrix, and the PR body; nothing a gate reads moves after the miss (0028, A24, A34).
+    A further run needs a new amendment, a spending ruling, and an independent review of any egress code first (A31, A38).
 - CI preserves hidden ownership metadata and canonical temporary paths. Nested
     Node runners clear `NODE_TEST_CONTEXT` and prove tests ran; external gates fail closed and baselines shrink.
     Deduplicate exact-head PRs only; cancel topic/PR runs, never releases. Changelog-only checks cannot publish; verify unique release headings after the tag-at-HEAD exemption.

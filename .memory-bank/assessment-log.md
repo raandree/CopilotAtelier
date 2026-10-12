@@ -48,6 +48,30 @@ Residual risk, with no finding left open:
 - The command is PowerShell syntax; a POSIX shell rejects the leading `&`.
 - Linux and macOS were not run locally; the new cases were traced by reading.
 
+## 2026-10-09 privacy boundary of the private calibration eval kit
+
+Scope: the kit's case checker, location and destination guards, and case-set
+checker, plus the repository records describing them, at
+`ai/calibration-phase-2`. The built-in `security-review` agent ran read-only
+(the Custom `security-reviewer` agent was unavailable); the parent saved its
+reports in the private kit.
+
+Verdict: four rounds, each Request changes. Every Major (P-01, P-02, V-01, V-02,
+S-01, S-02) was verified fixed by the reviewer. The last Minor (S-04) was fixed
+by the author and checked by the author's tests, with no fourth round.
+Criterion 28 holds for the current case set and kit location, as scoped. Full
+record in [docs/SECURITY-REVIEW.md](../docs/SECURITY-REVIEW.md).
+
+Residual risk, all accepted by the owner on 2026-10-09:
+
+- Names and addresses not on the private term list depend on the owner's read.
+- Letters-only Base64 is not recognized.
+- One earlier commit keeps the old source attribution; the history stays as it
+  is.
+- Filesystem alias coverage was not live-tested by the reviewer; a live test is
+  deferred to a later round.
+- Provider submissions remain an intentional disclosure.
+
 ## 2026-10-01 contributor calibration Phase 1 and its private eval tooling
 
 Scope: round 1 reviewed `a592832..6b00681` on `ai/contributor-calibration` — the

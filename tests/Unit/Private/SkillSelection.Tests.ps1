@@ -259,7 +259,7 @@ Describe 'Resolve-CopilotAtelierSkillSelection' -Tag 'Unit' {
             Resolve-CopilotAtelierSkillSelection -ContentPath $ContentPath -InstallationProfile 'engineering'
         }
 
-        @($selection.Skill) | Should -Be @('agent-security-review', 'long-running-job-monitor', 'memory-bank', 'sampler-framework')
+        @($selection.Skill) | Should -Be @('agent-security-review', 'contributor-profile', 'long-running-job-monitor', 'memory-bank', 'sampler-framework')
         $selection.Skill | Should -Not -Contain 'grill-me'
     }
 }

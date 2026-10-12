@@ -218,12 +218,17 @@ Describe 'General module control' -Tag 'QA' {
 
     It 'Should export exactly the documented commands' {
         $expected = @(
+            'Export-CopilotAtelierContributorProfile'
             'Get-CopilotAtelierClientAdapter'
+            'Get-CopilotAtelierContributorProfile'
             'Get-CopilotAtelierFootprint'
             'Get-CopilotAtelierProfile'
             'Get-CopilotAtelierSkillHealth'
             'Get-CopilotAtelierVersion'
+            'Import-CopilotAtelierContributorProfile'
             'Install-CopilotAtelier'
+            'Remove-CopilotAtelierContributorProfile'
+            'Set-CopilotAtelierContributorProfile'
             'Test-CopilotAtelier'
             'Uninstall-CopilotAtelier'
             'Update-CopilotAtelier'

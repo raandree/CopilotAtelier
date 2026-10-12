@@ -1,0 +1,73 @@
+[
+  {
+    "id": "pos-01",
+    "query": "remember that I am new to Kerberos so you do not have to ask again next time",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-02",
+    "query": "save my familiarity levels for the knowledge areas of this project",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-03",
+    "query": "turn the contributor profile off, I do not want that interview any more",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-04",
+    "query": "how do I get my contributor profile onto the lab VM that has no OneDrive",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-05",
+    "query": "why did this new session not know that I am an expert in PowerShell DSC",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-06",
+    "query": "delete everything you saved about how much explanation I want",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "neg-01",
+    "query": "explain this Kerberos error more simply, I am new to it",
+    "should_trigger": false,
+    "split": "train",
+    "note": "a level for this session only: the contributor-calibration Instruction and /simpler"
+  },
+  {
+    "id": "neg-02",
+    "query": "add Knowledge area as a term to the glossary in the memory bank",
+    "should_trigger": false,
+    "split": "train",
+    "note": "memory-bank"
+  },
+  {
+    "id": "neg-03",
+    "query": "export my LinkedIn profile into a markdown file",
+    "should_trigger": false,
+    "split": "train",
+    "note": "authenticated-web-extraction"
+  },
+  {
+    "id": "neg-04",
+    "query": "measure whether the calibration instruction changes the answers",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "agent-evals"
+  },
+  {
+    "id": "neg-05",
+    "query": "initialize the memory bank for this repository",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "memory-bank"
+  }
+]

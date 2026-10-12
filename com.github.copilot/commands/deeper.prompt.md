@@ -12,4 +12,5 @@ Re-explain the named subject, or the last answer when none is named, one familia
 - Stop explaining terms the contributor already uses correctly.
 - Already at `expert`: go to the specification, protocol, or source-code level and cite it.
 - End with one line naming each knowledge area and the level it keeps for the rest of the session.
+- When this session received a contributor-profile sentence and the area is declared there, offer once per area to keep the level: `Save Kerberos = expert to your profile? (yes / no)`.
 - Change no files.

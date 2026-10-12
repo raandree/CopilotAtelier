@@ -18,7 +18,7 @@ Do all of these for every new user prompt. Do not skip any step silently.
 5. **Match skills.** Scan the `<skills>` block for descriptions matching the task. Read each matching `SKILL.md` at most once per turn, and skip the read when its full body is already supplied in the current context.
 6. **Do not write prompt history at Pre-flight.** Post-flight owns the `promptHistory.md` append for Substantive turns. Format: `YYYY-MM-DD HH:mm UTC | <agent-name or default> | <one-line intent>`.
 7. **Open the reply with a UTC timestamp** `[YYYY-MM-DD HH:mm UTC]`.
-8. **Emit a one-line PRE-FLIGHT acknowledgment** immediately after the timestamp on substantive turns. Name the probe result, selected Memory Bank route and files (or full-read fallback), initialized files, matching Instructions, and matching Skills. Trivial conversational turns may skip the banner.
+8. **Emit a one-line PRE-FLIGHT acknowledgment** immediately after the timestamp on substantive turns. Name the probe result, selected Memory Bank route and files (or full-read fallback), initialized files, matching Instructions, and matching Skills. Name the contributor profile state as counts only, such as `profile: 3 levels, 2 unrated`, `profile: unreadable (invalid-json)`, or `profile: none` when the session context carries no contributor-profile sentence. Trivial conversational turns may skip the banner.
 
 ## Compaction recovery
 

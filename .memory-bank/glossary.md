@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-30
+last-verified: 2026-10-06
 owner: shared
 source: project domain decisions
 ---
@@ -46,3 +46,4 @@ API fields, and quoted historical text retain their exact spelling.
 | Definition of Done | The project-wide quality bar that every change must satisfy in addition to its Acceptance criteria. | global acceptance criteria, project completion checklist |
 | Knowledge area | A field of knowledge a project involves, such as Kerberos, DSC, or German tenancy law; the scope a Familiarity level applies to. | skill area, expertise domain |
 | Familiarity level | How much explanation a contributor wants in one Knowledge area: `new`, `familiar`, or `expert`. A preference, not a grade, and never stored in a repository. | skill level, proficiency level, expertise rating |
+| Contributor profile | The private file that stores one or more contributors' Familiarity levels outside every repository: in the Canonical target's `contributor` folder, or under LocalApplicationData on a machine without one. | user profile, skill profile, installation profile |

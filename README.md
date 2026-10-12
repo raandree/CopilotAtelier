@@ -111,6 +111,8 @@ What gets **deployed** to your machine — unchanged by the plugin migration:
 └── hooks/           # Lifecycle hooks (hook config JSON plus scripts)
 ```
 
+Saving a familiarity level adds one more folder beside these, `contributor/`, which holds your private Contributor profile. Install, Update, and `-Repair` never read or change it, and `Uninstall-CopilotAtelier` leaves it in place; see [How Much Explanation You Want](#how-much-explanation-you-want) and [Removal and rollback](#removal-and-rollback).
+
 How the **repository** stores them, which is also the installable plugin package ([Agent Plugins 1.0](https://agent-plugins.org/)):
 
 ```text
@@ -175,15 +177,40 @@ incomplete. Nothing is pushed.
 
 Every agent pitches answers and questions at your familiarity with the knowledge
 area involved: `new`, `familiar`, or `expert`. It assumes `familiar` until you
-say otherwise. No familiarity level is written to a repository; a level lasts
-for the session, so state it again after a long conversation is compacted.
+say otherwise. A level you state lasts for the session. Save it in your private
+Contributor profile, outside every repository, and it applies in every later
+session of a workspace that declares that Knowledge area in
+`.memory-bank/projectbrief.md`, also after a long conversation is compacted.
 
 | You want | Type this |
 |---|---|
 | The last answer again, one level simpler | `/simpler` |
 | The last answer again, one level deeper | `/deeper` |
 | A level for one area | `I'm new to Kerberos` or `I know DSC well` |
+| That level in later sessions | Answer `yes` to the save offer, or run `Set-CopilotAtelierContributorProfile -KnowledgeArea Kerberos -Level new` |
+| What a workspace receives, and why | `Get-CopilotAtelierContributorProfile -WorkspacePath .` |
+| An entry of your own beside someone else's, such as on a shared lab account | `Set-CopilotAtelierContributorProfile -NewContributor -AddAlias you@example.com` |
+| Saved levels no longer used | `Set-CopilotAtelierContributorProfile -State Off`, or `Remove-CopilotAtelierContributorProfile` |
 | The agent to decide a question you cannot judge | `not sure, you pick` |
+
+The profile syncs with the Canonical target through OneDrive; on a lab VM or in a
+container, copy it with `Export-` and `Import-CopilotAtelierContributorProfile`.
+A write changes only the entry whose alias matches your git address, or the one
+you name with `-Contributor`; it never falls back to someone else's entry.
+A workspace that declares Knowledge areas offers a short interview once, which
+you can snooze or turn off. See the
+[`contributor-profile`](skills/contributor-profile/SKILL.md) Skill.
+
+A saved level steers the model; it does not bind it. In the project's
+measurements the model kept a saved level in most replies but not in every one,
+and a saved `expert` level does not reliably make replies terse, so say so in
+words when a reply misses your level. After a compaction the levels return on the
+next successful tool call (in VS Code Local, on the first call after a turn
+ends), so a reply that makes no tool call does not receive them again. A
+plugin-only installation has no `~/.copilot/hooks` registration and receives the
+levels at session start only, and Claude Code reads the Skill only. The
+measurements are in
+[Decision record 0028](.memory-bank/decisions/0028-persist-familiarity-levels-in-a-private-contributor-profile.md).
 
 Every technical question comes with a recommended answer. In `new` and
 `familiar` areas it also says why, what changes with another choice, and whether
@@ -213,6 +240,7 @@ words. The independent security review of this feature is in
 | **german-tax-research** | German income tax (Einkommensteuer) case work: assessment-notice review, deadline computation under the four-day notification fiction, point-by-point answers to a `Belegaufforderung`, reconciliation of every claimed figure against the return actually transmitted, and formal German drafts for `Einspruch`, `Begründung`, `AdV`, `Ruhen`, and `§ 153 AO` corrections. References cover AO procedure, V+V and AfA including `§ 7i`, Werbungskosten and Sonderausgaben, year-keyed amounts and filing deadlines, and letter templates; ships `Get-SteuerFrist.ps1` for the notification and objection dates including state holidays. |
 | **grammar-check** | Identify grammar, logical, and flow errors in text and suggest targeted fixes. Analyzes spelling, punctuation, subject-verb agreement, tense consistency, and transitions. |
 | **memory-bank** | Initialize, route, check, and safely migrate a repository Memory Bank for durable work. Manages seven required version-controlled files plus local prompt history, preserves existing content byte-for-byte, supports namespaced career, legal, and tax records, checks provenance and compactness budgets, retains a Full-read fallback, and provides offline pass@k/pass^k evaluation of natural-language route selection. |
+| **contributor-profile** | Keeps each contributor's Familiarity levels in a private Contributor profile outside every repository, so a saved level shapes later sessions without being restated. Runs the opt-in interview for the Knowledge areas a workspace declares in `projectbrief.md`, saves a level changed in chat, opts out and back in, deletes, and moves the profile between machines with export and import. The SessionStart hook injects matched levels as one data-only sentence, and a PostToolUse hook re-sends them after a compaction while a profile is on. Every write goes through one script, takes a lock, writes atomically, follows a `-WhatIf` preview the contributor approves, and refuses any path inside a git working tree. Mandatory in every installation profile. |
 | **changed-file-validation** | An opt-in, bounded validation pass over the files one work batch actually changed. Paths are collected manually into an isolated session, deduplicated, and guarded against the selected project root before every read; each supported file is then copied to an isolated snapshot and checked once — PowerShell parsing and PSScriptAnalyzer in an owned, time-bounded worker process, and markdown through a real markdownlint plus a deliberately partial four-rule native structure check that never stands in for it. Every result is a receipt naming the validation plan identity, each validator with its version and configuration identity, and the SHA-256 of the exact bytes read, so changed content, a changed plan, or a hand-edited receipt cannot inherit a pass. No hook is wired, missing tools and time-bound violations stay visible as unavailable, and it supplements immediate tests and the full build gate rather than replacing them. |
 | **reviewed-learning-inbox** | An on-demand, project-scoped review queue for reusable lessons taken from explicitly selected local artifacts. Records a candidate with a stable identifier, a sanitized single-line summary, evidence locators with SHA-256 content identity, and separated observations, interpretations, and contradictory evidence; deduplicates equivalents and retains rejections and supersessions. Candidates stay out of the routed Memory Bank base and the deployed Customizations, and a lesson reaches an existing Skill or Instruction only through an append-only promotion that a human approves by the SHA-256 of the preview they read. |
 | **citation-integrity** | Verify every external claim, quote, statistic, and reference in generated text against a fetched source. Defines a six-class failure taxonomy (F1 fabricated reference → F6 anchorless claim), a three-layer anchor (locator + ≤25-word quote + stable identifier), a `VERIFIED` / `MISMATCH` / `NOT_FOUND` verdict scheme with no gray zone, and a cross-index triangulation rule for contamination signals. |
@@ -273,7 +301,7 @@ Install-CopilotAtelier -InstallationProfile engineering -InformationAction Conti
 Four rules keep a narrowed installation usable:
 
 - **Only Skills are selectable.** Agents, Instructions, Prompts, and Hooks always deploy in full, so the lifecycle and security behaviour never depends on a profile.
-- **Mandatory Skills are always present.** `memory-bank`, `long-running-job-monitor`, and `agent-security-review` are loaded by name from the deployed Instructions and shipped Custom agents. `-ExcludeSkill` refuses to drop them.
+- **Mandatory Skills are always present.** `memory-bank`, `long-running-job-monitor`, `agent-security-review`, and `contributor-profile` are loaded by name from the deployed Instructions and shipped Custom agents. `-ExcludeSkill` refuses to drop them.
 - **Dependencies come along.** A Skill that hands part of its workflow to another one pulls that one in, and a whole Skill folder ships with its scripts, references, and assets. Excluding a Skill that a selected Skill requires is refused, with the dependent named.
 - **A narrowed selection is checked against the payload it is narrowing.** A payload that does not ship a mandatory Skill, a selected Skill whose required Skill is missing, and an explicitly selected directory with no `SKILL.md` entry point are all refused rather than quietly left out. The complete installation is exempt: with no selection argument it deploys the payload exactly as releases before profiles did, and `Get-CopilotAtelierProfile` reports `PrerequisiteValidated` as `False` for it rather than implying it checked.
 
@@ -906,6 +934,17 @@ removes only recorded files with matching hashes, and cleans empty managed
 directories and matching Discovery links. Modified files, untracked files,
 links serving retained content, settings, keybindings, environment variables,
 installed module versions, and native plugins remain untouched.
+
+Your Contributor profile is personal content, and Uninstall never deletes it.
+When the profile commands have registered the `PostToolUse` hook, Uninstall
+removes that registration, `~/.copilot/hooks/contributor-profile.json`, before
+any file, because a registration whose script is gone would warn on every tool
+call. It stops before removing anything, and names the file, when the
+registration is not the one the profile commands wrote or has changed since, when
+a OneDrive record arrived without its file, or when another profile writer holds
+the lock. `Get-CopilotAtelierContributorProfile` reports the registration state,
+and `Remove-CopilotAtelierContributorProfile -RegistrationOnly` clears an
+orphaned or pending one after you confirm.
 
 Older Deployment records have no ownership hashes. Uninstall leaves them
 alone; install preserves matching untracked files without claiming ownership

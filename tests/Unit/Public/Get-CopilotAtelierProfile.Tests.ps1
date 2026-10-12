@@ -8,7 +8,7 @@ Describe 'Get-CopilotAtelierProfile' -Tag 'Unit' {
     BeforeAll {
         $script:payloadPath = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
 
-        foreach ($skillName in @('agent-security-review', 'long-running-job-monitor', 'memory-bank', 'pdf-to-markdown', 'sampler-framework'))
+        foreach ($skillName in @('agent-security-review', 'contributor-profile', 'long-running-job-monitor', 'memory-bank', 'pdf-to-markdown', 'sampler-framework'))
         {
             $skillPath = Join-Path $script:payloadPath "skills/$skillName"
             New-Item -ItemType Directory -Path $skillPath -Force | Out-Null

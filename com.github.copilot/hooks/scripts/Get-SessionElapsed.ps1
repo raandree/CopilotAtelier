@@ -136,8 +136,11 @@ try {
     }
 
     if ([string]::IsNullOrWhiteSpace($Path)) {
+        # The calibration state beside each clock, session-<key>.familiarity.json,
+        # matches the same pattern but is not a clock, so it is never a candidate.
         $candidates = @(
             Get-ChildItem -LiteralPath $ClockRoot -Filter 'session-*.json' -File -ErrorAction Stop |
+                Where-Object { $_.Name -notlike '*.familiarity.json' } |
                 Sort-Object -Property LastWriteTimeUtc -Descending
         )
 

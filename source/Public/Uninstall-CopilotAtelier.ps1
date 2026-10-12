@@ -20,6 +20,19 @@ function Uninstall-CopilotAtelier
             Recover an interrupted apply with the updated Install-CopilotAtelier
             before removal. Coordination does not lock cloud sync across machines.
 
+            The private Contributor profile in the Canonical target's contributor
+            folder is personal content and stays. Before any file is removed, the
+            registration file ~/.copilot/hooks/contributor-profile.json is
+            reconciled under the profile lock and removed when this module owns
+            it: its bytes match the hash its record holds, whichever template
+            wrote it. The lock stays held until the hook scripts are removed, so
+            no profile write can register the hook meanwhile. A foreign or
+            modified registration, a pending one whose record arrived without
+            the file, or a held lock stops the removal before anything changes
+            and names the file, because removing the hook scripts would leave it
+            warning on every tool call. Open chats keep the hooks they loaded
+            until restarted.
+
         .PARAMETER TargetPath
             Explicit Canonical target. Defaults to the normal profile resolver,
             which fails instead of prompting when OneDrive selection is ambiguous.
@@ -62,6 +75,7 @@ function Uninstall-CopilotAtelier
     $preserved = [System.Collections.Generic.List[string]]::new()
     $planned = [System.Collections.Generic.List[object]]::new()
     $directories = [System.Collections.Generic.HashSet[string]]::new((Get-CopilotAtelierPathComparer -Path $path.TargetPath))
+    $registration = $null
 
     if ($null -eq $record -or $record.SchemaVersion -ne 1)
     {
@@ -111,30 +125,50 @@ function Uninstall-CopilotAtelier
             {
                 throw 'Deployment changed before removal. Retry with the current Deployment record.'
             }
-            foreach ($file in $planned)
+
+            <#
+                The contributor profile registration runs a deployed hook script
+                on every tool call, so it is reconciled before any file goes, and
+                the profile lock stays held until the scripts are gone, so no
+                writer can register while they go; a registration that cannot be
+                reconciled stops the removal here. The profile itself is personal
+                content and stays.
+            #>
+            . (Get-CopilotAtelierContributorProfileScriptPath)
+            $contributorUninstall = Invoke-ContributorRegistrationUninstall -Location (Resolve-ContributorProfileLocation -UserHome $path.UserHome)
+            try
             {
-                $destination = Join-Path -Path $path.TargetPath -ChildPath $file.Path
-                Assert-CopilotAtelierRegularPath -LiteralPath $destination -RootPath $path.TargetPath
-                if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ne $file.Sha256)
+                foreach ($file in $planned)
                 {
-                    throw "Deployment changed during removal: '$($file.Path)'."
+                    $destination = Join-Path -Path $path.TargetPath -ChildPath $file.Path
+                    Assert-CopilotAtelierRegularPath -LiteralPath $destination -RootPath $path.TargetPath
+                    if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ne $file.Sha256)
+                    {
+                        throw "Deployment changed during removal: '$($file.Path)'."
+                    }
+                    Remove-Item -LiteralPath $destination -Force -Confirm:$false
+                    $removed.Add($file.Path)
                 }
-                Remove-Item -LiteralPath $destination -Force -Confirm:$false
-                $removed.Add($file.Path)
+
+                foreach ($directoryName in @('agents', 'instructions', 'skills', 'prompts', 'hooks'))
+                {
+                    $null = $directories.Add((Join-Path -Path $path.TargetPath -ChildPath $directoryName))
+                }
+                foreach ($directory in $directories | Sort-Object -Property Length -Descending)
+                {
+                    Assert-CopilotAtelierRegularPath -LiteralPath $directory -RootPath $path.TargetPath
+                    if ([System.IO.Directory]::Exists($directory) -and [System.IO.Directory]::GetFileSystemEntries($directory).Length -eq 0)
+                    {
+                        [System.IO.Directory]::Delete($directory, $false)
+                    }
+                }
+            }
+            finally
+            {
+                Exit-ContributorRegistrationUninstall -Handle $contributorUninstall
             }
 
-            foreach ($directoryName in @('agents', 'instructions', 'skills', 'prompts', 'hooks'))
-            {
-                $null = $directories.Add((Join-Path -Path $path.TargetPath -ChildPath $directoryName))
-            }
-            foreach ($directory in $directories | Sort-Object -Property Length -Descending)
-            {
-                Assert-CopilotAtelierRegularPath -LiteralPath $directory -RootPath $path.TargetPath
-                if ([System.IO.Directory]::Exists($directory) -and [System.IO.Directory]::GetFileSystemEntries($directory).Length -eq 0)
-                {
-                    [System.IO.Directory]::Delete($directory, $false)
-                }
-            }
+            $registration = $contributorUninstall.Status
 
             $linkRoots = @($path.CopilotRoot)
             foreach ($directoryName in @('agents', 'instructions', 'skills', 'prompts', 'hooks'))
@@ -192,5 +226,6 @@ function Uninstall-CopilotAtelier
         RemovedFiles = @($removed)
         PreservedFiles = @($preserved)
         PlannedFiles = @($planned | ForEach-Object -Process { $_.Path })
+        ContributorRegistration = $registration
     }
 }

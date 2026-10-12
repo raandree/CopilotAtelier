@@ -78,7 +78,8 @@ passing the text on unexpanded.
 | [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank, injects the UTC timestamp, starts the session clock and names it in the reader command |
 | [`scripts/Write-SessionClose.ps1`](scripts/Write-SessionClose.ps1) | `Stop` | Advances the session clock's turn counter |
 | [`scripts/Get-SessionElapsed.ps1`](scripts/Get-SessionElapsed.ps1) | — | Agent-run reader that prints the Post-flight elapsed line of the clock it is given |
-| [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated |
+| [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated, and counts the compaction for contributor calibration |
+| [`scripts/Add-FamiliarityContext.ps1`](scripts/Add-FamiliarityContext.ps1) | `PostToolUse` | Re-sends saved familiarity levels after a compaction and, where no `PreCompact` runs, within one turn; registered only by `~/.copilot/hooks/contributor-profile.json` |
 
 ## Block-RemoteMutation
 
@@ -214,13 +215,24 @@ string early, after the quoting had done its work. ASCII reads the same in every
 code page and in UTF-8, so the context does not depend on how the host decodes
 it.
 
+When the workspace declares Knowledge areas under `## Knowledge areas` in
+`.memory-bank/projectbrief.md`, one more sentence follows with the
+contributor's saved familiarity levels for them, read from the private
+Contributor profile of the [`contributor-profile`](../../skills/contributor-profile/SKILL.md)
+Skill. It is data only, built from a fixed template, the matched area names,
+and the level values; an alias, a path, or an unmatched name never appears in
+it. Without a declaration the hook neither reads the profile nor runs git.
+
 ### Session context budget
 
 Injected context defaults to a 4096-character limit. Set
 `COPILOT_ATELIER_SESSION_CONTEXT_MAX_CHARS` to an integer from 1024 through
 16384 to change it; invalid values use the default. Oversized paths are omitted
 before any lifecycle guidance, and the clock still runs. This is a character
-budget for one hook, not a token count or a live context-window estimate.
+budget for one hook, not a token count or a live context-window estimate. The
+contributor-profile sentence has the lowest priority: it gets only what the
+other lines leave, giving up its unrated count, then trailing areas, then
+itself, and never shortens another line.
 
 Over the limit, the hook first shortens the Memory Bank line, which carries the
 workspace path. If that is not enough it shortens the closing line, which drops
@@ -261,6 +273,14 @@ payload names no session, the key is a hash of the working directory instead, so
 two concurrent windows do not share one clock. Where the host supplies no
 session id, two chats of one workspace still share that one clock, and no
 `-Path` can tell them apart.
+
+Beside each clock sits `session-<key>.familiarity.json`, the calibration state
+of the same session: `compactions`, which `PreCompact` advances; `injected`,
+which `Add-FamiliarityContext` records; and `lastTurn`, `lastInjectionUtc`, and
+`characters`, which `SessionStart` seeds when it injects levels and
+`Add-FamiliarityContext` advances with each re-send. Every writer keeps all five
+fields. No calibration hook ever rewrites the clock file, and
+`Get-SessionElapsed` never reads the state as a clock.
 
 ### Write-SessionClose
 
@@ -336,6 +356,78 @@ context. The user-visible half is `systemMessage`; the model-facing half is the
 compaction-recovery section of
 [`rules/preflight.instructions.md`](../rules/preflight.instructions.md),
 which survives because Instructions are re-sent with every request.
+
+It also advances `compactions` in the calibration state beside the session
+clock, in every workspace, under the lock that `Add-FamiliarityContext` takes.
+
+## Add-FamiliarityContext
+
+No host reruns `SessionStart` after a compaction, and the Copilot SDK host and
+Copilot CLI drop its context when they compact, so saved familiarity levels
+would silently revert to `familiar`. This `PostToolUse` hook re-sends them on
+the first successful tool call after a compaction that `PreCompact` counted.
+
+VS Code Local runs no `PreCompact` for a manual or a background compaction, so
+the hook also re-sends the levels as a backstop: on the first successful tool
+call after a turn closes, or more than 5 minutes after the last injection once
+the first turn has closed. Only a session whose `SessionStart` injected levels
+is armed for it. Backstop re-sends stop once the session has received 12,000
+characters of calibration text, about 3,000 tokens; compaction re-sends continue
+up to 60,000, above which the session is outside the design's envelope and
+nothing more is sent.
+
+`hooks.json` does not register it. The `contributor-profile` Skill writes
+`~/.copilot/hooks/contributor-profile.json`, a fixed template with the same
+three launchers, while an entry on this machine is on and rates a Knowledge
+area, and removes it when none does. Only machines with an active profile pay
+the per-call cost, about one more hook launch per successful tool call,
+slightly less than the push guard: 0.8 to 2 s, depending on the machine and
+the host (Decision record 0028 has the measurements).
+Hosts load hook files when a session starts, so a change affects later sessions;
+an open chat keeps calling the script, which then finds nothing to send.
+
+The re-send has limits that the design reports and does not gate. A plugin-only
+installation has no `~/.copilot/hooks` folder, so no registration can exist and
+nothing is re-sent after a compaction, although `SessionStart` still reads the
+profile from LocalApplicationData. A reply that makes no tool call before the
+next turn receives nothing either, and Claude Code gets the portable Skill only.
+`tests/HookSdkRuntime.Tests.ps1` measures the plugin-only and the no-tool-call
+cells in the runtime that VS Code bundles and in the standalone Copilot CLI.
+
+The writers own the registration through a record beside the profile that
+holds the file's SHA-256, whichever template wrote it, and replace one from an
+earlier template with the current template at the next write, so a launcher fix
+reaches each machine then. They never touch a file without a record or one that
+no longer matches it. On a OneDrive Canonical target the record and the file
+sync in either order; a record whose file has not arrived is pending, and
+nothing, including `Uninstall-CopilotAtelier`, acts on it until both are there.
+
+Latency is stated in frozen references: a hook's own time over a fixed no-op
+hook, divided by the own time of a frozen reference, all three through the same
+launcher and spawn, so machine speed and shell edition cancel. The reference,
+[`tests/Fixtures/ReferenceHook`](../../tests/Fixtures/ReferenceHook), runs one
+fixed calibration with a frozen copy of the profile reader, the same kind of
+work as the calibration step itself.
+[`tests/Fixtures/Measure-CalibrationLatency.ps1`](../../tests/Fixtures/Measure-CalibrationLatency.ps1)
+measures it, and a test pins one SHA-256 over every file of the reference. A
+change to a launcher in `hooks.json` or to any file of the reference changes the
+measurement, so re-run the Meter and re-baseline Decision record 0028's latency
+levels then.
+
+The common path reads `session_id` from the head of the payload, where both
+hosts put it ahead of every tool field, one small state file and, in an armed
+session, the turn count of the session clock, then exits without writing or
+locking anything. When a re-send is due, it parses the payload for `cwd` and
+rechecks the profile so an opt-out takes effect at once. It then takes the
+state lock, reads the state again, decides again, and records the injection
+before it emits the matched levels under both host keys, so a re-send that
+could not be recorded is never sent and cannot repeat on every later call. A
+compaction re-send ends with
+`Re-sent after a compaction; make no offers in this session.` and a backstop
+re-send with `Current familiarity levels; make no offers in this session.` It
+records the answered compaction count by compare-and-set, so a newer
+compaction is never lost. It never emits `decision`, never exits `2`, and
+exits `0` on every path.
 
 ## Verifying the hooks load
 
@@ -471,6 +563,17 @@ the hook's atomic replace. Never write the file to inspect or repair evidence.
 - **A redeployed hook does not take effect.** The Copilot SDK host reads hook
   configuration when a session starts; a chat that was already open, and the
   subagents it starts, keep what they loaded. Start a new chat.
+- **Saved levels do not reach a session.** Run
+  `Get-CopilotAtelierContributorProfile -WorkspacePath .` in the workspace: it
+  shows where the profile lives, which entry the identity rule selects and why,
+  the levels, the exact sentence the workspace receives, and the registration
+  state. The workspace must declare the area under `## Knowledge areas` in
+  `.memory-bank/projectbrief.md`; without a declaration the hook neither reads
+  the profile nor runs git. A registration written after a chat opened takes
+  effect in the next chat, and after a compaction the levels return on the next
+  successful tool call, so a reply without a tool call still lacks them.
+  `Remove-CopilotAtelierContributorProfile -RegistrationOnly` clears an
+  orphaned or pending registration.
 - **Deployment drift.** Run `(Test-CopilotAtelier).Checks` to inspect missing
   scripts, changed files, and Discovery targets. This is read-only and never
   executes a hook as a health check.

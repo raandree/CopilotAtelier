@@ -15,6 +15,7 @@ BeforeAll {
 
     $script:fixtureSkill = @(
         'agent-security-review'
+        'contributor-profile'
         'long-running-job-monitor'
         'memory-bank'
         'pdf-to-markdown'
@@ -195,7 +196,7 @@ Describe 'Install-CopilotAtelier installation profiles' -Tag 'Unit' {
 
         $result.InstallationProfile | Should -Be 'document-processing'
         Get-DeployedSkillName -TargetPath $script:fixture.TargetPath |
-            Should -Be @('agent-security-review', 'long-running-job-monitor', 'memory-bank', 'pdf-to-markdown')
+            Should -Be @('agent-security-review', 'contributor-profile', 'long-running-job-monitor', 'memory-bank', 'pdf-to-markdown')
 
         Test-Path -LiteralPath (Join-Path $script:fixture.TargetPath 'skills/pdf-to-markdown/scripts/helper.ps1') -PathType Leaf |
             Should -BeTrue -Because 'a selected Skill ships its whole folder'
@@ -344,7 +345,7 @@ Describe 'Install-CopilotAtelier selection under the deployment lock' -Tag 'Unit
 
         Invoke-ConcurrentSelectionChange -Fixture $script:fixture -LockPath (Join-Path $script:root 'concurrent.lock') -Selection ([pscustomobject]@{
                 Profile = 'document-processing'
-                Skill = @('agent-security-review', 'long-running-job-monitor', 'memory-bank', 'pdf-to-markdown')
+                Skill = @('agent-security-review', 'contributor-profile', 'long-running-job-monitor', 'memory-bank', 'pdf-to-markdown')
                 IncludeSkill = @()
                 ExcludeSkill = @()
             })

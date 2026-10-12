@@ -36,6 +36,7 @@ function Get-CopilotAtelierProfileCatalog
 
         MandatorySkill = @(
             'agent-security-review'
+            'contributor-profile'
             'long-running-job-monitor'
             'memory-bank'
         )

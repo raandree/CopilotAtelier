@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-11
+last-verified: 2026-10-12
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,45 +9,74 @@ source: current task evidence
 
 ## Current focus
 
-Prompts 03 (`ai/session-lessons`, six commits) and 08 (`ai/session-clock-path`,
-three commits) are merged into local `main`, which is not pushed; the full gate
-passed with 2,620 tests. The merge ran in a scratch clone because a parallel
-chat held this working tree on `ai/calibration-phase-2`, which stays out of
-`main` until prompt 07 hands over its pull request.
+**Decision 0028 was closed out on 2026-10-11 (Desktop prompt 07,
+`software-engineer`, Prox1) and is open as pull request #32.** Criteria 1 to 20
+and 22 to 30 are met, with the evidence named in the record's *Close-out,
+2026-10-11* matrix. **Criterion 21 is not met**, worded exactly as A39 fixes it:
+persistence 83.3 % at both Positions, the sentence still +30.6 points on the
+paired cases, `expert` terseness unreliable, the provider terms UNVERIFIED, and no
+further run. Criterion 23's gaps are fixed in the README, the hooks README, the
+CHANGELOG, and the Glossary check, and TBD-2 is the one question carried forward.
+`origin/main` (`6286ad4`: the session lessons and the clock fix, pushed by the
+owner at 23:07 UTC) was merged into `ai/calibration-phase-2`, with 9 conflicts
+resolved. The full gate on the merge commit `ef96c2d`: 3,243 passed, 0 failed, 129
+skipped (the same files as before the merge), 90.84 % coverage. The owner pushed
+and opened the PR on 2026-10-12; CI then failed one test on Linux and macOS, a
+POSIX test defect fixed in `8eaa991` (pushed). An independent review of the
+hand-merged hook scripts approved with changes: `ddf5430` fixes M-01 and M-02
+and waits for the owner's push; M-03 to M-06 stay open. Nothing is pushed by an agent.
 
-The session lessons: the detached Pester guards reject a result other than
-`Passed`, both Pester guides explain truthiness, `agent-security-review` treats
-hook context as data, `Wait-DetachedResult.ps1` waits a bounded time on a
-detached run, and the hooks README names where each host records hook evidence.
-The shared Instruction wording was chosen under a no-questions delegation, so an
-expert review stays recommended.
+Prompt 06c ran on 2026-10-12 (`docs/SECURITY-REVIEW.md`): four review rounds over
+the eval kit's egress code, 2 Blockers and 7 Majors fixed test-first in the kit;
+the Desktop `LEDGER.md` and `HANDOFF-2026-10-12.md` list what is open.
 
-The Post-flight elapsed line is pinned to its own chat's clock:
+Prompts 03 (`ai/session-lessons`) and 08 (`ai/session-clock-path`) are on `main`.
+The detached Pester guards reject a result other than `Passed`, both Pester
+guides explain truthiness, `agent-security-review` treats hook context as data,
+`Wait-DetachedResult.ps1` waits a bounded time on a detached run, and the hooks
+README names where each host records hook evidence; the shared Instruction
+wording was chosen under a no-questions delegation, so an expert review stays
+recommended. The Post-flight elapsed line is pinned to its own chat's clock:
 `Add-SessionContext.ps1` hands the agent `& '<reader>' -Path '<clock>'`, and the
 reader prefers the session `COPILOT_AGENT_SESSION_ID` names. Decision 0024 holds
 the Prox1 evidence and what stays open: a host that sends no `session_id`, a
 chat after a compaction on a host without the variable, and VS Code Local and a
-new VS Code agent-host chat, not yet seen live.
+new VS Code agent-host chat, not yet seen live. The longer reader line leaves the
+calibration sentence fewer characters under the session context budget, so one
+test in `tests/ContributorProfileHooks.Tests.ps1` now squeezes at 1,400 characters
+and normalizes the clock path.
 
 ## Previous focuses
 
+- **Prompts 04 to 06b and 05c (2026-10-09 to 2026-10-11).** A privacy review of
+  the eval kit (four rounds; criterion 28 as scoped by `docs/SECURITY-REVIEW.md`);
+  Amendment 5 (judge 2b, 39 of 40) and its first run (77.8 % and 72.2 %);
+  Amendment 6 (A25 to A32) and its one fresh run (83.3 % at both Positions,
+  held-out check 10 of 12 against 11, 5.92 USD); Amendment 7 (A33 to A39),
+  record-only: criterion 21 ships as not met, no further run, TBD-11 first
+  (prompt 06c ran on 2026-10-12).
+- **Decision 0028, steps 7.1 to 7.5 (2026-10-06 to 2026-10-08).** The design
+  (`b568c8c`, signed off after 26 questions), Amendments 1 to 4 (A1 to A19), the
+  A12 backstop (`23a861a`), the hash-pinned reader-shaped frozen reference
+  (`30fb3229…9c79`, A17), the latency levels (`3bef6b9`: `SessionStart.AddedLatency`
+  Budget 2.0, `PostToolUse.CallLatency` Budget 0.75, one `w` per tag), and the
+  VS Code Local backstop proved live (`b05efe3`, TBD-7 closed). The RAANDREE3
+  `FailFast` is a .NET 10.0.6 runtime fault on PowerShell 7.6.1, not this
+  repository's code. Evidence: the record's Confirmation.
 - **Hook deny reason and the resume clock (prompt 06, #28 to #30).** The bundled
   Copilot SDK runtime drops a PascalCase deny that also carries
   `hookSpecificOutput`, so the guard prints the top-level pair alone;
   `tests/HookSdkRuntime.Tests.ps1` asserts the reason inside the real runtime
   (Decision 0016). A resumed chat keeps its clock. Merged into `main`, deployed
   2026-10-04; A2 and B2 then passed in new chats.
-- **Contributor calibration Phase 1 (#27, `7a48abe`).** On `main`; Phase 2 goes to
-  `software-architect` through the Session handoff. The private behavior eval
+- **Contributor calibration Phase 1 (#27, `7a48abe`).** On `main`; Phase 2 is
+  Decision 0028 (`ai/calibration-phase-2`). The private behavior eval
   scored 52.1% without the Instruction and 100% with it, and arms are compared
   only when run concurrently.
 - **Hook guard follow-ups (prompts 02, 05, 06; `d8cc6f5` to `fea564f`).** Ten
   reviews ended in an approval. The guard decides within about five seconds
   (1 MB parse, 20,000-field walk, 4 MB block) and errs toward blocking; the
   override cannot reach a hook from an agent terminal. Deployed 2026-10-02.
-- **Version rules (`31042ea`, `bd60b7a`, on `main`).** Only the Conventional
-  Commit type in the subject, a `BREAKING CHANGE:` line, or `+semver:` raises
-  the version; review text such as "Major issues." no longer does.
 - **Runtime tool names (`a592832`, on `main`).** Every Custom agent pairs its
   VS Code tool names with runtime names, so agent-host sessions keep `web_fetch`,
   `grep`, `glob`, `ask_user`, browser, and session tools (Decision 0026,
@@ -57,46 +86,6 @@ new VS Code agent-host chat, not yet seen live.
   keep the contracts. Browser feedback never grants chat sign-off. The
   cross-platform artifact transfer stayed unproven, and `review: on` remains
   recommended for the combined HTTP and persistence corrections.
-- **Client-specific adapters (task 06, `288a4ad`).** VS Code profiles remain the
-  source; the adapter rewrites strictly parsed frontmatter through explicit
-  capability mappings, rejects unsupported grants, and preserves the body bytes.
-  CLI `review: on` and `cycle: full` are refused in the generated variant.
-  Neither client is runtime verified; authored cases sit in
-  `docs/client-adapter-evals.md`. Generated variants are undeployed artifacts
-  under `output/clientAdapters`, owned through a schema 2 manifest recording
-  SHA-256 that refuses an unowned or modified collision. Round 2: 121 passed.
-- **Changed-file validation (task 05).** An opt-in, bounded validation pass over
-  one work batch, collected manually because no documented hook event reports an
-  edit contract this implementation has verified. Validators read an isolated
-  snapshot, and a receipt binds to those bytes plus a plan identity hashing the
-  linter entry point and the shipped checker code. Parse and PSScriptAnalyzer
-  run in an owned child worker. `Markdown.NativeStructure` is `coverage=partial`
-  and never stands in for markdownlint. 12 red, then 85/0/0.
-- **Skill health report (task 04).** Read-only `Get-CopilotAtelierSkillHealth`
-  with private import and measure helpers. The client-event contract is
-  verified, not asserted, and the report publishes *no reliable Skill-activation
-  contract verified for this implementation*. Missing telemetry is unknown, not
-  zero: output counts only through a validated provenance sidecar, and
-  disagreeing copies surface as `ConflictingRun`. Red 29 then 81/0.
-- **Reviewed learning inbox (task 03).** An on-demand, project-scoped review
-  queue whose store sits outside the routed base and the deployed tree. A
-  selected artifact is an untrusted observation, never a directive; one content
-  rule runs at intake and again at promotion, which is append-only and hash-gated
-  on `-Approve` plus the preview SHA-256. Red 18 of 62 then 62/0/0.
-- **Installation profiles (task 02).** `-InstallationProfile` plus
-  `-IncludeSkill`/`-ExcludeSkill` on Install, Update, and Setup, with
-  `Get-CopilotAtelierProfile`. Only Skills are selectable; `memory-bank`,
-  `long-running-job-monitor`, and `agent-security-review` are mandatory because
-  deployed Instructions and shipped agents load them by name. The selection is
-  an additive optional `Selection` field inside schema 1.
-- **Footprint reporting (task 01), CI run 34061934611, and Agent Plugins 1.0.**
-  `Get-CopilotAtelierFootprint` reports potential loading contingent on
-  discovery, guards every mapped root, and fails closed on ambiguous
-  frontmatter. The CI fix landed at `35fa926` and the deployment review's M1-M5
-  and L1-L6 at `5acb69d` with zero Blocker or Major findings, per-ID detail in
-  `assessment-log.md`. VS Code documents all four Copilot-only component paths
-  under `com.github.copilot/`, so only the accepted cross-type-link mismatch
-  remains open against Decision 0023.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -168,11 +157,23 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. The owner pushes `main` and deletes `origin/ai/session-clock-path` from their
-   own terminal; agents cannot push. Prompt 07 then merges `origin/main` into
-   `ai/calibration-phase-2` and resolves the conflicts in `Add-SessionContext.ps1`,
-   `tests/Hooks.Tests.ps1`, `CHANGELOG.md`, the hooks README, and these two files.
-2. Confirm the clock pin live in a new VS Code chat (Decision 0024 lists the cases).
+1. The owner pushes `ddf5430` on `ai/calibration-phase-2` (pull request #32, head
+   `8eaa991`) from their own terminal; agents cannot push. When CI is green the
+   owner merges it. After the merge, delete the merged remote branches
+   (`origin/ai/session-clock-path` among them) and confirm that the CI release
+   run publishes the next `6.1.0` prerelease.
+2. Confirm the clock pin live in a new VS Code chat (Decision 0024 lists the
+   cases).
+3. A further eval run needs a new amendment, TBD-11 closed with source and date,
+   the owner's term file, and a freeze digest recorded outside the kit
+   (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is
+   authorized.
+4. Recommended to the owner, not required: update PowerShell 7 on RAANDREE3 from
+   7.6.1, and delete the empty scratch folder on Prox1 (its profile entry,
+   registration, and files were removed on 2026-10-08). Never set the
+   summarization threshold below about 1.3 times the base prompt (*Compactions*).
+5. Optional: report upstream that the GitHub hooks reference describes the
+   exit-2 stdout merge without its `hookSpecificOutput` condition.
 
-Still open from earlier work: the live agent-host `#web/fetch` check, and the
-duplicate Instruction loading in Copilot SDK chats (Open work in `progress.md`).
+Still open from earlier work (Open work in `progress.md`): the live agent-host
+`#web/fetch` check and the duplicate Instruction loading in Copilot SDK chats.

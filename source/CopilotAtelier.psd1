@@ -17,12 +17,17 @@
     PowerShellVersion = '5.1'
 
     FunctionsToExport = @(
+        'Export-CopilotAtelierContributorProfile'
         'Get-CopilotAtelierClientAdapter'
+        'Get-CopilotAtelierContributorProfile'
         'Get-CopilotAtelierFootprint'
         'Get-CopilotAtelierProfile'
         'Get-CopilotAtelierSkillHealth'
         'Get-CopilotAtelierVersion'
+        'Import-CopilotAtelierContributorProfile'
         'Install-CopilotAtelier'
+        'Remove-CopilotAtelierContributorProfile'
+        'Set-CopilotAtelierContributorProfile'
         'Test-CopilotAtelier'
         'Uninstall-CopilotAtelier'
         'Update-CopilotAtelier'
