@@ -10,7 +10,7 @@ source: current task evidence
 ## Current focus
 
 **Decision 0028 was closed out on 2026-10-11 (Desktop prompt 07,
-`software-engineer`, Prox1) and waits for the owner to push.** Criteria 1 to 20
+`software-engineer`, Prox1) and is open as pull request #32.** Criteria 1 to 20
 and 22 to 30 are met, with the evidence named in the record's *Close-out,
 2026-10-11* matrix. **Criterion 21 is not met**, worded exactly as A39 fixes it:
 persistence 83.3 % at both Positions, the sentence still +30.6 points on the
@@ -20,10 +20,11 @@ CHANGELOG, and the Glossary check, and TBD-2 is the one question carried forward
 `origin/main` (`6286ad4`: the session lessons and the clock fix, pushed by the
 owner at 23:07 UTC) was merged into `ai/calibration-phase-2`, with 9 conflicts
 resolved. The full gate on the merge commit `ef96c2d`: 3,243 passed, 0 failed, 129
-skipped (the same files as before the merge), 90.84 % coverage. The pull request
-title and body were drafted
-in chat; the owner runs the push and `gh pr create` from their own terminal.
-Nothing is pushed by an agent.
+skipped (the same files as before the merge), 90.84 % coverage. The owner pushed
+and opened the PR on 2026-10-12; CI then failed one test on Linux and macOS, a
+POSIX test defect fixed in `8eaa991` (pushed). An independent review of the
+hand-merged hook scripts approved with changes: `ddf5430` fixes M-01 and M-02
+and waits for the owner's push; M-03 to M-06 stay open. Nothing is pushed by an agent.
 
 Prompt 06c ran on 2026-10-12 (`docs/SECURITY-REVIEW.md`): four review rounds over
 the eval kit's egress code, 2 Blockers and 7 Majors fixed test-first in the kit;
@@ -156,11 +157,11 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. The owner pushes `ai/calibration-phase-2`, which now contains `origin/main`,
-   and opens the pull request from their own terminal, with the title and body
-   drafted in chat; agents cannot push. After the merge, delete the merged remote
-   branches (`origin/ai/session-clock-path` among them) and confirm that the CI
-   release run publishes the next `6.1.0` prerelease.
+1. The owner pushes `ddf5430` on `ai/calibration-phase-2` (pull request #32, head
+   `8eaa991`) from their own terminal; agents cannot push. When CI is green the
+   owner merges it. After the merge, delete the merged remote branches
+   (`origin/ai/session-clock-path` among them) and confirm that the CI release
+   run publishes the next `6.1.0` prerelease.
 2. Confirm the clock pin live in a new VS Code chat (Decision 0024 lists the
    cases).
 3. A further eval run needs a new amendment, TBD-11 closed with source and date,

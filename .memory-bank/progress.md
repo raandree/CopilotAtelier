@@ -18,8 +18,9 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-10-12**: Independent review of the hand-merged hook scripts: approve with
-  changes; a key-rule drift and a non-ASCII output gap fixed, four minors open.
+- **2026-10-12**: PR #32 opened; a POSIX-only test defect that CI found is fixed in
+  `8eaa991`. The independent review of the hand-merged hook scripts approved with
+  changes: `ddf5430` fixes a key-rule drift and a non-ASCII gap; four minors open.
 - **2026-10-12**: Ran Desktop prompt 06c (`review: on`, Prox1): the built-in
   `security-review` agent reviewed the eval kit's egress code in four rounds, and a
   background agent fixed 2 Blockers and 7 Majors test-first in the kit (self-checks
@@ -33,8 +34,7 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   Glossary check), TBD-2 is carried forward, and `origin/main` (`6286ad4`, pushed
   by the owner during the close-out) was merged into the branch with 9 conflicts
   resolved. Full gate on the merge commit `ef96c2d`: 3,243 passed, 0 failed, 129
-  skipped, 90.84 % coverage. Committed locally; the pull request is the
-  owner's.
+  skipped, 90.84 % coverage. The owner opened the pull request.
 - **2026-10-11**: Desktop prompts 03 and 08 reached `main` (`6286ad4`, pushed by the
   owner after merging in an integration clone; gate 2,620 passed). Prompt 08 pins
   the Post-flight elapsed line to its own chat: `Add-SessionContext.ps1` hands the
