@@ -42,9 +42,12 @@ with this entry. A follow-up change closes three of the four test findings
 
 ### Not assessed
 
-- Windows PowerShell 5.1 for `Hooks.Tests.ps1`, which runs in the Pester host's
-  edition; the new tests of the follow-up run in both editions, except the
-  quoting test (M-05), which sits in `Hooks.Tests.ps1`.
+- Windows PowerShell 5.1 for `Hooks.Tests.ps1`, which a gate runs in the Pester
+  host's edition only. Run once under 5.1 on 2026-10-12: 143 passed, 25 failed.
+  All 25 failures are in the `Block-RemoteMutation` timeout Context, whose helper
+  uses `ProcessStartInfo.ArgumentList` and `Process.Kill($true)`, which exist only
+  in PowerShell 7. Every test of the session hooks passed, the new quoting test
+  (M-05) among them.
 - The OEM best-fit table itself, and the agent terminal's own encoding.
 
 ## 2026-10-12: independent review of the egress controls of the private eval kit (prompt 06c)
