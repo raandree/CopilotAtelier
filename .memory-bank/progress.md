@@ -24,7 +24,8 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   fixes it. Criterion 23's gaps were fixed (README, hooks README, CHANGELOG, the
   Glossary check), TBD-2 is carried forward, and `origin/main` (`6286ad4`, pushed
   by the owner during the close-out) was merged into the branch with 9 conflicts
-  resolved. Full gate: @@GATE2@@. Committed locally; the pull request is the
+  resolved. Full gate on the merge commit `ef96c2d`: 3,243 passed, 0 failed, 129
+  skipped, 90.84 % coverage. Committed locally; the pull request is the
   owner's.
 - **2026-10-11**: Desktop prompts 03 and 08 reached `main` (`6286ad4`, pushed by the
   owner after merging in an integration clone; gate 2,620 passed). Prompt 08 pins

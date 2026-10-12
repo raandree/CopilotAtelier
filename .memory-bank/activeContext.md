@@ -19,7 +19,9 @@ further run. Criterion 23's gaps are fixed in the README, the hooks README, the
 CHANGELOG, and the Glossary check, and TBD-2 is the one question carried forward.
 `origin/main` (`6286ad4`: the session lessons and the clock fix, pushed by the
 owner at 23:07 UTC) was merged into `ai/calibration-phase-2`, with 9 conflicts
-resolved. The full gate: @@GATE2@@. The pull request title and body were drafted
+resolved. The full gate on the merge commit `ef96c2d`: 3,243 passed, 0 failed, 129
+skipped (the same files as before the merge), 90.84 % coverage. The pull request
+title and body were drafted
 in chat; the owner runs the push and `gh pr create` from their own terminal.
 Nothing is pushed by an agent.
 

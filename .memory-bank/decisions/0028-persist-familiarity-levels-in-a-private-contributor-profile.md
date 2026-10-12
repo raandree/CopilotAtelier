@@ -2456,7 +2456,13 @@ bundles and in the standalone Copilot CLI. The numbers of this paragraph were
 written after the run; the Memory Bank health, routing, and QA suites were rerun
 on them.
 
-**Gate after the merge.** The same command on the merge commit: @@GATE2@@.
+**Gate after the merge.** The same command on the merge commit `ef96c2d`,
+launched 2026-10-11 23:48 UTC: 3,243 passed, 0 failed, 129 skipped, 0
+inconclusive, 0 not run, in 1,910 s; coverage 90.84 % against a threshold of
+65 %; 21 tasks, 0 errors, 16 warnings, the same 15 simulated launch failures
+and 1 simulated backend failure as before. The 78 tests more than before the
+merge are the ones the merged commits of `main` brought, and the 129 skips fall
+on the same files with the same counts as before it, so none of them is new.
 
 **Static analysis.** PSScriptAnalyzer 1.24.0 with the default rules over the 40
 PowerShell files that the branch adds or changes: 28 findings (Information and
