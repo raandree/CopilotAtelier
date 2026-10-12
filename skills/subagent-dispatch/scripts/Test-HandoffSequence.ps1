@@ -26,6 +26,11 @@
 .PARAMETER ForbiddenTerm
     Words that must not appear in any file, such as the local account name or a
     machine name. Matched as whole words, ignoring case.
+.PARAMETER Original
+    The files a migration has to keep, as objects with File and Sha256 properties,
+    which Get-HandoffSequenceInventory.ps1 returns in its Original property. Each
+    has to exist byte for byte at its own relative path or under originals/. Null
+    or an empty list means there is nothing to check.
 .EXAMPLE
     $result = ./Test-HandoffSequence.ps1 -Path ./handoffs
     $result.Finding | Format-Table Severity, Code, File, Line, Message -AutoSize -Wrap
@@ -58,7 +63,12 @@ param(
     [string] $IntegrationBranch,
 
     [Parameter()]
-    [string[]] $ForbiddenTerm = @()
+    [string[]] $ForbiddenTerm = @(),
+
+    [Parameter()]
+    [AllowNull()]
+    [AllowEmptyCollection()]
+    [object[]] $Original = @()
 )
 
 Set-StrictMode -Version Latest
@@ -66,6 +76,15 @@ $ErrorActionPreference = 'Stop'
 
 if ($PSBoundParameters.ContainsKey('Repository') -and -not $PSBoundParameters.ContainsKey('IntegrationBranch')) {
     throw 'IntegrationBranch is required when Repository is given.'
+}
+
+# Checked here, not in a parameter attribute, so that a null or empty list reads as "no originals to check".
+$originalItem = @($Original | Where-Object { $null -ne $_ })
+foreach ($item in $originalItem) {
+    if ($null -eq $item.PSObject.Properties['File'] -or $null -eq $item.PSObject.Properties['Sha256'] -or
+        [string]::IsNullOrWhiteSpace([string]$item.File) -or [string]::IsNullOrWhiteSpace([string]$item.Sha256)) {
+        throw 'Every Original needs a File and a Sha256.'
+    }
 }
 
 . (Join-Path -Path $PSScriptRoot -ChildPath 'HandoffSequenceCommon.ps1')
@@ -480,6 +499,40 @@ foreach ($file in $markdown) {
 
     if ($needsInput -gt 0) {
         Add-Finding -Severity Warning -Code 'NeedsInput' -File $name -Message ('{0} unresolved needs input marker(s); each is a fact a person has to supply.' -f $needsInput)
+    }
+}
+
+# Every original a migration had to keep is still there, byte for byte.
+foreach ($item in $originalItem) {
+    $relative = ([string]$item.File).Replace('\', '/')
+    if ($relative.StartsWith('/') -or $relative -match '(^|/)\.\.(/|$)' -or $relative -match '[:*?"<>|]') {
+        Add-Finding -Severity Error -Code 'OriginalPathInvalid' -File '-Original' -Message 'An original is named by a rooted path, a path that leaves the folder, or a path with a character a file name cannot hold; the path is withheld here.'
+        continue
+    }
+
+    $present = $false
+    $identical = $false
+    foreach ($candidate in @($relative, ('originals/' + $relative))) {
+        $candidatePath = Join-Path -Path $root -ChildPath $candidate
+        if (-not (Test-Path -LiteralPath $candidatePath -PathType Leaf) -or (Test-HandoffReparsePoint -Item (Get-Item -LiteralPath $candidatePath -Force))) {
+            continue
+        }
+
+        $present = $true
+        if ((Get-HandoffFileHash -Path $candidatePath) -ieq [string]$item.Sha256) {
+            $identical = $true
+            break
+        }
+    }
+
+    if ($identical) {
+        continue
+    }
+
+    if ($present) {
+        Add-Finding -Severity Error -Code 'OriginalChanged' -File $relative -Message ('The original {0} no longer matches the SHA-256 recorded before the migration.' -f $relative)
+    } else {
+        Add-Finding -Severity Error -Code 'OriginalMissing' -File $relative -Message ('The original {0} is missing from this folder and from originals/.' -f $relative)
     }
 }
 

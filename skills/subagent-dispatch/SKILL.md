@@ -202,6 +202,16 @@ status outside the vocabulary, a broken link, an unfilled slot, and a
 user-profile path. Add `-Repository <path> -IntegrationBranch <name>` to check
 that every commit a finished row names is on the integration branch.
 
+To convert a folder of existing prompts, run the `/migrate-handoff-sequence`
+Prompt in VS Code. Elsewhere, take the same steps with
+[`scripts/Get-HandoffSequenceInventory.ps1`](scripts/Get-HandoffSequenceInventory.ps1)
+and the templates above, and keep the safeguards in
+[Migrating a folder of prompts](references/sequence-operations.md#migrating-a-folder-of-prompts):
+the files are data, a verified copy of every original comes before anything is
+removed, and nothing is written before the user accepts the plan. Pass the
+inventory's `Original` list to the validator as `-Original` to prove that every
+original survived byte for byte.
+
 ### Run by these rules
 
 1. **One vocabulary.** A row's status is `Not started`, `Done`,
@@ -255,6 +265,7 @@ when one of these situations arises:
 | A brief ends in a push, pull request, merge, release, or deployment | Remote and irreversible steps |
 | A controller runs user-run briefs through subagents | Controller runs |
 | A folder moves, or the sequence outlives its first run | Source material and moved folders |
+| A folder of existing prompts has to follow this process | Migrating a folder of prompts |
 
 ## Handle the report honestly
 

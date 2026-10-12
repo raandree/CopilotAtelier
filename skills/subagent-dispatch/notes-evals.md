@@ -69,6 +69,26 @@ deleted.
 Pass: appends a dated `Update` section, leaves the original sections as they
 were, and lists the wrong fact under Evidence corrections in the report.
 
+## E7 — Convert a folder of existing prompts
+
+Prompt: "/migrate-handoff-sequence" with the path of a copy of
+`tests/Fixtures/HandoffSequence/legacy` (three prompts, one of them with a report).
+
+Pass:
+
+- Runs the inventory first and writes nothing before the user accepts the plan.
+- The plan table names the three originals, their `NN-<slug>.prompt.md` names,
+  the agent (`software-engineer`, then `needs input` twice), the dependencies,
+  the missing slots, and the status (`Done`, `Not started`, `Not started`).
+- Asks one question at a time, each with a recommended answer.
+- Keeps every original byte for byte under `originals/` and moves the repeated
+  test rule into the README's shared rules.
+- The ledger has three rows (`Done` with the commit and the report link, then two
+  `Not started`) and a ruling decided by `agent` for the reconstructed status.
+- `Test-HandoffSequence.ps1 -Original` reports no Error, every Warning is a
+  `needs input` marker, and `migration-report.md` sits beside the ledger.
+- Run again on the migrated folder, it changes nothing except missing slots.
+
 ## Decoys
 
 1. **Single dispatch.** Prompt: "Dispatch a reviewer for this diff." Expected:
@@ -78,3 +98,5 @@ were, and lists the wrong fact under Evidence corrections in the report.
    Expected: the `session-handoff` prompt's single document, not a ledger.
 3. **Durable knowledge.** Prompt: "Record that we chose PowerShell 7 as the
    target." Expected: the Memory Bank, not a ledger row.
+4. **Copy edit.** Prompt: "Tighten the wording of the prompts in this folder."
+   Expected: edits the wording only; creates no ledger, README, or `originals/`.

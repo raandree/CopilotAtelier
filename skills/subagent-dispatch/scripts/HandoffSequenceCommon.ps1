@@ -49,6 +49,7 @@ function Get-HandoffFrontMatter {
     $result = [pscustomobject]@{
         IsValid = $false
         Value   = @{}
+        Body    = $Text
     }
 
     $line = @($Text -split '\r?\n')
@@ -91,6 +92,7 @@ function Get-HandoffFrontMatter {
 
     $result.IsValid = $true
     $result.Value = $value
+    $result.Body = if ($end + 1 -lt $line.Count) { $line[($end + 1)..($line.Count - 1)] -join "`n" } else { '' }
     $result
 }
 
@@ -435,4 +437,53 @@ function Get-HandoffCanonicalStatus {
     }
 
     $Text
+}
+
+function Get-HandoffFileHash {
+    <#
+    .SYNOPSIS
+        Returns the SHA-256 of a file as upper-case hexadecimal.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string] $Path
+    )
+
+    # .NET, not Get-FileHash: Windows PowerShell 5.1 cannot resolve that cmdlet inside a Pester It.
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        [BitConverter]::ToString($algorithm.ComputeHash([IO.File]::ReadAllBytes($Path))).Replace('-', '')
+    } finally {
+        $algorithm.Dispose()
+    }
+}
+
+function Get-HandoffCommitToken {
+    <#
+    .SYNOPSIS
+        Returns the commit-looking tokens a text names: a hexadecimal word of 7 to 40 characters with a digit and a letter.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string] $Text
+    )
+
+    $found = [Collections.Generic.List[string]]::new()
+    foreach ($pattern in @('`(?<token>[0-9a-fA-F]{7,40})`', '(?i)\bcommits?\b[^\r\n]{0,40}?\b(?<token>[0-9a-f]{7,40})\b')) {
+        foreach ($match in [regex]::Matches($Text, $pattern)) {
+            $token = $match.Groups['token'].Value.ToLowerInvariant()
+            # A digit and a letter: that leaves out words made of a-f and numbers such as a date.
+            if ($token -match '[0-9]' -and $token -match '[a-f]' -and -not $found.Contains($token)) {
+                $found.Add($token)
+            }
+        }
+    }
+
+    $found.ToArray()
 }
