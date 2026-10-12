@@ -81,6 +81,90 @@ passing the text on unexpanded.
 | [`scripts/Get-SessionElapsed.ps1`](scripts/Get-SessionElapsed.ps1) | — | Agent-run reader that prints the Post-flight elapsed line of the clock it is given |
 | [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated, and counts the compaction for contributor calibration |
 | [`scripts/Add-FamiliarityContext.ps1`](scripts/Add-FamiliarityContext.ps1) | `PostToolUse` | Re-sends saved familiarity levels after a compaction and, where no `PreCompact` runs, within one turn; registered only by `~/.copilot/hooks/contributor-profile.json` |
+| [`scripts/Test-RunContainment.ps1`](scripts/Test-RunContainment.ps1) | — | Measures the containment controls `/complete-specifications` requires |
+| [`scripts/Invoke-LedgerAppender.ps1`](scripts/Invoke-LedgerAppender.ps1) | — | Append-only hash-chained evidence ledger for the same workflow |
+
+## Containment for /complete-specifications
+
+The last two scripts are not VS Code hooks. They are the external verifier and
+the pinned ledger appender that the specification completion controller names in
+its containment profile, and they live here because this folder already deploys
+to a stable path outside every target repository.
+
+That deployed copy is the source for an install, not the control a profile pins.
+The account that installs Copilot Atelier can write `~/.copilot/hooks/scripts`,
+and the verifier always measures the profile and every pinned control for
+immutability, so pin copies installed where no run identity can write.
+
+Decision 0025 records that the package *specifies* the operating-system boundary
+without deploying it. These two scripts close part of that gap and deliberately
+leave the rest open:
+
+- `Test-RunContainment.ps1` **measures** a boundary. It never creates or repairs
+  one. On an ordinary workstation it fails, and that failure is the correct
+  answer.
+- `Invoke-LedgerAppender.ps1` **stores** evidence so tampering is detectable. It
+  cannot stop a run identity that already has write access to the sink; keeping
+  the sink outside that identity's writable set is filesystem policy.
+
+Separate controller and worker identities, a default-deny outbound policy, and a
+filesystem policy that closes the ledger to the run are still deployment work.
+
+### Containment profile
+
+The profile is non-secret structured data. Every field is a path or a digest;
+commands, wildcards, credentials, and non-empty egress lists are refused.
+
+| Field | Meaning |
+|---|---|
+| `schemaVersion` | Always `1` |
+| `verifier`, `hooksConfig`, `hookScript`, `ledgerAppender` | Pinned control, each `{ path, sha256 }` |
+| `ledgerSink`, `chainHead` | Ledger paths, which must not be writable by the run |
+| `controllerEgressAllow`, `workerEgressAllow` | Must both be empty |
+| `controllerIdentity`, `workerIdentity` | Fixed identities being measured |
+| `immutableControlPaths` | Further paths that must be read-only to the run; the profile and the four pinned controls are always measured |
+| `writableRoots` | The exact roots the run may write |
+| `liveProfile`, `liveRunner`, `liveCommandTemplates` | Required only when live mode is enabled |
+
+The verifier reports each check as `Pass`, `Fail`, or `Unavailable`, and an
+`Unavailable` check fails the run exactly like a `Fail`. A control that was not
+measured was not verified: a locked file, a read-only attribute, a missing path,
+or a git configuration that cannot be read is reported as unmeasured, never as
+protected or clean.
+
+```powershell
+$digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $profilePath).Hash.ToLowerInvariant()
+& $verifierPath -Verify -ProfilePath $profilePath -ProfileSha256 $digest -Role Controller
+```
+
+`$verifierPath` is the installed copy the profile pins as `verifier.path`.
+Compute the digest yourself and pass it as a direct argument. It is the trust
+anchor: a digest the run derives from the file it is about to trust proves
+nothing.
+
+### Ledger
+
+The appender serves one local named pipe, restricted on Windows to a single
+identity, and is the only writer of the sink and the protected chain head. Each
+record carries a monotonic sequence, its predecessor's digest, and its own
+digest over a canonical serialization, and is flushed to disk before the append
+is acknowledged.
+
+```powershell
+# Service, under the pinned appender identity
+Invoke-LedgerAppender.ps1 -Serve -PipeName ca-ledger-run1 -SinkPath $sink -ChainHeadPath $head
+
+# Caller
+Invoke-LedgerAppender.ps1 -Append -PipeName ca-ledger-run1 -RecordJson $record
+
+# Anyone who can read the sink
+Invoke-LedgerAppender.ps1 -Validate -SinkPath $sink -ChainHeadPath $head
+```
+
+A record is exactly `type`, `runId`, `utc`, and `data`; an unknown field is
+refused rather than ignored, so nothing can be smuggled through the ledger into
+whatever later reads it. Validation recomputes the chain from genesis, so a
+rewritten body, a removed line, a reordered line, or an edited head all fail.
 
 ## Block-RemoteMutation
 
