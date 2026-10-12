@@ -184,7 +184,8 @@ Describe 'Location rule' -Tag 'Unit' {
 
     It 'falls back when the linked folder has no Deployment record beside it' {
         $layout = New-ContributorTestHome -Root (Join-Path -Path $TestDrive -ChildPath 'unrecorded') -Canonical
-        Remove-Item -LiteralPath (Join-Path -Path $layout.Target -ChildPath '.copilotatelier.json')
+        # -Force: on Linux and macOS PowerShell treats a dot-file as hidden and refuses to remove it without it.
+        Remove-Item -LiteralPath (Join-Path -Path $layout.Target -ChildPath '.copilotatelier.json') -Force
 
         (Resolve-ContributorProfileLocation -UserHome $layout.Home -LocalApplicationData $layout.LocalData).Kind | Should -BeExactly 'local'
     }
