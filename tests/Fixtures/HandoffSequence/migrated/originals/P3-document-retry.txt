@@ -1,0 +1,5 @@
+Document the retry setting in the README.
+
+Depends on prompt 2. Do not start before the setting is renamed.
+
+Add a short section that names the setting, its default, and the one-second pause.

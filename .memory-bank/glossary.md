@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-06
+last-verified: 2026-10-12
 owner: shared
 source: project domain decisions
 ---
@@ -47,3 +47,6 @@ API fields, and quoted historical text retain their exact spelling.
 | Knowledge area | A field of knowledge a project involves, such as Kerberos, DSC, or German tenancy law; the scope a Familiarity level applies to. | skill area, expertise domain |
 | Familiarity level | How much explanation a contributor wants in one Knowledge area: `new`, `familiar`, or `expert`. A preference, not a grade, and never stored in a repository. | skill level, proficiency level, expertise rating |
 | Contributor profile | The private file that stores one or more contributors' Familiarity levels outside every repository: in the Canonical target's `contributor` folder, or under LocalApplicationData on a machine without one. | user profile, skill profile, installation profile |
+| Handoff sequence | A folder of Briefs that a user runs one per chat, with its README, Task ledger, and reports. | |
+| Brief | One `NN-<slug>.prompt.md` file of a Handoff sequence: a self-contained task for a fresh chat. | |
+| Task ledger | The `LEDGER.md` file of a Handoff sequence, or a controller session's equivalent: one row per Brief with its status, commits, and Rulings. Not the audit ledger of `spec-completion-controller`. | | 
