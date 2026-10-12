@@ -87,6 +87,7 @@ Durable relationships and the Decision record index; read a linked record only w
 - CI preserves hidden ownership metadata and canonical temporary paths. Nested
     Node runners clear `NODE_TEST_CONTEXT` and prove tests ran; external gates fail closed and baselines shrink.
     Deduplicate exact-head PRs only; cancel topic/PR runs, never releases. Changelog-only checks cannot publish; verify unique release headings after the tag-at-HEAD exemption.
+    Runs on `main` queue one at a time (about 25 minutes each) and each publishes a preview, so merge pull requests one at a time; keep `progress.md` and `activeContext.md` out of parallel branches, which each rewrite the same milestone list and so conflict in pairs (#32 to #36).
 - Incident transfers keep version-scoped diagnostics in the owning Skill and
     final outcomes out of eval input. Structure or zero-load runs do not prove model behavior; runner discovery proves neither native-client nor hosted publication.
 - A Skill cannot grant tools or override a Custom agent. Conflicting disciplines

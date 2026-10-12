@@ -9,70 +9,66 @@ source: current task evidence
 
 ## Current focus
 
-**Decision 0028 was closed out on 2026-10-11 (Desktop prompt 07,
-`software-engineer`, Prox1) and merged as pull request #32 (`807b572`, squash, on
-2026-10-12).** Criteria 1 to 20 and 22 to 30 are met, with the evidence named in
-the record's *Close-out, 2026-10-11* matrix. **Criterion 21 is not met**, worded
-exactly as A39 fixes it: persistence 83.3 % at both Positions, the sentence still
-+30.6 points on the paired cases, `expert` terseness unreliable, the provider
-terms UNVERIFIED, and no further run. Criterion 23's gaps are fixed in the README,
-the hooks README, the CHANGELOG, and the Glossary check, and TBD-2 is the one
-question carried forward. The merge of `origin/main` (`6286ad4`) into the branch,
-with 9 conflicts resolved, passed the full gate: 3,243 passed, 0 failed, 129
-skipped, 90.84 % coverage. CI then failed one test on Linux and macOS, a POSIX
-test defect fixed in `8eaa991`, and an independent review of the hand-merged
-hook scripts approved with changes: `ddf5430` fixes M-01 and M-02. The tests-only
-follow-up closes M-03, M-05, and M-06; M-04 stays open. Three more branches wait
-as pull requests of their own, built on `807b572` and independent of one
-another: P7 (AutomatedLab snapshots), P3 (command handoffs), P8 (task ledger).
+**Decision 0028 is merged and released.** Pull request #32 (`807b572`, 2026-10-12)
+closed it out (Desktop prompt 07, Prox1), and #33 to #36 followed one at a time:
+`main` is `e393875` at `6.1.0-preview0009` (CI runs #139 to #142 green; GitHub
+Releases and the Gallery verified). Criteria 1 to 20 and 22 to 30 are met, with the
+evidence named in the record's *Close-out, 2026-10-11* matrix. **Criterion 21 is not
+met**, worded exactly as A39 fixes it: persistence 83.3 % at both Positions, the
+sentence still +30.6 points on the paired cases, `expert` terseness unreliable, the
+provider terms UNVERIFIED, and no further run. TBD-2 is the one question carried
+forward. The independent review of the hand-merged hook scripts approved with
+changes: `ddf5430` fixed M-01 and M-02, #33 tested M-03, M-05, and M-06 (M-06 was not
+a gap), and M-04 (a `.familiarity` name collision) stays open.
+
+The other merged branches: #34 corrects the `automatedlab-deployment` Skill
+(`Remove-LabVMSnapshot` also removes the newer checkpoints; P7); #35 hands a command
+the user runs over in its own fenced code block (P3); #36 adds the task ledger and
+the `/migrate-handoff-sequence` Prompt to `subagent-dispatch` (P8). P3 and P8 are
+not live until the owner redeploys, because `~/.copilot/skills` is a junction to
+the installed copy. P8 was decided under a no-questions delegation, so its base
+`origin/main`, the absence of a paid or external eval (the Skill description and
+the trigger sweep stay open), and its single independent review are assumptions
+flagged for the owner.
 
 Prompt 06c ran on 2026-10-12 (`docs/SECURITY-REVIEW.md`): four review rounds over
 the eval kit's egress code, 2 Blockers and 7 Majors fixed test-first in the kit;
 the Desktop `LEDGER.md` and `HANDOFF-2026-10-12.md` list what is open.
 
-Prompts 03 (`ai/session-lessons`) and 08 (`ai/session-clock-path`) are on `main`.
-The detached Pester guards reject a result other than `Passed`, both Pester
-guides explain truthiness, `agent-security-review` treats hook context as data,
-`Wait-DetachedResult.ps1` waits a bounded time on a detached run, and the hooks
-README names where each host records hook evidence; the shared Instruction
-wording was chosen under a no-questions delegation, so an expert review stays
-recommended. The Post-flight elapsed line is pinned to its own chat's clock:
-`Add-SessionContext.ps1` hands the agent `& '<reader>' -Path '<clock>'`, and the
-reader prefers the session `COPILOT_AGENT_SESSION_ID` names. Decision 0024 holds
-the Prox1 evidence and what stays open: a host that sends no `session_id`, a
-chat after a compaction on a host without the variable, and VS Code Local and a
-new VS Code agent-host chat, not yet seen live. The longer reader line leaves the
-calibration sentence fewer characters under the session context budget, so one
-test in `tests/ContributorProfileHooks.Tests.ps1` now squeezes at 1,400 characters
-and normalizes the clock path.
+Prompts 03 and 08 are on `main`: the detached Pester guards reject a result other
+than `Passed`, the Pester guides explain truthiness, `Wait-DetachedResult.ps1`
+waits a bounded time, and the Post-flight elapsed line is pinned to its own
+chat's clock (`Add-SessionContext.ps1` hands the agent `& '<reader>' -Path
+'<clock>'`). The shared Instruction wording was chosen under a no-questions
+delegation, so an expert review stays recommended. Decision 0024 holds the Prox1
+evidence and what stays open (a host that sends no `session_id`, a chat after a
+compaction on a host without the variable, VS Code Local and a new agent-host chat,
+not yet seen live). The longer reader line leaves the calibration sentence fewer
+characters under the session context budget, so one test in
+`tests/ContributorProfileHooks.Tests.ps1` squeezes at 1,400 characters.
 
 ## Previous focuses
 
-- **Prompts 04 to 06b and 05c (2026-10-09 to 2026-10-11).** A privacy review of
-  the eval kit (four rounds; criterion 28 as scoped by `docs/SECURITY-REVIEW.md`);
-  Amendment 5 (judge 2b, 39 of 40) and its first run (77.8 % and 72.2 %);
-  Amendment 6 (A25 to A32) and its one fresh run (83.3 % at both Positions,
-  held-out check 10 of 12 against 11, 5.92 USD); Amendment 7 (A33 to A39),
-  record-only: criterion 21 ships as not met, no further run, TBD-11 first
-  (prompt 06c ran on 2026-10-12).
+- **Prompts 04 to 06b and 05c (2026-10-09 to 2026-10-11).** The criterion 21 eval
+  chain: Amendments 5 to 7, one fresh run (83.3 % at both Positions), and the
+  record-only ruling that criterion 21 ships as not met (`progress.md`; the
+  Decision's Confirmation). Prompt 06c reviewed the egress code on 2026-10-12.
 - **Decision 0028, steps 7.1 to 7.5 (2026-10-06 to 2026-10-08).** The design
   (`b568c8c`, signed off after 26 questions), Amendments 1 to 4 (A1 to A19), the
-  A12 backstop (`23a861a`), the hash-pinned reader-shaped frozen reference
-  (`30fb3229…9c79`, A17), the latency levels (`3bef6b9`: `SessionStart.AddedLatency`
-  Budget 2.0, `PostToolUse.CallLatency` Budget 0.75, one `w` per tag), and the
-  VS Code Local backstop proved live (`b05efe3`, TBD-7 closed). The RAANDREE3
-  `FailFast` is a .NET 10.0.6 runtime fault on PowerShell 7.6.1, not this
-  repository's code. Evidence: the record's Confirmation.
+  A12 backstop (`23a861a`), the hash-pinned frozen reference (`30fb3229…9c79`,
+  A17), the latency levels (`3bef6b9`: `SessionStart.AddedLatency` Budget 2.0,
+  `PostToolUse.CallLatency` Budget 0.75), and the VS Code Local backstop proved
+  live (`b05efe3`). The RAANDREE3 `FailFast` is a .NET 10.0.6 runtime fault on
+  PowerShell 7.6.1, not this repository's code. Evidence: the record's Confirmation.
 - **Hook deny reason and the resume clock (prompt 06, #28 to #30).** The bundled
   Copilot SDK runtime drops a PascalCase deny that also carries
   `hookSpecificOutput`, so the guard prints the top-level pair alone;
   `tests/HookSdkRuntime.Tests.ps1` asserts the reason inside the real runtime
   (Decision 0016). A resumed chat keeps its clock. Merged into `main`, deployed
   2026-10-04; A2 and B2 then passed in new chats.
-- **Contributor calibration Phase 1 (#27, `7a48abe`).** On `main`; Phase 2 is
-  Decision 0028 (`ai/calibration-phase-2`). The private behavior eval
-  scored 52.1% without the Instruction and 100% with it, and arms are compared
-  only when run concurrently.
+- **Contributor calibration Phase 1 (#27, `7a48abe`).** On `main`, as is Phase 2
+  (Decision 0028). The private behavior eval scored 52.1% without the Instruction
+  and 100% with it, and arms are compared only when run concurrently.
 - **Hook guard follow-ups (prompts 02, 05, 06; `d8cc6f5` to `fea564f`).** Ten
   reviews ended in an approval. The guard decides within about five seconds
   (1 MB parse, 20,000-field walk, 4 MB block) and errs toward blocking; the
@@ -157,22 +153,25 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. The owner pushes the four branches built on `807b572`
-   (`ai/hook-review-followups`, `ai/automatedlab-snapshot-children`,
-   `ai/copyable-command-handoffs`, `ai/subagent-dispatch-ledger`) and merges each
-   as its own pull request, in any order; agents cannot push. Then redeploy for P3
-   and P8, delete the merged remote branches, and record the merges here.
-2. Confirm the clock pin live in a new VS Code chat (Decision 0024 lists the
+1. The owner redeploys for P3 and P8 (`git switch main`, `git pull --ff-only origin
+   main`, `./Setup-CopilotSettings.ps1`) and checks in a new chat that a prepared
+   `git push` ends with a code block and no dialog. Agents cannot push, and the
+   deployed copy under `~/.copilot` is the owner's to refresh.
+2. The owner rules on the local queue (Desktop `LEDGER.md`): P5 stays unmerged until
+   the architect fixes the verifier's trust model (then a fix prompt with the
+   reviewer's tests and a second review); P1 and P2 need the owner; the 06c choices
+   (E-08, E-09), the P6 labels, and the three P8 assumptions need a ruling.
+3. Confirm the clock pin live in a new VS Code chat (Decision 0024 lists the
    cases).
-3. A further eval run needs a new amendment, TBD-11 closed with source and date,
+4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is
    authorized.
-4. Recommended to the owner, not required: update PowerShell 7 on RAANDREE3 from
+5. Recommended to the owner, not required: update PowerShell 7 on RAANDREE3 from
    7.6.1, and delete the empty scratch folder on Prox1 (its profile entry,
    registration, and files were removed on 2026-10-08). Never set the
    summarization threshold below about 1.3 times the base prompt (*Compactions*).
-5. Optional: report upstream that the GitHub hooks reference describes the
+6. Optional: report upstream that the GitHub hooks reference describes the
    exit-2 stdout merge without its `hookSpecificOutput` condition.
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
