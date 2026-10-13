@@ -19,6 +19,10 @@
 //   { "op": "send", "prompt": "...", "noTool": true }
 //                                                  one user turn the fake model answers
 //                                                  in text alone, without a tool call
+//   { "op": "send", "prompt": "...", "toolArguments": { ... } }
+//                                                  one user turn whose probe_tool call
+//                                                  carries these arguments, for example
+//                                                  a command a PreToolUse hook inspects
 //   { "op": "compact" }                            history.compact with trigger manual
 //   { "op": "writeFile", "path": "...", "content": "..." }
 //   { "op": "removeFile", "path": "..." }
@@ -48,6 +52,7 @@ const stepResults = [];
 let currentStep = -1;
 let summaryMode = false;
 let toolCallsThisStep = 0;
+let currentToolArguments;
 
 function textOf(content) {
     if (typeof content === 'string') {
@@ -66,7 +71,7 @@ function plan(body) {
     const toolNames = (body.tools ?? []).map((tool) => tool.function?.name ?? tool.name);
     if (toolNames.includes('probe_tool') && toolCallsThisStep === 0) {
         toolCallsThisStep++;
-        return { toolCall: { id: `call_${currentStep}_${requests.length}`, name: 'probe_tool', arguments: '{"n":1}' } };
+        return { toolCall: { id: `call_${currentStep}_${requests.length}`, name: 'probe_tool', arguments: JSON.stringify(currentToolArguments ?? { n: 1 }) } };
     }
     return { text: `Probe reply ${requests.length}.` };
 }
@@ -173,6 +178,7 @@ try {
         currentStep = index;
         // plan() calls probe_tool only while no call was made in this step.
         toolCallsThisStep = step.noTool ? 1 : 0;
+        currentToolArguments = step.toolArguments;
         const result = { step: index, op: step.op };
         switch (step.op) {
             case 'newSession': {

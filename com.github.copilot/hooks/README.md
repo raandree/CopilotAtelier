@@ -74,7 +74,8 @@ passing the text on unexpanded.
 | File | Event | Purpose |
 |---|---|---|
 | [`hooks.json`](hooks.json) | — | Hook configuration loaded by VS Code and the Copilot SDK host |
-| [`scripts/Block-RemoteMutation.ps1`](scripts/Block-RemoteMutation.ps1) | `PreToolUse` | Blocks remote-mutating and irreversible commands |
+| [`scripts/Block-RemoteMutation.ps1`](scripts/Block-RemoteMutation.ps1) | `PreToolUse` | Blocks remote-mutating and irreversible commands; a Remote grant lets the user's own prompt authorize one |
+| [`scripts/Add-RemoteGrant.ps1`](scripts/Add-RemoteGrant.ps1) | `UserPromptSubmit` | Records a Remote grant when the user's own prompt carries a Grant marker |
 | [`scripts/Add-SessionContext.ps1`](scripts/Add-SessionContext.ps1) | `SessionStart` | Probes for the Memory Bank, injects the UTC timestamp, starts the session clock and names it in the reader command |
 | [`scripts/Write-SessionClose.ps1`](scripts/Write-SessionClose.ps1) | `Stop` | Advances the session clock's turn counter |
 | [`scripts/Get-SessionElapsed.ps1`](scripts/Get-SessionElapsed.ps1) | — | Agent-run reader that prints the Post-flight elapsed line of the clock it is given |
@@ -92,6 +93,80 @@ passes `--no-verify`, runs `git reset --hard`, force-cleans untracked files
 workflow, secret, or cache through the GitHub CLI, or calls `gh api` with a
 mutating method or a GraphQL mutation. Shell line continuations are folded first
 so a split command cannot hide the subcommand.
+
+A command that only mentions a blocked operation in a string literal is not an
+invocation, so it is allowed. When the command text parses as PowerShell and
+holds no indirect execution, the guard reads the syntax tree and blanks a string
+only when everything the string flows into treats it as data:
+
+- an argument of `Write-Output`, `echo`, `Write-Host`, `Select-String`, or another
+  `Write-*` cmdlet, when nothing later in the pipeline can run it and the
+  pipeline's output is not captured (not part of an assignment, a parenthesis, a
+  sub-expression, or an argument, and not stored by `-OutVariable`,
+  `-ErrorVariable`, `-WarningVariable`, `-InformationVariable`, or
+  `-PipelineVariable` on that cmdlet or one after it);
+- an argument of `Set-Content`, `Add-Content`, `Out-File`, or `New-Item`, on the
+  same terms, **and only when the file it writes is known**: a literal path that
+  names no drive or provider (a list of literals too), or a variable whose every
+  assignment is such a literal. Those cmdlets also write to the `Function:` and
+  `Alias:` drives, where a string becomes a command that the same command then
+  runs, and a file that something runs by itself holds code, not data: anything
+  inside `.git`, `.githooks`, `.husky`, or `.ssh`, a PowerShell profile
+  (`profile.ps1`, `Microsoft.PowerShell_profile.ps1`), a shell start-up file
+  (`.bashrc`, `.bash_profile`, `.zshrc`, `.zshenv`, `.profile`, `.envrc`,
+  `.gitconfig`), a file in a `Startup` folder, or `.vscode/tasks.json`. So a path
+  the guard cannot read, or one that names such a place, is not trusted. A path
+  built with `+`,
+  `-f`, or `-join`, taken from `Join-Path`, started with `$env:TEMP`, or held in
+  a variable that a loop, a parameter, `[ref]`, or a parameter that stores output
+  in a variable (`-OutVariable`, `-Variable`, and any prefix of them, down to
+  `-o` or `-v`) can change is unknown, and so is any relative path after a move
+  of the location to a place the text does not spell out: a `Set-Location`
+  (also written `-Path:(…)`, `cd -`, or `cd +`) with a computed or drive-qualified
+  destination, or a `Pop-Location` without a `Push-Location` in the same text.
+  PowerShell binds a parameter by name, by alias, or by any unambiguous prefix of
+  either, so the guard reads those four cmdlets' parameters from a closed table
+  of every name and alias in Windows PowerShell 5.1 and PowerShell 7, which a
+  test compares with the cmdlets themselves: a spelling outside the table, an
+  ambiguous prefix, or a splatted argument list leaves the file unknown. Name the
+  file with a literal (`Set-Content -LiteralPath msg.txt …`) to keep a commit
+  message out of the scan;
+- the `-m`, `-am`, and `--message` values of `git commit` and `git tag`, with the
+  expressions inside a `--message="…$(…)…"` value kept visible, because they run;
+- the argument of `[System.IO.File]::WriteAllText` and its three sibling writers;
+- a pipeline source that feeds only data-writing cmdlets;
+- a literal assigned to a plain variable, when **every use of that variable** is
+  one of the above. `$msg = '…gh pr create…'; git commit -m $msg` and
+  `$text | Set-Content f` qualify; `schtasks /tr $x`, a member call, an
+  expression, a splat, a copy into another variable, or any program the guard
+  does not know do not. A variable that is read by name (`Get-Variable`,
+  `$ExecutionContext.SessionState`, the `Variable:` drive) disqualifies every
+  assigned literal.
+
+A commit message built in a here-string that quotes `gh pr create` therefore
+commits without a block. Anything else is scanned as written, and so is the
+whole command when it holds:
+
+- indirect execution: `Invoke-Expression` or `iex`, `Invoke-Command`, a computed
+  command name such as `& $name`, `Start-Process` and its aliases, `Start-Job`,
+  `Invoke-Item`, a cast to a script block, `pwsh` or `powershell` with
+  `-Command` or `-EncodedCommand`, `cmd /c`, `bash -c`, `node -e`, `python -c`,
+  and the like, and `wsl`;
+- a definition that changes what a name means: `Set-Alias`, `New-Alias`, `sal`,
+  `nal`, `New-PSDrive`, a function named like one of the cmdlets above, or any
+  use of the `Alias:` or `Function:` drives, such as `$function:deploy = '…'`,
+  `Set-Item function:echo …`, or `Set-Content -Path function:deploy …`.
+
+A path or an extension names a different program, so `.\echo.ps1`,
+`C:\tools\write-output.cmd`, `.\git.ps1`, and `git.cmd` get no benefit of the doubt.
+`Start-Process` for `git` or `gh` is read as the command line it launches; with
+arguments the guard cannot read, the call is blocked and no marker lifts it.
+Text that does not parse, including a `&&` under Windows PowerShell 5.1, a
+command over 64 KB, or a syntax tree over 20,000 nodes, is scanned as written.
+So is a string handed to any other program, such as `somecommand 'git push'`:
+only the cases above count as data, and everything else errs toward blocking.
+The stop-parsing token `--%` counts as an option, so `git --% push origin main`
+is a push.
 
 Each git rule anchors on the subcommand position, so a branch name, commit
 message, or `--grep` value that merely contains the word does not trip it. A
@@ -151,30 +226,176 @@ runs, allows 64,000 in 2.5 seconds. So the same oversized tool call can pass in
 one host and be blocked in the other. Write such a file in parts, or run the
 command yourself.
 
+The syntax-tree analysis of a command text runs on the same clock. It stops at
+the walk's half of the limit, and the text is then scanned as written: every
+operation in it is found, none of it is hidden, and no marker can lift the block,
+because the guard did not read the command completely. An analysis that ran
+past the hook timeout would be an allow, so none may: 32 KB of one path
+variable assigned and written to again and again once took 21 seconds. Where
+the limit falls depends on how fast the machine is, so whether a command of
+about 60 KB can be granted at all can differ between a cold and a warm run; it
+is blocked either way.
+
 ### Authorizing a remote mutation
 
-The house rules allow a push when the user asks for it in the current turn, but
-an agent cannot lift the block itself. Each host starts the hook with its own
-environment: VS Code passes its extension host's environment plus the entry's
-`env`, and the Copilot SDK host its runtime's. A variable set in an agent
-terminal never reaches the hook. On 2026-10-02, in a Copilot SDK chat,
-`COPILOT_ATELIER_ALLOW_REMOTE` set in one tool call was already gone in the next,
-because every call ran in a new process, and the probe was still denied. Setting
-the variable inside the blocked command cannot work either, because the hook
-judges the command before it runs.
+The house rules allow a push, a pull request, and the other blocked remote
+mutations when the user asks for them in the current turn. The user authorizes
+one without leaving the chat: a Grant marker in their own prompt creates a
+Remote grant. An agent cannot write the user's prompt, so it cannot authorize
+itself.
 
-So the user runs an authorized push in their own terminal. The agent hands over
-the exact command as a fenced code block in its reply and does not retry it. It
-never puts the command in a question dialog, which shows the question as one
-joined paragraph with no code block and no copy button. A value persisted in
-the user environment, for example with `setx`, is different: every host started
-afterwards inherits it and runs with the guard off, so never persist it.
+```text
+Push the branch and open the pull request. [[allow-remote: git push, gh pr create]]
+```
 
-`COPILOT_ATELIER_ALLOW_REMOTE=1` still allows a blocked command when it is set
-in the hook's own environment, for example in the environment VS Code itself
-was started with. That turns the guard off for every chat of that instance, so
-do not use it to authorize a single command. The hook records every override on
-standard error.
+- The marker is plain text, `[[allow-remote: <operation>, <operation>]]`, on one
+  line and in any case. A marker inside an inline code span or a fenced code
+  block is ignored, so a prompt that quotes this page grants nothing.
+- Each operation runs once. A trailing `x2` allows it twice, up to 20:
+  `[[allow-remote: gh pr create x2]]`. Naming an operation more than once adds
+  the counts, so `gh pr create x3, gh pr create x2` allows five, at most 20.
+- The operations are `git push`; `git push --force`, which a push with
+  `--force`, `--force-with-lease`, `--force-if-includes`, `--delete`,
+  `--mirror`, `--prune`, `--all`, `--tags`, a short option cluster holding `f`
+  or `d`, or a `+ref` or `:ref` refspec needs instead; `gh pr` with `create`,
+  `merge`, `close`, `comment`, `review`, `edit`, `ready`, or `reopen`;
+  `gh issue` with `create`, `close`, `comment`, `edit`, or `reopen`;
+  `gh release` with `create`, `delete`, `edit`, or `upload`; `gh repo` with
+  `create`, `delete`, `archive`, `rename`, or `edit`; `gh workflow` with `run`,
+  `enable`, or `disable`; `gh secret` with `set` or `delete`; `gh cache delete`;
+  and `gh api` for a mutating call. Any other phrase is ignored, and so is one
+  with a zero-width character or a soft hyphen inside it.
+- The guard counts the operations it reads, not the times they run. Code that
+  can run an operation more than once therefore asks for every use a marker can
+  grant: `[[allow-remote: git push x20]]`. It then spends all of them. That is
+  a loop (`foreach`, `for`, `while`, `until`, `do`, `switch` over values, cmd's
+  `for /l` and `for %i in (…) do`, a shell `while`, `until`, or `for … do`), a
+  pipeline into `ForEach-Object`, `foreach`, `where`, `%`, or `?`, the
+  `.ForEach()`, `.Where()`, and `.Invoke()` methods, `xargs`, `-exec`, `watch`,
+  `watchexec`, `nodemon`, `entr`, `retry`, or `repeat`, a scheduler or an event
+  handler (`schtasks`, `crontab`, `Register-ScheduledTask`,
+  `Register-ObjectEvent`, and their relatives), and, in a text that parses, any
+  code that is written once and can run any number of times: a script block
+  that is a value or an argument
+  (`Sort-Object { … }`, `Register-ObjectEvent -Action { … }`, even `& { … }`), a
+  function, a class, a `trap`, `. $block` or `& $name`, `Invoke-Expression` or a
+  nested shell given a variable, a member that builds code, and inline Python
+  or Node code. A text that does not parse, such as a `&&` under Windows
+  PowerShell 5.1, counts every brace. Only code counts: a loop or a function
+  quoted in a pull request body or a commit message is text, and a quoted
+  string never asks for 20 uses. The guard judges the whole command, not the
+  statement next to the operation, so `git push 2>&1 | ForEach-Object { "$_" }`
+  asks for 20 uses as well. The block message says so; running the operation as
+  its own command asks for one. Calling a program through a variable counts too:
+  `$gh = 'C:\Program Files\GitHub CLI\gh.exe'; & $gh pr create …` asks for 20,
+  while the quoted literal path, `& 'C:\Program Files\GitHub CLI\gh.exe' pr create …`,
+  asks for one.
+- The grant belongs to the session that received the prompt. It ends with the
+  user's next prompt, after 15 minutes at the latest, or when its uses run out.
+  A later marker replaces it, so a prompt lists everything its commands need.
+- `git reset --hard`, `git clean -f`, and `--no-verify` are never lifted. The
+  user runs those in their own terminal.
+- The guard prints nothing when a grant covers a command, so the host's own
+  approval still applies. Under Allow all or `chat.tools.global.autoApprove` the
+  marker is the authorization and no second prompt appears; in Manual mode the
+  user still confirms the terminal command.
+- A grant covers an operation, not one command: the first matching command the
+  agent runs while the grant lasts uses it.
+
+A blocked call tells the agent the exact marker to ask the user for. Without a
+marker the agent hands the user the command as a fenced code block for their own
+terminal and does not retry it. It never puts the command in a question dialog,
+which shows the question as one joined paragraph with no code block and no copy
+button.
+
+`COPILOT_ATELIER_ALLOW_REMOTE` is gone. It was read from the environment a host
+starts the hook with, so an agent could never set it for one command, and a
+value set for the host turned the guard off for every chat of that instance.
+The guard ignores it now; never persist it, for example with `setx`.
+
+#### Why a prompt marker and not an `ask`
+
+A hook can answer `ask` and let the host show an approval prompt, but that is
+not safe in every harness. Live probes on 2026-10-12, with
+`chat.tools.global.autoApprove` on:
+
+| Harness | What a hook `ask` did |
+|---|---|
+| Copilot Agent Host (VS Code 1.141.0) | No prompt. The runtime raised `permission.requested` with `kind: hook` and the same second recorded `approved` with `decisionSource: host_policy`; the commands ran. Allow all and `chat.tools.global.autoApprove` approve every permission kind, `kind: hook` included |
+| VS Code Local (Copilot Chat 0.69.0) | A prompt, and it survives `chat.tools.global.autoApprove`. A Skip reaches the agent only as "the user chose to skip the tool call", without the hook's reason |
+| Copilot CLI 1.0.96 | A prompt in manual mode. A reject reaches the agent as `Denied by user via preToolUse hook prompt: <reason>`. Not tested under `--yolo` |
+
+A hook cannot see the approval mode ([copilot-sdk#2810](https://github.com/github/copilot-sdk/issues/2810)
+asks for it), so a guard that asked would run every guarded command unprompted
+in the Agent Host for a user who has auto-approval on. A hook `allow` approves
+the call in VS Code Local too ([vscode#339589](https://github.com/microsoft/vscode/issues/339589)),
+so the guard never prints `allow` either: it blocks, or it exits `0` with
+nothing on standard output. [Decision 0016](../../.memory-bank/decisions/0016-enforce-house-rules-with-hooks.md)
+holds the evidence.
+
+#### Residual risks
+
+- A grant is a file under the user's profile. An agent that can write there and
+  knows its session id, which the session clock path discloses, can forge a
+  grant for itself. A Remote grant prevents accidents; it is not a containment
+  boundary. Keep these scripts and the grants folder out of the agent's
+  auto-approved edit scope (`chat.tools.edits.autoApprove`).
+- A variable that holds a force option is not resolved, so a `git push` grant
+  also covers `git push $flag`.
+- An interpreter outside the list in [Block-RemoteMutation](#block-remotemutation)
+  can run text the guard never sees.
+- A command over 64 KB is scanned as raw text.
+- Writing a script and running it in one command is not caught: a string that
+  only flows into `Set-Content` or `Out-File` is data, whatever the file is used
+  for later. A heuristic for it would reopen the false positive that a command
+  writing a commit-message file and running a script has always had. Only the
+  files named under [Block-RemoteMutation](#block-remotemutation) (what git, a
+  shell, or the system runs by itself) are refused as a place to write data; a
+  script file anywhere else is not. The same holds for a
+  location, an alias, or a drive left over from an earlier call.
+- Code that reads from a file, a script, an alias, a git hook, or a program the
+  guard does not know cannot be counted, whatever it does with an operation
+  written in the command.
+- An alias or a function defined in an earlier call of a persistent terminal
+  stays defined, so `echo 'git push …'` can run it later. The guard sees one
+  command at a time. The same class was already open for a variable or alias
+  standing in for a subcommand.
+- A marker anywhere in what you submit counts, including text you pasted. Do not
+  paste untrusted content into a prompt that asks for a remote operation.
+- A marker authorizes what the user typed, and the guard cannot tell which push
+  the user meant. Name the operations narrowly, and use `x2` rather than a long
+  grant when two are needed.
+
+## Add-RemoteGrant
+
+Runs at `UserPromptSubmit`, before the turn's first tool call. It reads the
+payload's `session_id` and `prompt`, nothing else, and writes the Remote grant
+the [Grant marker](#authorizing-a-remote-mutation) asks for. Every path exits
+`0` and prints nothing: exit `2` would block the user's prompt in VS Code, whose
+Local harness reads only the common output for this event, and a grant that
+cannot be written simply leaves the guard blocking. Its launcher exits `1` on a
+failure, which warns, like the other non-blocking events.
+
+- It removes the session's earlier grant first, so a grant ends with the next
+  prompt even when that prompt carries no marker.
+- The grant is `grant-<session key>.json` in `CopilotAtelier/grants` under the
+  per-user application data folder (`%LOCALAPPDATA%` on Windows), written to a
+  temporary file and moved into place. It holds `schema`, `sessionKey`,
+  `issuedAt` and `expiresAt` in Unix seconds, `promptSha256`, and `operations`
+  with the uses left. The session key is the `session_id` itself when it is
+  already a safe file name in lower case (`a-z0-9_-`, at most 64 characters, as
+  every host's GUID is), and otherwise `h-` and the SHA-256 of the id, so two
+  different ids never share a file, not even on a file system that ignores case.
+  The guard derives it the same way. A payload with no
+  `session_id`, or one without a single usable character, gets no grant.
+- Files older than a day are removed. Delete a file to revoke its grant.
+- The guard consumes a grant under an exclusive open, all of an operation's uses
+  or none, and deletes the file when they run out. It accepts only schema 1, its
+  own session key, a lifetime of one to 3,600 seconds that has not ended and
+  did not begin more than two minutes ahead, known operations, and whole counts
+  from 0 to 20; anything else is no grant.
+- The grantable operations are listed in both scripts. They must stay identical,
+  and a test compares them.
 
 ## Add-SessionContext
 

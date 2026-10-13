@@ -100,6 +100,7 @@ Describe 'Test-CopilotAtelier' -Tag 'Unit' {
 
     It 'Should fail health for a modified hook file <RelativePath>' -ForEach @(
         @{ RelativePath = 'hooks/scripts/Block-RemoteMutation.ps1' }
+        @{ RelativePath = 'hooks/scripts/Add-RemoteGrant.ps1' }
         @{ RelativePath = 'hooks/scripts/Add-SessionContext.ps1' }
         @{ RelativePath = 'hooks/scripts/Write-SessionClose.ps1' }
         @{ RelativePath = 'hooks/scripts/Write-CompactionCheckpoint.ps1' }
