@@ -9,31 +9,32 @@ source: current task evidence
 
 ## Current focus
 
-**P2, per-command remote approval, is built and reviewed on
-`ai/hook-ask-remote-approval`; deployment and live acceptance are next, and the owner
-pushes.** A Grant marker the user types in their own prompt (for example
+**P2, per-command remote approval, is built, reviewed, deployed, and accepted live on
+`ai/hook-ask-remote-approval`; the owner pushes and opens the pull request.** A Grant
+marker the user types in their own prompt (for example
 `[[allow-remote: git push, gh pr create]]`) makes the new `UserPromptSubmit` hook
 `Add-RemoteGrant.ps1` record a short-lived, session-bound grant that
 `Block-RemoteMutation.ps1` consumes: each named operation once (`x2` twice, a loop or
-function needs `x20`, `--all`, `--tags`, and force pushes need `git push --force`).
-It ends at the next prompt or after 15 minutes. A hook `ask` was disproved live (the
-Agent Host approves it under `chat.tools.global.autoApprove` and Allow all), so the
-guard stays a hard block and never prints `allow`; `COPILOT_ATELIER_ALLOW_REMOTE` is
-removed; `git reset --hard`, `git clean -f`, and `--no-verify` have no marker. The same
-change fixes the string-literal false positive: the guard reads PowerShell as a syntax
-tree and blanks a string only when everything it flows into treats it as data, and a
-file writer counts only for a target path it can read. The independent review
-rejected three times (provider drives that define and run code; a drive name built at
-run time; `-LP` and `-v` parameter spellings and a quadratic analysis; also `git --% push`
-and one grant use for a loop) and approved the fourth pass with changes, with no Blocker
-or Major left; each finding is a test that failed first.
-Decision 0016 (revision 2026-10-12) and the Desktop `LEDGER.md` hold the evidence.
+function needs `x20`, `--all`, `--tags`, and force pushes need `git push --force`). It
+ends at the next prompt or after 15 minutes. A hook `ask` was disproved live (the Agent
+Host approves it under `chat.tools.global.autoApprove`), so the guard stays a hard block
+and never prints `allow`; `COPILOT_ATELIER_ALLOW_REMOTE` is removed; `git reset --hard`,
+`git clean -f`, and `--no-verify` have no marker. The same change fixes the
+string-literal false positive: the guard reads PowerShell as a syntax tree and blanks a
+string only when everything it flows into treats it as data. The independent review
+rejected three times and approved the fourth pass with changes, with no Blocker or Major
+left; each finding is a test that failed first. Decision 0016 (revision 2026-10-12 and
+its Confirmation) and the Desktop `LEDGER.md` hold the evidence.
 
-State when this was written: the final gate on the round-4 tree passed (4,142 passed, 0
-failed, 145 skipped, 90.84 % coverage) and `~/.copilot` is redeployed (257 files match
-the clone; `Test-CopilotAtelier` healthy). Live acceptance in new chats of the three
-harnesses is the open step; Local `UserPromptSubmit` and the CLI under `--yolo` have not
-been seen live. Accepted residuals: a forged grant file (accident prevention only), a
+State: the final gate passed (4,142 passed, 0 failed, 145 skipped, 90.84 % coverage) and
+`~/.copilot` is redeployed (257 files match the clone). **Live acceptance passed on
+2026-10-13** in four new chats against a throwaway repository with a local bare remote
+(the Agent Host, VS Code Local, Copilot CLI 1.0.96 as usual and under `--yolo`): no
+marker meant a denial in every run, a marker let one push run, auto-approval and `--yolo`
+did not lift the block, and the bare repository held only the three branches that the
+marked prompts pushed. The CLI's `COPILOT_ALLOW_ALL=1` does approve shell commands in the
+working folder; the 2026-10-12 reading that it did nothing mistook a path prompt for a
+tool prompt. Accepted residuals: a forged grant file (accident prevention only), a
 script written and run in one command, an alias from an earlier call of a persistent
 terminal, a literal written to a computed path stays blocked (README: name the file with
 a literal), and a push in the same command as a loop or a script block asks for x20 (the
@@ -150,12 +151,11 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. Finish P2: live acceptance in new chats of the Agent Host, VS Code Local, and Copilot
-   CLI (marker in the prompt; a push to the local bare repository under
-   `%TEMP%\p2-accept` and `gh issue comment` on the nonexistent issue 999999), then
-   commit locally. The owner pushes `ai/hook-ask-remote-approval`
+1. P2 is accepted live and committed locally. The owner pushes `ai/hook-ask-remote-approval`
    and opens the pull request; the PR title needs `feat(hooks):` and a line on the
-   removed `COPILOT_ATELIER_ALLOW_REMOTE`.
+   removed `COPILOT_ATELIER_ALLOW_REMOTE`. This machine's `~/.copilot` already carries the
+   branch's scripts, so after CI and the merge the owner only needs item 2's redeploy to
+   make it follow `main`.
 2. The owner redeploys for P3 and P8 (`git switch main`, `git pull --ff-only origin
    main`, `./Setup-CopilotSettings.ps1`) and checks in a new chat that a prepared
    `git push` ends with a code block and no dialog. Agents cannot push, and the

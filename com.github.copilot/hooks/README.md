@@ -313,6 +313,15 @@ starts the hook with, so an agent could never set it for one command, and a
 value set for the host turned the guard off for every chat of that instance.
 The guard ignores it now; never persist it, for example with `setx`.
 
+The grant was accepted live on 2026-10-13 in four new chats against a throwaway
+repository with a local bare remote: the Copilot Agent Host, VS Code Local,
+Copilot CLI 1.0.96 started as usual, and the same CLI under `--yolo`. Without a
+marker the hook denied the push. With `[[allow-remote: git push]]` the push ran
+once, and the next push without a marker was denied again (in the CLI's usual
+start the agent declined it before the hook saw it). Auto-approval
+(`chat.tools.global.autoApprove`, `COPILOT_ALLOW_ALL=1`, `--yolo`) did not lift
+the block.
+
 #### Why a prompt marker and not an `ask`
 
 A hook can answer `ask` and let the host show an approval prompt, but that is
@@ -323,7 +332,7 @@ not safe in every harness. Live probes on 2026-10-12, with
 |---|---|
 | Copilot Agent Host (VS Code 1.141.0) | No prompt. The runtime raised `permission.requested` with `kind: hook` and the same second recorded `approved` with `decisionSource: host_policy`; the commands ran. Allow all and `chat.tools.global.autoApprove` approve every permission kind, `kind: hook` included |
 | VS Code Local (Copilot Chat 0.69.0) | A prompt, and it survives `chat.tools.global.autoApprove`. A Skip reaches the agent only as "the user chose to skip the tool call", without the hook's reason |
-| Copilot CLI 1.0.96 | A prompt in manual mode. A reject reaches the agent as `Denied by user via preToolUse hook prompt: <reason>`. Not tested under `--yolo` |
+| Copilot CLI 1.0.96 | A prompt (`kind: hook`), shown although the user environment sets `COPILOT_ALLOW_ALL=1`. A reject reaches the agent as `Denied by user via preToolUse hook prompt: <reason>`. Not tested under `--yolo` with an `ask` |
 
 A hook cannot see the approval mode ([copilot-sdk#2810](https://github.com/github/copilot-sdk/issues/2810)
 asks for it), so a guard that asked would run every guarded command unprompted

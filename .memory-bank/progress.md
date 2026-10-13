@@ -30,8 +30,10 @@ PowerShell Gallery (verified 2026-10-12). Incremental work is tracked under
   three rounds (provider drives that define and run code, parameter spellings the guard
   did not know, a quadratic analysis that outlasted the hook timeout, `git --% push`, one
   grant use for a loop of pushes) and approved the fourth with changes; each finding is a
-  test that failed first. Decision 0016 holds the evidence; `activeContext.md` holds the
-  state.
+  test that failed first. Live acceptance on 2026-10-13 passed in the Agent Host, VS Code
+  Local, and Copilot CLI 1.0.96 started as usual and under `--yolo` (no marker: denied;
+  marker: pushed once; auto-approval and `--yolo` did not lift the block). Decision 0016
+  holds the evidence; `activeContext.md` holds the state.
 - **2026-10-12**: Merged #32 to #36 into `main` one at a time (CI runs #130, #139 to
   #142; `6.1.0-preview0005` to `0009` on GitHub Releases and the Gallery; `main` is
   `e393875`). The review of the hand-merged hook scripts approved with changes
