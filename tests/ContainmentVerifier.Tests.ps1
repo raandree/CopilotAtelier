@@ -155,49 +155,6 @@ BeforeAll {
 
         $Result.Report.checks | Where-Object name -EQ $Name
     }
-
-    <#
-        Runs the verifier against one git configuration file, with the system
-        configuration, the credential variables, and any enclosing repository
-        out of reach, so the credential check sees only what the case planted.
-    #>
-    function script:Invoke-WithGitConfiguration {
-        param(
-            [Parameter(Mandatory)]
-            [AllowEmptyString()]
-            [string]$ConfigurationText,
-
-            [Parameter(Mandatory)]
-            [string]$CaseName
-        )
-
-        $caseRoot = Join-Path $TestDrive $CaseName
-        $null = New-Item -Path $caseRoot -ItemType Directory -Force
-        $configurationPath = Join-Path $caseRoot 'gitconfig'
-        [System.IO.File]::WriteAllText($configurationPath, $ConfigurationText)
-        $profilePath = New-TestProfile -Path (Join-Path $caseRoot 'profile.json')
-
-        $isolated = @('GH_TOKEN', 'GITHUB_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'GIT_ASKPASS', 'SSH_AUTH_SOCK', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM')
-        $saved = @{}
-        foreach ($name in $isolated) {
-            $saved[$name] = [Environment]::GetEnvironmentVariable($name)
-            [Environment]::SetEnvironmentVariable($name, $null)
-        }
-
-        Push-Location -LiteralPath $caseRoot
-        try {
-            [Environment]::SetEnvironmentVariable('GIT_CONFIG_GLOBAL', $configurationPath)
-            [Environment]::SetEnvironmentVariable('GIT_CONFIG_NOSYSTEM', '1')
-
-            Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
-        } finally {
-            Pop-Location
-
-            foreach ($name in $isolated) {
-                [Environment]::SetEnvironmentVariable($name, $saved[$name])
-            }
-        }
-    }
 }
 
 Describe 'Containment verifier' -Tag 'Unit' {
@@ -464,30 +421,6 @@ Describe 'Containment verifier' -Tag 'Unit' {
 
         $check = Get-Check -Result $result -Name 'LedgerProtection'
         $check.status | Should -Be 'Unavailable' -Because $check.evidence
-    }
-
-    It 'reports an unreadable git configuration as unmeasured, not as clean' {
-        $result = Invoke-WithGitConfiguration -CaseName 'p19' -ConfigurationText "[credential`n`thelper`n"
-
-        $check = Get-Check -Result $result -Name 'CredentialAbsence'
-        $check.status | Should -Be 'Unavailable' -Because $check.evidence
-    }
-
-    It 'finds a credential helper scoped to one URL' {
-        $result = Invoke-WithGitConfiguration -CaseName 'p20' -ConfigurationText "[credential `"https://example.invalid`"]`n`thelper = store`n"
-
-        $check = Get-Check -Result $result -Name 'CredentialAbsence'
-        $check.status | Should -Be 'Fail' -Because $check.evidence
-        $check.evidence | Should -Match 'example\.invalid'
-    }
-
-    It 'names exactly what it measured when it finds no credential material' {
-        $result = Invoke-WithGitConfiguration -CaseName 'p21' -ConfigurationText ''
-
-        $check = Get-Check -Result $result -Name 'CredentialAbsence'
-        $check.status | Should -Be 'Pass' -Because $check.evidence
-        $check.evidence | Should -Match 'GH_TOKEN'
-        $check.evidence | Should -Not -Match 'no token'
     }
 }
 

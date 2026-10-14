@@ -3,6 +3,9 @@
 # it would collide with the read-only automatic $IsWindows and abort the file.
 $script:onWindows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
 
+# The few cases that drive a real git child process; the rest never start one.
+$script:hasGit = $null -ne (Get-Command -Name 'git' -CommandType Application -ErrorAction SilentlyContinue)
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
     $script:verifierScript = Join-Path $script:repoRoot 'com.github.copilot/hooks/scripts/Test-RunContainment.ps1'
@@ -12,6 +15,11 @@ BeforeAll {
             'New-CheckResult'
             'Test-EgressPolicy'
             'Test-RemoteUnreachable'
+            'Test-CredentialAbsence'
+            'Get-ConfigKeyName'
+            'Resolve-GitExecutable'
+            'Get-ScrubbedGitEnvironment'
+            'Invoke-GitConfigProcess'
             'Get-PropertyText'
             'Get-FirewallProfileState'
             'Get-OutboundAllowRule'
@@ -92,6 +100,72 @@ BeforeAll {
     # A well-known relative identifier in a domain that cannot exist locally, so
     # it is never present in the caller's token.
     $script:otherSid = 'S-1-5-21-1111111111-2222222222-3333333333-500'
+
+    # Everything Test-CredentialAbsence measures in the environment. The cases
+    # clear the lot, so a proxy or a token that happens to be set on the machine
+    # running the suite cannot decide a result.
+    $script:measuredVariable = @(
+        'GH_TOKEN', 'GITHUB_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'SSH_AUTH_SOCK'
+        'GIT_ASKPASS', 'SSH_ASKPASS', 'GIT_SSH', 'GIT_SSH_COMMAND'
+        'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_SYSTEM', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS'
+    )
+
+    function script:Clear-MeasuredEnvironment {
+        [OutputType([hashtable])]
+        param()
+
+        $saved = @{}
+
+        foreach ($name in $script:measuredVariable) {
+            $saved[$name] = [Environment]::GetEnvironmentVariable($name)
+            [Environment]::SetEnvironmentVariable($name, $null)
+        }
+
+        return $saved
+    }
+
+    function script:Restore-MeasuredEnvironment {
+        param(
+            [Parameter(Mandatory)]
+            [hashtable]$Saved
+        )
+
+        foreach ($name in $Saved.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $Saved[$name])
+        }
+    }
+
+    function script:New-GitConfigurationFile {
+        param(
+            [Parameter(Mandatory)]
+            [string]$CaseName,
+
+            [Parameter(Mandatory)]
+            [AllowEmptyString()]
+            [string]$Text
+        )
+
+        $caseRoot = Join-Path $TestDrive $CaseName
+        $null = New-Item -Path $caseRoot -ItemType Directory -Force
+        $path = Join-Path $caseRoot 'gitconfig'
+        [System.IO.File]::WriteAllText($path, $Text)
+
+        return $path
+    }
+
+    # A git child that found nothing, used wherever a case is about something
+    # other than the git result itself.
+    function script:Set-CleanGitMock {
+        param()
+
+        Mock -CommandName 'Resolve-GitExecutable' -MockWith { 'C:\pinned\git.exe' }
+        Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+            @{ ExitCode = 0; Output = @("file:C:/profile/.gitconfig`tuser.name nobody"); TimedOut = $false; Failure = '' }
+        } -ParameterFilter { $Argument -contains '--list' }
+        Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+            @{ ExitCode = 1; Output = @(); TimedOut = $false; Failure = '' }
+        } -ParameterFilter { $Argument -contains '--get-regexp' }
+    }
 }
 
 Describe 'Containment verifier egress policy' -Tag 'Unit' {
@@ -488,6 +562,425 @@ Describe 'Containment verifier remote reachability' -Tag 'Unit' {
             }
 
             $outcome.Outcome | Should -Be 'Connected' -Because $outcome.Detail
+        }
+    }
+}
+
+Describe 'Containment verifier credential absence' -Tag 'Unit' {
+    Context 'the environment of the verifier' {
+        It 'fails a credential variable that is set, without printing its value' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Set-CleanGitMock
+                [Environment]::SetEnvironmentVariable('GH_TOKEN', 'ghp-looks-like-a-token-0123456789')
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match 'GH_TOKEN'
+            $result.evidence | Should -Not -Match 'ghp-looks-like-a-token'
+        }
+
+        It 'fails the steering variable <_>, without printing its value' -ForEach @(
+            'GIT_CONFIG_GLOBAL'
+            'GIT_CONFIG_SYSTEM'
+            'GIT_CONFIG_COUNT'
+            'GIT_CONFIG_PARAMETERS'
+            'GIT_ASKPASS'
+            'GIT_SSH_COMMAND'
+            'GIT_SSH'
+            'SSH_ASKPASS'
+        ) {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Set-CleanGitMock
+                [Environment]::SetEnvironmentVariable($_, 'steered-to-something-else')
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match $_
+            $result.evidence | Should -Not -Match 'steered-to-something-else'
+        }
+
+        It 'fails a GIT_CONFIG_GLOBAL that steers git at another configuration' -Skip:(-not $script:hasGit) {
+            $configurationPath = New-GitConfigurationFile -CaseName 'steered' -Text "[user]`n`tname = nobody`n"
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                [Environment]::SetEnvironmentVariable('GIT_CONFIG_GLOBAL', $configurationPath)
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match 'GIT_CONFIG_GLOBAL'
+            $result.evidence | Should -Not -Match ([regex]::Escape($configurationPath))
+        }
+
+        It 'never prints the value of a credential helper planted in a steered configuration' -Skip:(-not $script:hasGit) {
+            $configurationPath = New-GitConfigurationFile -CaseName 'planted' -Text @"
+[credential "https://example.invalid"]
+	helper = !f() { echo password=hunter2-not-a-real-secret; }
+"@
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                [Environment]::SetEnvironmentVariable('GIT_CONFIG_GLOBAL', $configurationPath)
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Not -Match 'hunter2-not-a-real-secret'
+        }
+    }
+
+    Context 'resolving git' {
+        It 'reports git as unmeasured when it cannot be resolved, never as clean' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Mock -CommandName 'Resolve-GitExecutable' -MockWith { '' }
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith { throw 'git must not be started' }
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+            $result.evidence | Should -Not -Match 'not installed'
+            Should -Invoke -CommandName 'Invoke-GitConfigProcess' -Times 0 -Exactly
+        }
+
+        It 'does not resolve git from a PATH that does not contain it' {
+            $savedPath = [Environment]::GetEnvironmentVariable('PATH')
+
+            try {
+                [Environment]::SetEnvironmentVariable('PATH', '')
+
+                $resolved = Resolve-GitExecutable
+            } finally {
+                [Environment]::SetEnvironmentVariable('PATH', $savedPath)
+            }
+
+            $resolved | Should -BeNullOrEmpty
+        }
+
+        It 'resolves git to the absolute path of the application PATH names' {
+            $applicationRoot = Join-Path $TestDrive 'pinned-git'
+            $null = New-Item -Path $applicationRoot -ItemType Directory -Force
+            $applicationPath = Join-Path $applicationRoot 'git.cmd'
+            [System.IO.File]::WriteAllText($applicationPath, "@echo off`r`nexit /b 1`r`n")
+
+            $savedPath = [Environment]::GetEnvironmentVariable('PATH')
+
+            try {
+                [Environment]::SetEnvironmentVariable('PATH', $applicationRoot)
+
+                $resolved = Resolve-GitExecutable
+            } finally {
+                [Environment]::SetEnvironmentVariable('PATH', $savedPath)
+            }
+
+            $resolved | Should -Be $applicationPath
+            [System.IO.Path]::IsPathRooted($resolved) | Should -BeTrue
+        }
+
+        It 'resolves the git of this machine to a file that exists' -Skip:(-not $script:hasGit) {
+            $resolved = Resolve-GitExecutable
+
+            $resolved | Should -Not -BeNullOrEmpty
+            Test-Path -LiteralPath $resolved -PathType Leaf | Should -BeTrue
+        }
+    }
+
+    Context 'the git child process' {
+        BeforeEach {
+            Mock -CommandName 'Resolve-GitExecutable' -MockWith { 'C:\pinned\git.exe' }
+        }
+
+        It 'reports a git child that was killed on its timeout as unmeasured' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = $null; Output = @(); TimedOut = $true; Failure = 'git did not finish within 10000 ms' }
+                }
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+        }
+
+        It 'reports a git that could not be started as unmeasured' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = $null; Output = @(); TimedOut = $false; Failure = 'git could not be started: access is denied' }
+                }
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+            $result.evidence | Should -Match 'could not be started'
+        }
+
+        It 'reports a configuration listing that printed nothing as unmeasured' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 0; Output = @(); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--list' }
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 1; Output = @(); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--get-regexp' }
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+        }
+
+        It 'reports a configuration listing that exited non-zero as unmeasured' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 128; Output = @(); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--list' }
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 1; Output = @(); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--get-regexp' }
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+            $result.evidence | Should -Match '128'
+        }
+
+        It 'reports an unreadable git configuration as unmeasured, not as clean' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 0; Output = @("file:C:/profile/.gitconfig`tuser.name nobody"); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--list' }
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 128; Output = @(); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--get-regexp' }
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+            $result.evidence | Should -Match '128'
+        }
+
+        It 'reports a credential query that exited zero without a key as unmeasured' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 0; Output = @("file:C:/profile/.gitconfig`tuser.name nobody"); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--list' }
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 0; Output = @(); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--get-regexp' }
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+        }
+
+        It 'finds a credential helper scoped to one URL and names its key and origin' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 0; Output = @("file:C:/profile/.gitconfig`tuser.name nobody"); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--list' }
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{
+                        ExitCode = 0
+                        Output = @("file:C:/profile/.gitconfig`tcredential.https://example.invalid.helper store")
+                        TimedOut = $false
+                        Failure = ''
+                    }
+                } -ParameterFilter { $Argument -contains '--get-regexp' }
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match 'credential\.https://example\.invalid\.helper'
+            $result.evidence | Should -Match 'C:/profile/\.gitconfig'
+        }
+
+        It 'never prints the value of a credential helper into the evidence' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 0; Output = @("file:C:/profile/.gitconfig`tuser.name nobody"); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--list' }
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{
+                        ExitCode = 0
+                        Output = @("file:C:/profile/.gitconfig`tcredential.helper !f() { echo password=hunter2-not-a-real-secret; }")
+                        TimedOut = $false
+                        Failure = ''
+                    }
+                } -ParameterFilter { $Argument -contains '--get-regexp' }
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match 'credential\.helper'
+            $result.evidence | Should -Not -Match 'hunter2-not-a-real-secret'
+            $result.evidence | Should -Not -Match 'password='
+        }
+
+        It 'names exactly what it measured when it finds no credential material' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Set-CleanGitMock
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Pass' -Because $result.evidence
+            $result.evidence | Should -Match 'GH_TOKEN'
+            $result.evidence | Should -Match 'GIT_CONFIG_GLOBAL'
+            $result.evidence | Should -Match ([regex]::Escape('C:\pinned\git.exe'))
+            $result.evidence | Should -Not -Match 'not installed'
+        }
+
+        It 'queries the URL-scoped credential keys through the sentinel first' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Set-CleanGitMock
+
+                $null = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            Should -Invoke -CommandName 'Invoke-GitConfigProcess' -Times 1 -Exactly -ParameterFilter {
+                $Argument -contains '--list' -and $Argument -contains '--show-origin'
+            }
+            Should -Invoke -CommandName 'Invoke-GitConfigProcess' -Times 1 -Exactly -ParameterFilter {
+                $Argument -contains '--get-regexp' -and $Argument -contains '^credential\..*helper$'
+            }
+        }
+    }
+
+    Context 'the environment handed to the git child' {
+        It 'removes every GIT_ variable from the child environment' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                [Environment]::SetEnvironmentVariable('GIT_CONFIG_GLOBAL', 'C:\steered\gitconfig')
+                [Environment]::SetEnvironmentVariable('GIT_SSH_COMMAND', 'ssh -i C:\steered\key')
+                [Environment]::SetEnvironmentVariable('SSH_ASKPASS', 'C:\steered\askpass.exe')
+
+                $childEnvironment = Get-ScrubbedGitEnvironment
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            @($childEnvironment.Keys | Where-Object { $_ -like 'GIT_*' }) | Should -BeNullOrEmpty
+            $childEnvironment.ContainsKey('SSH_ASKPASS') | Should -BeFalse
+        }
+
+        It 'pins HOME and USERPROFILE to the user profile folder of the operating system' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                $childEnvironment = Get-ScrubbedGitEnvironment
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $expected = [Environment]::GetFolderPath('UserProfile')
+            $childEnvironment['HOME'] | Should -Be $expected
+            $childEnvironment['USERPROFILE'] | Should -Be $expected
+        }
+
+        It 'leaves the system configuration in scope by not setting GIT_CONFIG_NOSYSTEM' {
+            $childEnvironment = Get-ScrubbedGitEnvironment
+
+            $childEnvironment.ContainsKey('GIT_CONFIG_NOSYSTEM') | Should -BeFalse
+        }
+
+        It 'runs git with an environment a planted GIT_CONFIG_GLOBAL cannot steer' -Skip:(-not $script:hasGit) {
+            $configurationPath = New-GitConfigurationFile -CaseName 'scrubbed' -Text @"
+[credential "https://scrubbed.invalid"]
+	helper = store
+"@
+            $savedGlobal = [Environment]::GetEnvironmentVariable('GIT_CONFIG_GLOBAL')
+
+            try {
+                [Environment]::SetEnvironmentVariable('GIT_CONFIG_GLOBAL', $configurationPath)
+
+                $outcome = Invoke-GitConfigProcess -GitPath (Resolve-GitExecutable) -Argument @(
+                    'config', '--show-origin', '--get-regexp', '^credential\..*helper$'
+                )
+            } finally {
+                [Environment]::SetEnvironmentVariable('GIT_CONFIG_GLOBAL', $savedGlobal)
+            }
+
+            $outcome.TimedOut | Should -BeFalse
+            $outcome.ExitCode | Should -BeIn @(0, 1)
+            ($outcome.Output -join "`n") | Should -Not -Match 'scrubbed\.invalid'
+        }
+
+        It 'reports the exit code of a real git child' -Skip:(-not $script:hasGit) {
+            $outcome = Invoke-GitConfigProcess -GitPath (Resolve-GitExecutable) -Argument @('config', '--list', '--show-origin')
+
+            $outcome.TimedOut | Should -BeFalse
+            $outcome.Failure | Should -BeNullOrEmpty
+            $outcome.ExitCode | Should -Not -BeNullOrEmpty
         }
     }
 }

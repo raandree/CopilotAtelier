@@ -612,7 +612,15 @@ function Test-CredentialAbsence {
     [OutputType([hashtable])]
     param()
 
-    $variable = @('GH_TOKEN', 'GITHUB_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'GIT_ASKPASS', 'SSH_AUTH_SOCK')
+    # The git steering variables are measured next to the credential ones,
+    # because each of them can hide a helper from the child or add one to it.
+    # Their presence is the failure; their value is never printed, since a
+    # value is exactly where a token would sit.
+    $variable = @(
+        'GH_TOKEN', 'GITHUB_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'SSH_AUTH_SOCK'
+        'GIT_ASKPASS', 'SSH_ASKPASS', 'GIT_SSH', 'GIT_SSH_COMMAND'
+        'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_SYSTEM', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS'
+    )
     $found = [System.Collections.Generic.List[string]]::new()
 
     foreach ($name in $variable) {
@@ -621,56 +629,251 @@ function Test-CredentialAbsence {
         }
     }
 
-    $gitEvidence = 'git is not installed'
-    $gitProblem = $null
+    $gitEvidence = ''
+    $gitProblem = ''
+    $gitPath = Resolve-GitExecutable
 
-    if (Get-Command -Name 'git' -CommandType Application -ErrorAction SilentlyContinue) {
-        # The pattern also matches helpers scoped to one URL. git exits 1 when no
-        # key matches, which is the clean case; any other non-zero exit means the
-        # configuration was not read, which proves nothing.
-        $previousPreference = $ErrorActionPreference
-        $helper = @()
-        $exitCode = $null
+    if ([string]::IsNullOrWhiteSpace($gitPath)) {
+        # A git that cannot be resolved is an unmeasured check. "Not installed,
+        # therefore clean" would let an empty PATH prove containment.
+        $gitProblem = 'git could not be resolved to an absolute application path, so its credential helpers were not measured'
+    } else {
+        # The sentinel makes an empty credential result mean something: a child
+        # that crashed or printed nothing must not read as "no helper set".
+        $sentinel = Invoke-GitConfigProcess -GitPath $gitPath -Argument @('config', '--list', '--show-origin')
 
-        try {
-            $ErrorActionPreference = 'Continue'
-            $helper = @(& git config --get-regexp '^credential\..*helper$' 2>$null)
-            $exitCode = $LASTEXITCODE
-        } catch {
-            $gitProblem = "git config could not run: $($_.Exception.Message)"
-        } finally {
-            $ErrorActionPreference = $previousPreference
-        }
+        if (-not [string]::IsNullOrWhiteSpace($sentinel.Failure)) {
+            $gitProblem = "$($sentinel.Failure), so the configuration was not read"
+        } elseif ($null -eq $sentinel.ExitCode) {
+            $gitProblem = 'git config --list reported no exit code, so the configuration was not read'
+        } elseif ($sentinel.ExitCode -ne 0) {
+            $gitProblem = "git config --list exited $($sentinel.ExitCode), so the configuration was not read"
+        } elseif (@($sentinel.Output).Count -eq 0) {
+            $gitProblem = 'git config --list printed no line, so an empty credential result would prove nothing'
+        } else {
+            # The pattern also matches helpers scoped to one URL.
+            $probe = Invoke-GitConfigProcess -GitPath $gitPath -Argument @('config', '--show-origin', '--get-regexp', '^credential\..*helper$')
+            $helper = @($probe.Output)
 
-        if ($null -eq $gitProblem) {
-            if ($exitCode -eq 0) {
+            if (-not [string]::IsNullOrWhiteSpace($probe.Failure)) {
+                $gitProblem = "$($probe.Failure), so its credential helpers were not read"
+            } elseif ($null -eq $probe.ExitCode) {
+                $gitProblem = 'git config --get-regexp reported no exit code, so its credential helpers were not read'
+            } elseif ($probe.ExitCode -eq 0 -and $helper.Count -eq 0) {
+                $gitProblem = 'git config --get-regexp exited 0 without naming a key, so its credential helpers were not read'
+            } elseif ($probe.ExitCode -eq 0) {
                 foreach ($line in $helper) {
-                    if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
-                        $found.Add("git $line")
-                    }
+                    $found.Add('git ' + (Get-ConfigKeyName -Line $line))
                 }
-            } elseif ($exitCode -eq 1) {
-                $gitEvidence = 'git reports no credential helper, global or URL-scoped'
+            } elseif ($probe.ExitCode -eq 1) {
+                # git exits 1 when no key matches, which is the clean case.
+                $gitEvidence = "git ($gitPath) reports no credential helper, global or URL-scoped"
             } else {
-                $gitProblem = "git config exited $exitCode, so its credential helpers were not read"
+                $gitProblem = "git config --get-regexp exited $($probe.ExitCode), so its credential helpers were not read"
             }
         }
     }
 
     if ($found.Count -gt 0) {
         $evidence = 'credential or proxy material present: ' + ($found -join ', ')
-        if ($gitProblem) {
+
+        if (-not [string]::IsNullOrWhiteSpace($gitProblem)) {
             $evidence += "; $gitProblem"
         }
 
         return New-CheckResult -Name 'CredentialAbsence' -Status 'Fail' -Evidence $evidence
     }
 
-    if ($gitProblem) {
+    if (-not [string]::IsNullOrWhiteSpace($gitProblem)) {
         return New-CheckResult -Name 'CredentialAbsence' -Status 'Unavailable' -Evidence $gitProblem
     }
 
     return New-CheckResult -Name 'CredentialAbsence' -Status 'Pass' -Evidence ("none of $($variable -join ', ') is set, and $gitEvidence")
+}
+
+function Get-ConfigKeyName {
+    <#
+        The key and the file it came from, never the value. A credential helper
+        value can be a shell snippet with a token in it, and this evidence is
+        printed and written to a report.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Line
+    )
+
+    $origin = ''
+    $remainder = $Line
+    $separator = $Line.IndexOf("`t")
+
+    if ($separator -ge 0) {
+        $origin = $Line.Substring(0, $separator).Trim()
+        $remainder = $Line.Substring($separator + 1)
+    }
+
+    $space = $remainder.IndexOf(' ')
+    $key = if ($space -ge 0) { $remainder.Substring(0, $space) } else { $remainder }
+    $key = $key.Trim()
+
+    if ([string]::IsNullOrWhiteSpace($key)) {
+        $key = 'an unnamed credential key'
+    }
+
+    if ([string]::IsNullOrWhiteSpace($origin)) {
+        return $key
+    }
+
+    return "$key ($origin)"
+}
+
+function Resolve-GitExecutable {
+    <#
+        git as an absolute path to an application, never as an alias, a
+        function, or whatever PATH resolves to at the moment. Returns an empty
+        string when it cannot be resolved, which the caller reports as
+        unmeasured: "git is not installed" would let an empty PATH prove a
+        clean machine.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+
+    $command = Get-Command -Name 'git' -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+
+    if ($null -eq $command) {
+        return ''
+    }
+
+    $path = [string]$command.Source
+
+    if ([string]::IsNullOrWhiteSpace($path) -or -not [System.IO.Path]::IsPathRooted($path)) {
+        return ''
+    }
+
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        return ''
+    }
+
+    return (Get-Item -LiteralPath $path -Force).FullName
+}
+
+function Get-ScrubbedGitEnvironment {
+    <#
+        The environment the git child is given. Every GIT_ variable and
+        SSH_ASKPASS is dropped, because each can steer git at another
+        configuration or at another askpass, and HOME and USERPROFILE are
+        pinned to the operating system's own user profile folder so that the
+        measurement does not depend on where the caller started the verifier.
+        GIT_CONFIG_NOSYSTEM is deliberately not set: the system configuration
+        is part of what a run would see, so it stays in scope.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param()
+
+    $scrubbed = @{}
+
+    foreach ($entry in [Environment]::GetEnvironmentVariables().GetEnumerator()) {
+        $name = [string]$entry.Key
+
+        if ($name -like 'GIT_*' -or $name -eq 'SSH_ASKPASS') {
+            continue
+        }
+
+        $scrubbed[$name] = [string]$entry.Value
+    }
+
+    $profileFolder = [Environment]::GetFolderPath('UserProfile')
+    $scrubbed['HOME'] = $profileFolder
+    $scrubbed['USERPROFILE'] = $profileFolder
+
+    return $scrubbed
+}
+
+function Invoke-GitConfigProcess {
+    <#
+        Runs git as a child process with a scrubbed environment, a pinned
+        working directory and a bounded run time, and reports what happened
+        rather than what it hoped. A process that could not start, one that had
+        to be killed, and one that returned no exit code are all failed
+        measurements, never a clean result. The arguments are passed as a list,
+        so nothing is re-quoted through a shell.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$GitPath,
+
+        [Parameter(Mandatory)]
+        [string[]]$Argument,
+
+        [Parameter()]
+        [int]$TimeoutMilliseconds = 10000
+    )
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $GitPath
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.CreateNoWindow = $true
+    $startInfo.WorkingDirectory = [Environment]::GetFolderPath('UserProfile')
+
+    foreach ($value in $Argument) {
+        $startInfo.ArgumentList.Add($value)
+    }
+
+    $startInfo.Environment.Clear()
+
+    foreach ($entry in (Get-ScrubbedGitEnvironment).GetEnumerator()) {
+        $startInfo.Environment[[string]$entry.Key] = [string]$entry.Value
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+
+    try {
+        try {
+            $null = $process.Start()
+        } catch {
+            return @{ ExitCode = $null; Output = @(); TimedOut = $false; Failure = "git could not be started: $($_.Exception.Message)" }
+        }
+
+        # Both streams are drained before the wait, so a child that fills a pipe
+        # cannot deadlock the measurement.
+        $standardOutput = $process.StandardOutput.ReadToEndAsync()
+        $standardError = $process.StandardError.ReadToEndAsync()
+
+        if (-not $process.WaitForExit($TimeoutMilliseconds)) {
+            try {
+                $process.Kill($true)
+            } catch {
+                return @{ ExitCode = $null; Output = @(); TimedOut = $true; Failure = "git did not finish within $TimeoutMilliseconds ms and could not be killed: $($_.Exception.Message)" }
+            }
+
+            return @{ ExitCode = $null; Output = @(); TimedOut = $true; Failure = "git did not finish within $TimeoutMilliseconds ms" }
+        }
+
+        # The overload without a timeout waits for the redirected streams too.
+        $process.WaitForExit()
+
+        $text = $standardOutput.GetAwaiter().GetResult()
+        $null = $standardError.GetAwaiter().GetResult()
+        $line = @()
+
+        if (-not [string]::IsNullOrEmpty($text)) {
+            $line = @($text -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        }
+
+        return @{ ExitCode = $process.ExitCode; Output = $line; TimedOut = $false; Failure = '' }
+    } finally {
+        $process.Dispose()
+    }
 }
 
 function Get-PropertyText {
