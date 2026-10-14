@@ -341,12 +341,13 @@ Describe 'Containment access rights of a real object' -Tag 'Unit' {
         $result.Right['WriteDac'] | Should -Be 'Granted'
     }
 
-    It 'reports a right as unmeasured, not denied, while another process holds the file without sharing' -Skip:(-not $script:onWindows) {
-        # A sharing violation says another process has the file, not that access control refuses
-        # this identity, so it must never read as a closed right.
+    It 'reads a right as granted, not unmeasured, while another process holds the file without sharing' -Skip:(-not $script:onWindows) {
+        # The live appender holds the sink open for appending the whole run. The kernel checks the
+        # access list before it compares share modes, so a sharing violation (error 32) means the
+        # right was granted and only the other handle's sharing blocked this open.
         $path = Join-Path $script:room 'held-open.jsonl'
         [System.IO.File]::WriteAllText($path, '')
-        $hold = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+        $hold = [System.IO.FileStream]::new($path, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
         try {
             $result = Get-ObjectRight -Path $path
         } finally {
@@ -354,9 +355,32 @@ Describe 'Containment access rights of a real object' -Tag 'Unit' {
         }
 
         $result.State | Should -Be 'Measured'
-        $result.Right['WriteData'] | Should -Be 'Unknown'
-        $result.Right['Delete'] | Should -Be 'Unknown'
-        $result.Reason | Should -Match 'Win32 error 32'
+        foreach ($name in 'WriteData', 'AppendData', 'Delete') {
+            $result.Right[$name] | Should -Be 'Granted' -Because "$name was granted and only the share mode blocked the probe"
+        }
+
+        $result.Reason | Should -BeNullOrEmpty
+    }
+
+    It 'still reads a right the access list denies as denied while another process holds the file' -Skip:(-not $script:onWindows) {
+        # This is what lets a closed ledger sink pass while the appender is running: the run
+        # identity is denied, and a held file must not turn that denial into an unmeasured right.
+        $path = Join-Path $script:room 'held-and-denied.jsonl'
+        [System.IO.File]::WriteAllText($path, '')
+        $hold = [System.IO.FileStream]::new($path, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+        try {
+            $acl = Get-Acl -LiteralPath $path
+            $acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($script:caller, 'Write', 'Deny'))
+            Set-Acl -LiteralPath $path -AclObject $acl
+
+            $result = Get-ObjectRight -Path $path
+        } finally {
+            $hold.Dispose()
+        }
+
+        $result.Right['WriteData'] | Should -Be 'Denied'
+        $result.Right['AppendData'] | Should -Be 'Denied'
+        $result.Reason | Should -BeNullOrEmpty
     }
 
     It 'reports a directory with the rights that matter for its children' -Skip:(-not $script:onWindows) {

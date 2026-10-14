@@ -11,6 +11,8 @@ BeforeAll {
             'New-CheckResult'
             'Get-BytesDigest'
             'ConvertFrom-JsonByteArray'
+            'Get-JsonNode'
+            'Format-LimitedList'
             'Get-GrantRoot'
             'Test-GrantChannelClosed'
         ))
@@ -99,6 +101,64 @@ Describe 'Containment grant channel' -Tag 'Unit' {
             $result.evidence | Should -Match 'recorder'
         }
 
+        It 'fails a recorder nested in a matcher group, however deep' {
+            $json = '{"hooks":{"SessionStart":[{"matcher":"","hooks":[{"type":"command","command":"pwsh -File C:/x/Add-RemoteGrant.ps1"}]}]}}'
+
+            $result = Invoke-Check -Config (New-ConfigFile -Name 'recorder-nested.json' -Json $json)
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'SessionStart'
+            $result.evidence | Should -Match 'recorder'
+        }
+
+        It 'fails a recorder named in a field the scan does not list' {
+            $json = '{"hooks":{"PreToolUse":[{"type":"command","command":"guard","script":"Add-RemoteGrant.ps1"}]}}'
+
+            (Invoke-Check -Config (New-ConfigFile -Name 'recorder-other-field.json' -Json $json)).status | Should -Be 'Fail'
+        }
+
+        It 'names a recorder case-insensitively' {
+            $json = '{"hooks":{"SessionStart":[{"type":"command","command":"pwsh -File add-remotegrant.PS1"}]}}'
+
+            (Invoke-Check -Config (New-ConfigFile -Name 'recorder-case.json' -Json $json)).status | Should -Be 'Fail'
+        }
+
+        It 'finds a recorder nested deeper than a serializer would follow' {
+            $json = '{"hooks":{"SessionStart":[' + ('{"a":' * 150) + '"Add-RemoteGrant"' + ('}' * 150) + ']}}'
+
+            $result = Invoke-Check -Config (New-ConfigFile -Name 'recorder-deep.json' -Json $json)
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'SessionStart'
+        }
+
+        It 'fails a recorder named as a property name' {
+            $json = '{"hooks":{"SessionStart":[{"Add-RemoteGrant.ps1":true}]}}'
+
+            (Invoke-Check -Config (New-ConfigFile -Name 'recorder-key.json' -Json $json)).status | Should -Be 'Fail'
+        }
+
+        It 'fails a prompt event registered below another key' {
+            $json = '{"hooks":{"PreToolUse":[{"type":"command","command":"guard"}]},"plugins":{"extra":{"hooks":{"UserPromptSubmit":[{"type":"command","command":"anything"}]}}}}'
+
+            $result = Invoke-Check -Config (New-ConfigFile -Name 'prompt-nested.json' -Json $json)
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'UserPromptSubmit'
+            $result.evidence | Should -Match 'plugins'
+        }
+
+        It 'names where in the file each finding sits, and at most three of them' {
+            $entry = '{"type":"command","command":"Add-RemoteGrant"}'
+            $json = '{"hooks":{"SessionStart":[' + ((1..5 | ForEach-Object { $entry }) -join ',') + ']}}'
+
+            $result = Invoke-Check -Config (New-ConfigFile -Name 'recorder-many.json' -Json $json)
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match ([regex]::Escape('hooks.SessionStart[0].command'))
+            $result.evidence | Should -Match 'and 2 more'
+        }
+
         It 'does not take the guard for the recorder' {
             $json = '{"hooks":{"PreToolUse":[{"type":"command","command":"pwsh -File Block-RemoteMutation.ps1"}]}}'
 
@@ -130,6 +190,15 @@ Describe 'Containment grant channel' -Tag 'Unit' {
             $result = Invoke-Check -Config (New-ConfigFile -Name 'odd.json' -Json '{"hooks":["a","b"]}')
 
             $result.status | Should -Be 'Pass'
+        }
+
+        It 'does not throw on a hooks.json that is not an object: <Json>' -ForEach @(
+            @{ Json = 'null' }
+            @{ Json = '[]' }
+            @{ Json = '"text"' }
+            @{ Json = '42' }
+        ) {
+            (Invoke-Check -Config (New-ConfigFile -Name 'not-object.json' -Json $Json)).status | Should -Be 'Pass'
         }
     }
 

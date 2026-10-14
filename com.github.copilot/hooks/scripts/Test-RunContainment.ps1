@@ -335,8 +335,8 @@ function Get-ObjectRight {
     <#
         What this identity can do to one object, measured without changing it: for each right that
         lets a run replace or loosen a protected path, Granted, Denied, or Unknown. Only an access
-        denial proves a right closed. Any other failure leaves it Unknown, and an unknown right never
-        reads as protected.
+        denial proves a right closed, and a sharing violation shows it was granted. Any other failure
+        leaves it Unknown, and an unknown right never reads as protected.
 
         On Windows each right is asked of the kernel with its own open (Initialize-NativeAccess), so
         group membership, deny entries, inheritance, and ownership are all resolved by the operating
@@ -424,6 +424,13 @@ function Get-ObjectRight {
             } else {
                 $right[$name] = 'Denied'
             }
+        } elseif ($code -eq 32) {
+            # ERROR_SHARING_VIOLATION. The kernel checks the access list before it compares share
+            # modes: a right the list denies still returns 5 while another handle holds the file
+            # (measured with a held file and a deny entry), so 32 means the list granted the right
+            # and only that handle's sharing blocked this open. The live appender holds the ledger
+            # sink open for appending for the whole run, and the sink must stay measurable.
+            $right[$name] = 'Granted'
         } else {
             $problem.Add("$name (Win32 error $code)")
         }
@@ -788,6 +795,75 @@ function ConvertFrom-JsonByteArray {
     }
 
     return ($text | ConvertFrom-Json -ErrorAction Stop)
+}
+
+function Get-JsonNode {
+    <#
+        Every property and every string of a parsed JSON document, at any depth, each with the path
+        that leads to it. The walk keeps its own stack, so a deeply nested document is neither cut
+        short by a serialization depth limit nor able to exhaust the call stack.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [AllowEmptyString()]
+        $Document
+    )
+
+    $pending = [System.Collections.Generic.Stack[object[]]]::new()
+    $pending.Push(@('', $Document))
+
+    while ($pending.Count -gt 0) {
+        $item = $pending.Pop()
+        $path = [string]$item[0]
+        $node = $item[1]
+
+        if ($node -is [string]) {
+            [pscustomobject]@{ Kind = 'String'; Path = $path; Name = $null; Value = $node }
+        } elseif ($node -is [System.Management.Automation.PSCustomObject]) {
+            foreach ($property in $node.PSObject.Properties) {
+                $child = if ($path.Length -eq 0) { $property.Name } else { "$path.$($property.Name)" }
+
+                [pscustomobject]@{ Kind = 'Property'; Path = $child; Name = $property.Name; Value = $property.Value }
+                $pending.Push(@($child, $property.Value))
+            }
+        } elseif ($node -is [System.Collections.IEnumerable]) {
+            $index = 0
+
+            foreach ($element in $node) {
+                $pending.Push(@("$path[$index]", $element))
+                $index++
+            }
+        }
+    }
+}
+
+function Format-LimitedList {
+    <#
+        The first few items of a list on one line with a count of the rest, so evidence stays short.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [string[]]$Item,
+
+        [Parameter()]
+        [ValidateRange(1, 100)]
+        [int]$Limit = 3
+    )
+
+    $shown = @($Item | Select-Object -First $Limit) -join ', '
+
+    if ($Item.Count -gt $Limit) {
+        return "$shown and $($Item.Count - $Limit) more"
+    }
+
+    return $shown
 }
 
 function Get-PathProblem {
@@ -1421,10 +1497,13 @@ function Test-GrantChannelClosed {
         against remote mutation; this check removes the one path around the guard.
 
         It measures two things. The pinned hooks.json must register no hook on the prompt event and
-        no command that runs the recorder under any event, and the grants folder of the identity
-        that runs must hold nothing, so no grant recorded earlier is waiting. It proves what the
-        pinned file registers and what is on disk now; a hook registered by the host outside the
-        pinned file is outside what it can see.
+        must not name the recorder anywhere, and the grants folder of the identity that runs must
+        hold nothing, so no grant recorded earlier is waiting. Both file scans read every property
+        and string at any depth, so a nested matcher group or a field the host reads under another
+        name is covered; a prompt event is a property named for it that holds anything, and the
+        recorder is named by any string or property name that contains it, whatever the casing. It
+        proves what the pinned file registers and what is on disk now; a hook registered by the
+        host outside the pinned file is outside what it can see.
     #>
     [CmdletBinding()]
     [OutputType([System.Collections.Specialized.OrderedDictionary])]
@@ -1460,31 +1539,32 @@ function Test-GrantChannelClosed {
     }
 
     $finding = [System.Collections.Generic.List[string]]::new()
-    $hooksProperty = $configuration.PSObject.Properties['hooks']
+    $node = @(Get-JsonNode -Document $configuration)
 
-    if ($null -ne $hooksProperty -and $hooksProperty.Value -is [System.Management.Automation.PSCustomObject]) {
-        foreach ($hookEvent in $hooksProperty.Value.PSObject.Properties) {
-            $entry = @($hookEvent.Value)
+    $promptPath = [string[]]@(
+        $node |
+            Where-Object { $_.Kind -eq 'Property' -and $_.Name -imatch '^userpromptsubmit(ted)?$' -and @($_.Value).Count -gt 0 } |
+            ForEach-Object { $_.Path }
+    )
 
-            if ($hookEvent.Name -imatch '^userpromptsubmit(ted)?$' -and $entry.Count -gt 0) {
-                $finding.Add("hooks.json registers a $($hookEvent.Name) hook, which records a Remote grant from a Grant marker in any prompt text, including specification or issue text pasted into a prompt")
-            }
+    if ($promptPath.Count -gt 0) {
+        [Array]::Sort($promptPath, [System.StringComparer]::Ordinal)
+        $finding.Add("hooks.json registers a prompt hook at $(Format-LimitedList -Item $promptPath), which records a Remote grant from a Grant marker in any prompt text, including specification or issue text pasted into a prompt")
+    }
 
-            foreach ($hook in $entry) {
-                if ($hook -isnot [System.Management.Automation.PSCustomObject]) {
-                    continue
-                }
+    $recorderPath = [string[]]@(
+        $node |
+            Where-Object {
+                ($_.Kind -eq 'String' -and $_.Value -imatch 'Add-RemoteGrant') -or
+                ($_.Kind -eq 'Property' -and $_.Name -imatch 'Add-RemoteGrant')
+            } |
+            ForEach-Object { $_.Path } |
+            Select-Object -Unique
+    )
 
-                foreach ($field in @('command', 'windows', 'linux', 'osx', 'powershell', 'bash')) {
-                    $commandProperty = $hook.PSObject.Properties[$field]
-
-                    if ($null -ne $commandProperty -and ([string]$commandProperty.Value) -imatch 'Add-RemoteGrant') {
-                        $finding.Add("a $($hookEvent.Name) hook runs the Remote grant recorder in its $field command")
-                        break
-                    }
-                }
-            }
-        }
+    if ($recorderPath.Count -gt 0) {
+        [Array]::Sort($recorderPath, [System.StringComparer]::Ordinal)
+        $finding.Add("hooks.json names the Remote grant recorder at $(Format-LimitedList -Item $recorderPath), so a command under any event can record a Remote grant")
     }
 
     $root = if ([string]::IsNullOrWhiteSpace($GrantRoot)) { Get-GrantRoot } else { $GrantRoot }
@@ -1731,6 +1811,7 @@ function Test-CredentialAbsence {
         'GH_TOKEN', 'GITHUB_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'SSH_AUTH_SOCK'
         'GIT_ASKPASS', 'SSH_ASKPASS', 'GIT_SSH', 'GIT_SSH_COMMAND'
         'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_SYSTEM', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS'
+        'XDG_CONFIG_HOME'
     )
     $found = [System.Collections.Generic.List[string]]::new()
 
@@ -1915,9 +1996,15 @@ function Get-ScrubbedGitEnvironment {
     <#
         The environment the git child is given. Every GIT_ variable and
         SSH_ASKPASS is dropped, because each can steer git at another
-        configuration or at another askpass, and HOME and USERPROFILE are
-        pinned to the operating system's own user profile folder so that the
-        measurement does not depend on where the caller started the verifier.
+        configuration or at another askpass. XDG_CONFIG_HOME is dropped too:
+        git reads the configuration under it instead of the one in the home
+        folder, so a caller could point it at an empty folder and hide a helper.
+        HOME and USERPROFILE are pinned to the operating system's own user
+        profile folder, and on Windows PROGRAMDATA to its own common folder,
+        which holds the machine-wide configuration, so that the measurement does
+        not depend on where the caller started the verifier. The caller's own
+        values are measured by name where they matter: the check fails when a
+        steering variable is set.
         GIT_CONFIG_NOSYSTEM is deliberately not set: the system configuration
         is part of what a run would see, so it stays in scope.
     #>
@@ -1930,7 +2017,7 @@ function Get-ScrubbedGitEnvironment {
     foreach ($entry in [Environment]::GetEnvironmentVariables().GetEnumerator()) {
         $name = [string]$entry.Key
 
-        if ($name -like 'GIT_*' -or $name -eq 'SSH_ASKPASS') {
+        if ($name -like 'GIT_*' -or $name -eq 'SSH_ASKPASS' -or $name -eq 'XDG_CONFIG_HOME') {
             continue
         }
 
@@ -1940,6 +2027,10 @@ function Get-ScrubbedGitEnvironment {
     $profileFolder = [Environment]::GetFolderPath('UserProfile')
     $scrubbed['HOME'] = $profileFolder
     $scrubbed['USERPROFILE'] = $profileFolder
+
+    if ($script:OnWindows) {
+        $scrubbed['PROGRAMDATA'] = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::CommonApplicationData)
+    }
 
     return $scrubbed
 }
@@ -2861,21 +2952,41 @@ function Get-RevalidationCheckName {
     )
 }
 
-function Lock-LedgerSink {
+function Get-SinkSnapshot {
     <#
-        Holds the sink open for reading and refuses every writer while it is held. The chain is
-        validated and the last records are read under one hold, so the file that was validated is the
-        file that is read. A sink that someone already has open for writing cannot be held, and that
-        is a failure to revalidate, not something to read around.
+        The bytes of the ledger sink, and their SHA-256, as one read. The sink is opened the way the
+        appender's own reader opens it: for reading, with every sharing mode allowed. The live
+        appender holds the sink open for appending for the whole run, so a read that refused writers
+        would collide with it and the ledger could never be revalidated, and a read that allows them
+        blocks nobody. Whether the sink stayed the same while it was validated is decided by taking
+        two snapshots and comparing their digests, not by holding the file.
     #>
     [CmdletBinding()]
-    [OutputType([System.IO.FileStream])]
+    [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory)]
         [string]$Path
     )
 
-    return [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+    $stream = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+
+    try {
+        $buffer = [System.IO.MemoryStream]::new()
+
+        try {
+            $stream.CopyTo($buffer)
+            $bytes = $buffer.ToArray()
+        } finally {
+            $buffer.Dispose()
+        }
+    } finally {
+        $stream.Dispose()
+    }
+
+    return [pscustomobject]@{
+        Bytes = $bytes
+        Sha256 = (Get-BytesDigest -Bytes $bytes)
+    }
 }
 
 function Invoke-ChainValidation {
@@ -3040,15 +3151,16 @@ function Test-FinalReport {
     <#
         The ledger must say that this report is the final one. Directly before the seal there is a
         FinalReport record whose data.sha256 is the digest of the report file, the seal chains to it,
-        and the seal is the head the pinned appender validated. The records are read here, from the
-        file the appender validated, and tied to what it validated by their count and by the head
-        digest; the caller holds the sink for both. Digests are compared as written.
+        and the seal is the head the pinned appender validated. The records are read from the bytes
+        of the sink the caller snapshotted around the validation, and tied to what the appender
+        validated by their count and by the head digest. Digests are compared as written.
     #>
     [CmdletBinding()]
     [OutputType([System.Collections.Specialized.OrderedDictionary])]
     param(
         [Parameter(Mandatory)]
-        [string]$SinkPath,
+        [AllowEmptyCollection()]
+        [byte[]]$SinkBytes,
 
         [Parameter(Mandatory)]
         [string]$FinalReportPath,
@@ -3073,13 +3185,7 @@ function Test-FinalReport {
     }
 
     try {
-        $sinkBytes = [System.IO.File]::ReadAllBytes($SinkPath)
-    } catch {
-        return New-CheckResult -Name 'FinalReport' -Status 'Unavailable' -Evidence "could not read the ledger sink: $($_.Exception.Message)"
-    }
-
-    try {
-        $text = [System.Text.UTF8Encoding]::new($false, $true).GetString($sinkBytes)
+        $text = [System.Text.UTF8Encoding]::new($false, $true).GetString($SinkBytes)
     } catch {
         return New-CheckResult -Name 'FinalReport' -Status 'Fail' -Evidence 'the ledger sink is not valid UTF-8'
     }
@@ -3146,8 +3252,10 @@ function Get-RevalidationCheck {
         Runs the revalidation against a profile that already satisfies the schema. The pinned
         appender is executed, so it runs only after the verifier, the control digests and the
         immutability of the controls were measured and passed, exactly like the hook probe. The sink
-        is held for the whole validation and read, and the report is looked for only in a chain that
-        validated. The protection of the ledger is measured again whatever else happened.
+        is snapshotted before and after the appender validates it: a sink that changed in between
+        was not the one that was validated, and fails the chain. The report is looked for only in a
+        chain that validated, in the bytes of the second snapshot. The protection of the ledger is
+        measured again whatever else happened.
     #>
     [CmdletBinding()]
     [OutputType([object[]])]
@@ -3188,37 +3296,48 @@ function Get-RevalidationCheck {
             $check.Add($notRun)
         }
     } else {
-        $sinkLock = $null
-        $lockProblem = $null
+        $before = $null
+        $readProblem = $null
 
         try {
-            try {
-                $sinkLock = Lock-LedgerSink -Path $sinkPath
-            } catch {
-                $lockProblem = $_.Exception.Message
+            $before = Get-SinkSnapshot -Path $sinkPath
+        } catch {
+            $readProblem = "could not read the ledger sink before it was validated: $($_.Exception.Message)"
+        }
+
+        if ($null -ne $readProblem -or $null -eq $before) {
+            $check.Add((New-CheckResult -Name 'LedgerChain' -Status 'Unavailable' -Evidence $readProblem))
+
+            foreach ($notRun in @(Get-NotRunCheck -Name @('FinalReport') -Reason 'the ledger sink could not be read, so no chain was validated')) {
+                $check.Add($notRun)
+            }
+        } else {
+            $chain = Get-LedgerChainResult -AppenderPath ([string]$ContainmentProfile.ledgerAppender.path) -ProfilePath $ProfilePath -ProfileSha256 $ProfileSha256
+            $chainCheck = $chain.Check
+            $after = $null
+
+            if ($chainCheck.status -ceq 'Pass') {
+                try {
+                    $after = Get-SinkSnapshot -Path $sinkPath
+
+                    if ($after.Sha256 -cne $before.Sha256) {
+                        $chainCheck = New-CheckResult -Name 'LedgerChain' -Status 'Fail' -Evidence "the ledger sink changed while the pinned appender validated it (it hashed to $($before.Sha256) before and $($after.Sha256) after), so what was validated is not what was read"
+                        $after = $null
+                    }
+                } catch {
+                    $chainCheck = New-CheckResult -Name 'LedgerChain' -Status 'Unavailable' -Evidence "could not read the ledger sink after it was validated: $($_.Exception.Message)"
+                    $after = $null
+                }
             }
 
-            if ($null -ne $lockProblem -or $null -eq $sinkLock) {
-                $check.Add((New-CheckResult -Name 'LedgerChain' -Status 'Unavailable' -Evidence "could not hold the ledger sink while it is validated: $lockProblem"))
+            $check.Add($chainCheck)
 
-                foreach ($notRun in @(Get-NotRunCheck -Name @('FinalReport') -Reason 'the ledger sink could not be held, so no chain was validated')) {
+            if ($chainCheck.status -ceq 'Pass') {
+                $check.Add((Test-FinalReport -SinkBytes $after.Bytes -FinalReportPath $FinalReportPath -ChainSummary $chain.Summary))
+            } else {
+                foreach ($notRun in @(Get-NotRunCheck -Name @('FinalReport') -Reason 'the ledger chain did not validate')) {
                     $check.Add($notRun)
                 }
-            } else {
-                $chain = Get-LedgerChainResult -AppenderPath ([string]$ContainmentProfile.ledgerAppender.path) -ProfilePath $ProfilePath -ProfileSha256 $ProfileSha256
-                $check.Add($chain.Check)
-
-                if ($chain.Check.status -ceq 'Pass') {
-                    $check.Add((Test-FinalReport -SinkPath $sinkPath -FinalReportPath $FinalReportPath -ChainSummary $chain.Summary))
-                } else {
-                    foreach ($notRun in @(Get-NotRunCheck -Name @('FinalReport') -Reason 'the ledger chain did not validate')) {
-                        $check.Add($notRun)
-                    }
-                }
-            }
-        } finally {
-            if ($null -ne $sinkLock) {
-                $sinkLock.Dispose()
             }
         }
     }

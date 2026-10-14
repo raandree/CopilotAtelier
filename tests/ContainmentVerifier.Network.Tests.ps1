@@ -109,6 +109,7 @@ BeforeAll {
         'GH_TOKEN', 'GITHUB_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'SSH_AUTH_SOCK'
         'GIT_ASKPASS', 'SSH_ASKPASS', 'GIT_SSH', 'GIT_SSH_COMMAND'
         'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_SYSTEM', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS'
+        'XDG_CONFIG_HOME'
     )
 
     function script:Clear-MeasuredEnvironment {
@@ -649,6 +650,7 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
             'GIT_SSH_COMMAND'
             'GIT_SSH'
             'SSH_ASKPASS'
+            'XDG_CONFIG_HOME'
         ) {
             $saved = Clear-MeasuredEnvironment
 
@@ -1162,6 +1164,48 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
             $childEnvironment = Get-ScrubbedGitEnvironment
 
             $childEnvironment.ContainsKey('GIT_CONFIG_NOSYSTEM') | Should -BeFalse
+        }
+
+        It 'drops XDG_CONFIG_HOME, which git reads instead of the configuration in the home folder' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                [Environment]::SetEnvironmentVariable('XDG_CONFIG_HOME', (Join-Path $TestDrive 'steered-xdg'))
+
+                $childEnvironment = Get-ScrubbedGitEnvironment
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $childEnvironment.ContainsKey('XDG_CONFIG_HOME') | Should -BeFalse
+        }
+
+        It 'pins PROGRAMDATA to the operating system folder, so a caller cannot hide the machine-wide configuration' -Skip:(-not $script:onWindows) {
+            $saved = [Environment]::GetEnvironmentVariable('PROGRAMDATA')
+
+            try {
+                [Environment]::SetEnvironmentVariable('PROGRAMDATA', (Join-Path $TestDrive 'steered-programdata'))
+
+                $childEnvironment = Get-ScrubbedGitEnvironment
+            } finally {
+                [Environment]::SetEnvironmentVariable('PROGRAMDATA', $saved)
+            }
+
+            $childEnvironment['PROGRAMDATA'] | Should -Be ([Environment]::GetFolderPath([System.Environment+SpecialFolder]::CommonApplicationData))
+        }
+
+        It 'still carries the rest of the caller environment into the child' {
+            $savedMarker = [Environment]::GetEnvironmentVariable('CONTAINMENT_TEST_MARKER')
+
+            try {
+                [Environment]::SetEnvironmentVariable('CONTAINMENT_TEST_MARKER', 'kept')
+
+                $childEnvironment = Get-ScrubbedGitEnvironment
+            } finally {
+                [Environment]::SetEnvironmentVariable('CONTAINMENT_TEST_MARKER', $savedMarker)
+            }
+
+            $childEnvironment['CONTAINMENT_TEST_MARKER'] | Should -Be 'kept'
         }
 
         It 'runs git with an environment a planted GIT_CONFIG_GLOBAL cannot steer' -Skip:(-not $script:hasGit) {

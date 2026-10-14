@@ -15,7 +15,7 @@ BeforeAll {
             'Get-RevalidationCheckName'
             'Get-RevalidationCheck'
             'Invoke-ChainValidation'
-            'Lock-LedgerSink'
+            'Get-SinkSnapshot'
             'Get-LedgerChainResult'
             'Test-FinalReport'
             'Test-VerifierBinding'
@@ -268,10 +268,26 @@ Describe 'Final report' -Tag 'Unit' {
 
             return $path
         }
+
+        # Test-FinalReport reads the bytes the caller already took, so the tests hand it a file's bytes.
+        function script:Invoke-FinalReport {
+            param(
+                [Parameter(Mandatory)]
+                [string]$SinkPath,
+
+                [Parameter(Mandatory)]
+                [string]$FinalReportPath,
+
+                [Parameter(Mandatory)]
+                $ChainSummary
+            )
+
+            return Test-FinalReport -SinkBytes ([System.IO.File]::ReadAllBytes($SinkPath)) -FinalReportPath $FinalReportPath -ChainSummary $ChainSummary
+        }
     }
 
     It 'passes when the record before the seal carries the digest of the report' {
-        $result = Test-FinalReport -SinkPath (Write-Ledger -Name 'good') -FinalReportPath $script:report -ChainSummary (New-Summary)
+        $result = Invoke-FinalReport -SinkPath (Write-Ledger -Name 'good') -FinalReportPath $script:report -ChainSummary (New-Summary)
 
         $result.status | Should -Be 'Pass' -Because $result.evidence
         $result.name | Should -Be 'FinalReport'
@@ -279,7 +295,7 @@ Describe 'Final report' -Tag 'Unit' {
     }
 
     It 'fails a report that is not the one the ledger recorded' {
-        $result = Test-FinalReport -SinkPath (Write-Ledger -Name 'other-report' -ReportDigestInLedger ('9' * 64)) -FinalReportPath $script:report -ChainSummary (New-Summary)
+        $result = Invoke-FinalReport -SinkPath (Write-Ledger -Name 'other-report' -ReportDigestInLedger ('9' * 64)) -FinalReportPath $script:report -ChainSummary (New-Summary)
 
         $result.status | Should -Be 'Fail'
         $result.evidence | Should -Match $script:reportDigest
@@ -290,51 +306,58 @@ Describe 'Final report' -Tag 'Unit' {
         $changed = Join-Path $TestDrive 'revalidate/changed-report.md'
         [System.IO.File]::WriteAllText($changed, 'a different report', [System.Text.UTF8Encoding]::new($false))
 
-        (Test-FinalReport -SinkPath (Write-Ledger -Name 'changed') -FinalReportPath $changed -ChainSummary (New-Summary)).status | Should -Be 'Fail'
+        (Invoke-FinalReport -SinkPath (Write-Ledger -Name 'changed') -FinalReportPath $changed -ChainSummary (New-Summary)).status | Should -Be 'Fail'
     }
 
     It 'fails a ledger whose last record is not the seal' {
-        (Test-FinalReport -SinkPath (Write-Ledger -Name 'no-seal' -SealType 'Note') -FinalReportPath $script:report -ChainSummary (New-Summary)).status | Should -Be 'Fail'
+        (Invoke-FinalReport -SinkPath (Write-Ledger -Name 'no-seal' -SealType 'Note') -FinalReportPath $script:report -ChainSummary (New-Summary)).status | Should -Be 'Fail'
     }
 
     It 'fails a ledger whose record before the seal is not a final report' {
-        $result = Test-FinalReport -SinkPath (Write-Ledger -Name 'no-final' -FinalType 'Note') -FinalReportPath $script:report -ChainSummary (New-Summary)
+        $result = Invoke-FinalReport -SinkPath (Write-Ledger -Name 'no-final' -FinalType 'Note') -FinalReportPath $script:report -ChainSummary (New-Summary)
 
         $result.status | Should -Be 'Fail'
         $result.evidence | Should -Match 'FinalReport'
     }
 
     It 'fails a seal that does not chain to the final report' {
-        (Test-FinalReport -SinkPath (Write-Ledger -Name 'unchained' -SealPrevious ('8' * 64)) -FinalReportPath $script:report -ChainSummary (New-Summary)).status | Should -Be 'Fail'
+        (Invoke-FinalReport -SinkPath (Write-Ledger -Name 'unchained' -SealPrevious ('8' * 64)) -FinalReportPath $script:report -ChainSummary (New-Summary)).status | Should -Be 'Fail'
     }
 
     It 'fails a last record that is not the head the appender validated' {
-        $result = Test-FinalReport -SinkPath (Write-Ledger -Name 'other-head' -HeadDigest ('7' * 64)) -FinalReportPath $script:report -ChainSummary (New-Summary)
+        $result = Invoke-FinalReport -SinkPath (Write-Ledger -Name 'other-head' -HeadDigest ('7' * 64)) -FinalReportPath $script:report -ChainSummary (New-Summary)
 
         $result.status | Should -Be 'Fail'
         $result.evidence | Should -Match 'validated'
     }
 
     It 'fails a ledger with a different number of records than the appender validated' {
-        $result = Test-FinalReport -SinkPath (Write-Ledger -Name 'count') -FinalReportPath $script:report -ChainSummary (New-Summary -Override @{ records = 4 })
+        $result = Invoke-FinalReport -SinkPath (Write-Ledger -Name 'count') -FinalReportPath $script:report -ChainSummary (New-Summary -Override @{ records = 4 })
 
         $result.status | Should -Be 'Fail'
         $result.evidence | Should -Match 'records'
     }
 
     It 'fails a final report that does not exist' {
-        (Test-FinalReport -SinkPath (Write-Ledger -Name 'no-file') -FinalReportPath (Join-Path $TestDrive 'revalidate/absent.md') -ChainSummary (New-Summary)).status | Should -Be 'Fail'
+        (Invoke-FinalReport -SinkPath (Write-Ledger -Name 'no-file') -FinalReportPath (Join-Path $TestDrive 'revalidate/absent.md') -ChainSummary (New-Summary)).status | Should -Be 'Fail'
     }
 
-    It 'reports a ledger it cannot read as unmeasured' {
-        (Test-FinalReport -SinkPath (Join-Path $TestDrive 'revalidate/absent.jsonl') -FinalReportPath $script:report -ChainSummary (New-Summary)).status | Should -Be 'Unavailable'
+    It 'fails a ledger that is not valid UTF-8' {
+        $result = Test-FinalReport -SinkBytes ([byte[]](0x7B, 0xFF, 0xFE, 0x7D, 0x0A, 0x7B, 0xFF, 0x7D, 0x0A)) -FinalReportPath $script:report -ChainSummary (New-Summary -Override @{ records = 2 })
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match 'UTF-8'
+    }
+
+    It 'reports the absence of a validated chain as unmeasured' {
+        (Test-FinalReport -SinkBytes ([byte[]]@()) -FinalReportPath $script:report -ChainSummary $null).status | Should -Be 'Unavailable'
     }
 
     It 'fails a ledger with fewer than two records' {
         $path = Join-Path $TestDrive 'revalidate/one.jsonl'
         [System.IO.File]::WriteAllText($path, ((New-LedgerLine -Sequence 1 -Previous ('0' * 64) -Digest $script:head -Type 'Seal') + "`n"))
 
-        (Test-FinalReport -SinkPath $path -FinalReportPath $script:report -ChainSummary (New-Summary -Override @{ records = 1 })).status | Should -Be 'Fail'
+        (Invoke-FinalReport -SinkPath $path -FinalReportPath $script:report -ChainSummary (New-Summary -Override @{ records = 1 })).status | Should -Be 'Fail'
     }
 
     It 'does not accept an earlier final report followed by other records before the seal' {
@@ -346,7 +369,7 @@ Describe 'Final report' -Tag 'Unit' {
         )
         [System.IO.File]::WriteAllText($path, (($lines -join "`n") + "`n"))
 
-        (Test-FinalReport -SinkPath $path -FinalReportPath $script:report -ChainSummary (New-Summary)).status | Should -Be 'Fail'
+        (Invoke-FinalReport -SinkPath $path -FinalReportPath $script:report -ChainSummary (New-Summary)).status | Should -Be 'Fail'
     }
 }
 
@@ -381,7 +404,9 @@ Describe 'Revalidation flow' -Tag 'Unit' {
     }
 
     BeforeEach {
-        Mock -CommandName Lock-LedgerSink -MockWith { [System.IO.MemoryStream]::new() }
+        $script:snapshotBytes = [byte[]]@(1, 2, 3)
+        $script:snapshotDigest = 'c' * 64
+        Mock -CommandName Get-SinkSnapshot -MockWith { [pscustomobject]@{ Bytes = $script:snapshotBytes; Sha256 = $script:snapshotDigest } }
         Mock -CommandName Test-VerifierBinding -MockWith { New-CheckResult -Name 'VerifierBinding' -Status 'Pass' -Evidence 'mock' }
         Mock -CommandName Test-ControlDigest -MockWith { New-CheckResult -Name 'ControlDigest' -Status 'Pass' -Evidence 'mock' }
         Mock -CommandName Test-ControlImmutability -MockWith { New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'mock' }
@@ -422,11 +447,11 @@ Describe 'Revalidation flow' -Tag 'Unit' {
         $chain.evidence | Should -Match $Gate
     }
 
-    It 'gives the final report check the sink, the report and what the appender validated' {
+    It 'gives the final report check the bytes it read, the report and what the appender validated' {
         $null = Invoke-Revalidation
 
         Should -Invoke Test-FinalReport -Times 1 -Exactly -ParameterFilter {
-            $SinkPath -eq (Join-Path $script:base 'run.jsonl') -and $FinalReportPath -eq (Join-Path $script:base 'final-report.md') -and $ChainSummary.records -eq 3
+            @($SinkBytes).Count -eq 3 -and $SinkBytes[2] -eq 3 -and $FinalReportPath -eq (Join-Path $script:base 'final-report.md') -and $ChainSummary.records -eq 3
         }
     }
 
@@ -449,91 +474,133 @@ Describe 'Revalidation flow' -Tag 'Unit' {
         Should -Invoke Test-LedgerProtection -Times 1 -Exactly -ParameterFilter { $WritableRoot -contains (Join-Path $script:base 'work') }
     }
 
-    It 'reports a sink it cannot hold as unmeasured and validates nothing' {
-        Mock -CommandName Lock-LedgerSink -MockWith { throw 'The process cannot access the file because it is being used by another process.' }
+    It 'reads a sink it cannot read as unmeasured and validates nothing' {
+        Mock -CommandName Get-SinkSnapshot -MockWith { throw 'Could not find file run.jsonl.' }
 
         $result = Invoke-Revalidation
 
         Should -Invoke Get-LedgerChainResult -Times 0 -Exactly
         $chain = $result | Where-Object { $_.name -ceq 'LedgerChain' }
         $chain.status | Should -Be 'Unavailable'
-        $chain.evidence | Should -Match 'hold'
+        $chain.evidence | Should -Match 'read the ledger sink'
         ($result | Where-Object { $_.name -ceq 'FinalReport' }).evidence | Should -Match 'not run'
     }
 
-    It 'holds the sink while the chain is validated and the report is read, and releases it afterwards' {
-        $script:lockStream = [System.IO.MemoryStream]::new()
-        $script:heldDuringChain = $null
-        $script:heldDuringReport = $null
-        Mock -CommandName Lock-LedgerSink -MockWith { $script:lockStream }
-        Mock -CommandName Get-LedgerChainResult -MockWith {
-            $script:heldDuringChain = $script:lockStream.CanRead
-            [pscustomobject]@{ Check = (New-CheckResult -Name 'LedgerChain' -Status 'Pass' -Evidence 'mock'); Summary = (New-Summary) }
+    It 'reads the sink before and after the appender validates it' {
+        $script:order = [System.Collections.Generic.List[string]]::new()
+        Mock -CommandName Get-SinkSnapshot -MockWith {
+            $script:order.Add('snapshot')
+            [pscustomobject]@{ Bytes = $script:snapshotBytes; Sha256 = $script:snapshotDigest }
         }
-        Mock -CommandName Test-FinalReport -MockWith {
-            $script:heldDuringReport = $script:lockStream.CanRead
-            New-CheckResult -Name 'FinalReport' -Status 'Pass' -Evidence 'mock'
+        Mock -CommandName Get-LedgerChainResult -MockWith {
+            $script:order.Add('appender')
+            [pscustomobject]@{ Check = (New-CheckResult -Name 'LedgerChain' -Status 'Pass' -Evidence 'mock'); Summary = (New-Summary) }
         }
 
         $null = Invoke-Revalidation
 
-        $script:heldDuringChain | Should -BeTrue
-        $script:heldDuringReport | Should -BeTrue
-        $script:lockStream.CanRead | Should -BeFalse -Because 'the hold ends with the revalidation'
+        $script:order -join ',' | Should -Be 'snapshot,appender,snapshot'
     }
 
-    It 'releases the sink when the validation throws' {
-        $script:lockStream = [System.IO.MemoryStream]::new()
-        Mock -CommandName Lock-LedgerSink -MockWith { $script:lockStream }
-        Mock -CommandName Get-LedgerChainResult -MockWith { throw 'boom' }
+    It 'fails the chain when the sink changes while the appender validates it, and reads no report' {
+        $script:calls = 0
+        Mock -CommandName Get-SinkSnapshot -MockWith {
+            $script:calls++
+            [pscustomobject]@{ Bytes = $script:snapshotBytes; Sha256 = $(if ($script:calls -eq 1) { 'c' * 64 } else { 'd' * 64 }) }
+        }
 
-        { Invoke-Revalidation } | Should -Throw
-        $script:lockStream.CanRead | Should -BeFalse
+        $result = Invoke-Revalidation
+
+        $chain = $result | Where-Object { $_.name -ceq 'LedgerChain' }
+        $chain.status | Should -Be 'Fail'
+        $chain.evidence | Should -Match 'changed while'
+        Should -Invoke Test-FinalReport -Times 0 -Exactly
+        ($result | Where-Object { $_.name -ceq 'FinalReport' }).evidence | Should -Match 'not run'
+    }
+
+    It 'reports a sink that cannot be read after the validation as unmeasured' {
+        $script:calls = 0
+        Mock -CommandName Get-SinkSnapshot -MockWith {
+            $script:calls++
+            if ($script:calls -gt 1) { throw 'the sink vanished' }
+            [pscustomobject]@{ Bytes = $script:snapshotBytes; Sha256 = $script:snapshotDigest }
+        }
+
+        $chain = (Invoke-Revalidation) | Where-Object { $_.name -ceq 'LedgerChain' }
+
+        $chain.status | Should -Be 'Unavailable'
+        $chain.evidence | Should -Match 'vanished'
+    }
+
+    It 'does not take a second snapshot of a chain that did not validate' {
+        Mock -CommandName Get-LedgerChainResult -MockWith { [pscustomobject]@{ Check = (New-CheckResult -Name 'LedgerChain' -Status 'Fail' -Evidence 'mock breach'); Summary = $null } }
+
+        $null = Invoke-Revalidation
+
+        Should -Invoke Get-SinkSnapshot -Times 1 -Exactly
     }
 }
 
-Describe 'Ledger sink lock' -Tag 'Unit' -Skip:(-not $script:onWindows) {
+Describe 'Ledger sink snapshot' -Tag 'Unit' {
     BeforeAll {
         function script:New-Sink {
             param(
                 [Parameter(Mandatory)]
-                [string]$Name
+                [string]$Name,
+
+                [Parameter()]
+                [string]$Text = 'x'
             )
 
-            $path = Join-Path $TestDrive "lock/$Name.jsonl"
+            $path = Join-Path $TestDrive "snapshot/$Name.jsonl"
             $null = New-Item -Path (Split-Path -Parent $path) -ItemType Directory -Force
-            [System.IO.File]::WriteAllText($path, 'x')
+            [System.IO.File]::WriteAllText($path, $Text)
 
             return $path
         }
     }
 
-    It 'lets the sink be read but not written while it is held, and lets it be written afterwards' {
-        $path = New-Sink -Name 'held'
-        $lock = Lock-LedgerSink -Path $path
+    It 'returns the bytes of the sink and their SHA-256' {
+        $path = New-Sink -Name 'plain' -Text 'one line'
 
-        try {
-            [System.IO.File]::ReadAllText($path) | Should -Be 'x'
-            { [System.IO.File]::AppendAllText($path, 'y') } | Should -Throw
-        } finally {
-            $lock.Dispose()
-        }
+        $snapshot = Get-SinkSnapshot -Path $path
 
-        { [System.IO.File]::AppendAllText($path, 'y') } | Should -Not -Throw
+        [System.Text.Encoding]::UTF8.GetString($snapshot.Bytes) | Should -Be 'one line'
+        $snapshot.Sha256 | Should -Be (Get-BytesDigest -Bytes ([System.IO.File]::ReadAllBytes($path)))
     }
 
-    It 'cannot hold a sink that someone has open for writing' {
-        $path = New-Sink -Name 'busy'
-        $writer = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
+    It 'reads a sink that the appender holds open for appending, as the live appender does' {
+        # The service holds the sink with write access and FileShare.Read for the whole run. A read
+        # that asks for read-only sharing would collide with it and the ledger could never be revalidated.
+        $path = New-Sink -Name 'held-by-appender'
+        $writer = [System.IO.FileStream]::new($path, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
 
         try {
-            { Lock-LedgerSink -Path $path } | Should -Throw
+            $snapshot = Get-SinkSnapshot -Path $path
         } finally {
             $writer.Dispose()
         }
+
+        [System.Text.Encoding]::UTF8.GetString($snapshot.Bytes) | Should -Be 'x'
     }
 
-    It 'cannot hold a sink that does not exist' {
-        { Lock-LedgerSink -Path (Join-Path $TestDrive 'lock/absent.jsonl') } | Should -Throw
+    It 'does not keep the sink open after it has read it' {
+        $path = New-Sink -Name 'released'
+
+        $null = Get-SinkSnapshot -Path $path
+
+        { [System.IO.File]::AppendAllText($path, 'y') } | Should -Not -Throw
+        { Remove-Item -LiteralPath $path -Force -ErrorAction Stop } | Should -Not -Throw
+    }
+
+    It 'throws for a sink that does not exist' {
+        { Get-SinkSnapshot -Path (Join-Path $TestDrive 'snapshot/absent.jsonl') } | Should -Throw
+    }
+
+    It 'returns an empty snapshot for an empty sink' {
+        $snapshot = Get-SinkSnapshot -Path (New-Sink -Name 'empty' -Text '')
+
+        @($snapshot.Bytes).Count | Should -Be 0
+        $snapshot.Sha256 | Should -Be (Get-BytesDigest -Bytes ([byte[]]@()))
     }
 }
