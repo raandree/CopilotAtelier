@@ -20,21 +20,57 @@ BeforeAll {
             [string]$SinkPath,
 
             [Parameter(Mandatory)]
-            [string]$ChainHeadPath
+            [string]$ChainHeadPath,
+
+            [Parameter()]
+            [string]$AllowedIdentity,
+
+            # Culture is a deliberate lever: a culture-ordered sort produces a
+            # different canonical form, so the vectors are driven under a
+            # culture whose collation differs from ordinal.
+            [Parameter()]
+            [string]$Culture,
+
+            [Parameter()]
+            [switch]$SkipReadiness
         )
 
-        $arguments = @(
-            '-NoProfile'
-            '-NonInteractive'
-            '-File', $script:appenderScript
-            '-Serve'
-            '-PipeName', $PipeName
-            '-SinkPath', $SinkPath
-            '-ChainHeadPath', $ChainHeadPath
-            '-IdleTimeoutSeconds', '30'
+        $argument = @(
+            "-Serve"
+            "-PipeName '$PipeName'"
+            "-SinkPath '$($SinkPath.Replace("'", "''"))'"
+            "-ChainHeadPath '$($ChainHeadPath.Replace("'", "''"))'"
+            '-IdleTimeoutSeconds 30'
         )
 
-        $process = Start-Process -FilePath $script:powerShellPath -ArgumentList $arguments -PassThru -WindowStyle Hidden
+        if ($AllowedIdentity) {
+            $argument += "-AllowedIdentity '$($AllowedIdentity.Replace("'", "''"))'"
+        }
+
+        $cultureLine = ''
+        if ($Culture) {
+            $cultureLine = @"
+[System.Globalization.CultureInfo]::DefaultThreadCurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('$Culture')
+[System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('$Culture')
+"@
+        }
+
+        # EncodedCommand keeps the culture assignment and the call in one
+        # process without fighting Start-Process argument quoting.
+        $payload = @"
+$cultureLine
+& '$($script:appenderScript.Replace("'", "''"))' $($argument -join ' ')
+exit `$LASTEXITCODE
+"@
+        $encoded = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($payload))
+
+        $process = Start-Process -FilePath $script:powerShellPath -PassThru -WindowStyle Hidden -ArgumentList @(
+            '-NoProfile', '-NonInteractive', '-EncodedCommand', $encoded
+        )
+
+        if ($SkipReadiness) {
+            return $process
+        }
 
         # Readiness is the pipe accepting a connection, not the process existing.
         $deadline = (Get-Date).AddSeconds(20)
@@ -150,6 +186,49 @@ BeforeAll {
                 Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
                 ForEach-Object { $_ | ConvertFrom-Json }
         )
+    }
+
+    function script:Get-SinkLine {
+        <#
+            The stored bytes are the evidence, so the tests read them rather
+            than a re-serialization of a parse: Get-Content would hide a BOM,
+            a CRLF, or a stray space that the canonical form forbids.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string]$SinkPath
+        )
+
+        if (-not (Test-Path -LiteralPath $SinkPath -PathType Leaf)) {
+            return [string[]]@()
+        }
+
+        $bytes = [System.IO.File]::ReadAllBytes($SinkPath)
+        if ($bytes.Length -eq 0) {
+            return [string[]]@()
+        }
+
+        $text = [System.Text.UTF8Encoding]::new($false, $true).GetString($bytes)
+        return [string[]]@($text -split "`n" | Where-Object { $_.Length -gt 0 })
+    }
+
+    function script:Set-SinkLine {
+        <#
+            Writes exactly the given lines, each terminated by a single LF and
+            no BOM, so a test can plant one altered byte without the writer
+            adding any of its own.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string]$SinkPath,
+
+            [Parameter(Mandatory)]
+            [AllowEmptyCollection()]
+            [string[]]$Line
+        )
+
+        $text = ($Line | ForEach-Object { $_ + "`n" }) -join ''
+        [System.IO.File]::WriteAllBytes($SinkPath, [System.Text.UTF8Encoding]::new($false).GetBytes($text))
     }
 }
 
@@ -339,5 +418,128 @@ Describe 'Ledger appender' -Tag 'Unit' {
 
         $late = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Late')
         $late.ExitCode | Should -Be 2 -Because $late.Output
+    }
+}
+
+Describe 'Ledger appender canonical form' -Tag 'Unit' {
+    BeforeDiscovery {
+        <#
+            Pinned vectors. The expected lines and digests were built by hand
+            and hashed with an independent implementation (Node's crypto), not
+            by this script, so a change in the serializer cannot quietly move
+            the expectation with it. A record is the first in a fresh ledger,
+            so its sequence is 1 and its prevSha256 is the genesis hash.
+        #>
+        $script:canonicalVector = @(
+            @{
+                Name = 'mixed-case keys'
+                RecordJson = '{"type":"Baseline","runId":"run-0001","utc":"2026-09-02T22:00:00Z","data":{"b":1,"A":2,"a":3,"B":4,"ab":5,"aB":6}}'
+                ExpectedLine = '{"data":{"A":2,"B":4,"a":3,"aB":6,"ab":5,"b":1},"prevSha256":"0000000000000000000000000000000000000000000000000000000000000000","recordSha256":"e5b9ff7668b93fa59298499432d04dd6f12c53645dbb6037a869ff2d6c1502cd","runId":"run-0001","sequence":1,"type":"Baseline","utc":"2026-09-02T22:00:00Z"}'
+                ExpectedSha256 = 'e5b9ff7668b93fa59298499432d04dd6f12c53645dbb6037a869ff2d6c1502cd'
+            }
+            @{
+                Name = 'a non-ASCII key'
+                RecordJson = '{"type":"Baseline","runId":"run-0001","utc":"2026-09-02T22:00:00Z","data":{"caf\u00e9":"cr\u00e8me","\u6f22":"\u5b57"}}'
+                ExpectedLine = '{"data":{"caf\u00E9":"cr\u00E8me","\u6F22":"\u5B57"},"prevSha256":"0000000000000000000000000000000000000000000000000000000000000000","recordSha256":"cdf9bb06976101c79a9b60ceb5598f3899bf616d24ce5de38e6a0471c277bdf3","runId":"run-0001","sequence":1,"type":"Baseline","utc":"2026-09-02T22:00:00Z"}'
+                ExpectedSha256 = 'cdf9bb06976101c79a9b60ceb5598f3899bf616d24ce5de38e6a0471c277bdf3'
+            }
+            @{
+                Name = 'a nested object'
+                RecordJson = '{"type":"ProbeResult","runId":"run-0001","utc":"2026-09-02T22:00:00Z","data":{"outer":{"z":{"y":[3,1,2],"x":null},"a":true},"list":[{"b":2,"a":1},"x"]}}'
+                ExpectedLine = '{"data":{"list":[{"a":1,"b":2},"x"],"outer":{"a":true,"z":{"x":null,"y":[3,1,2]}}},"prevSha256":"0000000000000000000000000000000000000000000000000000000000000000","recordSha256":"df10160e5efde976345a37daca7b23903eea98503cb33ef52948bd3b8054ce8f","runId":"run-0001","sequence":1,"type":"ProbeResult","utc":"2026-09-02T22:00:00Z"}'
+                ExpectedSha256 = 'df10160e5efde976345a37daca7b23903eea98503cb33ef52948bd3b8054ce8f'
+            }
+            @{
+                Name = 'an ISO utc'
+                RecordJson = '{"type":"Baseline","runId":"2026-09-02T22:00:00Z","utc":"2026-09-02T22:00:00.1234567Z","data":{"when":"2026-09-02T22:00:00Z"}}'
+                ExpectedLine = '{"data":{"when":"2026-09-02T22:00:00Z"},"prevSha256":"0000000000000000000000000000000000000000000000000000000000000000","recordSha256":"314571e6bc8cb434d9a498a4571dd9f8f2c0fecae74ee9f24f90118ca9c8b22d","runId":"2026-09-02T22:00:00Z","sequence":1,"type":"Baseline","utc":"2026-09-02T22:00:00.1234567Z"}'
+                ExpectedSha256 = '314571e6bc8cb434d9a498a4571dd9f8f2c0fecae74ee9f24f90118ca9c8b22d'
+            }
+            @{
+                Name = 'a large but safe integer'
+                RecordJson = '{"type":"Baseline","runId":"run-0001","utc":"2026-09-02T22:00:00Z","data":{"max":9007199254740991,"min":-9007199254740991,"zero":-0}}'
+                ExpectedLine = '{"data":{"max":9007199254740991,"min":-9007199254740991,"zero":0},"prevSha256":"0000000000000000000000000000000000000000000000000000000000000000","recordSha256":"b324ecfff0e74e5b118c3506dbc6463b796b62b61b0a44b68ba0821320b7ebb6","runId":"run-0001","sequence":1,"type":"Baseline","utc":"2026-09-02T22:00:00Z"}'
+                ExpectedSha256 = 'b324ecfff0e74e5b118c3506dbc6463b796b62b61b0a44b68ba0821320b7ebb6'
+            }
+            @{
+                Name = 'characters the escaper rewrites'
+                RecordJson = '{"type":"Baseline","runId":"run-0001","utc":"2026-09-02T22:00:00Z","data":{"s":"a<b>&''\"\\\u0001\t"}}'
+                ExpectedLine = '{"data":{"s":"a\u003Cb\u003E\u0026\u0027\u0022\\\u0001\t"},"prevSha256":"0000000000000000000000000000000000000000000000000000000000000000","recordSha256":"dc1818d0d0735112b6aba02d5e4ad2bdde9f17fce8520cb3867d5fa35c6a7315","runId":"run-0001","sequence":1,"type":"Baseline","utc":"2026-09-02T22:00:00Z"}'
+                ExpectedSha256 = 'dc1818d0d0735112b6aba02d5e4ad2bdde9f17fce8520cb3867d5fa35c6a7315'
+            }
+        )
+
+        $script:unsafeNumber = @(
+            @{ Name = 'an exponent'; Value = '1e20' }
+            @{ Name = 'an integral exponent'; Value = '1E2' }
+            @{ Name = 'a fraction'; Value = '1.5' }
+            @{ Name = 'a trailing zero fraction'; Value = '1.0' }
+            @{ Name = 'an integer above 2^53-1'; Value = '9007199254740992' }
+            @{ Name = 'an integer below -(2^53-1)'; Value = '-9007199254740992' }
+        )
+    }
+
+    BeforeEach {
+        $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
+        $script:sinkPath = Join-Path $TestDrive "ledger-$([guid]::NewGuid().ToString('N')).jsonl"
+        $script:headPath = Join-Path $TestDrive "head-$([guid]::NewGuid().ToString('N')).json"
+        $script:appender = $null
+    }
+
+    AfterEach {
+        if ($script:appender -and -not $script:appender.HasExited) {
+            $script:appender | Stop-Process -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'stores <Name> as the pinned canonical line' -ForEach $script:canonicalVector -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $RecordJson
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        $line.Count | Should -Be 1
+        $line[0] | Should -BeExactly $ExpectedLine
+        $result.Output | Should -Match $ExpectedSha256
+    }
+
+    It 'stores the pinned canonical line under a culture whose collation is not ordinal' -ForEach @($script:canonicalVector[0]) -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath `
+            -ChainHeadPath $script:headPath -Culture 'da-DK'
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $RecordJson
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        $line[0] | Should -BeExactly $ExpectedLine
+    }
+
+    It 'validates the pinned canonical line it stored' -ForEach @($script:canonicalVector[3]) -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $RecordJson
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 0 -Because $validation.Output
+    }
+
+    It 'refuses <Name> in a record' -ForEach $script:unsafeNumber -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $record = '{{"type":"Baseline","runId":"run-0001","utc":"2026-09-02T22:00:00Z","data":{{"n":{0}}}}}' -f $Value
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0 -Because 'a refused record is never stored'
+    }
+
+    It 'refuses a utc that is not an ISO-8601 instant in UTC' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $record = '{"type":"Baseline","runId":"run-0001","utc":"02/09/2026 22:00:00","data":{}}'
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+        $result.ExitCode | Should -Be 2 -Because $result.Output
     }
 }

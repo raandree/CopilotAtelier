@@ -56,6 +56,8 @@
 
 [CmdletBinding(DefaultParameterSetName = 'Validate')]
 [OutputType([string])]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '',
+    Justification = 'The mode switches exist to select a parameter set; the dispatch below reads $PSCmdlet.ParameterSetName.')]
 param(
     [Parameter(Mandatory, ParameterSetName = 'Serve')]
     [switch]$Serve,
@@ -105,6 +107,13 @@ $ErrorActionPreference = 'Stop'
 $script:GenesisHash = '0' * 64
 $script:RequiredField = @('type', 'runId', 'utc', 'data')
 $script:Utf8 = [System.Text.UTF8Encoding]::new($false)
+$script:StrictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
+$script:DigestPattern = '^[0-9a-f]{64}$'
+$script:UtcPattern = '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$'
+$script:IntegerPattern = '^-?(0|[1-9][0-9]*)$'
+$script:SafeInteger = 9007199254740991
+$script:JsonOption = [System.Text.Json.JsonDocumentOptions]::new()
+$script:JsonOption.MaxDepth = 32
 
 function Write-Refusal {
     [CmdletBinding()]
@@ -114,6 +123,25 @@ function Write-Refusal {
     )
 
     [Console]::Error.WriteLine("Ledger appender refused: $Message")
+}
+
+function ConvertFrom-JsonText {
+    <#
+        System.Text.Json is the only parser used here. ConvertFrom-Json coerces
+        an ISO-8601 string into a DateTime, a large integer into a BigInteger,
+        and folds two keys that differ only in case into one, so the preimage
+        would depend on the parser, the host culture and the PowerShell version
+        instead of on the bytes the caller actually sent.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Text.Json.JsonDocument])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Text
+    )
+
+    return [System.Text.Json.JsonDocument]::Parse($Text, $script:JsonOption)
 }
 
 function ConvertTo-JsonStringLiteral {
@@ -134,67 +162,129 @@ function ConvertTo-JsonStringLiteral {
     return '"' + [System.Text.Json.JsonEncodedText]::Encode($Value).ToString() + '"'
 }
 
-function ConvertTo-CanonicalJson {
+function ConvertTo-CanonicalNumber {
     <#
-        A digest is only meaningful over bytes both sides derive the same way.
-        ConvertTo-Json varies its key order, spacing, and escaping between
-        versions, so the preimage is built here instead: keys sorted ordinal,
-        no insignificant whitespace, invariant number formatting.
+        Only a JSON integer token inside +-(2^53-1) is representable identically
+        by every reader the evidence may pass through. A fraction, an exponent,
+        or a wider integer is refused at append time rather than stored in a
+        form that re-reads as a different value and breaks its own digest.
     #>
     [CmdletBinding()]
     [OutputType([string])]
     param(
-        [Parameter()]
-        [AllowNull()]
-        $InputObject
+        [Parameter(Mandatory)]
+        [string]$Raw
     )
 
-    if ($null -eq $InputObject) {
-        return 'null'
+    if ($Raw -cnotmatch $script:IntegerPattern) {
+        throw "number '$Raw' is not a JSON integer token"
     }
 
-    if ($InputObject -is [string]) {
-        return ConvertTo-JsonStringLiteral -Value ([string]$InputObject)
+    $value = [long]0
+    $parsed = [long]::TryParse($Raw, [System.Globalization.NumberStyles]::AllowLeadingSign,
+        [cultureinfo]::InvariantCulture, [ref]$value)
+
+    if (-not $parsed -or $value -gt $script:SafeInteger -or $value -lt (-$script:SafeInteger)) {
+        throw "number '$Raw' is outside the supported range of +-(2^53-1)"
     }
 
-    if ($InputObject -is [bool]) {
-        if ($InputObject) { return 'true' } else { return 'false' }
+    return $value.ToString([cultureinfo]::InvariantCulture)
+}
+
+function Get-CanonicalMember {
+    <#
+        Returns the members of a JSON object as name -> canonical value text.
+        The dictionary compares names with ordinal case sensitivity, because
+        'a' and 'A' are two different JSON keys and must stay two.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
+    param(
+        [Parameter(Mandatory)]
+        [System.Text.Json.JsonElement]$Element
+    )
+
+    $member = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::Ordinal)
+
+    foreach ($property in $Element.EnumerateObject()) {
+        $member[$property.Name] = ConvertTo-CanonicalJson -Element $property.Value
     }
 
-    if ($InputObject -is [byte] -or $InputObject -is [int16] -or $InputObject -is [int] -or $InputObject -is [long]) {
-        return ([long]$InputObject).ToString([cultureinfo]::InvariantCulture)
+    return $member
+}
+
+function Join-CanonicalMember {
+    <#
+        [string]::CompareOrdinal, not Sort-Object: the default comparison is
+        culture-ordered, so the same record would serialize differently under
+        da-DK than under en-US and fail its own digest on another host.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]$Member
+    )
+
+    $name = [string[]]@($Member.Keys)
+    [array]::Sort($name, [System.StringComparer]::Ordinal)
+
+    $pair = foreach ($key in $name) {
+        (ConvertTo-JsonStringLiteral -Value $key) + ':' + $Member[$key]
     }
 
-    if ($InputObject -is [decimal] -or $InputObject -is [double] -or $InputObject -is [single]) {
-        return ([decimal]$InputObject).ToString([cultureinfo]::InvariantCulture)
-    }
+    return '{' + ($pair -join ',') + '}'
+}
 
-    if ($InputObject -is [System.Collections.IDictionary]) {
-        $pair = foreach ($key in @($InputObject.Keys) | Sort-Object -CaseSensitive) {
-            '{0}:{1}' -f (ConvertTo-CanonicalJson -InputObject ([string]$key)), (ConvertTo-CanonicalJson -InputObject $InputObject[$key])
+function ConvertTo-CanonicalJson {
+    <#
+        A digest is only meaningful over bytes both sides derive the same way,
+        so the canonical form is a pure function of the parsed data: keys sorted
+        ordinal at every depth, no insignificant whitespace, one escaping, one
+        number format, and no type coercion of any kind.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [System.Text.Json.JsonElement]$Element
+    )
+
+    switch ($Element.ValueKind) {
+        ([System.Text.Json.JsonValueKind]::Object) {
+            return Join-CanonicalMember -Member (Get-CanonicalMember -Element $Element)
         }
 
-        return '{' + ($pair -join ',') + '}'
-    }
+        ([System.Text.Json.JsonValueKind]::Array) {
+            $item = foreach ($child in $Element.EnumerateArray()) {
+                ConvertTo-CanonicalJson -Element $child
+            }
 
-    if ($InputObject -is [System.Management.Automation.PSCustomObject]) {
-        $property = $InputObject.PSObject.Properties
-        $pair = foreach ($name in @($property.Name) | Sort-Object -CaseSensitive) {
-            '{0}:{1}' -f (ConvertTo-CanonicalJson -InputObject $name), (ConvertTo-CanonicalJson -InputObject $property[$name].Value)
+            return '[' + ($item -join ',') + ']'
         }
 
-        return '{' + ($pair -join ',') + '}'
-    }
-
-    if ($InputObject -is [System.Collections.IEnumerable]) {
-        $item = foreach ($element in $InputObject) {
-            ConvertTo-CanonicalJson -InputObject $element
+        ([System.Text.Json.JsonValueKind]::String) {
+            return ConvertTo-JsonStringLiteral -Value $Element.GetString()
         }
 
-        return '[' + ($item -join ',') + ']'
+        ([System.Text.Json.JsonValueKind]::Number) {
+            return ConvertTo-CanonicalNumber -Raw $Element.GetRawText()
+        }
+
+        ([System.Text.Json.JsonValueKind]::True) {
+            return 'true'
+        }
+
+        ([System.Text.Json.JsonValueKind]::False) {
+            return 'false'
+        }
+
+        ([System.Text.Json.JsonValueKind]::Null) {
+            return 'null'
+        }
     }
 
-    return ConvertTo-JsonStringLiteral -Value ([string]$InputObject)
+    throw "unsupported JSON value kind '$($Element.ValueKind)'"
 }
 
 function Get-Sha256Hex {
@@ -215,84 +305,178 @@ function Get-Sha256Hex {
     }
 }
 
-function Get-RecordPreimage {
+function New-StoredRecord {
     <#
-        Fixed key order, and deliberately excludes recordSha256: the digest
-        cannot cover itself. Validation rebuilds this from the stored line.
+        The stored line is the canonical serialization of the caller's record
+        with sequence, prevSha256 and recordSha256 added, so every byte on disk
+        is covered by the chain except the digest itself, which cannot cover
+        itself. Key order is the ordinal order of the names, which puts them at
+        data, prevSha256, recordSha256, runId, sequence, type, utc.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory record; the caller decides when anything is written.')]
     [CmdletBinding()]
-    [OutputType([string])]
+    [OutputType([hashtable])]
     param(
+        [Parameter(Mandatory)]
+        [System.Text.Json.JsonElement]$Record,
+
         [Parameter(Mandatory)]
         [int]$Sequence,
 
         [Parameter(Mandatory)]
-        [string]$PreviousHash,
-
-        [Parameter(Mandatory)]
-        [string]$Type,
-
-        [Parameter(Mandatory)]
-        [string]$RunId,
-
-        [Parameter(Mandatory)]
-        [string]$Utc,
-
-        [Parameter()]
-        [AllowNull()]
-        $Data
+        [string]$PreviousHash
     )
 
-    $field = @(
-        '"sequence":{0}' -f $Sequence
-        '"prevSha256":{0}' -f (ConvertTo-CanonicalJson -InputObject $PreviousHash)
-        '"type":{0}' -f (ConvertTo-CanonicalJson -InputObject $Type)
-        '"runId":{0}' -f (ConvertTo-CanonicalJson -InputObject $RunId)
-        '"utc":{0}' -f (ConvertTo-CanonicalJson -InputObject $Utc)
-        '"data":{0}' -f (ConvertTo-CanonicalJson -InputObject $Data)
-    )
+    $member = Get-CanonicalMember -Element $Record
+    $member['sequence'] = ([long]$Sequence).ToString([cultureinfo]::InvariantCulture)
+    $member['prevSha256'] = ConvertTo-JsonStringLiteral -Value $PreviousHash
 
-    return '{' + ($field -join ',') + '}'
+    $preimage = Join-CanonicalMember -Member $member
+    $digest = Get-Sha256Hex -Text $preimage
+
+    $member['recordSha256'] = ConvertTo-JsonStringLiteral -Value $digest
+
+    return @{
+        Line = Join-CanonicalMember -Member $member
+        RecordSha256 = $digest
+        Preimage = $preimage
+    }
 }
 
 function Test-RecordSchema {
     <#
         The record schema is closed. An unknown field is refused rather than
         ignored, so a caller cannot smuggle a command, path, or authorization
-        claim through the ledger into anything that later reads it.
+        claim through the ledger into anything that later reads it. Field names
+        are compared case-sensitively, because 'Type' is not 'type'.
     #>
     [CmdletBinding()]
     [OutputType([string])]
     param(
         [Parameter(Mandatory)]
-        $Record
+        [System.Text.Json.JsonElement]$Record
     )
 
-    if ($Record -isnot [System.Management.Automation.PSCustomObject]) {
+    if ($Record.ValueKind -ne [System.Text.Json.JsonValueKind]::Object) {
         return 'record must be a JSON object'
     }
 
-    $present = @($Record.PSObject.Properties.Name)
+    $present = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::Ordinal)
+
+    foreach ($property in $Record.EnumerateObject()) {
+        if ($property.Name -cnotin $script:RequiredField) {
+            return "unknown field '$($property.Name)'"
+        }
+
+        $present[$property.Name] = $property.Value
+    }
 
     foreach ($required in $script:RequiredField) {
-        if ($required -notin $present) {
+        if (-not $present.Contains($required)) {
             return "missing required field '$required'"
         }
     }
 
-    foreach ($name in $present) {
-        if ($name -notin $script:RequiredField) {
-            return "unknown field '$name'"
-        }
-    }
-
     foreach ($name in @('type', 'runId', 'utc')) {
-        if ([string]::IsNullOrWhiteSpace([string]$Record.$name)) {
+        $value = [System.Text.Json.JsonElement]$present[$name]
+
+        if ($value.ValueKind -ne [System.Text.Json.JsonValueKind]::String) {
+            return "field '$name' must be a string"
+        }
+
+        if ([string]::IsNullOrWhiteSpace($value.GetString())) {
             return "field '$name' must be a non-empty string"
         }
     }
 
+    if (([System.Text.Json.JsonElement]$present['data']).ValueKind -ne [System.Text.Json.JsonValueKind]::Object) {
+        return "field 'data' must be a JSON object"
+    }
+
+    if (([System.Text.Json.JsonElement]$present['utc']).GetString() -cnotmatch $script:UtcPattern) {
+        return "field 'utc' must be an ISO-8601 instant in UTC, for example 2026-09-02T22:00:00Z"
+    }
+
+    try {
+        $null = ConvertTo-CanonicalJson -Element $Record
+    } catch {
+        return "record is not canonically representable: $($_.Exception.Message)"
+    }
+
     return ''
+}
+
+function Read-StoredRecord {
+    <#
+        Reads one stored line back into the fields the chain check needs. Values
+        are compared in their canonical literal form, which is injective, so no
+        step of the comparison has to re-parse or re-interpret the text.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Text
+    )
+
+    $record = @{
+        Error = ''
+        Sequence = 0
+        PreviousLiteral = ''
+        DigestLiteral = ''
+        TypeLiteral = ''
+        ComputedDigest = ''
+    }
+
+    try {
+        $document = ConvertFrom-JsonText -Text $Text
+    } catch {
+        $record.Error = 'is not valid JSON'
+        return $record
+    }
+
+    try {
+        if ($document.RootElement.ValueKind -ne [System.Text.Json.JsonValueKind]::Object) {
+            $record.Error = 'is not a JSON object'
+            return $record
+        }
+
+        $member = Get-CanonicalMember -Element $document.RootElement
+    } catch {
+        $record.Error = "is not canonically representable: $($_.Exception.Message)"
+        return $record
+    } finally {
+        $document.Dispose()
+    }
+
+    foreach ($required in @('sequence', 'prevSha256', 'recordSha256', 'type', 'runId', 'utc', 'data')) {
+        if (-not $member.Contains($required)) {
+            $record.Error = "is missing '$required'"
+            return $record
+        }
+    }
+
+    if ([string]$member['sequence'] -cnotmatch $script:IntegerPattern) {
+        $record.Error = 'declares a sequence that is not a JSON integer'
+        return $record
+    }
+
+    $preimageMember = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::Ordinal)
+    foreach ($key in $member.Keys) {
+        if ($key -cne 'recordSha256') {
+            $preimageMember[$key] = $member[$key]
+        }
+    }
+
+    $record.Sequence = [long]$member['sequence']
+    $record.PreviousLiteral = [string]$member['prevSha256']
+    $record.DigestLiteral = [string]$member['recordSha256']
+    $record.TypeLiteral = [string]$member['type']
+    $record.ComputedDigest = Get-Sha256Hex -Text (Join-CanonicalMember -Member $preimageMember)
+
+    return $record
 }
 
 function Read-ChainState {
@@ -314,6 +498,7 @@ function Read-ChainState {
     $state = @{
         Sequence = 0
         LastHash = $script:GenesisHash
+        PreviousHash = $script:GenesisHash
         Sealed = $false
         Error = ''
     }
@@ -326,59 +511,52 @@ function Read-ChainState {
         return $state
     }
 
-    $line = @(
-        [System.IO.File]::ReadAllLines($Path, $script:Utf8) |
-            Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-    )
+    $line = @([System.IO.File]::ReadAllLines($Path, $script:Utf8) | Where-Object { $_.Length -gt 0 })
 
     $expectedPrevious = $script:GenesisHash
+    $priorHash = $script:GenesisHash
     $sequence = 0
 
     foreach ($text in $line) {
         $sequence++
+        $record = Read-StoredRecord -Text $text
 
-        try {
-            $record = $text | ConvertFrom-Json -ErrorAction Stop
-        } catch {
-            $state.Error = "record at sequence $sequence is not valid JSON"
+        if ($record.Error) {
+            $state.Error = "record at sequence $sequence $($record.Error)"
             return $state
         }
 
-        foreach ($required in @('sequence', 'prevSha256', 'recordSha256', 'type', 'runId', 'utc', 'data')) {
-            if ($required -notin @($record.PSObject.Properties.Name)) {
-                $state.Error = "record at sequence $sequence is missing '$required'"
-                return $state
-            }
-        }
-
-        if ([int]$record.sequence -ne $sequence) {
-            $state.Error = "record at sequence $sequence declares sequence $($record.sequence)"
+        if ($state.Sealed) {
+            $state.Error = "record at sequence $sequence follows the seal record"
             return $state
         }
 
-        if ([string]$record.prevSha256 -ne $expectedPrevious) {
+        if ($record.Sequence -ne $sequence) {
+            $state.Error = "record at sequence $sequence declares sequence $($record.Sequence)"
+            return $state
+        }
+
+        if ($record.PreviousLiteral -cne (ConvertTo-JsonStringLiteral -Value $expectedPrevious)) {
             $state.Error = "record at sequence $sequence does not chain to its predecessor"
             return $state
         }
 
-        $preimage = Get-RecordPreimage -Sequence $sequence -PreviousHash ([string]$record.prevSha256) `
-            -Type ([string]$record.type) -RunId ([string]$record.runId) -Utc ([string]$record.utc) -Data $record.data
-        $computed = Get-Sha256Hex -Text $preimage
-
-        if ($computed -ne [string]$record.recordSha256) {
+        if ($record.DigestLiteral -cne (ConvertTo-JsonStringLiteral -Value $record.ComputedDigest)) {
             $state.Error = "record at sequence $sequence fails its own digest"
             return $state
         }
 
-        if ([string]$record.type -eq 'Seal') {
+        if ($record.TypeLiteral -ceq (ConvertTo-JsonStringLiteral -Value 'Seal')) {
             $state.Sealed = $true
         }
 
-        $expectedPrevious = $computed
+        $priorHash = $expectedPrevious
+        $expectedPrevious = $record.ComputedDigest
     }
 
     $state.Sequence = $sequence
     $state.LastHash = $expectedPrevious
+    $state.PreviousHash = $priorHash
 
     return $state
 }
@@ -399,12 +577,13 @@ function Write-ChainHead {
         [bool]$Sealed
     )
 
-    $head = [ordered]@{
-        sequence = $Sequence
-        recordSha256 = $RecordHash
-        updatedUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-        sealed = $Sealed
-    } | ConvertTo-Json -Compress
+    $member = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::Ordinal)
+    $member['sequence'] = ([long]$Sequence).ToString([cultureinfo]::InvariantCulture)
+    $member['recordSha256'] = ConvertTo-JsonStringLiteral -Value $RecordHash
+    $member['updatedUtc'] = ConvertTo-JsonStringLiteral -Value ([datetime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ', [cultureinfo]::InvariantCulture))
+    $member['sealed'] = if ($Sealed) { 'true' } else { 'false' }
+
+    $head = Join-CanonicalMember -Member $member
 
     $stream = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
     try {
@@ -426,7 +605,7 @@ function Add-Record {
     [OutputType([hashtable])]
     param(
         [Parameter(Mandatory)]
-        $Record,
+        [System.Text.Json.JsonElement]$Record,
 
         [Parameter(Mandatory)]
         [hashtable]$State,
@@ -439,35 +618,27 @@ function Add-Record {
     )
 
     $sequence = [int]$State.Sequence + 1
-    $previous = [string]$State.LastHash
-
-    $preimage = Get-RecordPreimage -Sequence $sequence -PreviousHash $previous `
-        -Type ([string]$Record.type) -RunId ([string]$Record.runId) -Utc ([string]$Record.utc) -Data $Record.data
-    $recordHash = Get-Sha256Hex -Text $preimage
-
-    # The stored line is the preimage with the digest spliced in before the
-    # closing brace, so the bytes that were hashed remain literally present.
-    $line = $preimage.Substring(0, $preimage.Length - 1) + (',"recordSha256":"{0}"}}' -f $recordHash)
+    $stored = New-StoredRecord -Record $Record -Sequence $sequence -PreviousHash ([string]$State.LastHash)
 
     $stream = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
     try {
-        $bytes = $script:Utf8.GetBytes($line + "`n")
+        $bytes = $script:Utf8.GetBytes($stored.Line + "`n")
         $stream.Write($bytes, 0, $bytes.Length)
         $stream.Flush($true)
     } finally {
         $stream.Dispose()
     }
 
-    $sealed = [bool]$State.Sealed -or ([string]$Record.type -eq 'Seal')
-    Write-ChainHead -Path $HeadPath -Sequence $sequence -RecordHash $recordHash -Sealed $sealed
+    $sealed = [bool]$State.Sealed -or (($Record.GetProperty('type')).GetString() -ceq 'Seal')
+    Write-ChainHead -Path $HeadPath -Sequence $sequence -RecordHash $stored.RecordSha256 -Sealed $sealed
 
     $State.Sequence = $sequence
-    $State.LastHash = $recordHash
+    $State.LastHash = $stored.RecordSha256
     $State.Sealed = $sealed
 
     return @{
         sequence = $sequence
-        recordSha256 = $recordHash
+        recordSha256 = $stored.RecordSha256
     }
 }
 
@@ -478,6 +649,8 @@ function New-RestrictedPipeServer {
         Failing to apply the ACL is fatal rather than degraded, because a
         default DACL would silently widen who may append evidence.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Internal helper of a service mode that is already an explicit, non-interactive decision.')]
     [CmdletBinding()]
     [OutputType([System.IO.Pipes.NamedPipeServerStream])]
     param(
@@ -594,28 +767,33 @@ switch ($PSCmdlet.ParameterSetName) {
                 $response = [ordered]@{ status = 'Error'; message = 'empty request'; sequence = 0; recordSha256 = '' }
 
                 if (-not [string]::IsNullOrWhiteSpace($requestText)) {
-                    $request = $null
+                    $document = $null
                     try {
-                        $request = $requestText | ConvertFrom-Json -ErrorAction Stop
+                        $document = ConvertFrom-JsonText -Text $requestText
                     } catch {
                         $response.message = 'request is not valid JSON'
                     }
 
-                    if ($null -ne $request) {
-                        $schemaError = Test-RecordSchema -Record $request
+                    if ($null -ne $document) {
+                        try {
+                            $request = $document.RootElement
+                            $schemaError = Test-RecordSchema -Record $request
 
-                        if ($schemaError) {
-                            $response.message = $schemaError
-                        } elseif ($state.Sealed) {
-                            $response.message = 'ledger is sealed'
-                        } else {
-                            $appended = Add-Record -Record $request -State $state -Path $SinkPath -HeadPath $ChainHeadPath
-                            $response = [ordered]@{
-                                status = 'Ok'
-                                message = ''
-                                sequence = $appended.sequence
-                                recordSha256 = $appended.recordSha256
+                            if ($schemaError) {
+                                $response.message = $schemaError
+                            } elseif ($state.Sealed) {
+                                $response.message = 'ledger is sealed'
+                            } else {
+                                $appended = Add-Record -Record $request -State $state -Path $SinkPath -HeadPath $ChainHeadPath
+                                $response = [ordered]@{
+                                    status = 'Ok'
+                                    message = ''
+                                    sequence = $appended.sequence
+                                    recordSha256 = $appended.recordSha256
+                                }
                             }
+                        } finally {
+                            $document.Dispose()
                         }
                     }
                 }
@@ -649,13 +827,26 @@ switch ($PSCmdlet.ParameterSetName) {
             # -Seal must not be a quiet alias for -Append: sealing is
             # irreversible, so the intent has to be visible in the record too.
             try {
-                $intended = $RecordJson | ConvertFrom-Json -ErrorAction Stop
+                $intended = ConvertFrom-JsonText -Text $RecordJson
             } catch {
                 Write-Refusal -Message 'record is not valid JSON'
                 exit 2
             }
 
-            if ([string]$intended.type -ne 'Seal') {
+            try {
+                $intendedType = ''
+                if ($intended.RootElement.ValueKind -eq [System.Text.Json.JsonValueKind]::Object) {
+                    $typeElement = [System.Text.Json.JsonElement]::new()
+                    if ($intended.RootElement.TryGetProperty('type', [ref]$typeElement) -and
+                        $typeElement.ValueKind -eq [System.Text.Json.JsonValueKind]::String) {
+                        $intendedType = $typeElement.GetString()
+                    }
+                }
+            } finally {
+                $intended.Dispose()
+            }
+
+            if ($intendedType -cne 'Seal') {
                 Write-Refusal -Message "-Seal requires a record of type 'Seal'"
                 exit 2
             }
