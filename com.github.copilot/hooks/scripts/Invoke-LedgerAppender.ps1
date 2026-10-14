@@ -28,14 +28,20 @@
     boundary that keeps the sink out of the controller's writable set; that is
     filesystem policy, measured separately by Test-RunContainment.ps1.
 .PARAMETER Serve
-    Runs the appender service. This is the only mode that writes.
+    Runs the appender service. This is the only mode that writes. Windows only:
+    the pipe cannot be restricted or authenticated anywhere else.
 .PARAMETER Append
     Sends one record to a running appender and returns its assigned sequence.
+    The server is authenticated before the record is sent, and the
+    acknowledgement is checked against the ledger before success is reported.
 .PARAMETER Seal
-    Appends a final record and refuses every later append.
+    Appends a final record and refuses every later append. Sealing is a server
+    decision carried by the request, not by the record's own type.
 .PARAMETER Validate
     Recomputes the chain from genesis and compares it with the protected head.
-    Reads only; safe to run from any identity that can read the sink.
+    Reads only; safe to run from any identity that can read the sink. Bound to
+    a containment profile with -ProfilePath and -ProfileSha256, or given free
+    paths, which it reports as unbound.
 .PARAMETER PipeName
     Local named pipe the service listens on and clients connect to.
 .PARAMETER SinkPath
@@ -43,15 +49,32 @@
 .PARAMETER ChainHeadPath
     Protected head naming the newest sequence and digest.
 .PARAMETER RecordJson
-    One record as JSON. Exactly type, runId, utc, and data; nothing else.
+    One record as JSON. Exactly type, runId, utc, and data; nothing else. Keys
+    are case-sensitive, utc is an ISO-8601 instant in UTC, and every number is
+    a JSON integer within +-(2^53-1).
+.PARAMETER ProfilePath
+    Containment profile naming the ledger. Its ledgerSink and chainHead are the
+    only paths the bound check reads, and its ledgerAppender must be this file.
+.PARAMETER ProfileSha256
+    Lowercase 64-character hexadecimal SHA-256 of the profile, computed by the
+    caller. It is the trust anchor and must match the bytes that are parsed.
+.PARAMETER RequireSealed
+    Additionally requires the chain's last record to be the seal record and the
+    chain head to say so.
+.PARAMETER ExpectedServerIdentity
+    Identity the client requires the pipe to belong to. Defaults to the
+    principal that would own objects this client creates.
 .PARAMETER IdleTimeoutSeconds
     Stops the service after this long without a connection.
 .PARAMETER AllowedIdentity
-    Windows identity permitted to open the pipe. Defaults to the current user.
+    Windows identity permitted to open the pipe, in addition to the appender's
+    own account. Defaults to the appender's account alone.
 .EXAMPLE
     Invoke-LedgerAppender.ps1 -Serve -PipeName ca-ledger-run1 -SinkPath D:\ledger\run1.jsonl -ChainHeadPath D:\ledger\run1.head.json
 .EXAMPLE
-    Invoke-LedgerAppender.ps1 -Append -PipeName ca-ledger-run1 -RecordJson '{"type":"Baseline","runId":"run1","utc":"2026-09-02T22:00:00Z","data":{}}'
+    Invoke-LedgerAppender.ps1 -Append -PipeName ca-ledger-run1 -RecordJson '{"type":"Baseline","runId":"run1","utc":"2026-09-02T22:00:00Z","data":{}}' -SinkPath D:\ledger\run1.jsonl -ChainHeadPath D:\ledger\run1.head.json
+.EXAMPLE
+    Invoke-LedgerAppender.ps1 -Validate -ProfilePath D:\profile\containment.json -ProfileSha256 $digest -RequireSealed
 .EXAMPLE
     Invoke-LedgerAppender.ps1 -Validate -SinkPath D:\ledger\run1.jsonl -ChainHeadPath D:\ledger\run1.head.json
 .NOTES
@@ -133,6 +156,8 @@ $ErrorActionPreference = 'Stop'
 
 $script:GenesisHash = '0' * 64
 $script:RequiredField = @('type', 'runId', 'utc', 'data')
+$script:RequestField = @('operation', 'record')
+$script:Operation = @('Append', 'Seal')
 $script:StoredField = @('data', 'prevSha256', 'recordSha256', 'runId', 'sequence', 'type', 'utc')
 $script:HeadField = @('recordSha256', 'sealed', 'sequence', 'updatedUtc')
 $script:Utf8 = [System.Text.UTF8Encoding]::new($false)
@@ -1194,6 +1219,82 @@ function Write-ChainHead {
     }
 }
 
+function Read-AppenderRequest {
+    <#
+        Sealing is the server's decision, so the request says what it wants
+        done, not what the record should look like. An append carrying a record
+        of type 'Seal' is refused rather than honoured: that was how a caller
+        could seal the ledger without ever asking to.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [System.Text.Json.JsonElement]$Element
+    )
+
+    $request = @{ Error = ''; Operation = ''; Record = [System.Text.Json.JsonElement]::new() }
+
+    if ($Element.ValueKind -ne [System.Text.Json.JsonValueKind]::Object) {
+        $request.Error = 'request must be a JSON object'
+        return $request
+    }
+
+    $seen = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::Ordinal)
+
+    foreach ($property in $Element.EnumerateObject()) {
+        if ($property.Name -cnotin $script:RequestField) {
+            $request.Error = "request carries the unknown field '$($property.Name)'"
+            return $request
+        }
+
+        if ($seen.Contains($property.Name)) {
+            $request.Error = "request repeats the field '$($property.Name)'"
+            return $request
+        }
+
+        $seen[$property.Name] = $property.Value
+    }
+
+    foreach ($required in $script:RequestField) {
+        if (-not $seen.Contains($required)) {
+            $request.Error = "request is missing '$required'"
+            return $request
+        }
+    }
+
+    $operation = [System.Text.Json.JsonElement]$seen['operation']
+    if ($operation.ValueKind -ne [System.Text.Json.JsonValueKind]::String -or
+        $operation.GetString() -cnotin $script:Operation) {
+        $request.Error = "request names an operation that is not one of: $($script:Operation -join ', ')"
+        return $request
+    }
+
+    $record = [System.Text.Json.JsonElement]$seen['record']
+    $schemaError = Test-RecordSchema -Record $record
+    if ($schemaError) {
+        $request.Error = $schemaError
+        return $request
+    }
+
+    $type = ($record.GetProperty('type')).GetString()
+
+    if ($operation.GetString() -ceq 'Seal') {
+        if ($type -cne 'Seal') {
+            $request.Error = "a seal operation must carry a record of type 'Seal'"
+            return $request
+        }
+    } elseif ($type -ceq 'Seal') {
+        $request.Error = "the record type 'Seal' is reserved for the seal operation"
+        return $request
+    }
+
+    $request.Operation = $operation.GetString()
+    $request.Record = $record
+
+    return $request
+}
+
 function Add-Record {
     <#
         Persist, then advance, then publish. The sink write is flushed through
@@ -1208,6 +1309,10 @@ function Add-Record {
     param(
         [Parameter(Mandatory)]
         [System.Text.Json.JsonElement]$Record,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Append', 'Seal')]
+        [string]$Operation,
 
         [Parameter(Mandatory)]
         [hashtable]$State,
@@ -1231,7 +1336,8 @@ function Add-Record {
         throw
     }
 
-    $sealed = [bool]$State.Sealed -or (($Record.GetProperty('type')).GetString() -ceq 'Seal')
+    # The operation seals, not the record's own type: the server decides.
+    $sealed = [bool]$State.Sealed -or ($Operation -ceq 'Seal')
 
     $State.Sequence = $sequence
     $State.PreviousHash = [string]$State.LastHash
@@ -1736,15 +1842,15 @@ switch ($PSCmdlet.ParameterSetName) {
 
                         if ($null -ne $document) {
                             try {
-                                $request = $document.RootElement
-                                $schemaError = Test-RecordSchema -Record $request
+                                $request = Read-AppenderRequest -Element $document.RootElement
 
-                                if ($schemaError) {
-                                    $response.message = $schemaError
+                                if ($request.Error) {
+                                    $response.message = $request.Error
                                 } elseif ($state.Sealed) {
                                     $response.message = 'ledger is sealed'
                                 } else {
-                                    $appended = Add-Record -Record $request -State $state -Stream $sinkStream -HeadPath $ChainHeadPath
+                                    $appended = Add-Record -Record $request.Record -Operation $request.Operation `
+                                        -State $state -Stream $sinkStream -HeadPath $ChainHeadPath
                                     $response = [ordered]@{
                                         status = 'Ok'
                                         message = ''
@@ -1845,8 +1951,15 @@ switch ($PSCmdlet.ParameterSetName) {
             exit 2
         }
 
+        # The record is forwarded byte for byte inside an envelope that states
+        # the operation. Re-serializing it here would change the bytes the
+        # server hashes; a record crafted to close the envelope early produces
+        # a repeated field, which the server refuses.
+        $operation = if ($Seal) { 'Seal' } else { 'Append' }
+        $payload = '{"operation":"' + $operation + '","record":' + $RecordJson + '}'
+
         try {
-            $responseText = Invoke-AppenderRequest -Name $PipeName -Payload $RecordJson -Expected $expected
+            $responseText = Invoke-AppenderRequest -Name $PipeName -Payload $payload -Expected $expected
         } catch {
             Write-Refusal -Message "could not reach a trusted appender on pipe '$PipeName': $($_.Exception.Message)"
             exit 2

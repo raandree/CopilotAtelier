@@ -238,6 +238,70 @@ exit `$LASTEXITCODE
         return (Get-FileHash -Algorithm SHA256 -LiteralPath $ProfilePath).Hash.ToLowerInvariant()
     }
 
+    function script:Invoke-RawRequest {
+        <#
+            Talks to the service without the client's envelope, so the server's
+            own request schema is what is under test.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string]$PipeName,
+
+            [Parameter(Mandatory)]
+            [string]$Payload
+        )
+
+        $utf8 = [System.Text.UTF8Encoding]::new($false)
+        $client = [System.IO.Pipes.NamedPipeClientStream]::new('.', $PipeName, [System.IO.Pipes.PipeDirection]::InOut)
+        try {
+            $client.Connect(5000)
+
+            $writer = [System.IO.StreamWriter]::new($client, $utf8, 4096, $true)
+            $writer.AutoFlush = $true
+            $writer.WriteLine($Payload)
+            $writer.Dispose()
+
+            $reader = [System.IO.StreamReader]::new($client, $utf8, $false, 4096, $true)
+            try {
+                return $reader.ReadLine()
+            } finally {
+                $reader.Dispose()
+            }
+        } finally {
+            $client.Dispose()
+        }
+    }
+
+    function script:Invoke-Seal {
+        param(
+            [Parameter(Mandatory)]
+            [string]$PipeName,
+
+            [Parameter(Mandatory)]
+            [string]$RecordJson,
+
+            [Parameter()]
+            [string]$SinkPath = $script:sinkPath,
+
+            [Parameter()]
+            [string]$ChainHeadPath = $script:headPath
+        )
+
+        Invoke-Appender -Argument @(
+            '-Seal', '-PipeName', $PipeName, '-RecordJson', $RecordJson,
+            '-SinkPath', $SinkPath, '-ChainHeadPath', $ChainHeadPath
+        )
+    }
+
+    function script:New-TestSealJson {
+        [ordered]@{
+            type = 'Seal'
+            runId = 'run-0001'
+            utc = '2026-09-02T22:10:00Z'
+            data = @{ reason = 'run complete' }
+        } | ConvertTo-Json -Depth 8 -Compress
+    }
+
     function script:Invoke-Validate {
         param(
             [Parameter(Mandatory)]
@@ -1566,5 +1630,86 @@ Describe 'Ledger appender bound validation' -Tag 'Unit' {
         $result.ExitCode | Should -Be 0 -Because $result.StandardError
         $result.StandardOutput | Should -Match '"bound":false'
         $result.StandardError | Should -Match 'only'
+    }
+}
+
+Describe 'Ledger appender seal' -Tag 'Unit' {
+    BeforeEach {
+        $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
+        $script:sinkPath = Join-Path $TestDrive "ledger-$([guid]::NewGuid().ToString('N')).jsonl"
+        $script:headPath = Join-Path $TestDrive "head-$([guid]::NewGuid().ToString('N')).json"
+        $script:appender = $null
+    }
+
+    AfterEach {
+        Stop-TestAppender -Process $script:appender
+    }
+
+    It 'refuses an append whose record claims the seal type' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestSealJson)
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+
+        $later = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')
+        $later.ExitCode | Should -Be 0 -Because 'a refused seal attempt must not seal the ledger'
+    }
+
+    It 'seals only on the seal operation and records it in the head' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+
+        $head = [System.IO.File]::ReadAllText($script:headPath)
+        $head | Should -Match '"sealed":false'
+
+        $seal = Invoke-Seal -PipeName $script:pipeName -RecordJson (New-TestSealJson)
+        $seal.ExitCode | Should -Be 0 -Because $seal.Output
+
+        [System.IO.File]::ReadAllText($script:headPath) | Should -Match '"sealed":true'
+    }
+
+    It 'refuses a request that is not an operation envelope' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $response = Invoke-RawRequest -PipeName $script:pipeName -Payload (New-TestRecordJson -Type 'Baseline')
+        $response | Should -Match '"status":"Error"'
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'refuses an operation it does not know' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $payload = '{"operation":"Truncate","record":' + (New-TestRecordJson -Type 'Baseline') + '}'
+        $response = Invoke-RawRequest -PipeName $script:pipeName -Payload $payload
+        $response | Should -Match '"status":"Error"'
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'refuses a seal operation whose record is not of type Seal' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $payload = '{"operation":"Seal","record":' + (New-TestRecordJson -Type 'Baseline') + '}'
+        $response = Invoke-RawRequest -PipeName $script:pipeName -Payload $payload
+        $response | Should -Match '"status":"Error"'
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'refuses a request that is larger than the cap' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $payload = '{"operation":"Append","record":' + (New-TestRecordJson -Type 'Baseline' -Data @{ note = ('x' * 300000) }) + '}'
+        try {
+            # The server stops reading at the cap, so the write may break first.
+            $null = Invoke-RawRequest -PipeName $script:pipeName -Payload $payload
+        } catch {
+            $null = $_
+        }
+
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+
+        $later = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')
+        $later.ExitCode | Should -Be 0 -Because 'an oversized request must not take the service down'
     }
 }
