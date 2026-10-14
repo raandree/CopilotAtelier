@@ -140,10 +140,19 @@ exit `$LASTEXITCODE
             [string]$PipeName,
 
             [Parameter(Mandatory)]
-            [string]$RecordJson
+            [string]$RecordJson,
+
+            [Parameter()]
+            [string]$SinkPath = $script:sinkPath,
+
+            [Parameter()]
+            [string]$ChainHeadPath = $script:headPath
         )
 
-        Invoke-Appender -Argument @('-Append', '-PipeName', $PipeName, '-RecordJson', $RecordJson)
+        Invoke-Appender -Argument @(
+            '-Append', '-PipeName', $PipeName, '-RecordJson', $RecordJson,
+            '-SinkPath', $SinkPath, '-ChainHeadPath', $ChainHeadPath
+        )
     }
 
     function script:Invoke-Validate {
@@ -263,6 +272,148 @@ exit `$LASTEXITCODE
         [System.IO.File]::WriteAllBytes($ChainHeadPath, [System.Text.UTF8Encoding]::new($false).GetBytes($text))
     }
 
+    function script:Stop-TestAppender {
+        <#
+            The service holds the sink open, so a test that rewrites the sink
+            has to wait for the process to be gone, not merely asked to stop.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [AllowNull()]
+            $Process
+        )
+
+        if (-not $Process) {
+            return
+        }
+
+        if (-not $Process.HasExited) {
+            $Process | Stop-Process -Force -ErrorAction SilentlyContinue
+        }
+
+        $null = $Process.WaitForExit(15000)
+    }
+
+    function script:Test-PipeName {
+        <#
+            Enumerates the pipe namespace. Opening \\.\pipe\<name> with
+            Test-Path counts as a connection and faults the server's pending
+            wait, so an existence check must never touch the path itself.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string]$PipeName
+        )
+
+        foreach ($entry in [System.IO.Directory]::GetFiles('\\.\pipe\')) {
+            if ([System.IO.Path]::GetFileName($entry) -ceq $PipeName) {
+                return $true
+            }
+        }
+
+        return $false
+    }
+
+    function script:Get-SharedByte {
+        <#
+            The service holds its sink open for its whole life, so a reader has
+            to tolerate that writer. File.ReadAllBytes does not.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string]$Path
+        )
+
+        $stream = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        try {
+            $buffer = [byte[]]::new($stream.Length)
+            $read = 0
+            while ($read -lt $buffer.Length) {
+                $count = $stream.Read($buffer, $read, $buffer.Length - $read)
+                if ($count -le 0) { break }
+                $read += $count
+            }
+
+            return $buffer
+        } finally {
+            $stream.Dispose()
+        }
+    }
+
+    function script:Start-HostileServer {
+        <#
+            A squatter on the appender's pipe name, running as the test identity.
+            It captures whatever a client sends and answers with a well-formed
+            acknowledgement it made up.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string]$PipeName,
+
+            [Parameter(Mandatory)]
+            [string]$CapturePath,
+
+            [Parameter()]
+            [switch]$GrantEveryone
+        )
+
+        $scriptPath = Join-Path $TestDrive "hostile-$([guid]::NewGuid().ToString('N')).ps1"
+        @'
+param([string]$PipeName, [string]$CapturePath, [string]$GrantEveryone)
+
+$security = [System.IO.Pipes.PipeSecurity]::new()
+$me = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+$security.AddAccessRule([System.IO.Pipes.PipeAccessRule]::new($me.User,
+        [System.IO.Pipes.PipeAccessRights]::ReadWrite -bor [System.IO.Pipes.PipeAccessRights]::CreateNewInstance,
+        [System.Security.AccessControl.AccessControlType]::Allow))
+
+if ($GrantEveryone -eq 'yes') {
+    $security.AddAccessRule([System.IO.Pipes.PipeAccessRule]::new(
+            [System.Security.Principal.SecurityIdentifier]::new('S-1-1-0'),
+            [System.IO.Pipes.PipeAccessRights]::ReadWrite,
+            [System.Security.AccessControl.AccessControlType]::Allow))
+}
+
+$server = [System.IO.Pipes.NamedPipeServerStreamAcl]::Create($PipeName,
+    [System.IO.Pipes.PipeDirection]::InOut, 2, [System.IO.Pipes.PipeTransmissionMode]::Byte,
+    [System.IO.Pipes.PipeOptions]::Asynchronous, 0, 0, $security)
+
+$utf8 = [System.Text.UTF8Encoding]::new($false)
+try {
+    if (-not $server.WaitForConnectionAsync().Wait(30000)) { return }
+
+    $reader = [System.IO.StreamReader]::new($server, $utf8, $false, 4096, $true)
+    $writer = [System.IO.StreamWriter]::new($server, $utf8, 4096, $true)
+    $writer.AutoFlush = $true
+
+    $request = $reader.ReadLine()
+    [System.IO.File]::WriteAllText($CapturePath, [string]$request)
+
+    $writer.WriteLine('{"status":"Ok","message":"","sequence":1,"recordSha256":"' + ('f' * 64) + '"}')
+    $server.WaitForPipeDrain()
+} finally {
+    $server.Dispose()
+}
+'@ | Set-Content -LiteralPath $scriptPath -Encoding UTF8
+
+        $process = Start-Process -FilePath $script:powerShellPath -PassThru -WindowStyle Hidden -ArgumentList @(
+            '-NoProfile', '-NonInteractive', '-File', $scriptPath, '-PipeName', $PipeName,
+            '-CapturePath', $CapturePath, '-GrantEveryone', $(if ($GrantEveryone) { 'yes' } else { 'no' })
+        )
+
+        $deadline = (Get-Date).AddSeconds(20)
+        while ((Get-Date) -lt $deadline) {
+            if (Test-PipeName -PipeName $PipeName) {
+                return $process
+            }
+
+            Start-Sleep -Milliseconds 100
+        }
+
+        throw "Hostile server did not take $PipeName."
+    }
+
     function script:Get-SinkRecord {
         param(
             [Parameter(Mandatory)]
@@ -270,8 +421,7 @@ exit `$LASTEXITCODE
         )
 
         @(
-            Get-Content -LiteralPath $SinkPath -Encoding UTF8 |
-                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Get-SinkLine -SinkPath $SinkPath |
                 ForEach-Object { $_ | ConvertFrom-Json }
         )
     }
@@ -291,7 +441,7 @@ exit `$LASTEXITCODE
             return [string[]]@()
         }
 
-        $bytes = [System.IO.File]::ReadAllBytes($SinkPath)
+        $bytes = Get-SharedByte -Path $SinkPath
         if ($bytes.Length -eq 0) {
             return [string[]]@()
         }
@@ -413,7 +563,7 @@ Describe 'Ledger appender' -Tag 'Unit' {
             $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")
             $result.ExitCode | Should -Be 0 -Because $result.Output
         }
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $lines = @(Get-SinkLine -SinkPath $script:sinkPath)
         $lines[1] = $lines[1] -replace '"note":"test"', '"note":"tampered"'
@@ -431,7 +581,7 @@ Describe 'Ledger appender' -Tag 'Unit' {
             $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")
             $result.ExitCode | Should -Be 0 -Because $result.Output
         }
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $lines = @(Get-SinkLine -SinkPath $script:sinkPath)
         Set-SinkLine -SinkPath $script:sinkPath -Line $lines[0..1]
@@ -446,7 +596,7 @@ Describe 'Ledger appender' -Tag 'Unit' {
 
         $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')
         $result.ExitCode | Should -Be 0 -Because $result.Output
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         @{ sequence = 1; recordSha256 = ('a' * 64); updatedUtc = '2026-09-02T22:00:00Z'; sealed = $false } |
             ConvertTo-Json | Set-Content -LiteralPath $script:headPath -Encoding UTF8
@@ -473,7 +623,7 @@ Describe 'Ledger appender' -Tag 'Unit' {
 
         $result = Invoke-Append -PipeName $script:pipeName -RecordJson $malformed
         $result.ExitCode | Should -Be 2 -Because $result.Output
-        Test-Path -LiteralPath $script:sinkPath | Should -BeFalse
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0 -Because 'a refused record is never stored'
     }
 
     It 'refuses a record missing a required field' -Skip:(-not $script:onWindows) {
@@ -502,7 +652,10 @@ Describe 'Ledger appender' -Tag 'Unit' {
             data = @{ reason = 'run complete' }
         } | ConvertTo-Json -Depth 8 -Compress
 
-        $seal = Invoke-Appender -Argument @('-Seal', '-PipeName', $script:pipeName, '-RecordJson', $sealJson)
+        $seal = Invoke-Appender -Argument @(
+            '-Seal', '-PipeName', $script:pipeName, '-RecordJson', $sealJson,
+            '-SinkPath', $script:sinkPath, '-ChainHeadPath', $script:headPath
+        )
         $seal.ExitCode | Should -Be 0 -Because $seal.Output
 
         $late = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Late')
@@ -695,7 +848,7 @@ Describe 'Ledger appender stored line' -Tag 'Unit' {
     It 'refuses a stored line whose members were reordered' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $line = @(Get-SinkLine -SinkPath $script:sinkPath)
         $member = $line[0].TrimStart('{').TrimEnd('}') -split ',(?=")'
@@ -710,7 +863,7 @@ Describe 'Ledger appender stored line' -Tag 'Unit' {
     It 'refuses a stored line carrying insignificant whitespace' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $line = @(Get-SinkLine -SinkPath $script:sinkPath)
         Set-SinkLine -SinkPath $script:sinkPath -Line @($line[0] -replace '^\{', '{ ')
@@ -723,7 +876,7 @@ Describe 'Ledger appender stored line' -Tag 'Unit' {
     It 'refuses a stored line whose digest is not lowercase hexadecimal' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $line = @(Get-SinkLine -SinkPath $script:sinkPath)
         $upper = $line[0] -creplace '"recordSha256":"([0-9a-f]{64})"', { '"recordSha256":"' + $_.Groups[1].Value.ToUpperInvariant() + '"' }
@@ -737,7 +890,7 @@ Describe 'Ledger appender stored line' -Tag 'Unit' {
     It 'refuses a stored line that repeats a member' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $line = @(Get-SinkLine -SinkPath $script:sinkPath)
         Set-SinkLine -SinkPath $script:sinkPath -Line @($line[0] -replace '"type":"Baseline"', '"type":"Seal","type":"Baseline"')
@@ -749,7 +902,7 @@ Describe 'Ledger appender stored line' -Tag 'Unit' {
     It 'refuses a stored line whose sequence is a JSON string' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $line = @(Get-SinkLine -SinkPath $script:sinkPath)
         Set-SinkLine -SinkPath $script:sinkPath -Line @($line[0] -replace '"sequence":1', '"sequence":"1"')
@@ -761,7 +914,7 @@ Describe 'Ledger appender stored line' -Tag 'Unit' {
     It 'refuses a junk line in the sink' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $line = @(Get-SinkLine -SinkPath $script:sinkPath)
         Set-SinkLine -SinkPath $script:sinkPath -Line @($line[0], 'not a record at all')
@@ -773,7 +926,7 @@ Describe 'Ledger appender stored line' -Tag 'Unit' {
     It 'refuses a blank line in the sink' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $line = @(Get-SinkLine -SinkPath $script:sinkPath)
         Set-SinkLine -SinkPath $script:sinkPath -Line @('', $line[0])
@@ -786,7 +939,7 @@ Describe 'Ledger appender stored line' -Tag 'Unit' {
     It 'refuses a sink whose last record has no line terminator' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $bytes = [System.IO.File]::ReadAllBytes($script:sinkPath)
         [System.IO.File]::WriteAllBytes($script:sinkPath, $bytes[0..($bytes.Length - 2)])
@@ -799,7 +952,7 @@ Describe 'Ledger appender stored line' -Tag 'Unit' {
     It 'refuses a sink that begins with a byte-order mark' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $bytes = [System.IO.File]::ReadAllBytes($script:sinkPath)
         [System.IO.File]::WriteAllBytes($script:sinkPath, ([byte[]]@(0xEF, 0xBB, 0xBF) + $bytes))
@@ -813,7 +966,7 @@ Describe 'Ledger appender stored line' -Tag 'Unit' {
         foreach ($step in 1..3) {
             (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
         }
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $line = @(Get-SinkLine -SinkPath $script:sinkPath)
         Set-SinkLine -SinkPath $script:sinkPath -Line @($line[1], $line[0], $line[2])
@@ -827,7 +980,7 @@ Describe 'Ledger appender stored line' -Tag 'Unit' {
         foreach ($step in 1..3) {
             (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
         }
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $line = @(Get-SinkLine -SinkPath $script:sinkPath)
         Set-SinkLine -SinkPath $script:sinkPath -Line @($line[0], $line[2])
@@ -856,7 +1009,7 @@ Describe 'Ledger appender restart' -Tag 'Unit' {
         foreach ($step in 1..3) {
             (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
         }
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
         $headBefore = [System.IO.File]::ReadAllText($script:headPath)
 
         $line = @(Get-SinkLine -SinkPath $script:sinkPath)
@@ -873,7 +1026,7 @@ Describe 'Ledger appender restart' -Tag 'Unit' {
         foreach ($step in 1..2) {
             (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
         }
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         Set-ChainHead -ChainHeadPath $script:headPath -Sequence 3 -RecordSha256 ('b' * 64)
 
@@ -884,7 +1037,7 @@ Describe 'Ledger appender restart' -Tag 'Unit' {
     It 'refuses to serve when the head names another record at the same sequence' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 ('c' * 64)
 
@@ -897,7 +1050,7 @@ Describe 'Ledger appender restart' -Tag 'Unit' {
         foreach ($step in 1..2) {
             (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
         }
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
         Remove-Item -LiteralPath $script:headPath -Force
 
         $restart = Invoke-Serve -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
@@ -909,7 +1062,7 @@ Describe 'Ledger appender restart' -Tag 'Unit' {
         foreach ($step in 1..2) {
             (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
         }
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         # The state a crash between the sink flush and the head write leaves.
         $record = Get-SinkRecord -SinkPath $script:sinkPath
@@ -927,7 +1080,7 @@ Describe 'Ledger appender restart' -Tag 'Unit' {
     It 'refuses a chain head that is not stored in canonical form' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $head = [System.IO.File]::ReadAllText($script:headPath)
         [System.IO.File]::WriteAllBytes($script:headPath,
@@ -941,7 +1094,7 @@ Describe 'Ledger appender restart' -Tag 'Unit' {
     It 'refuses a chain head whose sealed flag contradicts the chain' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $record = Get-SinkRecord -SinkPath $script:sinkPath
         Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 $record[0].recordSha256 -Sealed
@@ -956,7 +1109,7 @@ Describe 'Ledger appender restart' -Tag 'Unit' {
         foreach ($step in 1..2) {
             (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
         }
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
 
         $record = Get-SinkRecord -SinkPath $script:sinkPath
         Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 $record[0].recordSha256
@@ -1047,7 +1200,7 @@ Describe 'Ledger appender durability' -Tag 'Unit' {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
 
-        $script:appender | Stop-Process -Force
+        Stop-TestAppender -Process $script:appender
         $script:appender.WaitForExit(15000) | Should -BeTrue
 
         $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
@@ -1057,5 +1210,124 @@ Describe 'Ledger appender durability' -Tag 'Unit' {
         $next = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'AfterCrash')
         $next.ExitCode | Should -Be 0 -Because $next.Output
         $next.Output | Should -Match 'sequence 2'
+    }
+}
+
+Describe 'Ledger appender channel' -Tag 'Unit' {
+    BeforeEach {
+        $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
+        $script:sinkPath = Join-Path $TestDrive "ledger-$([guid]::NewGuid().ToString('N')).jsonl"
+        $script:headPath = Join-Path $TestDrive "head-$([guid]::NewGuid().ToString('N')).json"
+        $script:capturePath = Join-Path $TestDrive "capture-$([guid]::NewGuid().ToString('N')).txt"
+        $script:appender = $null
+        $script:hostile = $null
+    }
+
+    AfterEach {
+        foreach ($process in @($script:appender, $script:hostile)) {
+            if ($process -and -not $process.HasExited) {
+                $process | Stop-Process -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    It 'refuses an acknowledgement the ledger does not back' -Skip:(-not $script:onWindows) {
+        $script:hostile = Start-HostileServer -PipeName $script:pipeName -CapturePath $script:capturePath
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'acknowledg'
+    }
+
+    It 'refuses a pipe that is open to another identity' -Skip:(-not $script:onWindows) {
+        $script:hostile = Start-HostileServer -PipeName $script:pipeName -CapturePath $script:capturePath -GrantEveryone
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'grants'
+
+        $captured = ''
+        if (Test-Path -LiteralPath $script:capturePath -PathType Leaf) {
+            $captured = [System.IO.File]::ReadAllText($script:capturePath)
+        }
+
+        $captured | Should -Not -Match 'run-0001' -Because 'the record must never reach a server the client has not authenticated'
+    }
+
+    It 'keeps a listening instance while a connection is being serviced' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $holding = [System.IO.Pipes.NamedPipeClientStream]::new('.', $script:pipeName, [System.IO.Pipes.PipeDirection]::InOut)
+        $second = [System.IO.Pipes.NamedPipeClientStream]::new('.', $script:pipeName, [System.IO.Pipes.PipeDirection]::InOut)
+        try {
+            $holding.Connect(5000)
+            { $second.Connect(5000) } | Should -Not -Throw -Because 'the name must never be free between connections'
+        } finally {
+            $second.Dispose()
+            $holding.Dispose()
+        }
+    }
+
+    It 'refuses to serve a pipe name that is already taken' -Skip:(-not $script:onWindows) {
+        $script:hostile = Start-HostileServer -PipeName $script:pipeName -CapturePath $script:capturePath
+
+        $second = Invoke-Serve -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $second.ExitCode | Should -Be 2 -Because $second.Output
+    }
+
+    It 'refuses to serve a sink another appender already holds' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $second = Invoke-Serve -PipeName "$($script:pipeName)-b" -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $second.ExitCode | Should -Be 2 -Because $second.Output
+    }
+
+    It 'owns the pipe and grants it to no other identity' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $client = [System.IO.Pipes.NamedPipeClientStream]::new('.', $script:pipeName, [System.IO.Pipes.PipeDirection]::InOut)
+        try {
+            $client.Connect(5000)
+            $acl = [System.IO.Pipes.PipesAclExtensions]::GetAccessControl($client)
+            $me = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+
+            $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value |
+                Should -BeIn @($me.Owner.Value, $me.User.Value) -Because 'the creator owns the pipe, never the client'
+
+            $allow = @($acl.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier]) |
+                    Where-Object { $_.AccessControlType -eq 'Allow' })
+            @($allow | Where-Object { $_.IdentityReference.Value -notin @($me.User.Value, $me.Owner.Value) }).Count |
+                Should -Be 0 -Because 'only the appender identity may open the pipe'
+
+            $deny = @($acl.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier]) |
+                    Where-Object { $_.AccessControlType -eq 'Deny' -and $_.IdentityReference.Value -eq 'S-1-5-2' })
+            $deny.Count | Should -BeGreaterThan 0 -Because 'a network logon must never reach the appender'
+        } finally {
+            $client.Dispose()
+        }
+    }
+
+    It 'refuses to serve when the allowed identity cannot be resolved' -Skip:(-not $script:onWindows) {
+        $result = Invoke-Appender -Argument @(
+            '-Serve', '-PipeName', $script:pipeName, '-SinkPath', $script:sinkPath,
+            '-ChainHeadPath', $script:headPath, '-IdleTimeoutSeconds', '5',
+            '-AllowedIdentity', 'NO SUCH ACCOUNT ZZZ'
+        )
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+    }
+
+    It 'serves under an allowed identity that is not its own account' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath `
+            -ChainHeadPath $script:headPath -AllowedIdentity 'NT AUTHORITY\LOCAL SERVICE' -SkipReadiness
+
+        $deadline = (Get-Date).AddSeconds(20)
+        while ((Get-Date) -lt $deadline -and -not (Test-PipeName -PipeName $script:pipeName)) {
+            Start-Sleep -Milliseconds 100
+        }
+
+        Test-PipeName -PipeName $script:pipeName |
+            Should -BeTrue -Because 'the pipe owner is the creator, so a third-party identity can be granted access'
+        $script:appender.HasExited | Should -BeFalse
     }
 }

@@ -83,11 +83,15 @@ param(
     [string]$PipeName,
 
     [Parameter(Mandatory, ParameterSetName = 'Serve')]
+    [Parameter(Mandatory, ParameterSetName = 'Append')]
+    [Parameter(Mandatory, ParameterSetName = 'Seal')]
     [Parameter(Mandatory, ParameterSetName = 'Validate')]
     [ValidateNotNullOrEmpty()]
     [string]$SinkPath,
 
     [Parameter(Mandatory, ParameterSetName = 'Serve')]
+    [Parameter(Mandatory, ParameterSetName = 'Append')]
+    [Parameter(Mandatory, ParameterSetName = 'Seal')]
     [Parameter(Mandatory, ParameterSetName = 'Validate')]
     [ValidateNotNullOrEmpty()]
     [string]$ChainHeadPath,
@@ -96,6 +100,11 @@ param(
     [Parameter(Mandatory, ParameterSetName = 'Seal')]
     [ValidateNotNullOrEmpty()]
     [string]$RecordJson,
+
+    [Parameter(ParameterSetName = 'Append')]
+    [Parameter(ParameterSetName = 'Seal')]
+    [AllowEmptyString()]
+    [string]$ExpectedServerIdentity,
 
     [Parameter(ParameterSetName = 'Serve')]
     [ValidateRange(1, 86400)]
@@ -119,6 +128,8 @@ $script:DigestPattern = '^[0-9a-f]{64}$'
 $script:UtcPattern = '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$'
 $script:IntegerPattern = '^-?(0|[1-9][0-9]*)$'
 $script:SafeInteger = 9007199254740991
+$script:MaxRequestLength = 262144
+$script:OnWindows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
 $script:FatalError = ''
 $script:JsonOption = [System.Text.Json.JsonDocumentOptions]::new()
 $script:JsonOption.MaxDepth = 32
@@ -534,6 +545,80 @@ function Read-StoredRecord {
     return $record
 }
 
+function Read-FileByte {
+    <#
+        The service holds the sink open for its whole life, so every reader
+        here has to tolerate that writer. File.ReadAllBytes asks for a share
+        mode that does not, and would turn a running appender into a
+        verification failure.
+    #>
+    [CmdletBinding()]
+    [OutputType([byte[]])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    $stream = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    try {
+        $buffer = [byte[]]::new($stream.Length)
+        $read = 0
+
+        while ($read -lt $buffer.Length) {
+            $count = $stream.Read($buffer, $read, $buffer.Length - $read)
+            if ($count -le 0) {
+                break
+            }
+
+            $read += $count
+        }
+
+        # The comma keeps an empty or single-byte buffer an array: PowerShell
+        # would otherwise unroll it to $null or to one byte.
+        return , $buffer
+    } finally {
+        $stream.Dispose()
+    }
+}
+
+function Read-RequestLine {
+    <#
+        One request is one line. The cap is there because the reader is fed by
+        an untrusted client: without it, a client that never sends a newline
+        grows the buffer until the service dies, taking the run's evidence
+        with it.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [System.IO.StreamReader]$Reader
+    )
+
+    $builder = [System.Text.StringBuilder]::new()
+
+    while ($true) {
+        $value = $Reader.Read()
+
+        if ($value -lt 0 -or $value -eq 10) {
+            break
+        }
+
+        if ($value -eq 13) {
+            continue
+        }
+
+        if ($builder.Length -ge $script:MaxRequestLength) {
+            throw "request exceeds $($script:MaxRequestLength) characters"
+        }
+
+        $null = $builder.Append([char]$value)
+    }
+
+    return $builder.ToString()
+}
+
 function Read-SinkLine {
     <#
         Reads the sink as bytes rather than as text lines. A trailing record
@@ -550,7 +635,7 @@ function Read-SinkLine {
     )
 
     $result = @{ Error = ''; Line = [string[]]@() }
-    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $bytes = Read-FileByte -Path $Path
 
     if ($bytes.Length -eq 0) {
         return $result
@@ -704,7 +789,7 @@ function Read-ChainHeadState {
     }
 
     $head.Present = $true
-    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $bytes = Read-FileByte -Path $Path
 
     if ($bytes.Length -eq 0) {
         $head.Error = 'the chain head is empty'
@@ -936,7 +1021,7 @@ function Add-Record {
         [hashtable]$State,
 
         [Parameter(Mandatory)]
-        [string]$Path,
+        [System.IO.FileStream]$Stream,
 
         [Parameter(Mandatory)]
         [string]$HeadPath
@@ -945,16 +1030,13 @@ function Add-Record {
     $sequence = [int]$State.Sequence + 1
     $stored = New-StoredRecord -Record $Record -Sequence $sequence -PreviousHash ([string]$State.LastHash)
 
-    $stream = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
     try {
         $bytes = $script:Utf8.GetBytes($stored.Line + "`n")
-        $stream.Write($bytes, 0, $bytes.Length)
-        $stream.Flush($true)
+        $Stream.Write($bytes, 0, $bytes.Length)
+        $Stream.Flush($true)
     } catch {
         $script:FatalError = "could not write the ledger sink: $($_.Exception.Message)"
         throw
-    } finally {
-        $stream.Dispose()
     }
 
     $sealed = [bool]$State.Sealed -or (($Record.GetProperty('type')).GetString() -ceq 'Seal')
@@ -977,10 +1059,38 @@ function Add-Record {
     }
 }
 
+function Test-PipeNameInUse {
+    <#
+        The pipe namespace is enumerated rather than probed with Test-Path:
+        opening the path counts as a client connection and leaves the listening
+        server's pending wait faulted, so a existence check would disturb the
+        very service it asks about.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Name
+    )
+
+    foreach ($entry in [System.IO.Directory]::GetFiles('\\.\pipe\')) {
+        if ([System.IO.Path]::GetFileName($entry) -ceq $Name) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function New-RestrictedPipeServer {
     <#
-        The pipe is the authentication boundary: on Windows only the allowed
-        identity gets an ACE, so an unauthorized caller cannot open it at all.
+        The pipe is the authentication boundary. Only the appender's own
+        account and the allowed identity get an Allow ACE, a network logon is
+        denied outright, and the owner is left to the creator: an owner can
+        rewrite the DACL, so handing ownership to the caller would hand it the
+        pipe. Only the appender's own account is granted CreateNewInstance,
+        which is what lets the service keep a listening instance while it works
+        and what stops another identity from adding one of its own.
         Failing to apply the ACL is fatal rather than degraded, because a
         default DACL would silently widen who may append evidence.
     #>
@@ -997,33 +1107,125 @@ function New-RestrictedPipeServer {
         [string]$Identity
     )
 
-    if (-not ($IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop')) {
-        # On Unix a named pipe is a socket governed by filesystem permissions,
-        # which the containment profile measures rather than this script.
-        return [System.IO.Pipes.NamedPipeServerStream]::new(
-            $Name, [System.IO.Pipes.PipeDirection]::InOut, 1,
-            [System.IO.Pipes.PipeTransmissionMode]::Byte, [System.IO.Pipes.PipeOptions]::Asynchronous)
-    }
-
-    if ([string]::IsNullOrWhiteSpace($Identity)) {
-        $Identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-    }
-
     $security = [System.IO.Pipes.PipeSecurity]::new()
-    $account = [System.Security.Principal.NTAccount]::new($Identity)
-    $security.AddAccessRule([System.IO.Pipes.PipeAccessRule]::new(
-            $account,
-            [System.IO.Pipes.PipeAccessRights]::ReadWrite,
-            [System.Security.AccessControl.AccessControlType]::Allow))
-    $security.SetOwner($account)
+    $current = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 
+    $security.AddAccessRule([System.IO.Pipes.PipeAccessRule]::new(
+            $current.User,
+            [System.IO.Pipes.PipeAccessRights]::ReadWrite -bor [System.IO.Pipes.PipeAccessRights]::CreateNewInstance,
+            [System.Security.AccessControl.AccessControlType]::Allow))
+
+    if (-not [string]::IsNullOrWhiteSpace($Identity)) {
+        $account = [System.Security.Principal.NTAccount]::new($Identity)
+        $allowed = $account.Translate([System.Security.Principal.SecurityIdentifier])
+
+        if ($allowed.Value -cne $current.User.Value) {
+            $security.AddAccessRule([System.IO.Pipes.PipeAccessRule]::new(
+                    $allowed,
+                    [System.IO.Pipes.PipeAccessRights]::ReadWrite,
+                    [System.Security.AccessControl.AccessControlType]::Allow))
+        }
+    }
+
+    $security.AddAccessRule([System.IO.Pipes.PipeAccessRule]::new(
+            [System.Security.Principal.SecurityIdentifier]::new('S-1-5-2'),
+            [System.IO.Pipes.PipeAccessRights]::FullControl,
+            [System.Security.AccessControl.AccessControlType]::Deny))
+
+    # Two instances, so the next one can be created while this one is still
+    # serving a client and the name is never unowned for an instant.
     return [System.IO.Pipes.NamedPipeServerStreamAcl]::Create(
-        $Name, [System.IO.Pipes.PipeDirection]::InOut, 1,
+        $Name, [System.IO.Pipes.PipeDirection]::InOut, 2,
         [System.IO.Pipes.PipeTransmissionMode]::Byte, [System.IO.Pipes.PipeOptions]::Asynchronous,
         0, 0, $security)
 }
 
+function Get-ExpectedServerIdentity {
+    <#
+        Which principal the client requires the pipe to belong to. By default
+        that is whoever would own an object this client created, which is the
+        same comparison PipeOptions.CurrentUserOnly makes inside .NET; an
+        explicit identity replaces it when the appender runs as another account.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Identity
+    )
+
+    $current = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $self = @($current.User.Value, $current.Owner.Value) | Select-Object -Unique
+
+    if ([string]::IsNullOrWhiteSpace($Identity)) {
+        return @{ Owner = $self; Allowed = $self; Explicit = $false }
+    }
+
+    if ($Identity -cmatch '^S-1-[0-9-]+$') {
+        $sid = [System.Security.Principal.SecurityIdentifier]::new($Identity)
+    } else {
+        $sid = ([System.Security.Principal.NTAccount]::new($Identity)).Translate([System.Security.Principal.SecurityIdentifier])
+    }
+
+    return @{
+        Owner = @($sid.Value)
+        Allowed = @(@($sid.Value) + $self | Select-Object -Unique)
+        Explicit = $true
+    }
+}
+
+function Test-PipeServerIdentity {
+    <#
+        What this proves: the pipe object belongs to the expected principal and
+        grants access to nobody else. Setting another account as owner needs a
+        privilege an ordinary local identity does not have, so a squatter that
+        is not the appender identity cannot present this security descriptor.
+        What it does not prove: that the process behind the pipe is the pinned
+        appender rather than another process of the same identity. That is why
+        the acknowledgement is cross-checked against the ledger afterwards.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [System.IO.Pipes.NamedPipeClientStream]$Client,
+
+        [Parameter(Mandatory)]
+        [hashtable]$Expected
+    )
+
+    try {
+        $security = [System.IO.Pipes.PipesAclExtensions]::GetAccessControl($Client)
+    } catch {
+        return "the pipe's security descriptor cannot be read: $($_.Exception.Message)"
+    }
+
+    $owner = $security.GetOwner([System.Security.Principal.SecurityIdentifier])
+    if ($null -eq $owner -or $owner.Value -cnotin $Expected.Owner) {
+        return "the pipe is owned by $($owner) and not by the expected appender identity"
+    }
+
+    foreach ($rule in $security.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier])) {
+        if ($rule.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) {
+            continue
+        }
+
+        if ($rule.IdentityReference.Value -cnotin $Expected.Allowed) {
+            return "the pipe grants access to $($rule.IdentityReference.Value), so the channel is not exclusive"
+        }
+    }
+
+    return ''
+}
+
 function Invoke-AppenderRequest {
+    <#
+        Identification, never Impersonation: a server on this pipe must not be
+        able to act as the caller. The server is authenticated before the
+        record is handed over, because a record given to a squatter is already
+        disclosed whatever the answer says.
+    #>
     [CmdletBinding()]
     [OutputType([string])]
     param(
@@ -1031,12 +1233,26 @@ function Invoke-AppenderRequest {
         [string]$Name,
 
         [Parameter(Mandatory)]
-        [string]$Payload
+        [string]$Payload,
+
+        [Parameter(Mandatory)]
+        [hashtable]$Expected
     )
 
-    $client = [System.IO.Pipes.NamedPipeClientStream]::new('.', $Name, [System.IO.Pipes.PipeDirection]::InOut)
+    # PipeOptions.CurrentUserOnly is deliberately not used: .NET compares the
+    # pipe owner with this token's owner only after the handle is open, and the
+    # check below makes the same comparison plus the DACL, before a single byte
+    # of the record is written.
+    $client = [System.IO.Pipes.NamedPipeClientStream]::new(
+        '.', $Name, [System.IO.Pipes.PipeDirection]::InOut, [System.IO.Pipes.PipeOptions]::None,
+        [System.Security.Principal.TokenImpersonationLevel]::Identification)
     try {
         $client.Connect(10000)
+
+        $identityError = Test-PipeServerIdentity -Client $client -Expected $Expected
+        if ($identityError) {
+            throw $identityError
+        }
 
         $writer = [System.IO.StreamWriter]::new($client, $script:Utf8, 4096, $true)
         $writer.AutoFlush = $true
@@ -1054,8 +1270,145 @@ function Invoke-AppenderRequest {
     }
 }
 
+function Read-AppenderResponse {
+    <#
+        The response comes from the other side of the pipe, so it is parsed as
+        strictly as stored evidence: a fixed shape, a status the client knows,
+        a sequence that is a positive integer and a lowercase digest.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [System.Text.Json.JsonElement]$Element
+    )
+
+    $response = @{ Error = ''; Status = ''; Message = ''; Sequence = 0; RecordSha256 = '' }
+
+    if ($Element.ValueKind -ne [System.Text.Json.JsonValueKind]::Object) {
+        $response.Error = 'appender returned a response that is not a JSON object'
+        return $response
+    }
+
+    try {
+        $member = Get-CanonicalMember -Element $Element
+    } catch {
+        $response.Error = "appender returned an unreadable response: $($_.Exception.Message)"
+        return $response
+    }
+
+    foreach ($required in @('status', 'message', 'sequence', 'recordSha256')) {
+        if (-not $member.Contains($required)) {
+            $response.Error = "appender returned a response without '$required'"
+            return $response
+        }
+    }
+
+    $status = $Element.GetProperty('status')
+    $message = $Element.GetProperty('message')
+
+    if ($status.ValueKind -ne [System.Text.Json.JsonValueKind]::String -or
+        $message.ValueKind -ne [System.Text.Json.JsonValueKind]::String) {
+        $response.Error = 'appender returned a response whose status or message is not a string'
+        return $response
+    }
+
+    $response.Status = $status.GetString()
+    $response.Message = $message.GetString()
+
+    if ($response.Status -cne 'Ok') {
+        return $response
+    }
+
+    if ([string]$member['sequence'] -cnotmatch $script:IntegerPattern -or [long]$member['sequence'] -lt 1) {
+        $response.Error = 'appender acknowledged a sequence that is not a positive integer'
+        return $response
+    }
+
+    $digest = $Element.GetProperty('recordSha256')
+    if ($digest.ValueKind -ne [System.Text.Json.JsonValueKind]::String -or
+        $digest.GetString() -cnotmatch $script:DigestPattern) {
+        $response.Error = 'appender acknowledged a digest that is not a lowercase 64-character hexadecimal string'
+        return $response
+    }
+
+    $response.Sequence = [long]$member['sequence']
+    $response.RecordSha256 = $digest.GetString()
+
+    return $response
+}
+
+function Test-Acknowledgement {
+    <#
+        The acknowledgement is a claim by whoever answered the pipe. It is
+        believed only after the ledger itself shows that record at that
+        sequence with that digest.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [int]$Sequence,
+
+        [Parameter(Mandatory)]
+        [string]$RecordSha256,
+
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [string]$HeadPath
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return "the acknowledged record is not in the ledger: '$Path' does not exist"
+    }
+
+    $state = Read-ChainState -Path $Path -HeadPath $HeadPath
+    if ($state.Error) {
+        return "the acknowledged record is not in a valid ledger: $($state.Error)"
+    }
+
+    if ($state.Sequence -lt $Sequence) {
+        return "the ledger ends at sequence $($state.Sequence) but the acknowledgement names $Sequence"
+    }
+
+    $sink = Read-SinkLine -Path $Path
+    if ($sink.Error) {
+        return "the acknowledged record cannot be read back: $($sink.Error)"
+    }
+
+    $record = Read-StoredRecord -Text $sink.Line[$Sequence - 1]
+    if ($record.Error) {
+        return "the acknowledged record cannot be read back: it $($record.Error)"
+    }
+
+    if ($record.RecordSha256 -cne $RecordSha256) {
+        return "the ledger holds a different record at sequence $Sequence than the acknowledgement names"
+    }
+
+    $head = Read-ChainHeadState -Path $HeadPath
+    if ($head.Error) {
+        return "the acknowledged record is not published: $($head.Error)"
+    }
+
+    if ($head.Sequence -lt $Sequence) {
+        return "the chain head is behind the acknowledged sequence $Sequence"
+    }
+
+    return ''
+}
+
 switch ($PSCmdlet.ParameterSetName) {
     'Serve' {
+        if (-not $script:OnWindows) {
+            # A Unix named pipe is a filesystem object with no owner check the
+            # client can make, so neither side could authenticate the other.
+            # Refusing is the only honest answer; nothing here measures it.
+            Write-Refusal -Message 'the appender service is only supported on Windows, where the pipe can be restricted by ACL'
+            exit 2
+        }
+
         # Both directories, not only the sink's: a head that cannot be written
         # is fatal, so an absent directory would stop the service on its first
         # append rather than at start.
@@ -1092,106 +1445,178 @@ switch ($PSCmdlet.ParameterSetName) {
                 -RecordHash $state.LastHash -Sealed $state.Sealed
         }
 
-        try {
-            $probe = New-RestrictedPipeServer -Name $PipeName -Identity $AllowedIdentity
-            $probe.Dispose()
-        } catch {
-            Write-Refusal -Message "could not create a restricted pipe: $($_.Exception.Message)"
+        if (Test-PipeNameInUse -Name $PipeName) {
+            Write-Refusal -Message "the pipe name '$PipeName' is already in use; another appender or an impostor holds it"
             exit 2
         }
 
-        # One stream per connection. A broken pipe leaves the stream faulted for
-        # good, so reusing it would end the service the first time a client
-        # hung up mid-exchange.
-        $idleDeadline = (Get-Date).AddSeconds($IdleTimeoutSeconds)
+        # The sink is held open for the whole run. It is the second-instance
+        # control: a second appender on the same ledger is refused here rather
+        # than racing the first one, and no other process can open it for write
+        # while the service is alive.
+        try {
+            $sinkStream = [System.IO.FileStream]::new($SinkPath, [System.IO.FileMode]::Append,
+                [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+        } catch {
+            Write-Refusal -Message "could not take the ledger sink '$SinkPath': $($_.Exception.Message)"
+            exit 2
+        }
 
-        while ((Get-Date) -lt $idleDeadline) {
-            $server = New-RestrictedPipeServer -Name $PipeName -Identity $AllowedIdentity
+        $listening = $null
 
+        try {
             try {
+                $listening = New-RestrictedPipeServer -Name $PipeName -Identity $AllowedIdentity
+            } catch {
+                Write-Refusal -Message "could not create a restricted pipe: $($_.Exception.Message)"
+                exit 2
+            }
+
+            $idleDeadline = (Get-Date).AddSeconds($IdleTimeoutSeconds)
+
+            while ((Get-Date) -lt $idleDeadline) {
                 $remaining = $idleDeadline - (Get-Date)
 
                 if ($remaining -le [timespan]::Zero) {
                     break
                 }
 
-                if (-not $server.WaitForConnectionAsync().Wait($remaining)) {
+                $connected = $false
+                try {
+                    $connected = $listening.WaitForConnectionAsync().Wait($remaining)
+                } catch {
+                    # Anything that touches the pipe counts as a connection,
+                    # including a bare existence probe, and leaves the instance
+                    # faulted. The replacement is created before the faulted one
+                    # is released, so the name stays owned throughout.
+                    [Console]::Error.WriteLine(
+                        "Ledger appender dropped a connection attempt: $($_.Exception.GetBaseException().Message)")
+
+                    $faulted = $listening
+                    $listening = $null
+
+                    try {
+                        $listening = New-RestrictedPipeServer -Name $PipeName -Identity $AllowedIdentity
+                    } catch {
+                        Write-Refusal -Message "could not keep a listening instance of '$PipeName': $($_.Exception.Message)"
+                        $faulted.Dispose()
+                        exit 2
+                    }
+
+                    $faulted.Dispose()
+                    continue
+                }
+
+                if (-not $connected) {
                     break
                 }
 
-                $reader = [System.IO.StreamReader]::new($server, $script:Utf8, $false, 4096, $true)
-                $writer = [System.IO.StreamWriter]::new($server, $script:Utf8, 4096, $true)
-                $writer.AutoFlush = $true
+                # One stream per connection: a broken pipe leaves the stream
+                # faulted for good. The next instance is created before this one
+                # is serviced, so the name is never unowned and nobody can take
+                # it in the gap.
+                $server = $listening
+                $listening = $null
 
-                $requestText = $reader.ReadLine()
-                $response = [ordered]@{ status = 'Error'; message = 'empty request'; sequence = 0; recordSha256 = '' }
-
-                if (-not [string]::IsNullOrWhiteSpace($requestText)) {
-                    $document = $null
+                try {
                     try {
-                        $document = ConvertFrom-JsonText -Text $requestText
+                        $listening = New-RestrictedPipeServer -Name $PipeName -Identity $AllowedIdentity
                     } catch {
-                        $response.message = 'request is not valid JSON'
+                        Write-Refusal -Message "could not keep a listening instance of '$PipeName': $($_.Exception.Message)"
+                        $server.Dispose()
+                        exit 2
                     }
 
-                    if ($null -ne $document) {
-                        try {
-                            $request = $document.RootElement
-                            $schemaError = Test-RecordSchema -Record $request
+                    $reader = [System.IO.StreamReader]::new($server, $script:Utf8, $false, 4096, $true)
+                    $writer = [System.IO.StreamWriter]::new($server, $script:Utf8, 4096, $true)
+                    $writer.AutoFlush = $true
 
-                            if ($schemaError) {
-                                $response.message = $schemaError
-                            } elseif ($state.Sealed) {
-                                $response.message = 'ledger is sealed'
-                            } else {
-                                $appended = Add-Record -Record $request -State $state -Path $SinkPath -HeadPath $ChainHeadPath
-                                $response = [ordered]@{
-                                    status = 'Ok'
-                                    message = ''
-                                    sequence = $appended.sequence
-                                    recordSha256 = $appended.recordSha256
+                    $requestText = Read-RequestLine -Reader $reader
+                    $response = [ordered]@{ status = 'Error'; message = 'empty request'; sequence = 0; recordSha256 = '' }
+
+                    if (-not [string]::IsNullOrWhiteSpace($requestText)) {
+                        $document = $null
+                        try {
+                            $document = ConvertFrom-JsonText -Text $requestText
+                        } catch {
+                            $response.message = 'request is not valid JSON'
+                        }
+
+                        if ($null -ne $document) {
+                            try {
+                                $request = $document.RootElement
+                                $schemaError = Test-RecordSchema -Record $request
+
+                                if ($schemaError) {
+                                    $response.message = $schemaError
+                                } elseif ($state.Sealed) {
+                                    $response.message = 'ledger is sealed'
+                                } else {
+                                    $appended = Add-Record -Record $request -State $state -Stream $sinkStream -HeadPath $ChainHeadPath
+                                    $response = [ordered]@{
+                                        status = 'Ok'
+                                        message = ''
+                                        sequence = $appended.sequence
+                                        recordSha256 = $appended.recordSha256
+                                    }
                                 }
+                            } finally {
+                                $document.Dispose()
                             }
-                        } finally {
-                            $document.Dispose()
                         }
                     }
-                }
 
-                $writer.WriteLine(($response | ConvertTo-Json -Compress))
-                $reader.Dispose()
-                $writer.Dispose()
+                    $writer.WriteLine(($response | ConvertTo-Json -Compress))
+                    $reader.Dispose()
+                    $writer.Dispose()
 
-                # Disposing the stream discards anything the client has not read
-                # yet, so the acknowledgement must be drained before teardown.
-                $server.WaitForPipeDrain()
+                    # Disposing the stream discards anything the client has not
+                    # read yet, so the acknowledgement must be drained before
+                    # teardown.
+                    $server.WaitForPipeDrain()
 
-                # Only a served connection resets the idle window, so a client
-                # that merely probes the pipe cannot keep the service alive.
-                $idleDeadline = (Get-Date).AddSeconds($IdleTimeoutSeconds)
-            } catch {
-                if ($script:FatalError) {
-                    # Never continue on stale state: the record may be durable
-                    # but unpublished, and the next append would have to guess
-                    # which sequence is free.
-                    Write-Refusal -Message $script:FatalError
+                    # Only a served connection resets the idle window, so a
+                    # client that merely probes the pipe cannot keep the service
+                    # alive.
+                    $idleDeadline = (Get-Date).AddSeconds($IdleTimeoutSeconds)
+                } catch {
+                    if ($script:FatalError) {
+                        # Never continue on stale state: the record may be
+                        # durable but unpublished, and the next append would
+                        # have to guess which sequence is free.
+                        Write-Refusal -Message $script:FatalError
+                        $server.Dispose()
+                        exit 2
+                    }
+
+                    # A client that hangs up, times out, or sends garbage must
+                    # not take the ledger service down with it: losing the
+                    # appender mid-run would strand every later record.
+                    [Console]::Error.WriteLine("Ledger appender dropped a connection: $($_.Exception.Message)")
+                } finally {
                     $server.Dispose()
-                    exit 2
                 }
-
-                # A client that hangs up, times out, or sends garbage must not
-                # take the ledger service down with it: losing the appender
-                # mid-run would strand every later record.
-                [Console]::Error.WriteLine("Ledger appender dropped a connection: $($_.Exception.Message)")
-            } finally {
-                $server.Dispose()
             }
+        } finally {
+            if ($null -ne $listening) {
+                $listening.Dispose()
+            }
+
+            $sinkStream.Dispose()
         }
 
         exit 0
     }
 
     { $_ -in @('Append', 'Seal') } {
+        if (-not $script:OnWindows) {
+            # The client cannot authenticate a Unix socket's server, and
+            # handing a record to an unauthenticated server is the failure
+            # C-04 describes. Refusing is the only safe answer.
+            Write-Refusal -Message 'the appender client is only supported on Windows, where the pipe server can be authenticated'
+            exit 2
+        }
+
         if ($Seal) {
             # -Seal must not be a quiet alias for -Append: sealing is
             # irreversible, so the intent has to be visible in the record too.
@@ -1222,9 +1647,16 @@ switch ($PSCmdlet.ParameterSetName) {
         }
 
         try {
-            $responseText = Invoke-AppenderRequest -Name $PipeName -Payload $RecordJson
+            $expected = Get-ExpectedServerIdentity -Identity $ExpectedServerIdentity
         } catch {
-            Write-Refusal -Message "could not reach the appender on pipe '$PipeName': $($_.Exception.Message)"
+            Write-Refusal -Message "could not resolve the expected appender identity: $($_.Exception.Message)"
+            exit 2
+        }
+
+        try {
+            $responseText = Invoke-AppenderRequest -Name $PipeName -Payload $RecordJson -Expected $expected
+        } catch {
+            Write-Refusal -Message "could not reach a trusted appender on pipe '$PipeName': $($_.Exception.Message)"
             exit 2
         }
 
@@ -1233,14 +1665,39 @@ switch ($PSCmdlet.ParameterSetName) {
             exit 2
         }
 
-        $response = $responseText | ConvertFrom-Json
-
-        if ($response.status -ne 'Ok') {
-            Write-Refusal -Message ([string]$response.message)
+        try {
+            $document = ConvertFrom-JsonText -Text $responseText
+        } catch {
+            Write-Refusal -Message 'appender returned a response that is not valid JSON'
             exit 2
         }
 
-        Write-Output ('Appended sequence {0} as {1}' -f $response.sequence, $response.recordSha256)
+        try {
+            $response = Read-AppenderResponse -Element $document.RootElement
+        } finally {
+            $document.Dispose()
+        }
+
+        if ($response.Error) {
+            Write-Refusal -Message $response.Error
+            exit 2
+        }
+
+        if ($response.Status -cne 'Ok') {
+            Write-Refusal -Message $response.Message
+            exit 2
+        }
+
+        # The answer came from the pipe, so it is a claim, not evidence. Only
+        # the ledger itself can show that the record was stored and published.
+        $acknowledgementError = Test-Acknowledgement -Sequence $response.Sequence `
+            -RecordSha256 $response.RecordSha256 -Path $SinkPath -HeadPath $ChainHeadPath
+        if ($acknowledgementError) {
+            Write-Refusal -Message "the acknowledgement is not backed by the ledger: $acknowledgementError"
+            exit 2
+        }
+
+        Write-Output ('Appended sequence {0} as {1}' -f $response.Sequence, $response.RecordSha256)
         exit 0
     }
 
