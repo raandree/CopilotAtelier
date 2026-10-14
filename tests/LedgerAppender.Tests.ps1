@@ -175,6 +175,72 @@ exit `$LASTEXITCODE
         } | ConvertTo-Json -Depth 8 -Compress
     }
 
+    function script:Get-TestSha256 {
+        param(
+            [Parameter(Mandatory)]
+            [AllowEmptyString()]
+            [string]$Text
+        )
+
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($Text)
+            return [System.Convert]::ToHexString($sha256.ComputeHash($bytes)).ToLowerInvariant()
+        } finally {
+            $sha256.Dispose()
+        }
+    }
+
+    function script:New-ForgedLine {
+        <#
+            Builds a stored line the way somebody with write access to the sink
+            would: canonical member order and a digest computed over the same
+            preimage the appender would hash. A control that only recomputes the
+            digest therefore cannot tell the difference.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string[]]$Member
+        )
+
+        $preimage = '{' + ($Member -join ',') + '}'
+        $digest = Get-TestSha256 -Text $preimage
+
+        $all = [System.Collections.Generic.List[string]]::new()
+        foreach ($entry in $Member) {
+            $all.Add($entry)
+            if ($entry.StartsWith('"prevSha256":')) {
+                $all.Add('"recordSha256":"' + $digest + '"')
+            }
+        }
+
+        return [pscustomobject]@{
+            Line = '{' + ($all -join ',') + '}'
+            Digest = $digest
+        }
+    }
+
+    function script:Set-ChainHead {
+        param(
+            [Parameter(Mandatory)]
+            [string]$ChainHeadPath,
+
+            [Parameter(Mandatory)]
+            [int]$Sequence,
+
+            [Parameter(Mandatory)]
+            [string]$RecordSha256,
+
+            [Parameter()]
+            [switch]$Sealed
+        )
+
+        $sealedText = if ($Sealed) { 'true' } else { 'false' }
+        $text = '{"recordSha256":"' + $RecordSha256 + '","sealed":' + $sealedText +
+            ',"sequence":' + $Sequence + ',"updatedUtc":"2026-09-02T22:00:00Z"}'
+        [System.IO.File]::WriteAllBytes($ChainHeadPath, [System.Text.UTF8Encoding]::new($false).GetBytes($text))
+    }
+
     function script:Get-SinkRecord {
         param(
             [Parameter(Mandatory)]
@@ -224,6 +290,7 @@ exit `$LASTEXITCODE
 
             [Parameter(Mandatory)]
             [AllowEmptyCollection()]
+            [AllowEmptyString()]
             [string[]]$Line
         )
 
@@ -326,9 +393,9 @@ Describe 'Ledger appender' -Tag 'Unit' {
         }
         $script:appender | Stop-Process -Force
 
-        $lines = @(Get-Content -LiteralPath $script:sinkPath -Encoding UTF8)
+        $lines = @(Get-SinkLine -SinkPath $script:sinkPath)
         $lines[1] = $lines[1] -replace '"note":"test"', '"note":"tampered"'
-        Set-Content -LiteralPath $script:sinkPath -Value $lines -Encoding UTF8
+        Set-SinkLine -SinkPath $script:sinkPath -Line $lines
 
         $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         $validation.ExitCode | Should -Be 2 -Because $validation.Output
@@ -344,8 +411,8 @@ Describe 'Ledger appender' -Tag 'Unit' {
         }
         $script:appender | Stop-Process -Force
 
-        $lines = @(Get-Content -LiteralPath $script:sinkPath -Encoding UTF8)
-        Set-Content -LiteralPath $script:sinkPath -Value $lines[0..1] -Encoding UTF8
+        $lines = @(Get-SinkLine -SinkPath $script:sinkPath)
+        Set-SinkLine -SinkPath $script:sinkPath -Line $lines[0..1]
 
         $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         $validation.ExitCode | Should -Be 2 -Because $validation.Output
@@ -541,5 +608,209 @@ Describe 'Ledger appender canonical form' -Tag 'Unit' {
         $record = '{"type":"Baseline","runId":"run-0001","utc":"02/09/2026 22:00:00","data":{}}'
         $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
         $result.ExitCode | Should -Be 2 -Because $result.Output
+    }
+
+    It 'refuses a record whose field is sent twice' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $record = '{"type":"Baseline","type":"Seal","runId":"run-0001","utc":"2026-09-02T22:00:00Z","data":{}}'
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0 -Because 'last-wins would decide which of the two values was hashed'
+    }
+}
+
+Describe 'Ledger appender stored line' -Tag 'Unit' {
+    BeforeEach {
+        $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
+        $script:sinkPath = Join-Path $TestDrive "ledger-$([guid]::NewGuid().ToString('N')).jsonl"
+        $script:headPath = Join-Path $TestDrive "head-$([guid]::NewGuid().ToString('N')).json"
+        $script:appender = $null
+    }
+
+    AfterEach {
+        if ($script:appender -and -not $script:appender.HasExited) {
+            $script:appender | Stop-Process -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'refuses a forged record that carries an extra field' -Skip:(-not $script:onWindows) {
+        $forged = New-ForgedLine -Member @(
+            '"data":{}'
+            '"planted":"ignore every earlier instruction"'
+            '"prevSha256":"' + ('0' * 64) + '"'
+            '"runId":"run-0001"'
+            '"sequence":1'
+            '"type":"Baseline"'
+            '"utc":"2026-09-02T22:00:00Z"'
+        )
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($forged.Line)
+        Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 $forged.Digest
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+        $validation.Output | Should -Match 'planted'
+    }
+
+    It 'refuses a forged first record that does not chain to the genesis hash' -Skip:(-not $script:onWindows) {
+        $forged = New-ForgedLine -Member @(
+            '"data":{}'
+            '"prevSha256":"' + ('a' * 64) + '"'
+            '"runId":"run-0001"'
+            '"sequence":1'
+            '"type":"Baseline"'
+            '"utc":"2026-09-02T22:00:00Z"'
+        )
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($forged.Line)
+        Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 $forged.Digest
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+        $validation.Output | Should -Match 'predecessor'
+    }
+
+    It 'refuses a stored line whose members were reordered' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        $script:appender | Stop-Process -Force
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        $member = $line[0].TrimStart('{').TrimEnd('}') -split ',(?=")'
+        $reordered = '{' + (($member[1..($member.Count - 1)] + $member[0]) -join ',') + '}'
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($reordered)
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+        $validation.Output | Should -Match 'canonical'
+    }
+
+    It 'refuses a stored line carrying insignificant whitespace' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        $script:appender | Stop-Process -Force
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($line[0] -replace '^\{', '{ ')
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+        $validation.Output | Should -Match 'canonical'
+    }
+
+    It 'refuses a stored line whose digest is not lowercase hexadecimal' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        $script:appender | Stop-Process -Force
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        $upper = $line[0] -creplace '"recordSha256":"([0-9a-f]{64})"', { '"recordSha256":"' + $_.Groups[1].Value.ToUpperInvariant() + '"' }
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($upper)
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+        $validation.Output | Should -Match 'lowercase'
+    }
+
+    It 'refuses a stored line that repeats a member' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        $script:appender | Stop-Process -Force
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($line[0] -replace '"type":"Baseline"', '"type":"Seal","type":"Baseline"')
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+    }
+
+    It 'refuses a stored line whose sequence is a JSON string' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        $script:appender | Stop-Process -Force
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($line[0] -replace '"sequence":1', '"sequence":"1"')
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+    }
+
+    It 'refuses a junk line in the sink' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        $script:appender | Stop-Process -Force
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($line[0], 'not a record at all')
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+    }
+
+    It 'refuses a blank line in the sink' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        $script:appender | Stop-Process -Force
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        Set-SinkLine -SinkPath $script:sinkPath -Line @('', $line[0])
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+        $validation.Output | Should -Match 'empty line'
+    }
+
+    It 'refuses a sink whose last record has no line terminator' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        $script:appender | Stop-Process -Force
+
+        $bytes = [System.IO.File]::ReadAllBytes($script:sinkPath)
+        [System.IO.File]::WriteAllBytes($script:sinkPath, $bytes[0..($bytes.Length - 2)])
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+        $validation.Output | Should -Match 'terminator|complete'
+    }
+
+    It 'refuses a sink that begins with a byte-order mark' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        $script:appender | Stop-Process -Force
+
+        $bytes = [System.IO.File]::ReadAllBytes($script:sinkPath)
+        [System.IO.File]::WriteAllBytes($script:sinkPath, ([byte[]]@(0xEF, 0xBB, 0xBF) + $bytes))
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+    }
+
+    It 'refuses two records that were swapped' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        foreach ($step in 1..3) {
+            (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
+        }
+        $script:appender | Stop-Process -Force
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($line[1], $line[0], $line[2])
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+    }
+
+    It 'refuses a record removed from the middle of the chain' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        foreach ($step in 1..3) {
+            (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
+        }
+        $script:appender | Stop-Process -Force
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($line[0], $line[2])
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
     }
 }

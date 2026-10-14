@@ -106,6 +106,7 @@ $ErrorActionPreference = 'Stop'
 
 $script:GenesisHash = '0' * 64
 $script:RequiredField = @('type', 'runId', 'utc', 'data')
+$script:StoredField = @('data', 'prevSha256', 'recordSha256', 'runId', 'sequence', 'type', 'utc')
 $script:Utf8 = [System.Text.UTF8Encoding]::new($false)
 $script:StrictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
 $script:DigestPattern = '^[0-9a-f]{64}$'
@@ -207,6 +208,13 @@ function Get-CanonicalMember {
     $member = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::Ordinal)
 
     foreach ($property in $Element.EnumerateObject()) {
+        if ($member.Contains($property.Name)) {
+            # System.Text.Json keeps both members of a duplicate key and every
+            # reader picks one of them, so the text a reader shows and the text
+            # a digest covers would differ. There is no safe resolution.
+            throw "duplicate key '$($property.Name)'"
+        }
+
         $member[$property.Name] = ConvertTo-CanonicalJson -Element $property.Value
     }
 
@@ -369,6 +377,10 @@ function Test-RecordSchema {
             return "unknown field '$($property.Name)'"
         }
 
+        if ($present.Contains($property.Name)) {
+            return "duplicate field '$($property.Name)'"
+        }
+
         $present[$property.Name] = $property.Value
     }
 
@@ -409,9 +421,13 @@ function Test-RecordSchema {
 
 function Read-StoredRecord {
     <#
-        Reads one stored line back into the fields the chain check needs. Values
-        are compared in their canonical literal form, which is injective, so no
-        step of the comparison has to re-parse or re-interpret the text.
+        Closes the stored line. The line must parse, carry exactly the seven
+        fields of the stored schema once each, and be byte-for-byte the
+        canonical serialization of what it parses to. Only then is its digest
+        recomputed over the stored bytes, minus the digest member, which cannot
+        cover itself. Anything a reader would see is therefore covered: no
+        extra field, no duplicate key, no reordering, and no spare whitespace
+        can carry text the chain does not hash.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -424,9 +440,9 @@ function Read-StoredRecord {
     $record = @{
         Error = ''
         Sequence = 0
-        PreviousLiteral = ''
-        DigestLiteral = ''
-        TypeLiteral = ''
+        PreviousHash = ''
+        RecordSha256 = ''
+        Type = ''
         ComputedDigest = ''
     }
 
@@ -438,45 +454,132 @@ function Read-StoredRecord {
     }
 
     try {
-        if ($document.RootElement.ValueKind -ne [System.Text.Json.JsonValueKind]::Object) {
+        $root = $document.RootElement
+
+        if ($root.ValueKind -ne [System.Text.Json.JsonValueKind]::Object) {
             $record.Error = 'is not a JSON object'
             return $record
         }
 
-        $member = Get-CanonicalMember -Element $document.RootElement
-    } catch {
-        $record.Error = "is not canonically representable: $($_.Exception.Message)"
-        return $record
+        try {
+            $member = Get-CanonicalMember -Element $root
+        } catch {
+            $record.Error = "is not canonically representable: $($_.Exception.Message)"
+            return $record
+        }
+
+        foreach ($name in @($member.Keys)) {
+            if ($name -cnotin $script:StoredField) {
+                $record.Error = "carries the unknown field '$name'"
+                return $record
+            }
+        }
+
+        foreach ($required in $script:StoredField) {
+            if (-not $member.Contains($required)) {
+                $record.Error = "is missing '$required'"
+                return $record
+            }
+        }
+
+        if ((Join-CanonicalMember -Member $member) -cne $Text) {
+            $record.Error = 'is not stored in canonical form'
+            return $record
+        }
+
+        if ([string]$member['sequence'] -cnotmatch $script:IntegerPattern) {
+            $record.Error = 'declares a sequence that is not a JSON integer'
+            return $record
+        }
+
+        foreach ($name in @('prevSha256', 'recordSha256')) {
+            $value = $root.GetProperty($name)
+
+            if ($value.ValueKind -ne [System.Text.Json.JsonValueKind]::String -or
+                $value.GetString() -cnotmatch $script:DigestPattern) {
+                $record.Error = "declares a $name that is not a lowercase 64-character hexadecimal digest"
+                return $record
+            }
+        }
+
+        $type = $root.GetProperty('type')
+        if ($type.ValueKind -ne [System.Text.Json.JsonValueKind]::String) {
+            $record.Error = 'declares a type that is not a string'
+            return $record
+        }
+
+        $preimageMember = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::Ordinal)
+        foreach ($key in @($member.Keys)) {
+            if ($key -cne 'recordSha256') {
+                $preimageMember[$key] = $member[$key]
+            }
+        }
+
+        $record.Sequence = [long]$member['sequence']
+        $record.PreviousHash = $root.GetProperty('prevSha256').GetString()
+        $record.RecordSha256 = $root.GetProperty('recordSha256').GetString()
+        $record.Type = $type.GetString()
+        $record.ComputedDigest = Get-Sha256Hex -Text (Join-CanonicalMember -Member $preimageMember)
     } finally {
         $document.Dispose()
     }
 
-    foreach ($required in @('sequence', 'prevSha256', 'recordSha256', 'type', 'runId', 'utc', 'data')) {
-        if (-not $member.Contains($required)) {
-            $record.Error = "is missing '$required'"
-            return $record
-        }
-    }
-
-    if ([string]$member['sequence'] -cnotmatch $script:IntegerPattern) {
-        $record.Error = 'declares a sequence that is not a JSON integer'
-        return $record
-    }
-
-    $preimageMember = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::Ordinal)
-    foreach ($key in $member.Keys) {
-        if ($key -cne 'recordSha256') {
-            $preimageMember[$key] = $member[$key]
-        }
-    }
-
-    $record.Sequence = [long]$member['sequence']
-    $record.PreviousLiteral = [string]$member['prevSha256']
-    $record.DigestLiteral = [string]$member['recordSha256']
-    $record.TypeLiteral = [string]$member['type']
-    $record.ComputedDigest = Get-Sha256Hex -Text (Join-CanonicalMember -Member $preimageMember)
-
     return $record
+}
+
+function Read-SinkLine {
+    <#
+        Reads the sink as bytes rather than as text lines. A trailing record
+        without its terminator is a half-written append, not a record; a blank
+        line, a CR, or a byte-order mark is text nobody hashed. Each is refused
+        instead of skipped, because skipping is what lets a writer park content
+        between the records.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    $result = @{ Error = ''; Line = [string[]]@() }
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+
+    if ($bytes.Length -eq 0) {
+        return $result
+    }
+
+    if ($bytes[0] -eq 0xEF -and $bytes.Length -ge 3 -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        $result.Error = 'the ledger sink starts with a byte-order mark'
+        return $result
+    }
+
+    if ($bytes[$bytes.Length - 1] -ne 0x0A) {
+        $result.Error = 'the ledger sink does not end with a complete, terminated record'
+        return $result
+    }
+
+    try {
+        $text = $script:StrictUtf8.GetString($bytes)
+    } catch {
+        $result.Error = 'the ledger sink is not valid UTF-8'
+        return $result
+    }
+
+    $segment = $text.Split("`n")
+    $line = [System.Collections.Generic.List[string]]::new()
+
+    for ($index = 0; $index -lt $segment.Length - 1; $index++) {
+        if ($segment[$index].Length -eq 0) {
+            $result.Error = "the ledger sink holds an empty line at position $($index + 1)"
+            return $result
+        }
+
+        $line.Add($segment[$index])
+    }
+
+    $result.Line = $line.ToArray()
+    return $result
 }
 
 function Read-ChainState {
@@ -511,13 +614,17 @@ function Read-ChainState {
         return $state
     }
 
-    $line = @([System.IO.File]::ReadAllLines($Path, $script:Utf8) | Where-Object { $_.Length -gt 0 })
+    $sink = Read-SinkLine -Path $Path
+    if ($sink.Error) {
+        $state.Error = $sink.Error
+        return $state
+    }
 
     $expectedPrevious = $script:GenesisHash
     $priorHash = $script:GenesisHash
     $sequence = 0
 
-    foreach ($text in $line) {
+    foreach ($text in $sink.Line) {
         $sequence++
         $record = Read-StoredRecord -Text $text
 
@@ -536,22 +643,22 @@ function Read-ChainState {
             return $state
         }
 
-        if ($record.PreviousLiteral -cne (ConvertTo-JsonStringLiteral -Value $expectedPrevious)) {
+        if ($record.PreviousHash -cne $expectedPrevious) {
             $state.Error = "record at sequence $sequence does not chain to its predecessor"
             return $state
         }
 
-        if ($record.DigestLiteral -cne (ConvertTo-JsonStringLiteral -Value $record.ComputedDigest)) {
+        if ($record.RecordSha256 -cne $record.ComputedDigest) {
             $state.Error = "record at sequence $sequence fails its own digest"
             return $state
         }
 
-        if ($record.TypeLiteral -ceq (ConvertTo-JsonStringLiteral -Value 'Seal')) {
+        if ($record.Type -ceq 'Seal') {
             $state.Sealed = $true
         }
 
         $priorHash = $expectedPrevious
-        $expectedPrevious = $record.ComputedDigest
+        $expectedPrevious = $record.RecordSha256
     }
 
     $state.Sequence = $sequence
