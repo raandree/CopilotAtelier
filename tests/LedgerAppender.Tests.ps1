@@ -155,11 +155,31 @@ exit `$LASTEXITCODE
         )
     }
 
+    function script:ConvertTo-ProcessArgument {
+        <#
+            Quotes one argument the way CommandLineToArgvW reads it back:
+            Start-Process joins an array with spaces and escapes nothing, so a
+            record's double quotes would reach the child as word boundaries.
+            Backslashes only matter in front of a quote or at the end.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [AllowEmptyString()]
+            [string]$Value
+        )
+
+        $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
+        $escaped = [regex]::Replace($escaped, '(\\+)$', '$1$1')
+
+        return '"' + $escaped + '"'
+    }
+
     function script:Invoke-AppenderSplit {
         <#
             Keeps standard output and standard error apart, because the
             -Validate contract is about what reaches standard output: on a
-            refusal it must stay empty.
+            refusal it must stay empty, and a refusal is one line. The streams
+            go to files, so nothing wraps them to a console width.
         #>
         param(
             [Parameter(Mandatory)]
@@ -169,9 +189,13 @@ exit `$LASTEXITCODE
         $outPath = Join-Path $TestDrive "out-$([guid]::NewGuid().ToString('N')).txt"
         $errPath = Join-Path $TestDrive "err-$([guid]::NewGuid().ToString('N')).txt"
 
+        $commandLine = (
+            @('-NoProfile', '-NonInteractive', '-File', $script:appenderScript) + $Argument |
+                ForEach-Object { ConvertTo-ProcessArgument -Value $_ }
+        ) -join ' '
+
         $process = Start-Process -FilePath $script:powerShellPath -PassThru -Wait -WindowStyle Hidden `
-            -RedirectStandardOutput $outPath -RedirectStandardError $errPath -ArgumentList (
-            @('-NoProfile', '-NonInteractive', '-File', $script:appenderScript) + $Argument)
+            -RedirectStandardOutput $outPath -RedirectStandardError $errPath -ArgumentList $commandLine
 
         $standardOutput = ''
         if (Test-Path -LiteralPath $outPath -PathType Leaf) {
@@ -183,10 +207,19 @@ exit `$LASTEXITCODE
             $standardError = [System.IO.File]::ReadAllText($errPath)
         }
 
+        # The raw bytes as well: a redirected console encodes with the OEM code
+        # page, so a character that survived sanitising can still vanish from
+        # the decoded text while leaving a non-ASCII byte behind.
+        $standardErrorByte = [byte[]]@()
+        if (Test-Path -LiteralPath $errPath -PathType Leaf) {
+            $standardErrorByte = [System.IO.File]::ReadAllBytes($errPath)
+        }
+
         [pscustomobject]@{
             ExitCode = $process.ExitCode
             StandardOutput = $standardOutput
             StandardError = $standardError
+            StandardErrorByte = $standardErrorByte
         }
     }
 
@@ -492,7 +525,9 @@ exit `$LASTEXITCODE
         <#
             A squatter on the appender's pipe name, running as the test identity.
             It captures whatever a client sends and answers with a well-formed
-            acknowledgement it made up.
+            acknowledgement it made up. -ResponseBase64 lets a case choose the
+            exact answer line; it travels encoded so that a response holding
+            control characters survives the command line unchanged.
         #>
         param(
             [Parameter(Mandatory)]
@@ -502,12 +537,15 @@ exit `$LASTEXITCODE
             [string]$CapturePath,
 
             [Parameter()]
-            [switch]$GrantEveryone
+            [switch]$GrantEveryone,
+
+            [Parameter()]
+            [string]$ResponseBase64 = ''
         )
 
         $scriptPath = Join-Path $TestDrive "hostile-$([guid]::NewGuid().ToString('N')).ps1"
         @'
-param([string]$PipeName, [string]$CapturePath, [string]$GrantEveryone)
+param([string]$PipeName, [string]$CapturePath, [string]$GrantEveryone, [string]$ResponseBase64)
 
 $security = [System.IO.Pipes.PipeSecurity]::new()
 $me = [System.Security.Principal.WindowsIdentity]::GetCurrent()
@@ -527,6 +565,12 @@ $server = [System.IO.Pipes.NamedPipeServerStreamAcl]::Create($PipeName,
     [System.IO.Pipes.PipeOptions]::Asynchronous, 0, 0, $security)
 
 $utf8 = [System.Text.UTF8Encoding]::new($false)
+$response = '{"status":"Ok","message":"","sequence":1,"recordSha256":"' + ('f' * 64) + '"}'
+
+if (-not [string]::IsNullOrEmpty($ResponseBase64)) {
+    $response = $utf8.GetString([System.Convert]::FromBase64String($ResponseBase64))
+}
+
 try {
     if (-not $server.WaitForConnectionAsync().Wait(30000)) { return }
 
@@ -537,17 +581,26 @@ try {
     $request = $reader.ReadLine()
     [System.IO.File]::WriteAllText($CapturePath, [string]$request)
 
-    $writer.WriteLine('{"status":"Ok","message":"","sequence":1,"recordSha256":"' + ('f' * 64) + '"}')
+    $writer.WriteLine($response)
     $server.WaitForPipeDrain()
 } finally {
     $server.Dispose()
 }
 '@ | Set-Content -LiteralPath $scriptPath -Encoding UTF8
 
-        $process = Start-Process -FilePath $script:powerShellPath -PassThru -WindowStyle Hidden -ArgumentList @(
+        $argument = @(
             '-NoProfile', '-NonInteractive', '-File', $scriptPath, '-PipeName', $PipeName,
             '-CapturePath', $CapturePath, '-GrantEveryone', $(if ($GrantEveryone) { 'yes' } else { 'no' })
         )
+
+        # An empty element would reach the child as a switch without a value and
+        # the squatter would never start, so the response is only named when
+        # there is one.
+        if (-not [string]::IsNullOrEmpty($ResponseBase64)) {
+            $argument += @('-ResponseBase64', $ResponseBase64)
+        }
+
+        $process = Start-Process -FilePath $script:powerShellPath -PassThru -WindowStyle Hidden -ArgumentList $argument
 
         $deadline = (Get-Date).AddSeconds(20)
         while ((Get-Date) -lt $deadline) {
@@ -559,6 +612,18 @@ try {
         }
 
         throw "Hostile server did not take $PipeName."
+    }
+
+    function script:ConvertTo-HostileResponse {
+        <#
+            Encodes one response line for Start-HostileServer.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string]$Response
+        )
+
+        return [System.Convert]::ToBase64String([System.Text.UTF8Encoding]::new($false).GetBytes($Response))
     }
 
     function script:Get-SinkRecord {
@@ -1386,6 +1451,31 @@ Describe 'Ledger appender channel' -Tag 'Unit' {
         $result.Output | Should -Match 'acknowledg'
     }
 
+    It 'refuses an acknowledgement that replays a record the client did not send' -Skip:(-not $script:onWindows) {
+        # One real record first, so the ledger holds something to point at.
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+        $script:appender = $null
+
+        $stored = Get-SinkRecord -SinkPath $script:sinkPath
+        $stored.Count | Should -Be 1
+
+        # The squatter answers a new record with the sequence and the digest of
+        # the record that is already there: every field of the answer is true of
+        # the ledger, and nothing of what the client sent was stored.
+        $replay = '{"status":"Ok","message":"","sequence":1,"recordSha256":"' + $stored[0].recordSha256 + '"}'
+        $script:hostile = Start-HostileServer -PipeName $script:pipeName -CapturePath $script:capturePath `
+            -ResponseBase64 (ConvertTo-HostileResponse -Response $replay)
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Second')
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'does not hold the record that was sent'
+
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count |
+            Should -Be 1 -Because 'the record the client sent was never stored'
+    }
+
     It 'refuses a pipe that is open to another identity' -Skip:(-not $script:onWindows) {
         $script:hostile = Start-HostileServer -PipeName $script:pipeName -CapturePath $script:capturePath -GrantEveryone
 
@@ -1730,5 +1820,287 @@ Describe 'Ledger appender seal' -Tag 'Unit' {
 
         $later = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')
         $later.ExitCode | Should -Be 0 -Because 'an oversized request must not take the service down'
+    }
+}
+
+Describe 'Ledger appender ordinal grammar' -Tag 'Unit' {
+    BeforeDiscovery {
+        # PowerShell's -ceq and -cin are case-sensitive but culture-ordered, so a
+        # character the collation ignores compares equal to nothing at all. The
+        # invisible characters are built from code points: a literal one in the
+        # file would be unreadable and would not survive a copy.
+        $script:unrealInstant = @(
+            @{ Name = 'a day and a time that do not exist'; Utc = '2026-99-99T99:99:99Z' }
+            @{ Name = 'the thirtieth of February'; Utc = '2026-02-30T00:00:00Z' }
+            @{ Name = 'a thirteenth month'; Utc = '2026-13-01T00:00:00Z' }
+            @{ Name = 'the twenty-fourth hour'; Utc = '2026-09-02T24:00:00Z' }
+            @{ Name = 'a leap second'; Utc = '2026-06-30T23:59:60Z' }
+        )
+
+        $script:realInstant = @(
+            @{ Name = 'without fractional seconds'; Utc = '2026-09-02T22:00:00Z' }
+            @{ Name = 'with one fractional digit'; Utc = '2026-09-02T22:00:00.5Z' }
+            @{ Name = 'with seven fractional digits'; Utc = '2026-09-02T22:00:00.1234567Z' }
+            @{ Name = 'with nine fractional digits'; Utc = '2026-09-02T22:00:00.123456789Z' }
+            @{ Name = 'on a leap day'; Utc = '2024-02-29T00:00:00Z' }
+        )
+    }
+
+    BeforeEach {
+        $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
+        $script:sinkPath = Join-Path $TestDrive "ledger-$([guid]::NewGuid().ToString('N')).jsonl"
+        $script:headPath = Join-Path $TestDrive "head-$([guid]::NewGuid().ToString('N')).json"
+        $script:profilePath = Join-Path $TestDrive "profile-$([guid]::NewGuid().ToString('N')).json"
+        $script:appender = $null
+        $script:zeroWidthSpace = [string][char]0x200B
+    }
+
+    AfterEach {
+        Stop-TestAppender -Process $script:appender
+    }
+
+    It 'refuses a record whose extra field name only a culture folds into type' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $confusable = 'ty' + $script:zeroWidthSpace + 'pe'
+        $record = '{"type":"Note","' + $confusable + '":"Seal","runId":"run-0001","utc":"2026-09-02T22:00:00Z","data":{}}'
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'unknown field'
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0 -Because 'a smuggled field must never be stored'
+    }
+
+    It 'refuses an operation whose name only a culture folds into Seal' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $confusable = 'Seal' + $script:zeroWidthSpace
+        $record = '{"type":"' + $confusable + '","runId":"run-0001","utc":"2026-09-02T22:00:00Z","data":{}}'
+        $payload = '{"operation":"' + $confusable + '","record":' + $record + '}'
+
+        $response = Invoke-RawRequest -PipeName $script:pipeName -Payload $payload
+        $response | Should -Match '"status":"Error"'
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'refuses an envelope whose extra key only a culture folds into operation' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $confusable = 'oper' + $script:zeroWidthSpace + 'ation'
+        $payload = '{"operation":"Append","' + $confusable + '":"Seal","record":' +
+            (New-TestRecordJson -Type 'Baseline') + '}'
+
+        $response = Invoke-RawRequest -PipeName $script:pipeName -Payload $payload
+        $response | Should -Match '"status":"Error"'
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'refuses a stored line whose extra field name only a culture folds into type' -Skip:(-not $script:onWindows) {
+        # The canonical form escapes the zero-width space, so the planted key has
+        # to be written escaped for the line to be canonical at all; that is what
+        # makes this line pass every check but the closed schema.
+        $forged = New-ForgedLine -Member @(
+            '"data":{}'
+            '"prevSha256":"' + ('0' * 64) + '"'
+            '"runId":"run-0001"'
+            '"sequence":1'
+            '"type":"Note"'
+            '"ty\u200Bpe":"Seal"'
+            '"utc":"2026-09-02T22:00:00Z"'
+        )
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($forged.Line)
+        Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 $forged.Digest
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+        $validation.Output | Should -Match 'unknown field'
+    }
+
+    It 'refuses a utc that is <Name>' -ForEach $script:unrealInstant -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $record = '{"type":"Baseline","runId":"run-0001","utc":"' + $Utc + '","data":{}}'
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'refuses a utc with a trailing line feed' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        # The line feed is escaped in the JSON, so it reaches the field value as
+        # one character; an anchor of $ matches in front of it.
+        $record = '{"type":"Baseline","runId":"run-0001","utc":"2026-10-14T16:00:00Z\n","data":{}}'
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'refuses a utc with a leading space' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $record = '{"type":"Baseline","runId":"run-0001","utc":" 2026-10-14T16:00:00Z","data":{}}'
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'stores a utc <Name> exactly as it was given' -ForEach $script:realInstant -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $record = '{"type":"Baseline","runId":"run-0001","utc":"' + $Utc + '","data":{}}'
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        $line[0] | Should -BeLike ('*"utc":"' + $Utc + '"*') -Because 'a validated instant is never rewritten'
+    }
+
+    It 'refuses a profile digest with a trailing line feed' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+
+        $digest = New-TestProfile -ProfilePath $script:profilePath -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $result = Invoke-AppenderSplit -Argument @(
+            '-Validate', '-ProfilePath', $script:profilePath, '-ProfileSha256', ($digest + [string][char]0x000A))
+
+        $result.ExitCode | Should -Be 2
+        $result.StandardOutput.Trim() | Should -BeExactly ''
+        $result.StandardError | Should -Match 'hexadecimal' -Because 'a digest that is not 64 hexadecimal characters is a format refusal, not a mismatch'
+    }
+}
+
+Describe 'Ledger appender refusal text' -Tag 'Unit' {
+    BeforeDiscovery {
+        # S-15: every one of these survives a Control/Format/Separator/
+        # PrivateUse/Surrogate/OtherNotAssigned filter and can still carry data
+        # as invisibly as the tag block, which is why the rule is an allow-list.
+        $script:invisibleRune = @(
+            @{ Name = 'a variation selector'; CodePoint = 0xFE0F }
+            @{ Name = 'a variation selector supplement'; CodePoint = 0xE0100 }
+            @{ Name = 'a Hangul filler'; CodePoint = 0x3164 }
+            @{ Name = 'a halfwidth Hangul filler'; CodePoint = 0xFFA0 }
+            @{ Name = 'the Braille blank'; CodePoint = 0x2800 }
+            @{ Name = 'an ideographic space'; CodePoint = 0x3000 }
+            @{ Name = 'an em space'; CodePoint = 0x2003 }
+            @{ Name = 'a no-break space'; CodePoint = 0x00A0 }
+            @{ Name = 'a Unicode tag character'; CodePoint = 0xE0041 }
+            @{ Name = 'a right-to-left override'; CodePoint = 0x202E }
+        )
+    }
+
+    Context 'when a hostile server supplies the text' {
+        BeforeEach {
+            $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
+            $script:sinkPath = Join-Path $TestDrive "ledger-$([guid]::NewGuid().ToString('N')).jsonl"
+            $script:headPath = Join-Path $TestDrive "head-$([guid]::NewGuid().ToString('N')).json"
+            $script:capturePath = Join-Path $TestDrive "capture-$([guid]::NewGuid().ToString('N')).txt"
+            $script:hostile = $null
+        }
+
+        AfterEach {
+            Stop-TestAppender -Process $script:hostile
+        }
+
+        It 'leaves one line on standard error with every character outside printable ASCII replaced' -Skip:(-not $script:onWindows) {
+            # The controller is a model reading this line, and the speaker is the
+            # squatter the pipe design exists for. A carriage return forges a
+            # second line and an escape drives a terminal; a right-to-left
+            # override, a tag character, a variation selector, a Hangul filler,
+            # the Braille blank and a no-break space all carry data invisibly.
+            $hostileMessage = 'alpha' + [string][char]0x000D + [string][char]0x000A +
+                'beta' + [string][char]0x001B + '[31mred' + [char]::ConvertFromUtf32(0x202E) +
+                'reversed' + [char]::ConvertFromUtf32(0xE0041) + [char]::ConvertFromUtf32(0xFE0F) +
+                [char]::ConvertFromUtf32(0x3164) + [char]::ConvertFromUtf32(0x2800) +
+                [char]::ConvertFromUtf32(0x00A0) + 'tagged'
+
+            $response = [ordered]@{
+                status = 'Error'
+                message = $hostileMessage
+                sequence = 0
+                recordSha256 = ''
+            } | ConvertTo-Json -Compress
+
+            $script:hostile = Start-HostileServer -PipeName $script:pipeName -CapturePath $script:capturePath `
+                -ResponseBase64 (ConvertTo-HostileResponse -Response $response)
+
+            $result = Invoke-AppenderSplit -Argument @(
+                '-Append', '-PipeName', $script:pipeName, '-RecordJson', (New-TestRecordJson -Type 'Baseline'),
+                '-SinkPath', $script:sinkPath, '-ChainHeadPath', $script:headPath)
+
+            $result.ExitCode | Should -Be 2
+            $standardError = $result.StandardError
+
+            @($standardError -split "`r?`n" | Where-Object { $_.Length -gt 0 }).Count |
+                Should -Be 1 -Because 'a refusal is one line, whoever wrote the text'
+
+            $standardError | Should -Match 'alpha'
+            $standardError | Should -Match 'tagged'
+            $standardError | Should -Match '\?'
+
+            # The bytes, not the decoded text: a redirected console encodes with
+            # the OEM code page, which maps some of these runes to a question
+            # mark of its own and others to a byte that is not ASCII at all. Only
+            # the bytes show whether the appender sanitised the line.
+            $body = @($result.StandardErrorByte | Where-Object { $_ -ne 0x0D -and $_ -ne 0x0A })
+            @($body | Where-Object { $_ -lt 0x20 -or $_ -gt 0x7E }).Count |
+                Should -Be 0 -Because 'every byte of a refusal is printable ASCII'
+
+            foreach ($codePoint in @(0x001B, 0x202E, 0xE0041, 0xFE0F, 0x3164, 0x2800, 0x00A0)) {
+                $standardError.Contains([char]::ConvertFromUtf32($codePoint)) |
+                    Should -BeFalse -Because ('U+{0:X4} must not reach the reader' -f $codePoint)
+            }
+        }
+    }
+
+    Context 'as a function' {
+        BeforeAll {
+            . (Join-Path $script:repoRoot 'tests/Helpers/ScriptFunction.ps1')
+            . (Get-ScriptFunctionDefinition -Path $script:appenderScript -Name @(
+                    'Write-Refusal'
+                    'Format-RefusalText'
+                ))
+        }
+
+        It 'keeps printable ASCII unchanged' {
+            $text = -join (0x20..0x7E | ForEach-Object { [char]$_ })
+            Format-RefusalText -Text $text | Should -BeExactly $text
+        }
+
+        It 'replaces <Name> with one question mark' -ForEach $script:invisibleRune {
+            Format-RefusalText -Text ('a' + [char]::ConvertFromUtf32($CodePoint) + 'b') |
+                Should -BeExactly 'a?b'
+        }
+
+        It 'replaces a carriage return, a line feed and an escape with one question mark each' {
+            Format-RefusalText -Text ('a' + [string][char]0x000D + [string][char]0x000A + [string][char]0x001B + 'b') |
+                Should -BeExactly 'a???b'
+        }
+
+        It 'cuts a long message at two hundred characters and marks the cut' {
+            $long = 'x' * 500
+            $formatted = Format-RefusalText -Text $long
+
+            $formatted.Length | Should -Be 203
+            $formatted | Should -BeExactly (('x' * 200) + '...')
+        }
+
+        It 'replaces an accented letter and an emoji, which are readable but not ASCII' {
+            $text = 'na' + [char]::ConvertFromUtf32(0x00EF) + 've ' + [char]::ConvertFromUtf32(0x2615)
+            Format-RefusalText -Text $text | Should -BeExactly 'na?ve ?'
+        }
+
+        It 'replaces an astral character with a single question mark, not one per surrogate' {
+            Format-RefusalText -Text ('x' + [char]::ConvertFromUtf32(0x1F600) + 'y') |
+                Should -BeExactly 'x?y'
+        }
+
+        It 'returns an empty string for an empty message' {
+            Format-RefusalText -Text '' | Should -BeExactly ''
+        }
     }
 }
