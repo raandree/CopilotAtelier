@@ -209,11 +209,23 @@ $grantableOperation = @(
 # nothing, so a grant could name an operation that no command ever matches (review F4).
 $grantableOperationSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$grantableOperation, [System.StringComparer]::Ordinal)
 
-# A push the plain git push phrase does not cover: force, delete, mirror, and prune options, all and tags
+# A push the plain git push phrase does not cover: force, delete, mirror, and prune options, all, branches, and tags
 # (every branch or every tag), short option clusters that hold f or d, and +ref or :ref refspecs. The text
-# after the push word, up to the end of its statement, is read.
+# after the push word, up to the end of its statement, is read. git reads any unambiguous prefix of a long option
+# (--del is --delete, and --branches is another name for --all), and it reads a name or an option the same when it
+# is quoted or in parentheses, so both are read here. A prefix that two options share, which git rejects, is read
+# as the stronger option as well: that only asks for the stronger marker (review of 2026-10-13, fifth pass, F4 and F5).
+$forceLongOption = @('force', 'force-with-lease', 'force-if-includes', 'delete', 'mirror', 'prune', 'all', 'branches', 'tags')
+$forceLongPrefix = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($forceLongName in $forceLongOption) {
+    foreach ($forcePrefixLength in 1..$forceLongName.Length) {
+        $null = $forceLongPrefix.Add($forceLongName.Substring(0, $forcePrefixLength))
+    }
+}
+
+$forceLongPattern = (@($forceLongPrefix | Sort-Object -Property Length -Descending | ForEach-Object -Process { [regex]::Escape($_) }) -join '|')
 $forcePushOption = [regex]::new(
-    '(?:^|\s)(?:--(?:force(?:-with-lease|-if-includes)?|delete|mirror|prune|all|tags)(?:=\S*)?|-[a-z]*[fd][a-z]*|(?:\+:?|:)[^\s:]\S*)(?=\s|$)',
+    ('(?:^|\s)["''(]*(?:--(?:' + $forceLongPattern + ')(?:=\S*)?|-[a-z]*[fd][a-z]*|(?:\+:?|:)[^\s:]\S*)(?=["'')]*(?:\s|$))'),
     [System.Text.RegularExpressions.RegexOptions]::IgnoreCase,
     [TimeSpan]::FromSeconds(1)
 )
@@ -223,12 +235,13 @@ $statementEnd = [regex]::new('\r?\n|;|&&|\|\||\|', [System.Text.RegularExpressio
 # they run, so a command that repeats asks for every use a marker can grant (review F3 and G2). The shapes
 # are narrow on purpose, a loop head followed by its block, a function or a class with a body, a pipeline into
 # ForEach-Object, the ForEach and Where methods, cmd's for /l, shell while and until loops, retry and watch
-# wrappers, schedulers and event registration, so that prose does not match. It runs on the command text
+# wrappers (also behind a launcher such as npx or sudo; the watchers nodemon and watchexec by name), schedulers
+# and event registration, so that prose does not match. It runs on the command text
 # without the text of its string literals, which is not code (review G3). Code that a parsed text stores in
 # a script block or runs from a variable is found in the syntax tree instead (Test-StoredCode), which sees
 # the forms no list can name.
 $repetitionSyntax = [regex]::new(
-    '(?:\b(?:foreach|for|while|until)\s*\((?:[^()\r\n]|\([^()\r\n]*\))*\)\s*\{|\bswitch\s+(?:-\w+\s+)*\(|\bdo\s*\{|\bforeach-object\b|\|\s*(?:%|\?)\s*\{|\|\s*(?:foreach|where)(?:-object)?\b|(?:\.|::)\s*(?:foreach|where)\s*\(|\.\s*invoke\w*\s*\(|\s-parallel\b|\bfor\s+%*\w+\s+in\b(?:[^\r\n]*?\bdo\b|[^\r\n]*\r?\n\s*do\b)|\bfor\s+/[a-z]\b|\bxargs\b|\s-exec(?:dir)?\s|\b(?:function|filter|workflow|configuration)\s+[\w:.-]+\s*(?:\([^)\r\n]*\))?\s*\{|(?:^|[;|&{(]\s*|\n\s*)&\s*[\$(]|\bclass\s+[\w.-]+\s*(?::\s*[\w.,\[\] ]+)?\{|\bfor\s*\(\(|(?:^|[;|&({''"]\s*|\n\s*|\b(?:then|do|else|elif)\s+)(?:(?:while|until)\s|(?:(?:watch|retry|repeat|parallel)\w*|nodemon|entr|fswatch|inotifywait)\b)|\b(?:schtasks|crontab|register-(?:scheduledtask|scheduledjob|objectevent|engineevent|cimindicationevent|wmievent)|new-scheduledtask\w*)\b)',
+    '(?:\b(?:foreach|for|while|until)\s*\((?:[^()\r\n]|\([^()\r\n]*\))*\)\s*\{|\bswitch\s+(?:-\w+\s+)*\(|\bdo\s*\{|\bforeach-object\b|\|\s*(?:%|\?)\s*\{|\|\s*(?:foreach|where)(?:-object)?\b|(?:\.|::)\s*(?:foreach|where)\s*\(|\.\s*invoke\w*\s*\(|\s-parallel\b|\bfor\s+%*\w+\s+in\b(?:[^\r\n]*?\bdo\b|[^\r\n]*\r?\n\s*do\b)|\bfor\s+/[a-z]\b|\bxargs\b|\s-exec(?:dir)?\s|\b(?:function|filter|workflow|configuration)\s+[\w:.-]+\s*(?:\([^)\r\n]*\))?\s*\{|(?:^|[;|&{(]\s*|\n\s*)&\s*[\$(]|\bclass\s+[\w.-]+\s*(?::\s*[\w.,\[\] ]+)?\{|\bfor\s*\(\(|(?:^|[;|&({''"]\s*|\n\s*|\b(?:then|do|else|elif)\s+|\b(?:npx|sudo|doas|nohup|exec|time|command|env|setsid|timeout|stdbuf|nice|ionice|winpty)\s+(?:(?!(?:git|gh)\b)\S+\s+){0,3}?)(?:(?:while|until)\s|(?:[\w.~:-]*[\\/])*(?:watch|retry|repeat|parallel)\w*\b)|(?<![\w.-])(?:nodemon|watchexec|entr|fswatch|inotifywait)(?:\.(?:exe|cmd|bat))?(?=[\s"''`);|&,}]|$)|\b(?:schtasks|crontab|register-[\w-]*(?:scheduledtask|scheduledjob|objectevent|engineevent|cimindicationevent|wmievent|pssessionconfiguration)|new-scheduledtask\w*)\b)',
     [System.Text.RegularExpressions.RegexOptions]::IgnoreCase,
     [TimeSpan]::FromSeconds(1)
 )
@@ -353,13 +366,26 @@ $providerPath = [regex]::new('^\s*(?:[\w.\\-]+::|[A-Za-z][\w.-]+:)', [System.Tex
 # A path inside, or the name of, a file that something runs by itself, so that what is written there is code and not
 # data: a folder that git or a hook runner executes (.git\hooks\post-commit runs on the next commit), ssh's own
 # folder, a PowerShell profile, a shell start-up file, a direnv file, the global git configuration, a file in a
-# Startup folder, and VS Code's task file. A profile or a start-up file runs in the agent's own next terminal with
-# no commit needed (review of 2026-10-13, fourth pass, I1).
+# Startup folder, everything in VS Code's folder (its settings start a shell with arguments in every terminal, its
+# launch and task files start programs, mcp.json starts servers), and a workspace file, which carries the same
+# settings and tasks. A profile or a start-up file runs in the agent's own next terminal with no commit needed. A
+# folder counts as well as a file in it, because -Path and -Name together form the path and neither half matches
+# alone (reviews of 2026-10-13: fourth pass I1, fifth pass F3, F9, and F10, sixth pass N2).
 $selfExecutingPath = [regex]::new(
-    '(?:^|[\\/])\.(?:git|githooks|husky|ssh)(?:[\\/]|$)|(?:^|[\\/])\.(?:bashrc|bash_profile|bash_login|bash_logout|zshrc|zshenv|zprofile|zlogin|profile|envrc|gitconfig)$|profile\.ps1$|(?:^|[\\/])config\.fish$|[\\/]Startup[\\/]|(?:^|[\\/])\.vscode[\\/]tasks\.json$',
+    '(?:^|[\\/])\.(?:git|githooks|husky|ssh|vscode)(?:[\\/]|$)|(?:^|[\\/])\.(?:bashrc|bash_profile|bash_login|bash_logout|bash_aliases|zshrc|zshenv|zprofile|zlogin|zlogout|profile|envrc|gitconfig)$|profile\.ps1$|(?:^|[\\/])config\.fish$|(?:^|[\\/])conf\.d[\\/][^\\/]+\.fish$|(?:^|[\\/])fish[\\/]conf\.d(?:[\\/]|$)|(?:^|[\\/])Startup(?:[\\/]|$)|\.code-workspace$',
     [System.Text.RegularExpressions.RegexOptions]::IgnoreCase,
     [TimeSpan]::FromSeconds(1)
 )
+
+# A name that stands for more than one file, or for a file under another name: a wildcard, and a Windows short name
+# such as PROGRA~1. A path that holds one is not a path the text spells out, so it is not a safe one (review of
+# 2026-10-13, fifth pass, F2).
+$unreadablePathName = [regex]::new('[*?\[]|~\d', [System.Text.RegularExpressions.RegexOptions]::None, [TimeSpan]::FromSeconds(1))
+
+# A value that is one single-quoted string, a doubled quote inside it included. PowerShell and every POSIX shell read
+# it as data, so a backtick inside it, such as a markdown code span in a commit message, is not a command
+# substitution (review of 2026-10-13, seventh pass, R1).
+$singleQuotedValue = [regex]::new("^'(?:[^']|'')*'\z", [System.Text.RegularExpressions.RegexOptions]::None, [TimeSpan]::FromSeconds(1))
 
 # Commands that move the current location, after which a relative path may name another drive. Pop-Location
 # returns to a place that an earlier Push-Location chose, perhaps in an earlier call, so a pop without a push in
@@ -367,6 +393,15 @@ $selfExecutingPath = [regex]::new(
 $locationCommand = @('set-location', 'sl', 'cd', 'chdir', 'push-location', 'pushd')
 $locationPushCommand = @('push-location', 'pushd')
 $locationPopCommand = @('pop-location', 'popd')
+
+# A command that repeats what follows it: the repeat and watch wrappers and the watchers, which the text pattern
+# finds as bare words and the syntax tree finds by the name of a command that is quoted, called with the call
+# operator, or given by its path (review of 2026-10-13, sixth pass, N4).
+$repeaterCommand = [regex]::new(
+    '^(?:(?:watch|retry|repeat|parallel)\w*|nodemon|watchexec|entr|fswatch|inotifywait|xargs)$',
+    [System.Text.RegularExpressions.RegexOptions]::IgnoreCase,
+    [TimeSpan]::FromSeconds(1)
+)
 
 # Parameters that store a command's output in a variable named by their argument: -OutVariable and the like
 # replace the value of a variable that the text assigned a literal, so the literal says nothing about it.
@@ -876,6 +911,39 @@ function Get-WriteTarget {
     return , $target.ToArray()
 }
 
+function ConvertTo-ComparablePath {
+    <#
+        The path as the file system names the file, so that a rule that lists a file also sees its other
+        spellings: Windows drops the dots and spaces that end a name, and file::$DATA and file:stream are
+        the file itself. A drive qualifier is removed first, because it is not a stream: C:.git\hooks names
+        .git\hooks on the current directory of drive C (reviews of 2026-10-13, fifth pass F2, sixth pass N1).
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Path
+    )
+
+    $Path = $Path -replace '^\s*[A-Za-z]:', ''
+    $name = foreach ($segment in ($Path -split '[\\/]')) {
+        if ($segment -ceq '.' -or $segment -ceq '..') {
+            $segment
+            continue
+        }
+
+        $colon = $segment.IndexOf(':')
+        if ($colon -ge 0) {
+            $segment = $segment.Substring(0, $colon)
+        }
+
+        $segment.TrimEnd('.', ' ')
+    }
+
+    return (@($name) -join '/')
+}
+
 function Test-SafePath {
     <#
         True when an expression is certainly a path in the file system and not a drive or
@@ -908,6 +976,12 @@ function Test-SafePath {
     if ($null -ne $literal) {
         foreach ($path in $literal) {
             if ([string]::IsNullOrWhiteSpace($path) -or $script:providerPath.IsMatch($path) -or $script:selfExecutingPath.IsMatch($path)) {
+                return $false
+            }
+
+            # A wildcard or a short name stands for files the text does not name, and the rules list a file by the
+            # name the file system resolves a spelling to.
+            if ($script:unreadablePathName.IsMatch($path) -or $script:selfExecutingPath.IsMatch((ConvertTo-ComparablePath -Path $path))) {
                 return $false
             }
         }
@@ -1289,7 +1363,11 @@ function Test-InertSink {
 function Test-InertFileWriter {
     <#
         True when a node is an argument of [System.IO.File]::WriteAllText and the other
-        static writers of text: the text goes to a file, not to a command.
+        static writers of text: the text goes to a file, not to a command. The first
+        argument is the file, and it must be a path that is safe to write data to
+        (Test-SafePath): what goes into a file that runs by itself is code, and a path
+        that the text does not spell out is no safer (review of 2026-10-13, fifth
+        pass, F1).
     #>
     [CmdletBinding()]
     [OutputType([bool])]
@@ -1298,7 +1376,10 @@ function Test-InertFileWriter {
         [InvokeMemberExpressionAst]$Member,
 
         [Parameter(Mandatory)]
-        [Ast]$Node
+        [Ast]$Node,
+
+        [Parameter(Mandatory)]
+        [hashtable]$Cache
     )
 
     if (-not $Member.Static -or $Member.Expression -isnot [TypeExpressionAst] -or $Member.Member -isnot [StringConstantExpressionAst]) {
@@ -1314,8 +1395,13 @@ function Test-InertFileWriter {
         return $false
     }
 
-    foreach ($argument in @($Member.Arguments)) {
-        if ($Node.Extent.StartOffset -ge $argument.Extent.StartOffset -and $Node.Extent.EndOffset -le $argument.Extent.EndOffset) {
+    $argument = @($Member.Arguments)
+    if ($argument.Count -eq 0 -or $Cache['dynamicLocation'] -or -not (Test-SafePath -Node $argument[0] -Cache $Cache)) {
+        return $false
+    }
+
+    foreach ($item in $argument) {
+        if ($Node.Extent.StartOffset -ge $item.Extent.StartOffset -and $Node.Extent.EndOffset -le $item.Extent.EndOffset) {
             return $true
         }
     }
@@ -1438,7 +1524,7 @@ function Test-InertString {
         }
 
         # InvokeMemberExpressionAst is a MemberExpressionAst, so a text writer is judged first.
-        if ($parent -is [InvokeMemberExpressionAst] -and (Test-InertFileWriter -Member $parent -Node $String)) {
+        if ($parent -is [InvokeMemberExpressionAst] -and (Test-InertFileWriter -Member $parent -Node $String -Cache $Cache)) {
             return $true
         }
 
@@ -1665,8 +1751,9 @@ function Get-CommandTextView {
 
         The text comes back as written unless it parses without error and holds no
         indirect execution. Then each literal that is data is blanked in place:
-        what Test-InertString accepts, except where it holds a backtick, which
-        another shell reads as a command substitution. Blanked characters become
+        what Test-InertString accepts, except a string that is not single-quoted
+        and holds a backtick, which a POSIX shell reads as a command substitution
+        (a single-quoted string is data to every shell). Blanked characters become
         spaces and line breaks stay, so the patterns see the same lines. A literal
         with $() or a variable in it keeps those expressions.
     #>
@@ -1721,6 +1808,7 @@ function Get-CommandTextView {
     $command = @($node | Where-Object -FilterScript { $_ -is [CommandAst] })
     $stringNode = @($node | Where-Object -FilterScript { $_ -is [StringConstantExpressionAst] -or $_ -is [ExpandableStringExpressionAst] })
     $storesCode = Test-StoredCode -Node $node
+    $namesRepeater = $false
     $extra = [System.Collections.Generic.List[string]]::new()
     $isIndirect = $false
     $hasDynamicVariable = $false
@@ -1740,6 +1828,10 @@ function Get-CommandTextView {
         }
 
         $base = Get-CommandBaseName -Command $item
+        if ($script:repeaterCommand.IsMatch($base)) {
+            $namesRepeater = $true
+        }
+
         if ($base -eq 'start-process' -or $base -eq 'start' -or $base -eq 'saps') {
             $launch = Get-LaunchedCommandLine -Command $item
             foreach ($line in $launch.Line) {
@@ -1882,7 +1974,7 @@ function Get-CommandTextView {
 
     $view.ExtraLine = $extra.ToArray()
     if ($isIndirect) {
-        $view.IsRepetitive = $storesCode -or (Test-Repetition -Text $Text)
+        $view.IsRepetitive = $storesCode -or $namesRepeater -or (Test-Repetition -Text $Text)
         return $view
     }
 
@@ -1953,7 +2045,15 @@ function Get-CommandTextView {
 
         $start = $string.Extent.StartOffset
         $end = $string.Extent.EndOffset
-        if ($end -le $start -or $Text.IndexOf([char]96, $start, $end - $start) -ge 0) {
+        if ($end -le $start) {
+            continue
+        }
+
+        # A backtick keeps a string scanned, because a POSIX shell reads it in double quotes as a command
+        # substitution. A single-quoted string is data to PowerShell and to every POSIX shell.
+        if ($Text.IndexOf([char]96, $start, $end - $start) -ge 0 -and
+            $string.StringConstantType -ne [StringConstantType]::SingleQuoted -and
+            $string.StringConstantType -ne [StringConstantType]::SingleQuotedHereString) {
             continue
         }
 
@@ -1986,7 +2086,8 @@ function Get-CommandTextView {
         }
 
         foreach ($range in (Get-InertRange -Command $item -Cache $cache).Direct) {
-            if ($Text.IndexOf([char]96, $range.First, $range.Last - $range.First) -ge 0 -or -not (Test-InertSink -Command $item -Cache $cache)) {
+            $value = $Text.Substring($range.First, $range.Last - $range.First)
+            if (($value.IndexOf([char]96) -ge 0 -and -not $script:singleQuotedValue.IsMatch($value)) -or -not (Test-InertSink -Command $item -Cache $cache)) {
                 continue
             }
 
@@ -2025,8 +2126,9 @@ function Get-CommandTextView {
         $view.IsRepetitive = Test-Repetition -Text ([string]::new($codeBuffer))
     }
 
-    # Code that is stored rather than run where it is written is a repetition however the text reads.
-    if ($storesCode) {
+    # Code that is stored rather than run where it is written is a repetition however the text reads, and so is a
+    # command that the tree names as a repeat or watch wrapper.
+    if ($storesCode -or $namesRepeater) {
         $view.IsRepetitive = $true
     }
 
@@ -2477,6 +2579,11 @@ function Use-RemoteGrant {
         }
 
         if ($left.Count -eq 0) {
+            # Empty the file while the lock is held. A process that waited on the lock opens the file the moment it is
+            # released, and the delete below runs only after that, so a file that still held the grant could be spent
+            # a second time (found when a concurrent test failed under load).
+            $stream.SetLength(0)
+            $stream.Flush()
             $isUsedUp = $true
         } else {
             $grant = $text | ConvertFrom-Json
@@ -2521,8 +2628,9 @@ function Get-PushPhrase {
         The Grant marker phrase a push needs: git push, or git push --force when
         the text after the push word, up to the end of its statement, carries a
         force, delete, mirror, or prune option, a short option cluster with f or
-        d, or a +ref or :ref refspec. A variable that holds such an option is not
-        resolved: this reads the text.
+        d, or a +ref or :ref refspec. A variable that holds such an option or a refspec is not
+        resolved: this reads the text. That is an accepted residual (review of 2026-10-13, fifth
+        pass, F6; the owner ruled on it), documented in the hooks README.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -2575,7 +2683,12 @@ function Test-Repetition {
     }
 
     try {
-        return $script:repetitionSyntax.IsMatch($Text)
+        if ($script:repetitionSyntax.IsMatch($Text)) {
+            return $true
+        }
+
+        # PowerShell drops a backtick in a word, so wat`ch is watch; a text that holds one is read both ways.
+        return ($Text.IndexOf('`') -ge 0 -and $script:repetitionSyntax.IsMatch($Text.Replace('`', '')))
     } catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
         return $true
     }
@@ -2781,10 +2894,20 @@ if ($scanText.Count -eq 0) {
     exit 0
 }
 
-# Fold shell line continuations so a split command cannot hide the subcommand.
+# Fold shell line continuations so a split command cannot hide the subcommand. PowerShell also reads pu`sh as push and
+# --f`orce as --force, but a POSIX shell runs the text between two backticks, and deleting a backtick can glue it to
+# the word before it (echo a`git push` becomes agit push). So a text that holds a backtick is read twice, as written
+# and without its backticks (review of 2026-10-13, sixth pass, N3, and the author's probe of the same class in a
+# command word).
+$readWithoutBackticks = [System.Collections.Generic.List[string]]::new()
 for ($index = 0; $index -lt $scanText.Count; $index++) {
     $scanText[$index] = $scanText[$index] -replace '[`^\\]\r?\n\s*', ' '
+    if ($scanText[$index].IndexOf('`') -ge 0) {
+        $readWithoutBackticks.Add($scanText[$index].Replace('`', ''))
+    }
 }
+
+$scanText.AddRange($readWithoutBackticks)
 
 # Every pattern needs a git or gh word. Searching for one costs a fraction of a
 # pattern scan, which under PowerShell 7 takes about 70 ms per MB, so a text
@@ -2799,6 +2922,8 @@ $scanText = @(
 $nonGrantableReason = $null
 $firstGrantableReason = $null
 $required = @{}
+$pushTotal = 0
+$pushForce = 0
 $phraseOrder = [System.Collections.Generic.List[string]]::new()
 
 :operation foreach ($rule in $operationRule) {
@@ -2867,7 +2992,17 @@ $phraseOrder = [System.Collections.Generic.List[string]]::new()
             }
         }
 
-        # The same command can sit in more than one scanned text, so the most any one text shows counts.
+        # The same command can sit in more than one scanned text, so the most any one text shows counts. A push is
+        # counted as one family across the texts: the two readings of one push, with and without its backticks, may
+        # call it plain in one and forced in the other, and it needs the one stronger marker, not both.
+        if ($rule.Kind -eq 'push') {
+            $plainHere = [int]$countInText['git push']
+            $forceHere = [int]$countInText['git push --force']
+            $pushTotal = [Math]::Max($pushTotal, $plainHere + $forceHere)
+            $pushForce = [Math]::Max($pushForce, $forceHere)
+            continue
+        }
+
         foreach ($phrase in @($countInText.Keys)) {
             if (-not $required.ContainsKey($phrase) -or $required[$phrase] -lt $countInText[$phrase]) {
                 $required[$phrase] = $countInText[$phrase]
@@ -2875,6 +3010,18 @@ $phraseOrder = [System.Collections.Generic.List[string]]::new()
         }
     }
 }
+
+if ($pushTotal -gt 0) {
+    if ($pushTotal -gt $pushForce) {
+        $required['git push'] = $pushTotal - $pushForce
+    }
+
+    if ($pushForce -gt 0) {
+        $required['git push --force'] = $pushForce
+    }
+}
+
+$phraseOrder = [System.Collections.Generic.List[string]]::new([string[]]@($phraseOrder | Where-Object -FilterScript { $required.ContainsKey($_) }))
 
 if ($nonGrantableReason) {
     Block-ToolCall -Because $nonGrantableReason

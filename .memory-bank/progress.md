@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-13
+last-verified: 2026-10-14
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -18,7 +18,7 @@ PowerShell Gallery (verified 2026-10-12). Incremental work is tracked under
 
 ## Recent milestones
 
-- **2026-10-13**: P2 (Desktop prompt, `software-engineer`, `review: on`, Prox1) built the
+- **2026-10-13 to 2026-10-14**: P2 (Desktop prompt, `software-engineer`, `review: on`, Prox1) built the
   Remote grant on `ai/hook-ask-remote-approval`. A Grant marker the user types in their
   own prompt, such as `[[allow-remote: git push, gh pr create]]`, makes the new
   `UserPromptSubmit` hook `Add-RemoteGrant.ps1` record a short-lived, session-bound
@@ -29,8 +29,13 @@ PowerShell Gallery (verified 2026-10-12). Incremental work is tracked under
   mentions a blocked command passes (evidence item 2). The independent review rejected
   three rounds (provider drives that define and run code, parameter spellings the guard
   did not know, a quadratic analysis that outlasted the hook timeout, `git --% push`, one
-  grant use for a loop of pushes) and approved the fourth with changes; each finding is a
-  test that failed first. Live acceptance on 2026-10-13 passed in the Agent Host, VS Code
+  grant use for a loop of pushes) and approved the fourth with changes. Three more passes,
+  which the owner asked for, found neighbors of the same classes (paths compared as
+  written, force options git abbreviates, a backtick inside a command word, repeaters
+  behind a launcher) and a grant double-spend under load; the last, bounded pass found one
+  finding, a markdown code span in a commit message counted as a command, which the owner
+  had narrowed to single-quoted text and a delta check approved. Each finding is a test
+  that failed first. Live acceptance on 2026-10-13 passed in the Agent Host, VS Code
   Local, and Copilot CLI 1.0.96 started as usual and under `--yolo` (no marker: denied;
   marker: pushed once; auto-approval and `--yolo` did not lift the block). Decision 0016
   holds the evidence; `activeContext.md` holds the state.

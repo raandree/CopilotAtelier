@@ -111,11 +111,21 @@ only when everything the string flows into treats it as data:
   assignment is such a literal. Those cmdlets also write to the `Function:` and
   `Alias:` drives, where a string becomes a command that the same command then
   runs, and a file that something runs by itself holds code, not data: anything
-  inside `.git`, `.githooks`, `.husky`, or `.ssh`, a PowerShell profile
-  (`profile.ps1`, `Microsoft.PowerShell_profile.ps1`), a shell start-up file
-  (`.bashrc`, `.bash_profile`, `.zshrc`, `.zshenv`, `.profile`, `.envrc`,
-  `.gitconfig`), a file in a `Startup` folder, or `.vscode/tasks.json`. So a path
-  the guard cannot read, or one that names such a place, is not trusted. A path
+  inside `.git`, `.githooks`, `.husky`, `.ssh`, or `.vscode` (its settings, launch,
+  and task files and `mcp.json` start programs), a `.code-workspace` file, a
+  PowerShell profile (`profile.ps1`, `Microsoft.PowerShell_profile.ps1`), a shell
+  start-up file (`.bashrc`, `.bash_profile`, `.bash_aliases`, `.zshrc`, `.zshenv`,
+  `.zlogout`, `.profile`, `.envrc`, `.gitconfig`, `config.fish`, a fish
+  `conf.d/*.fish`), or a file in a `Startup` folder. A folder counts as well as a
+  file in it, because `-Path` and `-Name` together form the path and neither half
+  matches alone. A path is compared as the file system resolves it: a drive
+  qualifier is removed (`C:.git\hooks` is `.git\hooks`), Windows drops the dots
+  and spaces that end a name, and `file::$DATA` and `file:stream` are `file`. A
+  wildcard (`*`, `?`, `[`) or a Windows short name (`PROGRA~1`) stands for files
+  the text does not name, so such a path is unknown, and a note about a push
+  written to `report[1].md` or `C:\PROGRA~1\…` is denied: use the edit tool for
+  it. So a path the guard cannot read, or one that names such a place, is not
+  trusted. A path
   built with `+`,
   `-f`, or `-join`, taken from `Join-Path`, started with `$env:TEMP`, or held in
   a variable that a loop, a parameter, `[ref]`, or a parameter that stores output
@@ -133,7 +143,9 @@ only when everything the string flows into treats it as data:
   message out of the scan;
 - the `-m`, `-am`, and `--message` values of `git commit` and `git tag`, with the
   expressions inside a `--message="…$(…)…"` value kept visible, because they run;
-- the argument of `[System.IO.File]::WriteAllText` and its three sibling writers;
+- the text arguments of `[System.IO.File]::WriteAllText` and its three sibling
+  writers; their first argument is the file, and it must pass the same test as the
+  path of `Set-Content`, or the text is scanned;
 - a pipeline source that feeds only data-writing cmdlets;
 - a literal assigned to a plain variable, when **every use of that variable** is
   one of the above. `$msg = '…gh pr create…'; git commit -m $msg` and
@@ -144,8 +156,14 @@ only when everything the string flows into treats it as data:
   assigned literal.
 
 A commit message built in a here-string that quotes `gh pr create` therefore
-commits without a block. Anything else is scanned as written, and so is the
-whole command when it holds:
+commits without a block. A string that holds a backtick is blanked only when it
+is single-quoted, a here-string included: PowerShell reads a backtick in a
+double-quoted or bare string as an escape, a POSIX shell reads it as a command
+substitution, and the guard cannot tell which shell runs the text. So
+``git commit -m 'see `git push` docs'`` commits, and
+``git commit -m "see `git push` docs"`` counts as a push: single-quote the
+message or leave the backticks out. Anything else is scanned as written, and so
+is the whole command when it holds:
 
 - indirect execution: `Invoke-Expression` or `iex`, `Invoke-Command`, a computed
   command name such as `& $name`, `Start-Process` and its aliases, `Start-Job`,
@@ -256,8 +274,10 @@ Push the branch and open the pull request. [[allow-remote: git push, gh pr creat
   the counts, so `gh pr create x3, gh pr create x2` allows five, at most 20.
 - The operations are `git push`; `git push --force`, which a push with
   `--force`, `--force-with-lease`, `--force-if-includes`, `--delete`,
-  `--mirror`, `--prune`, `--all`, `--tags`, a short option cluster holding `f`
-  or `d`, or a `+ref` or `:ref` refspec needs instead; `gh pr` with `create`,
+  `--mirror`, `--prune`, `--all` or its alias `--branches`, `--tags`, any
+  unambiguous abbreviation of those long options (git reads `--del` as
+  `--delete`), a short option cluster holding `f` or `d`, or a `+ref` or `:ref`
+  refspec needs instead, quoted or not; `gh pr` with `create`,
   `merge`, `close`, `comment`, `review`, `edit`, `ready`, or `reopen`;
   `gh issue` with `create`, `close`, `comment`, `edit`, or `reopen`;
   `gh release` with `create`, `delete`, `edit`, or `upload`; `gh repo` with
@@ -272,9 +292,14 @@ Push the branch and open the pull request. [[allow-remote: git push, gh pr creat
   `for /l` and `for %i in (…) do`, a shell `while`, `until`, or `for … do`), a
   pipeline into `ForEach-Object`, `foreach`, `where`, `%`, or `?`, the
   `.ForEach()`, `.Where()`, and `.Invoke()` methods, `xargs`, `-exec`, `watch`,
-  `watchexec`, `nodemon`, `entr`, `retry`, or `repeat`, a scheduler or an event
-  handler (`schtasks`, `crontab`, `Register-ScheduledTask`,
-  `Register-ObjectEvent`, and their relatives), and, in a text that parses, any
+  `retry`, or `repeat` (also behind `npx`, `sudo`, `doas`, `nohup`, `exec`, `time`,
+  `command`, `env`, `setsid`, `timeout`, `stdbuf`, `nice`, `ionice`, or `winpty`
+  with up to three words of their own, by a path, or named in quotes behind the
+  call operator), `watchexec`, `nodemon`, `entr`, `fswatch`, or
+  `inotifywait`, a scheduler or an event handler (`schtasks`, `crontab`,
+  `Register-ScheduledTask`, `Register-ObjectEvent`,
+  `Register-PSSessionConfiguration`, and their relatives such as
+  `Register-ClusteredScheduledTask`), and, in a text that parses, any
   code that is written once and can run any number of times: a script block
   that is a value or an argument
   (`Sort-Object { … }`, `Register-ObjectEvent -Action { … }`, even `& { … }`), a
@@ -349,10 +374,23 @@ holds the evidence.
   grant for itself. A Remote grant prevents accidents; it is not a containment
   boundary. Keep these scripts and the grants folder out of the agent's
   auto-approved edit scope (`chat.tools.edits.autoApprove`).
-- A variable that holds a force option is not resolved, so a `git push` grant
-  also covers `git push $flag`.
+- A variable that holds a force option or a refspec is not resolved, so a
+  `git push` grant also covers `git push $flag` and
+  `$r = ':old-branch'; git push origin $r`. `git push origin $branch` therefore
+  stays a one-use push.
 - An interpreter outside the list in [Block-RemoteMutation](#block-remotemutation)
   can run text the guard never sees.
+- PowerShell drops a backtick in a word (`` pu`sh `` is `push`, `` --f`orce `` is
+  `--force`), and the guard removes backticks from the text it scans. Other
+  escape characters inside a command word, such as `g^it` in cmd or `g\it` in a
+  POSIX shell, are not undone. A path that reaches a listed file through a
+  symlink or a junction is judged by its text, not by where it leads.
+- PowerShell and a POSIX shell can disagree about where a quote ends, after a
+  backslash before a quote or inside a here-string that holds an apostrophe. The
+  guard reads the text as PowerShell, so a string it reads as data can be code to
+  a POSIX shell that runs the same text. That needs an unusual command, such as
+  one written to exploit the difference; ordinary commands read the same way in
+  both.
 - A command over 64 KB is scanned as raw text.
 - Writing a script and running it in one command is not caught: a string that
   only flows into `Set-Content` or `Out-File` is data, whatever the file is used
@@ -473,11 +511,12 @@ the reader path because that is the path that outgrew the budget, and keeps
 closing line lose `-Path` too, and the agent falls back to the reader's own
 choice of clock.
 
-There is no master-off profile: all four shipped hooks serve lifecycle or
-safety obligations. The context budget never disables remote-mutation checks.
-Do not persist `COPILOT_ATELIER_ALLOW_REMOTE` in hook configuration or in the
-environment VS Code starts with; an authorized push runs in the user's own
-terminal.
+There is no master-off profile: all shipped hooks serve lifecycle or safety
+obligations. The context budget never disables remote-mutation checks, and no
+environment variable turns the guard off: `COPILOT_ATELIER_ALLOW_REMOTE` is
+gone. A remote mutation you authorize with a Grant marker runs from the chat
+(see [Authorizing a remote mutation](#authorizing-a-remote-mutation)); without
+one, run the command in your own terminal.
 
 ## The session clock
 

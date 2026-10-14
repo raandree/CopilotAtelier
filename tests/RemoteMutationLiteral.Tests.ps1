@@ -95,7 +95,37 @@ BeforeDiscovery {
         @{ Reason = 'writes a notes file whose name only mentions a profile'; Command = "Set-Content -Path notes-profile.md -Value 'git push is blocked'" }
         @{ Reason = 'writes a file in a folder whose name only starts like Startup'; Command = "Set-Content -Path docs/startup-notes/readme.md -Value 'git push is blocked'" }
         @{ Reason = 'writes a file whose name only starts like .bashrc'; Command = "Set-Content -Path .bashrc.md -Value 'git push is blocked'" }
-        @{ Reason = 'writes the VS Code settings, which run nothing'; Command = "Set-Content -Path .vscode/settings.json -Value 'git push is blocked'" }
+        @{ Reason = 'writes into a folder that only starts like .vscode'; Command = "Set-Content -Path .vscode-test/notes.md -Value 'git push is blocked'" }
+        @{ Reason = 'writes a file whose name only starts like .bash_aliases'; Command = "Set-Content -Path .bash_aliases.md -Value 'git push is blocked'" }
+        @{ Reason = 'writes a web server snippet into a conf.d folder'; Command = "Set-Content -Path nginx/conf.d/site.conf -Value 'git push is blocked'" }
+
+        # Review of 2026-10-13, fifth pass. The static text writers take the file as their first argument, and a path
+        # is compared as the file system resolves it, so these ordinary files still hold data.
+        @{ Reason = 'writes text with File.WriteAllText to a plain notes file'; Command = "[System.IO.File]::WriteAllText('notes.md', 'git push origin main')" }
+        @{ Reason = 'appends text with File.AppendAllText to a nested notes file'; Command = "[IO.File]::AppendAllText('docs/notes.md', 'gh pr create is blocked')" }
+        @{ Reason = 'writes lines with File.WriteAllLines to a plain file'; Command = "[System.IO.File]::WriteAllLines('plan.txt', @('git push origin main', 'gh pr create'))" }
+        @{ Reason = 'writes text with File.WriteAllText to a path held in a variable'; Command = "`$p = 'notes.md'; [System.IO.File]::WriteAllText(`$p, 'git push origin main')" }
+        @{ Reason = 'writes a file whose name holds a blocked phrase with File.WriteAllText'; Command = "[System.IO.File]::WriteAllText('docs/how to git push.md', 'notes')" }
+        @{ Reason = 'writes a notes file whose name ends in a dot'; Command = "Set-Content -Path 'notes.md.' -Value 'git push is blocked'" }
+        @{ Reason = 'writes a notes file whose name ends in a space'; Command = "Set-Content -Path 'notes.md ' -Value 'git push is blocked'" }
+        @{ Reason = 'writes a notes file whose name holds a tilde and no digit'; Command = "Set-Content -Path 'notes~backup.md' -Value 'git push is blocked'" }
+
+        # Review of 2026-10-13, sixth pass: ordinary files that sit beside the ones the new rules read.
+        @{ Reason = 'writes an ordinary file on the current directory of a drive'; Command = "Set-Content -Path 'C:notes.md' -Value 'git push is blocked'" }
+        @{ Reason = 'creates a file in a conf.d folder that is not fish'; Command = "New-Item -ItemType File -Path nginx/conf.d -Name site.conf -Value 'git push is blocked'" }
+        @{ Reason = 'creates a file in a folder whose name only starts like Startup'; Command = "New-Item -ItemType File -Path docs/startup-notes -Name readme.md -Value 'git push is blocked'" }
+
+        # Review of 2026-10-13, seventh pass, R1: a single-quoted literal is literal in PowerShell and in every POSIX shell,
+        # so a markdown code span inside one is text, as it is without the backticks.
+        @{ Reason = 'writes a single-quoted note that holds a code span'; Command = 'Set-Content -Path notes.md -Value ''use `git push` to publish''' }
+        @{ Reason = 'commits with a single-quoted message that quotes a code span'; Command = 'git commit -m ''docs: explain `gh pr create` in the README''' }
+        @{ Reason = 'commits with a single-quoted message that holds a code span of a push'; Command = 'git commit -m ''see `git push` docs''' }
+        @{ Reason = 'writes a single-quoted line with Write-Output that holds a code span'; Command = 'Write-Output ''the rule forbids `git push`''' }
+        @{ Reason = 'appends a single-quoted line that holds a code span of a force push'; Command = 'Add-Content -Path docs/rules.md -Value ''never run `git push --force`''' }
+        @{ Reason = 'writes a single-quoted here-string that holds a code span'; Command = (@('Set-Content -Path notes.md -Value @''', 'Use `git push` carefully.', '''@') -join "`n") }
+        @{ Reason = 'commits with a single-quoted --message value that quotes a code span'; Command = 'git commit --message=''see `git push` docs''' }
+        @{ Reason = 'commits with a single-quoted --message value whose doubled quote is part of the text'; Command = 'git commit --message=''it''''s `git push` docs''' }
+        @{ Reason = 'commits with a single-quoted message whose doubled quote is part of the text'; Command = 'git commit -m ''it''''s `git push` docs''' }
     )
 
     $script:blockedCase = @(
@@ -259,12 +289,91 @@ BeforeDiscovery {
         @{ Reason = 'writes a global git configuration'; Command = "Add-Content -Path ~/.gitconfig -Value '[alias] p = !git push origin main'"; Operation = 'pushes to a git remote' }
         @{ Reason = 'writes an ssh configuration'; Command = "Set-Content -Path ~/.ssh/config -Value 'ProxyCommand git push origin main'"; Operation = 'pushes to a git remote' }
         @{ Reason = 'writes a VS Code task file'; Command = "Set-Content -Path .vscode/tasks.json -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+
+        # Review of 2026-10-13, fifth pass, F1: the static text writers take the file as their first argument, which is
+        # code and not data when the file runs by itself, and a path the text does not spell out is no safer.
+        @{ Reason = 'writes a post-commit hook with File.WriteAllText'; Command = "[System.IO.File]::WriteAllText('.git/hooks/post-commit', 'git push origin main')"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'appends to a .bashrc with File.AppendAllText'; Command = "[IO.File]::AppendAllText('~/.bashrc', 'git push origin main')"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a profile with File.WriteAllLines'; Command = "[System.IO.File]::WriteAllLines('C:\Users\me\Documents\PowerShell\profile.ps1', @('git push origin main'))"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a hook with File.WriteAllText through a path variable'; Command = "`$h = '.git/hooks/post-commit'; [System.IO.File]::WriteAllText(`$h, 'git push origin main')"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes with File.WriteAllText to a path the text does not spell out'; Command = "[System.IO.File]::WriteAllText((Join-Path `$dir 'x.md'), 'git push origin main')"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes with File.WriteAllText to a path held in a variable that is not assigned'; Command = "[System.IO.File]::WriteAllText(`$path, 'git push origin main')"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes with File.WriteAllText after moving to a place the text does not spell out'; Command = "Set-Location `$dir; [System.IO.File]::WriteAllText('notes.md', 'git push origin main')"; Operation = 'pushes to a git remote' }
+
+        # F2: a path is compared as the file system resolves it. Windows drops trailing dots and spaces from every name,
+        # file::`$DATA and file:stream are the file itself, a wildcard or a short name stands for files the text does
+        # not name, and each of those is code when the file runs by itself.
+        @{ Reason = 'writes a profile whose name ends in a dot, which Windows drops'; Command = "Set-Content -Path 'C:\Users\me\Documents\PowerShell\Microsoft.PowerShell_profile.ps1.' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a profile whose name ends in a space'; Command = "Set-Content -Path 'C:\Users\me\Documents\PowerShell\Microsoft.PowerShell_profile.ps1 ' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a profile through its default data stream'; Command = "Set-Content -Path 'C:\Users\me\Documents\PowerShell\Microsoft.PowerShell_profile.ps1::`$DATA' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a profile through a named stream'; Command = "Set-Content -Path 'C:\Users\me\Documents\PowerShell\profile.ps1:x' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'appends to a profile named with a ? wildcard'; Command = "Add-Content -Path 'C:\Users\me\Documents\PowerShell\Microsoft.PowerShell_profile.ps?' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a hook through a ? wildcard in the folder name'; Command = "Set-Content -Path '.gi?/hooks/post-commit' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a hook through a * wildcard in the folder name'; Command = "Set-Content -Path '.g*/hooks/post-commit' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a .bashrc named with a wildcard'; Command = "Set-Content -Path '~/.bashr?' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a folder of profiles with a * wildcard'; Command = "Set-Content -Path 'C:\Users\me\Documents\PowerShell\*' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a profile named with a bracket wildcard'; Command = "Set-Content -Path 'C:\Users\me\Documents\PowerShell\Microsoft.PowerShell_profile.ps[1]' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a VS Code task file whose name ends in a space'; Command = "Set-Content -Path '.vscode/tasks.json ' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'pipes into Out-File a profile whose name ends in a dot'; Command = "'git push origin main' | Out-File -FilePath 'C:\Users\me\Documents\PowerShell\profile.ps1.'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'creates a profile whose name ends in a dot with New-Item -Name'; Command = "New-Item -Path 'C:\Users\me\Documents\PowerShell' -Name 'profile.ps1.' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a profile by -LiteralPath with a trailing dot'; Command = "Set-Content -LiteralPath 'profile.ps1.' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a profile under its Windows short name'; Command = "Set-Content -Path 'C:\Users\me\DOCUME~1\POWERS~1\MICROS~1.PS1' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a hook in a folder whose name ends in a space'; Command = "Set-Content -Path '.git /hooks/post-commit' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a hook in a folder whose name ends in a dot'; Command = "Set-Content -Path '.git./hooks/post-commit' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+
+        # F3: the VS Code folder runs programs from more files than the task file (settings start a shell with
+        # arguments in every terminal, launch files start programs, mcp.json starts servers), and a workspace file
+        # carries the same settings and tasks. F9: start-up files beside ones already listed. F10: a relative
+        # Startup folder.
+        @{ Reason = 'writes the VS Code settings, which can start a program in every terminal'; Command = "Set-Content -Path .vscode/settings.json -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a VS Code launch file'; Command = "Set-Content -Path .vscode/launch.json -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes the VS Code MCP server list'; Command = "Set-Content -Path .vscode/mcp.json -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'creates a file in the VS Code folder with -Path and -Name'; Command = "New-Item -Path .vscode -Name settings.json -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a VS Code workspace file'; Command = "Set-Content -Path 'my.code-workspace' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a fish start-up snippet'; Command = "Set-Content -Path '~/.config/fish/conf.d/x.fish' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes .bash_aliases, which the stock .bashrc reads'; Command = "Set-Content -Path '~/.bash_aliases' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes .zlogout'; Command = "Set-Content -Path '~/.zlogout' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes into a Startup folder given as a relative path'; Command = "Set-Content -Path 'Startup\go.bat' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+
+        # Review of 2026-10-13, sixth pass, N1: a drive qualifier is not a stream, so C:.git\hooks is the .git folder of
+        # the drive's current directory. N2: -Path and -Name together form a path that neither half matches alone.
+        @{ Reason = 'writes a hook through a drive-relative path'; Command = "Set-Content -Path 'C:.git\hooks\post-commit' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a VS Code task file through a drive-relative path'; Command = "Set-Content -Path 'C:.vscode\tasks.json' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a .bashrc through a drive-relative path'; Command = "Set-Content -Path 'C:.bashrc' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a Startup file through a drive-relative path'; Command = "Set-Content -Path 'C:Startup\go.bat' -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a hook through a drive-relative path with File.WriteAllText'; Command = "[System.IO.File]::WriteAllText('C:.git/hooks/post-commit', 'git push origin main')"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'creates a Startup file with a -Path and -Name split'; Command = "New-Item -ItemType File -Path 'C:\Users\me\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup' -Name go.bat -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+        @{ Reason = 'creates a fish start-up snippet with a -Path and -Name split'; Command = "New-Item -ItemType File -Path '~/.config/fish/conf.d' -Name x.fish -Value 'git push origin main'"; Operation = 'pushes to a git remote' }
+
+        # Found by the author's own probe after the sixth review pass: PowerShell drops a backtick in a command word,
+        # so pu`sh is push, and the patterns must read the word as PowerShell does.
+        @{ Reason = 'pushes with a backtick inside the word push'; Command = 'git pu`sh origin main'; Operation = 'pushes to a git remote' }
+        @{ Reason = 'pushes with a backtick inside git'; Command = 'g`it push origin main'; Operation = 'pushes to a git remote' }
+        @{ Reason = 'pushes with a backtick before push'; Command = 'git `push origin main'; Operation = 'pushes to a git remote' }
+        @{ Reason = 'creates a pull request with a backtick inside the verb'; Command = 'gh pr cre`ate --fill'; Operation = 'mutates a GitHub remote resource' }
+        @{ Reason = 'bypasses hooks with a backtick inside the flag'; Command = 'git commit --no-ver`ify -m x'; Operation = 'bypasses repository hooks' }
+        @{ Reason = 'resets hard with a backtick inside the flag'; Command = 'git reset --ha`rd HEAD~1'; Operation = 'discards work with a hard reset' }
+        @{ Reason = 'keeps a string that holds a backtick visible, which another shell runs as a command substitution'; Command = 'Write-Output "use `git push` carefully"'; Operation = 'pushes to a git remote' }
+        @{ Reason = 'runs a command substitution that a nested shell glues to the word before it'; Command = 'bash -c "echo a`git push origin main`"'; Operation = 'pushes to a git remote' }
+        @{ Reason = 'runs a pull request command that a nested shell glues to the word before it'; Command = 'bash -c "echo a`gh pr create --fill`"'; Operation = 'mutates a GitHub remote resource' }
+
+        # R1 again, from the other side: a double-quoted string is where a POSIX shell substitutes a backtick, and a
+        # single-quoted literal that reaches a shell is not data for it.
+        @{ Reason = 'commits with a double-quoted message that holds a code span of a push'; Command = 'git commit -m "see `git push` docs"'; Operation = 'pushes to a git remote' }
+        @{ Reason = 'writes a single-quoted line with a backtick substitution into a shell'; Command = 'Write-Output ''x`git push origin main`'' | bash'; Operation = 'pushes to a git remote' }
+        @{ Reason = 'passes a single-quoted script with a backtick substitution to a nested shell'; Command = 'bash -c ''echo a`git push origin main`'''; Operation = 'pushes to a git remote' }
+        @{ Reason = 'commits with a double-quoted --message value that holds a code span of a push'; Command = 'git commit --message="see `git push` docs"'; Operation = 'pushes to a git remote' }
+        @{ Reason = 'commits with a double-quoted here-string that holds a code span of a push'; Command = (@('git commit -m @"', 'see `git push` docs', '"@') -join "`n"); Operation = 'pushes to a git remote' }
+        @{ Reason = 'hands a single-quoted script with a backtick substitution to a nested shell through a variable'; Command = '$c = ''echo a`git push origin main`''; bash -c $c'; Operation = 'pushes to a git remote' }
+        @{ Reason = 'evaluates a single-quoted command with a backtick inside the subcommand'; Command = 'Invoke-Expression ''git pu`sh origin main'''; Operation = 'pushes to a git remote' }
     )
 
     $script:parityCase = @(
         @{ Command = "Write-Output 'git push origin main'"; Blocked = $false }
         @{ Command = $evidenceTwo; Blocked = $false }
         @{ Command = 'git commit -m "docs: explain why gh pr create was denied"'; Blocked = $false }
+        @{ Command = 'git commit -m ''see `git push` docs'''; Blocked = $false }
+        @{ Command = 'git commit -m "see `git push` docs"'; Blocked = $true }
         @{ Command = 'git push origin main'; Blocked = $true }
         @{ Command = 'git add . && git push'; Blocked = $true }
         @{ Command = "Invoke-Expression 'git push origin main'"; Blocked = $true }

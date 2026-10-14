@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-07-28
-last-verified: 2026-10-13
+last-verified: 2026-10-14
 owner: software-engineer
 source: VS Code 1.130 agent customization docs; GitHub Copilot hooks configuration reference (2026-09-29); VS Code build 07f806f999 sources and a process capture (2026-10-02); session logs of the 2026-10-02 live checks; a model-free probe of the bundled Copilot SDK runtime (2026-10-04); fake-model conversations with the bundled runtime and Copilot CLI 1.0.92 (2026-10-06); live probes of a hook ask in the Agent Host, VS Code Local, and Copilot CLI 1.0.96, plus VS Code 1.141.0 sources (2026-10-12); live acceptance of the Remote grant in the Agent Host, VS Code Local, and Copilot CLI 1.0.96, started as usual and under --yolo (2026-10-13)
 ---
@@ -428,6 +428,99 @@ would under-ask there, and the whole-command test cannot. The over-ask costs one
 more message, and the block message now tells the agent to run the operation as
 its own command to ask for one use. Flagged for the owner's review.
 
+A fifth pass, which the owner asked for over the changes made after the fourth,
+rejected the change with three Blockers, five Majors, two Minors, and two Nits.
+Every finding was reproduced offline in both engines before a line changed, and
+each became a test that failed first. The Blockers were one mistake in three
+places, a path compared as it was written. The static text writers
+(`[System.IO.File]::WriteAllText` and its siblings) never judged their first
+argument, the file, so a hook or a profile written through them counted as data.
+Windows resolves a trailing dot or space, `file::$DATA`, a wildcard, and a short
+name to the file that the list names, and none of them matched. And VS Code's
+settings file, which starts a shell with arguments in every terminal, had been
+pinned as inert in the fourth round. The guard now compares a path as the file
+system resolves it, reads a wildcard or a short name as an unknown path, and
+treats everything in `.vscode`, a `.code-workspace` file, and a fish `conf.d` as
+code. The Majors were force options that git reads and the pattern did not: a
+quote or a parenthesis in front of an option or a refspec, and any unambiguous
+abbreviation of a long option (`--del`, `--mir`, `--pru`, `--al`, `--tag`,
+`--force-with-l=`); `--branches` is another name for `--all`. The pattern is now
+built from the long names with every prefix. Two repeat shapes asked for one use
+where they needed twenty: the new watchers matched only at the start of a
+statement, and the narrowing of `Register-*` had dropped two real repeaters. A
+refspec held in a variable (`$r = ':old-branch'; git push origin $r`) stays a
+residual by the owner's ruling. It is the same limit as for a force option in a
+variable, and resolving variables would add analysis in the place where the
+earlier rounds found their bypasses.
+
+A sixth pass confirmed the six fixes and found five more neighbors of the same
+classes. A drive-relative path (`C:.git\hooks\post-commit`) lost its first segment
+in the normalizer. `-Path` and `-Name` together form a Startup or fish path that
+neither half matches. A backtick in front of an option or a refspec made it a
+plain push. Repeaters hid behind a launcher with a value of its own, more
+launchers, a path, a quoted name, or a terminator. And the unreadable-name rule
+blocks some ordinary names, which is accepted and documented. All were fixed the
+same way. The author's own probe then found a larger gap of the same class:
+PowerShell drops a backtick inside a command word, so `` git pu`sh origin main ``
+and `` g`it push `` passed with no grant at all. The first fix deleted backticks
+from the scanned text, and a comparison with the committed guard showed a
+regression of its own: `` bash -c "echo a`git push origin main`" `` runs the push in
+a POSIX shell and was no longer seen, because deleting the backtick glued `a` to
+`git`. A text that holds a backtick is now read twice, as written and without its
+backticks, a push is counted as one family across the two readings, and the
+repeat test reads both ways. The suite also found a defect in the grant itself
+under load: the guard released its lock before it deleted a used-up grant, so a
+second process that waited on the lock could open the file in between and spend
+the same use again. The file is now emptied while the lock is held, and a hard
+link in a test shows what it held at that moment.
+
+The owner closed the review loop with one last bounded verification of these
+changes, which checks them for regressions, false positives, and ReDoS and does
+not hunt for new classes. It confirmed the fixes of the fifth and sixth rounds
+and the grant lock, and it measured the worst-case decision time at about 5.4 s:
+a text with a backtick is read twice, and the guard's 5 s limit then scans the
+text as written and cannot grant it, which is the designed outcome. It found one
+defect, R1: a string that holds a backtick is never blanked, so a markdown code
+span in a commit message, a note, or a pull request body counts as a command, and
+a commit message that quotes `git push` next to one real push asks for two uses.
+The reviewer attributed it to the round. The author's comparison showed it is not
+a regression: the committed guard gives the same result on every payload, and the
+guard of `origin/main` scanned every string as written, so it blocked these texts
+and the same texts without a backtick. The reviewer's fix, to drop the backtick
+test, is unsafe: in a POSIX shell a backtick inside double quotes runs the
+command, and the guard cannot tell which shell runs the text. The owner ruled on
+2026-10-14 to narrow the test instead. A single-quoted string, a here-string
+included, may now hold a backtick; a double-quoted or bare string still may not.
+PowerShell and every POSIX shell read a single-quoted string as data. While
+testing the change the author found, and confirmed in bash, that PowerShell and a
+POSIX shell can disagree about where a quote ends, after a backslash before a
+quote or inside a here-string that holds an apostrophe, so a string that
+PowerShell reads as data can be code to a POSIX shell that runs the same text.
+The guard already allowed that for `$( )` inside single quotes, and the narrowing
+extends it to a backtick. It needs a command written for it, so it is documented
+as a residual and not fixed; closing it would start another round. A delta check
+by the same reviewer approved the narrowing with no finding: 29 payloads in both
+engines, no missed syntax-tree shape (a single-quoted string inside a
+sub-expression, a command name, or an argument of a launcher stays scanned), the
+single-quoted-value pattern linear, and a worst-case decision time of about 2.2 s
+on the reviewer's payloads and 3.08 s on the author's 22 stress runs, against the
+5.4 s measured before. Its one note is inside an accepted residual: a script
+written with a backtick in a single-quoted string and run in the same command is
+now allowed, as its backtick-free twin always was.
+
+The owner ruled on the open points on 2026-10-13. The pull request title is
+`feat(hooks):`. The whole-command repetition test stays: a test per statement,
+which the fourth-pass reviewer asked for, would under-ask when an operation text
+is assigned outside a loop and run inside it, and in the live runs 1 of 11 push
+commands had a `ForEach-Object` after the push. The three over-asks are
+accepted (`--all` and `--tags` need the force phrase, a program called through a
+variable asks for 20 uses, and a literal written to a computed path stays
+blocked), and so are the four residuals (a forged grant file, a script written
+and run in one command, an alias or a function from an earlier call, and a marker
+in pasted text). The two remaining mentions of the removed variable, in the
+`spec-completion-controller` agent and in a `CustomizationSecurity` test, are
+left for the fix round of the unmerged containment work.
+
 Consequences:
 
 - The brief asked that a file the agent writes change nothing. A grant is a
@@ -447,16 +540,24 @@ Consequences:
 - Each prompt now starts one more hook. The 2026-10-06 launch costs put that at
   about one second at p95 through the same spawn; that is an estimate, not a
   separate measurement.
-- Residual risks beyond the existing ones: a variable that holds a force flag is
-  not resolved, so a `git push` grant also covers `git push $flag`; an
+- Residual risks beyond the existing ones: a variable that holds a force option
+  or a refspec is not resolved, so a `git push` grant also covers
+  `git push $flag` and `$r = ':old'; git push origin $r`; an
   interpreter outside the list can run text the guard never sees; a command over
   64 KB is scanned raw; writing a script and running it in one command is not
   caught, because a string that only flows into `Set-Content` is data; an alias
   or a function defined in an earlier call of a persistent terminal stays
-  defined; and a marker counts wherever it sits in the submitted text, pasted
-  text included. Which content a host puts into the `prompt` field, such as
-  attachments, steering messages, or a subagent's prompt, could not be verified
-  from the repository.
+  defined; a path that reaches a listed file through a symlink or a junction is
+  judged by its text; an escape character other than PowerShell's backtick inside
+  a command word (`g^it` in cmd, `g\it` in a POSIX shell) is not undone;
+  PowerShell and a POSIX shell can disagree about where a quote ends, so a string
+  that PowerShell reads as data can be code to a POSIX shell that runs the same
+  text; a path
+  with a wildcard or a short name is read as unknown, so a note about a push
+  cannot be written to it with `Set-Content`; and a marker counts wherever it
+  sits in the submitted text, pasted text included. Which content a host puts into
+  the `prompt` field, such as attachments, steering messages, or a subagent's
+  prompt, could not be verified from the repository.
 - Local `UserPromptSubmit` and the CLI under `--yolo` were not exercised before
   this change; the live acceptance of 2026-10-13 (Confirmation) exercised both.
 
@@ -495,6 +596,30 @@ parameters with the installed cmdlets of PowerShell 7 and Windows PowerShell 5.1
 so a parameter a future release adds fails it until the table lists it. The
 analysis time has its own tests in `tests/Hooks.Tests.ps1`: 48 KB of one
 assignment and one write, repeated, must be decided in under 12 seconds.
+
+The fifth and sixth review passes added tests the same way: each of the new
+cases failed first, because the guard allowed the command, and passes now. The
+narrowing that followed the seventh pass added 19 more: the eleven allowed forms
+(a code span in a single-quoted string, a single-quoted here-string, or a
+`--message=` value) failed on the old guard, and the other eight pin what stays
+blocked (a double-quoted message or here-string, a single-quoted script handed
+to a shell, and `Invoke-Expression`). The literal suite ends at 300 tests and
+the grant suite at 321. A probe of 80
+payloads in both engines (a scratch script) reproduced every finding before the
+change and shows it blocked after, except the variable refspec; the controls
+among them kept their outcome. The new patterns ran on 19 payloads of 64 KB in
+both engines with a worst case of 3.09 s, and every pattern payload still ended
+in a block; the narrowing ran on 11 more with a worst case of 3.08 s. A test
+with a hard link shows that a used-up grant file is empty
+when its lock is released, and a stress run of 30 rounds with six racing guard
+processes each, in both engines on a loaded machine, spent a single-use grant
+exactly once per round. The final gate on the shipped tree (guard `E94968A0…`,
+grant hook `51C0F39B…`) passed: 4,295 tests passed, 0 failed, 145 skipped
+(platform and documented-baseline skips; none in the new suites), coverage
+90.84 % against a threshold of 65, 21 tasks, 0 errors. The redeployed scripts
+(257 files match the clone) were then run offline in both engines: no grant
+denied the push and named the marker, the marker prompt wrote the grant, one
+push ran, and the next one was denied again.
 
 Live acceptance ran on 2026-10-13, from 14:50 to 15:17 UTC, in four new chats
 against a throwaway repository whose `origin` is a local bare repository, so a
@@ -548,3 +673,11 @@ CLI, VS Code's chat session file for Local, and the bare repository's refs. In
 Local and in both CLI runs the agent's first command combined the commit and the
 push; the hook refused the whole command, nothing ran, and the agent then ran
 the local steps alone. The Agent Host agent sent the push as its own command.
+
+The live acceptance ran on the guard with sha256 `B6DFAD99…`; the guard that
+ships has sha256 `E94968A0…`. The review rounds
+that followed changed patterns, path predicates, the scan of backticks, and the
+grant's consumption, and not the hook registrations, the payload handling, or
+the grant file format, so the results that depend on the host stand. The
+deployed scripts were exercised offline in both engines after the redeploy; a
+short live re-check in one harness is the owner's option.

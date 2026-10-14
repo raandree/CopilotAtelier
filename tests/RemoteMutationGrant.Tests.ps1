@@ -92,6 +92,41 @@ BeforeDiscovery {
         @{ Command = 'git push origin +main:main' }
         @{ Command = 'git push origin :old-branch' }
         @{ Command = 'git push origin +:old-branch' }
+
+        # Review of 2026-10-13, fifth pass, F4: a quote or a parenthesis in front of an option or a refspec does not change
+        # what git reads.
+        @{ Command = 'git push origin ":old-branch"' }
+        @{ Command = 'git push origin '':old-branch''' }
+        @{ Command = 'git push origin "+main"' }
+        @{ Command = 'git push origin ''+main:main''' }
+        @{ Command = 'git push origin "+refs/heads/main:refs/heads/main"' }
+        @{ Command = 'git push "--force" origin main' }
+        @{ Command = 'git push ''--delete'' origin old-branch' }
+        @{ Command = 'git push "--all" origin' }
+        @{ Command = 'git push origin '':old-branch'' ''+main''' }
+        @{ Command = 'git push origin (''+main'')' }
+
+        # F5: git reads any unambiguous prefix of a long option, and --branches is another name for --all.
+        @{ Command = 'git push --del origin old-branch' }
+        @{ Command = 'git push --dele origin old-branch' }
+        @{ Command = 'git push --mir origin' }
+        @{ Command = 'git push --pru origin' }
+        @{ Command = 'git push --al origin' }
+        @{ Command = 'git push --tag origin' }
+        @{ Command = 'git push --branches origin' }
+        @{ Command = 'git push --force-with-l=main origin main' }
+        @{ Command = 'git push --force-w origin main' }
+        @{ Command = 'git push --force-i origin main' }
+        @{ Command = 'git push --forc origin main' }
+
+        # Review of 2026-10-13, sixth pass, N3: PowerShell drops a backtick in an argument, so the push still reads
+        # the option or the refspec, and so must the guard.
+        @{ Command = 'git push --f`orce origin main' }
+        @{ Command = 'git push --de`lete origin old-branch' }
+        @{ Command = 'git push --m`irror origin' }
+        @{ Command = 'git push `--force origin main' }
+        @{ Command = 'git push origin `:old-branch' }
+        @{ Command = 'git push origin `+main' }
     )
 
     $script:plainPushCase = @(
@@ -127,6 +162,41 @@ BeforeDiscovery {
         @{ Command = 'git push origin main; Register-PSRepository -Default' }
         @{ Command = 'Register-PSRepository -Default; git push origin main' }
         @{ Command = 'git push origin main; Register-PackageSource -Name x -ProviderName y -Location z' }
+
+        # Review of 2026-10-13, fifth pass: quoted names and long options that only look like a stronger one, and tool
+        # names that only appear inside a branch name or after a command that starts nothing.
+        @{ Command = 'git push origin "main"' }
+        @{ Command = 'git push origin ''ai/feature''' }
+        @{ Command = 'git push origin "main:refs/heads/x"' }
+        @{ Command = 'git push --atomic origin main' }
+        @{ Command = 'git push --porcelain origin main' }
+        @{ Command = 'git push --progress origin main' }
+        @{ Command = 'git push --thin origin main' }
+        @{ Command = 'git push --push-option=ci.skip origin main' }
+        @{ Command = 'git push --recurse-submodules=check origin main' }
+        @{ Command = 'git push --signed=if-asked origin main' }
+        @{ Command = 'npx prettier --write . ; git push origin main' }
+        @{ Command = 'sudo apt update; git push origin main' }
+        @{ Command = 'git push origin nodemon-fix' }
+        @{ Command = 'git push origin feature/watchexec-support' }
+
+        # Review of 2026-10-13, sixth pass, N4: a branch name that starts like a repeater is not one, even behind a
+        # launcher, because the word is an argument of git and not a command.
+        @{ Command = 'sudo git push origin retry-fix' }
+        @{ Command = 'env GIT_TRACE=1 git push origin parallel-tests' }
+        @{ Command = 'git push origin watch-mode' }
+        @{ Command = 'git push origin repeat/retry-logic' }
+        @{ Command = 'timeout 30 git push origin main' }
+
+        # A backtick makes the guard read the text twice, as written and without the backticks. One push read twice is
+        # still one push, and costs one use.
+        @{ Command = 'git pu`sh origin main' }
+        @{ Command = 'git push origin ma`in' }
+        @{ Command = 'bash -c "echo a`git push origin main`"' }
+        @{ Command = 'g`it push origin main' }
+
+        # R1: a code span inside a single-quoted commit message is text, so the message is not a second push.
+        @{ Command = 'git commit -m ''see `git push` docs''; git push origin main' }
     )
 
     # Commands that can run a blocked operation more than once. The guard counts what it reads, not
@@ -198,6 +268,31 @@ BeforeDiscovery {
         @{ Reason = 'a function created with New-Item on the Function drive and called twice'; Command = 'New-Item -Path function: -Name deploy -Value ''git push origin main''; deploy; deploy'; Phrase = 'git push' }
         @{ Reason = 'compiled code that is called twice'; Command = 'Add-Type -TypeDefinition ''public class X { public static void Go() { System.Diagnostics.Process.Start("cmd", "/c git push origin main"); } }''; [X]::Go(); [X]::Go()'; Phrase = 'git push' }
         @{ Reason = 'a script block after && in Windows PowerShell, which cannot parse it'; Command = 'git status && 1..3 | Sort-Object { git push origin main }'; Phrase = 'git push' }
+
+        # Review of 2026-10-13, fifth pass, F7 and F8: a watcher started through a launcher or by its path, and two
+        # repeaters that the narrowing of Register-* dropped.
+        @{ Reason = 'nodemon started through npx'; Command = 'npx nodemon --exec "git push origin main"'; Phrase = 'git push' }
+        @{ Reason = 'watchexec started through npx'; Command = 'npx watchexec -- git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'watchexec started through sudo'; Command = 'sudo watchexec -- git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'a watcher given by its path'; Command = './node_modules/.bin/nodemon --exec "git push origin main"'; Phrase = 'git push' }
+        @{ Reason = 'watch started through sudo'; Command = 'sudo watch -n 5 git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'watch started through nohup'; Command = 'nohup watch -n 5 git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'watch started through env with a variable'; Command = 'env GIT_TRACE=1 watch git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'a clustered scheduled task'; Command = 'Register-ClusteredScheduledTask -TaskName x -Cluster c -Xml ''git push origin main'''; Phrase = 'git push' }
+        @{ Reason = 'a session configuration whose startup script runs in every session'; Command = 'Register-PSSessionConfiguration -Name x -StartupScript ''git push origin main'''; Phrase = 'git push' }
+
+        # Review of 2026-10-13, sixth pass, N4: a launcher with a value of its own, more launchers, a path in front of
+        # the word, a quoted program name, and a watcher that ends at a terminator.
+        @{ Reason = 'watch behind sudo with a user'; Command = 'sudo -u root watch -n 60 git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'watch behind timeout'; Command = 'timeout 300 watch -n 60 git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'watch behind doas'; Command = 'doas watch -n 60 git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'watch behind setsid'; Command = 'setsid watch -n 60 git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'watch given by its path behind sudo'; Command = 'sudo /usr/bin/watch -n 60 git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'retry given by its path'; Command = './node_modules/.bin/retry 3 git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'a watcher named in quotes behind the call operator'; Command = '& ''watchexec'' -- git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'a watcher named in quotes with its command in quotes'; Command = '& ''nodemon'' --exec ''git push origin main'''; Phrase = 'git push' }
+        @{ Reason = 'a watcher that ends at a semicolon'; Command = 'nodemon; git push origin main'; Phrase = 'git push' }
+        @{ Reason = 'a watcher that ends at a pipe'; Command = 'nodemon|tee log.txt; git push origin main'; Phrase = 'git push' }
         @{ Reason = 'a repeat wrapper after a pipeline'; Command = 'cd repo && repeat 3 git push origin main'; Phrase = 'git push' }
     )
 
@@ -856,6 +951,8 @@ Describe 'Block-RemoteMutation with a Remote grant' -Tag 'Unit' {
         @{ Command = 'gh issue comment 5 --body "{ not a script block } and @{ a = 1 } and . $x and & $y"'; Phrase = 'gh issue comment' }
         @{ Command = 'gh pr create --title "built at $(Get-Date -Format s)" --fill'; Phrase = 'gh pr create' }
         @{ Command = '$h = @{ a = 1 }; gh pr create --title x --fill'; Phrase = 'gh pr create' }
+        @{ Command = 'git commit -m "use nodemon or watchexec to rebuild"; git push origin main'; Phrase = 'git push' }
+        @{ Command = 'gh pr create --title "Replace nodemon with watchexec" --fill'; Phrase = 'gh pr create' }
     ) {
         $path = script:New-GrantFile -Root $script:root -Operation ([ordered]@{ $Phrase = 1 })
 
@@ -939,6 +1036,25 @@ Describe 'Block-RemoteMutation with a Remote grant' -Tag 'Unit' {
         @($results | Where-Object -Property ExitCode -EQ -Value 0).Count | Should -Be 1 -Because (($results | ForEach-Object -Process { $_.Output }) -join ' | ')
         @($results | Where-Object -Property ExitCode -EQ -Value 2).Count | Should -Be 3
         Test-Path -LiteralPath $path | Should -Be $false
+    }
+
+    It 'leaves no usable grant in a used-up file, because a process that waited on the lock opens it before the delete' {
+        $path = script:New-GrantFile -Root $script:root
+        $link = Join-Path -Path $script:root -ChildPath 'spent-copy.json'
+        try {
+            $null = New-Item -ItemType HardLink -Path $link -Target $path -ErrorAction Stop
+        } catch {
+            Set-ItResult -Skipped -Because "a hard link could not be made here: $($_.Exception.Message)"
+            return
+        }
+
+        $result = script:Invoke-Guard -Payload (script:New-ToolPayload -Command 'git push origin main') -GrantRoot $script:root
+
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        Test-Path -LiteralPath $path | Should -Be $false
+        # The delete runs after the lock is released, and a second guard process that waited on the lock can open the
+        # file in between. The hard link still shows what the file held when the lock was released.
+        (Get-Content -LiteralPath $link -Raw) | Should -BeNullOrEmpty -Because 'a used-up grant must be emptied while the lock is held, or a waiting process could spend it again'
     }
 
     It 'ignores COPILOT_ATELIER_ALLOW_REMOTE in the hook environment' {

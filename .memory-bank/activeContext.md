@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-13
+last-verified: 2026-10-14
 owner: software-engineer
 source: current task evidence
 ---
@@ -15,30 +15,30 @@ marker the user types in their own prompt (for example
 `[[allow-remote: git push, gh pr create]]`) makes the new `UserPromptSubmit` hook
 `Add-RemoteGrant.ps1` record a short-lived, session-bound grant that
 `Block-RemoteMutation.ps1` consumes: each named operation once (`x2` twice, a loop or
-function needs `x20`, `--all`, `--tags`, and force pushes need `git push --force`). It
-ends at the next prompt or after 15 minutes. A hook `ask` was disproved live (the Agent
-Host approves it under `chat.tools.global.autoApprove`), so the guard stays a hard block
-and never prints `allow`; `COPILOT_ATELIER_ALLOW_REMOTE` is removed; `git reset --hard`,
+function needs `x20`, `--all`, `--tags`, and force pushes need `git push --force`), until
+the next prompt or 15 minutes. A hook `ask` was disproved live (the Agent Host approves
+it under `chat.tools.global.autoApprove`), so the guard stays a hard block and never
+prints `allow`; `COPILOT_ATELIER_ALLOW_REMOTE` is removed; `git reset --hard`,
 `git clean -f`, and `--no-verify` have no marker. The same change fixes the
 string-literal false positive: the guard reads PowerShell as a syntax tree and blanks a
-string only when everything it flows into treats it as data. The independent review
-rejected three times and approved the fourth pass with changes, with no Blocker or Major
-left; each finding is a test that failed first. Decision 0016 (revision 2026-10-12 and
-its Confirmation) and the Desktop `LEDGER.md` hold the evidence.
+string only when everything it flows into treats it as data. Seven independent review
+passes (three rejections, an approval with changes, two more rejections the owner asked
+for, and a last bounded pass whose one finding was narrowed and approved in a delta
+check) left no Blocker or Major; each finding is a test that failed first. Decision 0016
+and the Desktop `LEDGER.md` hold the evidence.
 
-State: the final gate passed (4,142 passed, 0 failed, 145 skipped, 90.84 % coverage) and
-`~/.copilot` is redeployed (257 files match the clone). **Live acceptance passed on
-2026-10-13** in four new chats against a throwaway repository with a local bare remote
-(the Agent Host, VS Code Local, Copilot CLI 1.0.96 as usual and under `--yolo`): no
-marker meant a denial in every run, a marker let one push run, auto-approval and `--yolo`
-did not lift the block, and the bare repository held only the three branches that the
-marked prompts pushed. The CLI's `COPILOT_ALLOW_ALL=1` does approve shell commands in the
-working folder; the 2026-10-12 reading that it did nothing mistook a path prompt for a
-tool prompt. Accepted residuals: a forged grant file (accident prevention only), a
-script written and run in one command, an alias from an earlier call of a persistent
-terminal, a literal written to a computed path stays blocked (README: name the file with
-a literal), and a push in the same command as a loop or a script block asks for x20 (the
-block message says to run it alone).
+State: the final gate passed on the final tree (4,295 passed, 0 failed, 145 skipped,
+90.84 % coverage) and `~/.copilot` is redeployed (257 files match the clone). **Live
+acceptance passed on 2026-10-13** on the earlier guard (`B6DFAD99…`; the shipped one is
+`E94968A0…`) in four new chats against a throwaway repository with a local bare remote
+(the Agent Host, VS Code Local, Copilot CLI 1.0.96 as usual and under `--yolo`): no marker
+meant a denial, a marker let one push run, auto-approval and `--yolo` did not lift the
+block, and the bare repository held only the three branches that the marked prompts
+pushed. The CLI's `COPILOT_ALLOW_ALL=1` does approve shell commands in the working folder.
+Accepted residuals (hooks README, Residual risks): a forged grant file, a script written
+and run in one command, a quote that PowerShell and a POSIX shell read differently, and a
+push beside a loop (asks for x20). A code span such as `git push` is text in a
+single-quoted message and still counts in a double-quoted one.
 
 **Decision 0028 is merged and released** (#32 to #36; `main` is `e393875` at
 `6.1.0-preview0009`). Criteria 1 to 20 and 22 to 30 are met; **criterion 21 is not
