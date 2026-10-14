@@ -123,12 +123,15 @@ commands and record each raw result and exit code in the controller ledger:
   only after the verifier binding, the control digests, the immutability of
   the pinned controls, and the binding of the running identity to its role have
   passed; require exit codes 0, 2, and 2. The verifier runs that command through
-  `cmd.exe /d /c` on Windows, which a host may not, so it refuses command text
-  that two shells could read differently (`$`, a backtick, a single quote
-  outside double quotes, anything outside printable ASCII). The command must
-  start with the absolute path of PowerShell (`powershell` or `pwsh`; the
-  verifier refuses any other program), and the verifier requires that
-  interpreter to be closed to the run identity before it runs anything. In an
+  `cmd.exe /d /c` on Windows, while the documented hosts wrap it in PowerShell,
+  so that is not a measurement under a host: the verifier accepts only command
+  text of one plain shape that `cmd.exe`, PowerShell and a POSIX shell read
+  alike (bare words, double-quoted words, and at most the one pinned exit
+  statement), and says in its evidence when the program path is quoted, which a
+  PowerShell host cannot run. The command must start with the absolute path of
+  PowerShell (`powershell` or `pwsh`; the verifier refuses any other program),
+  and the verifier requires that interpreter to be closed to the run identity
+  before it runs anything. In an
   enabled
   live mode, the hash-pinned
   verifier also canonicalizes and hashes the live profile, live-runner
