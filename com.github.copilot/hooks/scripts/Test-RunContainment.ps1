@@ -164,6 +164,14 @@ $script:EntryKeySet = [System.Collections.Generic.HashSet[string]]::new([string[
 # The one statement the shipped Windows hook command ends with, after a semicolon, for the PowerShell a host
 # wraps it in: it makes that wrapper exit with the code of the command. Nothing else may follow a semicolon.
 $script:HookExitTail = 'exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'
+# What may follow the program on a hook command line, as a shape and not as a list of characters to refuse.
+# A list is never complete: a '#' makes PowerShell read the closing statement as a comment, and a doubled
+# quote, a quote after a backslash and an unterminated quote are read three ways by cmd.exe, a PowerShell
+# wrapper and a POSIX shell. A word is bare, of characters that no shell reads as syntax, or double-quoted
+# with no double quote inside and no backslash before its closing quote.
+$script:HookLineShape = '\A(?:[ \t]+(?:[A-Za-z0-9_.:\\/-]+|"(?:[^"\\]|\\(?!"))*"))*[ \t]*\z'
+# An unquoted program word is read by the shell as well, so it may hold only those characters too.
+$script:HookProgramWord = '\A(?:[A-Za-z]:)?[\\/][A-Za-z0-9_.\\/-]+\z'
 
 function New-CheckResult {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory result object and changes no system state.')]
@@ -1618,6 +1626,10 @@ function Get-HookInterpreter {
         return [pscustomobject]@{ Path = $null; Problem = "the program '$word' contains a dot segment, which hides where it leads: a shell follows '..' through a link where this check normalizes the text" }
     }
 
+    if (-not $quoted -and $word -cnotmatch $script:HookProgramWord) {
+        return [pscustomobject]@{ Path = $null; Problem = "the program word '$word' holds a character other than letters, digits and . _ - / \ :, which a shell may read as a separator, so the program that runs may not be the one the text names" }
+    }
+
     $inQuote = $false
     $head = $rest
 
@@ -1644,6 +1656,10 @@ function Get-HookInterpreter {
         }
     }
 
+    if ($head -cnotmatch $script:HookLineShape) {
+        return [pscustomobject]@{ Path = $null; Problem = 'the command line has text of a shape this check does not read: after the program only words of letters, digits and . _ - / \ : and double-quoted words with no double quote inside may follow, then at most the one statement the shipped command ends with, because cmd.exe, a PowerShell wrapper and a POSIX shell read anything else differently (a hash is a comment to PowerShell and not to cmd.exe)' }
+    }
+
     $program = [System.IO.Path]::GetFullPath($word)
     $name = [System.IO.Path]::GetFileName($program)
 
@@ -1662,7 +1678,7 @@ function Get-HookInterpreter {
         return [pscustomobject]@{ Path = $null; Problem = 'the interpreter is PowerShell and the command does not pass -NoProfile before its script or command, so the profile of the identity that runs it is loaded first and can change what the guard does' }
     }
 
-    return [pscustomobject]@{ Path = $program; Problem = $null }
+    return [pscustomobject]@{ Path = $program; Problem = $null; Quoted = $quoted }
 }
 
 function Invoke-HookPayload {
@@ -2072,7 +2088,12 @@ function Test-HookContract {
         Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    $evidence = 'expected 0,2,2 and measured ' + ($measured -join ' ') + " from the pinned script $resolvedScript through the interpreter $($interpreter.Path)"
+    $shell = if ($script:OnWindows) { 'cmd.exe /d /c' } else { '/bin/sh' }
+    $evidence = 'expected 0,2,2 and measured ' + ($measured -join ' ') + " from the pinned script $resolvedScript through the interpreter $($interpreter.Path), with the line run through $shell; a PowerShell host reads the line by other rules, and this is not a measurement under one"
+
+    if ($interpreter.Quoted) {
+        $evidence += '. The program path is quoted: a PowerShell host fails to parse a quoted program path unless it starts with an ampersand, which this check refuses, so that host exits 1, which does not block, and the command is not shown to run there'
+    }
 
     if ($failed) {
         return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence $evidence

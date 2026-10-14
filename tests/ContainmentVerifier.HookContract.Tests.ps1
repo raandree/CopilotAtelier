@@ -348,6 +348,23 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Why = 'a form feed'; Line = ('"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit' + [char]12 + 'x'); Match = 'outside printable ASCII' }
         @{ Why = 'a dot segment in the program path'; Line = 'C:\Windows\System32\..\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command exit'; Match = 'dot segment' }
         @{ Why = 'a dot segment written with forward slashes'; Line = 'C:/Windows/System32/../System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command exit'; Match = 'dot segment' }
+        # Review pass 3 part C, S-21: refusing a list of characters is never complete. Each line below was
+        # accepted by that scan and is read three ways by cmd.exe, a PowerShell wrapper and a POSIX shell.
+        @{ Why = 'a comment that hides the closing statement from PowerShell'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" # ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'; Match = 'shape' }
+        @{ Why = 'a comment marker glued to the semicolon'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" #; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'; Match = 'shape' }
+        @{ Why = 'a quoted part that is never closed'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "exit 0'; Match = 'shape' }
+        @{ Why = 'a doubled quote inside a quoted part'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File x.ps1 "a ""b ; c"" d" e'; Match = 'shape' }
+        @{ Why = 'a backslash before a quote outside a quoted part, which a POSIX shell reads as a literal quote'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command x \"; calc.exe; \" y'; Match = 'shape' }
+        @{ Why = 'a backslash before the closing quote'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "a\"'; Match = 'shape' }
+        @{ Why = 'a comma between words'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command x,y'; Match = 'shape' }
+        @{ Why = 'an equals sign in a word'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command x=y'; Match = 'shape' }
+        @{ Why = 'a brace group'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command {x}'; Match = 'shape' }
+        @{ Why = 'an at sign'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command @x'; Match = 'shape' }
+        @{ Why = 'text glued to the closing quote of the program'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"-NoProfile -Command exit'; Match = 'shape' }
+        # S-22: the unquoted program word is read by the shell as well.
+        @{ Why = 'a semicolon in an unquoted program word'; Line = 'C:\Tools\a;b\powershell.exe -NoProfile -File x.ps1'; Match = 'program word' }
+        @{ Why = 'a comma in an unquoted program word'; Line = 'C:\Tools\a,b\powershell.exe -NoProfile -File x.ps1'; Match = 'program word' }
+        @{ Why = 'an equals sign in an unquoted program word'; Line = 'C:\Tools\a=b\powershell.exe -NoProfile -File x.ps1'; Match = 'program word' }
     ) {
         $result = Get-HookInterpreter -CommandLine $Line
 
@@ -370,6 +387,32 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         $line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "Write-Output ''a ; b''"'
 
         (Get-HookInterpreter -CommandLine $line).Problem | Should -BeNullOrEmpty
+    }
+
+    # Review pass 3 part C: what is inside a double-quoted word is data to every shell that reads it, so the
+    # shape lets anything through there but a double quote, and the controls below pin that boundary.
+    It 'reads a quoted word that holds characters a shell would read as syntax outside quotes' {
+        $line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "a ; b # c, d = e { f } @g (h) & i | j < k > l ^ m"'
+
+        (Get-HookInterpreter -CommandLine $line).Problem | Should -BeNullOrEmpty
+    }
+
+    It 'reads words that are separated by tabs' {
+        $line = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`t-NoProfile`t-Command`texit"
+
+        (Get-HookInterpreter -CommandLine $line).Problem | Should -BeNullOrEmpty
+    }
+
+    It 'reads a quoted program path that holds spaces and parentheses' {
+        $result = Get-HookInterpreter -CommandLine '"C:\Program Files (x86)\PowerShell\7\pwsh.exe" -NoProfile -File x.ps1'
+
+        $result.Problem | Should -BeNullOrEmpty
+        $result.Path | Should -Be 'C:\Program Files (x86)\PowerShell\7\pwsh.exe'
+    }
+
+    It 'says whether the program path was quoted' {
+        (Get-HookInterpreter -CommandLine '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit').Quoted | Should -BeTrue
+        (Get-HookInterpreter -CommandLine 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command exit').Quoted | Should -BeFalse
     }
 
     It 'reads the statement the shipped Windows command ends with, which only an outer PowerShell understands' {
@@ -520,6 +563,29 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         It 'names the interpreter that it ran' {
             $script:shippedRun.evidence | Should -Match ([regex]::Escape([System.IO.Path]::GetFullPath($script:systemPowerShell)))
         }
+
+        # Review pass 3 part C, S-23 and S-24: the probe is a measurement through cmd.exe, and the hosts the README
+        # lists wrap the line in PowerShell, so a Pass must not read as a measurement under them.
+        It 'says that the probe ran the line through cmd.exe, and that a PowerShell host reads it by other rules' {
+            $script:shippedRun.evidence | Should -Match 'through cmd\.exe /d /c'
+            $script:shippedRun.evidence | Should -Match 'PowerShell host'
+        }
+
+        It 'says that a quoted program path is not shown to run under a PowerShell host' {
+            $script:shippedRun.evidence | Should -Match 'program path is quoted'
+        }
+
+        It 'does not say so when the program path is not quoted' {
+            $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
+            $text = [string]@($shipped.hooks.PreToolUse)[0].windows
+            $tree = New-PluginTree -Name 'unquoted-program' -Command ($script:systemPowerShell + $text.Substring('powershell'.Length))
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Pass' -Because $result.evidence
+            $result.evidence | Should -Not -Match 'program path is quoted'
+        }
     }
 
     Context 'the interpreter the command starts' {
@@ -527,6 +593,24 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $script:marker = Join-Path $TestDrive "interpreter-marker-$([guid]::NewGuid().ToString('N')).txt"
             # A command that leaves a file behind if it is ever run, so that "runs nothing" can be read off the disk.
             $script:markerRun = "`"$script:systemPowerShell`" -NoProfile -NonInteractive -Command `"Set-Content -LiteralPath '$script:marker' -Value ran`""
+        }
+
+        # Review pass 3 part C, S-21, reproduced end to end: PowerShell reads everything after a hash as a comment, so
+        # a host that wraps the line in it never runs the statement that turns the guard's exit code into the hook's,
+        # and a push exits 1, which does not block. The cmd.exe probe passes the same text through and reports 0, 2, 2.
+        It 'fails the shipped command with a comment marker before its closing statement, which the cmd probe passes' {
+            $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
+            $text = [string]@($shipped.hooks.PreToolUse)[0].windows
+            $contained = '"' + $script:systemPowerShell + '"' + $text.Substring('powershell'.Length)
+            $commented = $contained.Replace('; exit (@(', ' # ; exit (@(')
+            $commented | Should -Not -Be $contained -Because 'the edit has to change the command for this test to mean anything'
+            $tree = New-PluginTree -Name 'comment-tail' -Command $commented
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'shape'
         }
 
         It 'fails a command that names powershell without a path, and runs nothing' {
