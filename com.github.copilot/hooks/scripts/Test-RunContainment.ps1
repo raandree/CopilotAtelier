@@ -12,14 +12,20 @@
     control digests; whether the profile and every control it pins are closed to
     the run, with the directories above them; that the verifier runs as the
     identity the profile declares for the role; the remote-mutation hook's real
-    exit codes, run only on controls already measured; that the Remote grant
-    channel is closed; egress policy; reachability; credential material; that
-    each declared writable root is writable and a named escape set is not; and
-    the ledger's protection. It does not enumerate the filesystem.
+    exit codes, run only on controls already measured and through an interpreter
+    named by absolute path that the run cannot replace; that no hook that
+    records a Remote grant is registered in the pinned hooks.json and none is
+    waiting; egress policy; reachability; credential material; that each
+    declared writable root is writable and a named escape set is not; and the
+    ledger's protection. It does not enumerate the filesystem.
 
     -Revalidate runs the pinned appender's profile-bound validation of the sealed
     ledger, again only on controls already measured, and checks that the ledger
     records the digest of the final report.
+
+    It runs only as the entry script of a process of its own, started with
+    -NoProfile and -File, and refuses any other way: a function or a type
+    defined earlier in a session outranks the ones it measures with.
 
     Three rules make the result meaningful.
 
@@ -59,14 +65,18 @@
 .PARAMETER ReportPath
     Writes the structured result as JSON. Without it only the summary is shown.
     It must be an absolute path in a directory that already exists, and it must
-    not be, or lie inside, any file the verdict depends on.
+    not be, or lie inside, any file the verdict depends on. A stream of such a
+    file, a device or extended-length spelling of it, and on Windows a path
+    through a junction or a symbolic link are refused too.
 .EXAMPLE
-    Test-RunContainment.ps1 -Verify -ProfilePath D:\containment\profile.json -ProfileSha256 $digest -Role Controller
+    pwsh -NoProfile -NonInteractive -File Test-RunContainment.ps1 -Verify -ProfilePath D:\containment\profile.json -ProfileSha256 $digest -Role Controller
 .EXAMPLE
-    Test-RunContainment.ps1 -Revalidate -ProfilePath D:\containment\profile.json -ProfileSha256 $digest -Role Controller -FinalReportPath D:\run\final-report.md
+    pwsh -NoProfile -NonInteractive -File Test-RunContainment.ps1 -Revalidate -ProfilePath D:\containment\profile.json -ProfileSha256 $digest -Role Controller -FinalReportPath D:\run\final-report.md
 .NOTES
     Exit codes: 0 every check passed, 2 at least one check failed or could not
-    be measured. There is no partial success.
+    be measured, or the call was refused. There is no partial success. Any other
+    exit code, including 1 from an unhandled error, means the verifier itself
+    failed, and nothing was verified.
 #>
 
 [CmdletBinding(DefaultParameterSetName = 'Verify')]
@@ -2869,10 +2879,11 @@ function Test-WritableRoot {
     <#
         What a Pass here says, and no more: every declared root is a directory this identity can add
         files and folders to, and none of the escape set is writable outside the declared roots. A
-        place a declared root covers is not an escape; a place wider than a declared root is. Rights
-        are measured, not exercised, so the check creates nothing. The filesystem is not enumerated:
-        a writable path outside the declared roots and outside the escape set is not found by this
-        check, and the filesystem policy of the deployment has to close it.
+        place a declared root covers is not an escape; a place wider than a declared root is. On
+        Windows rights are measured, not exercised, so the check creates nothing; elsewhere the
+        measurement of a directory creates and removes a short-lived probe file in it. The filesystem
+        is not enumerated: a writable path outside the declared roots and outside the escape set is
+        not found by this check, and the filesystem policy of the deployment has to close it.
     #>
     [CmdletBinding()]
     [OutputType([System.Collections.Specialized.OrderedDictionary])]
