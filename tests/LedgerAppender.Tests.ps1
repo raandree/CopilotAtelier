@@ -207,10 +207,19 @@ exit `$LASTEXITCODE
             $standardError = [System.IO.File]::ReadAllText($errPath)
         }
 
+        # The raw bytes as well: a redirected console encodes with the OEM code
+        # page, so a character that survived sanitising can still vanish from
+        # the decoded text while leaving a non-ASCII byte behind.
+        $standardErrorByte = [byte[]]@()
+        if (Test-Path -LiteralPath $errPath -PathType Leaf) {
+            $standardErrorByte = [System.IO.File]::ReadAllBytes($errPath)
+        }
+
         [pscustomobject]@{
             ExitCode = $process.ExitCode
             StandardOutput = $standardOutput
             StandardError = $standardError
+            StandardErrorByte = $standardErrorByte
         }
     }
 
@@ -1966,6 +1975,24 @@ Describe 'Ledger appender ordinal grammar' -Tag 'Unit' {
 }
 
 Describe 'Ledger appender refusal text' -Tag 'Unit' {
+    BeforeDiscovery {
+        # S-15: every one of these survives a Control/Format/Separator/
+        # PrivateUse/Surrogate/OtherNotAssigned filter and can still carry data
+        # as invisibly as the tag block, which is why the rule is an allow-list.
+        $script:invisibleRune = @(
+            @{ Name = 'a variation selector'; CodePoint = 0xFE0F }
+            @{ Name = 'a variation selector supplement'; CodePoint = 0xE0100 }
+            @{ Name = 'a Hangul filler'; CodePoint = 0x3164 }
+            @{ Name = 'a halfwidth Hangul filler'; CodePoint = 0xFFA0 }
+            @{ Name = 'the Braille blank'; CodePoint = 0x2800 }
+            @{ Name = 'an ideographic space'; CodePoint = 0x3000 }
+            @{ Name = 'an em space'; CodePoint = 0x2003 }
+            @{ Name = 'a no-break space'; CodePoint = 0x00A0 }
+            @{ Name = 'a Unicode tag character'; CodePoint = 0xE0041 }
+            @{ Name = 'a right-to-left override'; CodePoint = 0x202E }
+        )
+    }
+
     Context 'when a hostile server supplies the text' {
         BeforeEach {
             $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
@@ -1979,14 +2006,17 @@ Describe 'Ledger appender refusal text' -Tag 'Unit' {
             Stop-TestAppender -Process $script:hostile
         }
 
-        It 'leaves one line on standard error with every control and format character replaced' -Skip:(-not $script:onWindows) {
+        It 'leaves one line on standard error with every character outside printable ASCII replaced' -Skip:(-not $script:onWindows) {
             # The controller is a model reading this line, and the speaker is the
-            # squatter the pipe design exists for: a carriage return, an escape,
-            # a right-to-left override and a Unicode tag character would let it
-            # forge a second line or hide what it wrote.
+            # squatter the pipe design exists for. A carriage return forges a
+            # second line and an escape drives a terminal; a right-to-left
+            # override, a tag character, a variation selector, a Hangul filler,
+            # the Braille blank and a no-break space all carry data invisibly.
             $hostileMessage = 'alpha' + [string][char]0x000D + [string][char]0x000A +
-                'beta' + [string][char]0x001B + '[31mred' + [string][char]0x202E +
-                'reversed' + [char]::ConvertFromUtf32(0xE0041) + 'tagged'
+                'beta' + [string][char]0x001B + '[31mred' + [char]::ConvertFromUtf32(0x202E) +
+                'reversed' + [char]::ConvertFromUtf32(0xE0041) + [char]::ConvertFromUtf32(0xFE0F) +
+                [char]::ConvertFromUtf32(0x3164) + [char]::ConvertFromUtf32(0x2800) +
+                [char]::ConvertFromUtf32(0x00A0) + 'tagged'
 
             $response = [ordered]@{
                 status = 'Error'
@@ -2011,9 +2041,19 @@ Describe 'Ledger appender refusal text' -Tag 'Unit' {
             $standardError | Should -Match 'alpha'
             $standardError | Should -Match 'tagged'
             $standardError | Should -Match '\?'
-            $standardError.Contains([string][char]0x001B) | Should -BeFalse -Because 'an escape sequence must not reach a terminal'
-            $standardError.Contains([string][char]0x202E) | Should -BeFalse -Because 'a bidirectional override must not reorder the line'
-            $standardError.Contains([char]::ConvertFromUtf32(0xE0041)) | Should -BeFalse -Because 'a Unicode tag character must not ride along invisibly'
+
+            # The bytes, not the decoded text: a redirected console encodes with
+            # the OEM code page, which maps some of these runes to a question
+            # mark of its own and others to a byte that is not ASCII at all. Only
+            # the bytes show whether the appender sanitised the line.
+            $body = @($result.StandardErrorByte | Where-Object { $_ -ne 0x0D -and $_ -ne 0x0A })
+            @($body | Where-Object { $_ -lt 0x20 -or $_ -gt 0x7E }).Count |
+                Should -Be 0 -Because 'every byte of a refusal is printable ASCII'
+
+            foreach ($codePoint in @(0x001B, 0x202E, 0xE0041, 0xFE0F, 0x3164, 0x2800, 0x00A0)) {
+                $standardError.Contains([char]::ConvertFromUtf32($codePoint)) |
+                    Should -BeFalse -Because ('U+{0:X4} must not reach the reader' -f $codePoint)
+            }
         }
     }
 
@@ -2026,8 +2066,13 @@ Describe 'Ledger appender refusal text' -Tag 'Unit' {
                 ))
         }
 
-        It 'replaces a Unicode tag character that is invisible to \p{Cf} on UTF-16' {
-            Format-RefusalText -Text ('a' + [char]::ConvertFromUtf32(0xE0041) + 'b') |
+        It 'keeps printable ASCII unchanged' {
+            $text = -join (0x20..0x7E | ForEach-Object { [char]$_ })
+            Format-RefusalText -Text $text | Should -BeExactly $text
+        }
+
+        It 'replaces <Name> with one question mark' -ForEach $script:invisibleRune {
+            Format-RefusalText -Text ('a' + [char]::ConvertFromUtf32($CodePoint) + 'b') |
                 Should -BeExactly 'a?b'
         }
 
@@ -2044,17 +2089,14 @@ Describe 'Ledger appender refusal text' -Tag 'Unit' {
             $formatted | Should -BeExactly (('x' * 200) + '...')
         }
 
-        It 'keeps an accented letter and an emoji unchanged' {
-            $text = 'na' + [string][char]0x00EF + 've ' + [char]::ConvertFromUtf32(0x2615)
-            Format-RefusalText -Text $text | Should -BeExactly $text
+        It 'replaces an accented letter and an emoji, which are readable but not ASCII' {
+            $text = 'na' + [char]::ConvertFromUtf32(0x00EF) + 've ' + [char]::ConvertFromUtf32(0x2615)
+            Format-RefusalText -Text $text | Should -BeExactly 'na?ve ?'
         }
 
-        It 'keeps an astral emoji whole when it would straddle the cut' {
-            $text = ('x' * 199) + [char]::ConvertFromUtf32(0x1F600) + 'tail'
-            $formatted = Format-RefusalText -Text $text
-
-            $formatted | Should -BeExactly (('x' * 199) + '...')
-            $formatted.Length | Should -Be 202 -Because 'a surrogate pair is never split to reach the cap'
+        It 'replaces an astral character with a single question mark, not one per surrogate' {
+            Format-RefusalText -Text ('x' + [char]::ConvertFromUtf32(0x1F600) + 'y') |
+                Should -BeExactly 'x?y'
         }
 
         It 'returns an empty string for an empty message' {

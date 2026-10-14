@@ -205,21 +205,12 @@ $script:SafeInteger = 9007199254740991
 $script:MaxRequestLength = 262144
 
 # A refusal line is read by the controller, which is a model, and its text can
-# come from whoever answered the pipe. Runes in these categories are replaced:
-# a carriage return or line feed would forge a second line, an escape would
-# drive a terminal, a bidirectional override would reorder what is shown, and a
-# Unicode tag character would ride along invisibly. The enumeration is by rune,
-# not by UTF-16 unit, because \p{Cf} on UTF-16 misses the tag block entirely.
-$script:RefusalCategory = [System.Collections.Generic.HashSet[System.Globalization.UnicodeCategory]]::new(
-    [System.Globalization.UnicodeCategory[]]@(
-        [System.Globalization.UnicodeCategory]::Control
-        [System.Globalization.UnicodeCategory]::Format
-        [System.Globalization.UnicodeCategory]::LineSeparator
-        [System.Globalization.UnicodeCategory]::ParagraphSeparator
-        [System.Globalization.UnicodeCategory]::Surrogate
-        [System.Globalization.UnicodeCategory]::OtherNotAssigned
-        [System.Globalization.UnicodeCategory]::PrivateUse
-    ))
+# come from whoever answered the pipe. The rule is an allow-list, not a list of
+# categories to drop: a category filter keeps variation selectors, Hangul
+# fillers, the Braille blank and the various spaces, every one of which carries
+# data as invisibly as a tag character. Only printable ASCII survives.
+$script:RefusalFirstRune = 0x20
+$script:RefusalLastRune = 0x7E
 $script:RefusalLength = 200
 
 $script:OnWindows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
@@ -284,11 +275,17 @@ function Test-UtcInstant {
 
 function Format-RefusalText {
     <#
-        Makes any text safe to put on one line of standard error: every rune
-        whose category can break a line, drive a terminal, reorder what is
-        shown or hide itself becomes a question mark, everything else stays,
-        and the result is cut at a fixed length. The cut counts UTF-16 units
-        but moves whole runes, so a surrogate pair is never split in half.
+        Makes any text safe to put on one line of standard error for a reader
+        that cannot see what it is given. A rune survives only if it is
+        printable ASCII; everything else becomes one question mark, accented
+        letters and emoji included. Deciding by Unicode category was not enough:
+        a variation selector, a Hangul filler, the Braille blank and the wider
+        spaces are all letters, symbols or separators by category and carry data
+        as invisibly as a tag character does.
+
+        The enumeration is by rune rather than by UTF-16 unit, so an astral
+        character becomes one question mark and not two, and the cut moves whole
+        runes, so no surrogate pair is ever split in half.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -307,10 +304,10 @@ function Format-RefusalText {
     $cut = $false
 
     foreach ($rune in $Text.EnumerateRunes()) {
-        $piece = if ($script:RefusalCategory.Contains([System.Text.Rune]::GetUnicodeCategory($rune))) {
-            '?'
-        } else {
+        $piece = if ($rune.Value -ge $script:RefusalFirstRune -and $rune.Value -le $script:RefusalLastRune) {
             $rune.ToString()
+        } else {
+            '?'
         }
 
         if ($builder.Length + $piece.Length -gt $script:RefusalLength) {
