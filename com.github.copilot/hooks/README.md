@@ -81,7 +81,7 @@ passing the text on unexpanded.
 | [`scripts/Get-SessionElapsed.ps1`](scripts/Get-SessionElapsed.ps1) | — | Agent-run reader that prints the Post-flight elapsed line of the clock it is given |
 | [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated, and counts the compaction for contributor calibration |
 | [`scripts/Add-FamiliarityContext.ps1`](scripts/Add-FamiliarityContext.ps1) | `PostToolUse` | Re-sends saved familiarity levels after a compaction and, where no `PreCompact` runs, within one turn; registered only by `~/.copilot/hooks/contributor-profile.json` |
-| [`scripts/Test-RunContainment.ps1`](scripts/Test-RunContainment.ps1) | — | Measures the containment controls `/complete-specifications` requires |
+| [`scripts/Test-RunContainment.ps1`](scripts/Test-RunContainment.ps1) | — | Measures the containment controls `/complete-specifications` requires, and revalidates its sealed ledger |
 | [`scripts/Invoke-LedgerAppender.ps1`](scripts/Invoke-LedgerAppender.ps1) | — | Append-only hash-chained evidence ledger for the same workflow |
 
 ## Containment for /complete-specifications
@@ -93,8 +93,9 @@ to a stable path outside every target repository.
 
 That deployed copy is the source for an install, not the control a profile pins.
 The account that installs Copilot Atelier can write `~/.copilot/hooks/scripts`,
-and the verifier always measures the profile and every pinned control for
-immutability, so pin copies installed where no run identity can write.
+and the verifier measures whether the identity that runs it can replace or
+loosen the profile and every pinned control, so pin copies installed where no
+run identity can write.
 
 Decision 0025 records that the package *specifies* the operating-system boundary
 without deploying it. These two scripts close part of that gap and deliberately
@@ -103,34 +104,79 @@ leave the rest open:
 - `Test-RunContainment.ps1` **measures** a boundary. It never creates or repairs
   one. On an ordinary workstation it fails, and that failure is the correct
   answer.
-- `Invoke-LedgerAppender.ps1` **stores** evidence so tampering is detectable. It
-  cannot stop a run identity that already has write access to the sink; keeping
-  the sink outside that identity's writable set is filesystem policy.
+- `Invoke-LedgerAppender.ps1` **stores** evidence so tampering is detectable by
+  anyone who does not also control the sink and the chain head. The chain is not
+  signed, so it cannot stop an identity that can write both; keeping them outside
+  that identity's reach is filesystem policy.
 
-Separate controller and worker identities, a default-deny outbound policy, and a
-filesystem policy that closes the ledger to the run are still deployment work.
+Separate controller and worker identities, an outbound policy that is enabled on
+every firewall profile, defaults to Block, and grants no outbound allow rule that
+could apply to the run identity, and a filesystem policy that closes the ledger
+to the run are still deployment work.
 
 ### Containment profile
 
-The profile is non-secret structured data. Every field is a path or a digest;
-commands, wildcards, credentials, and non-empty egress lists are refused.
+The profile is non-secret structured data. Every path is absolute, with no dot
+segment and no Windows short name, and every digest is lowercase 64-hex. Unknown
+fields, wildcards, a `schemaVersion` other than `1`, and non-empty egress lists
+are refused. Credential material is not a profile field: it is measured on the
+machine, and any that is reachable fails the run.
 
 | Field | Meaning |
 |---|---|
-| `schemaVersion` | Always `1` |
-| `verifier`, `hooksConfig`, `hookScript`, `ledgerAppender` | Pinned control, each `{ path, sha256 }` |
-| `ledgerSink`, `chainHead` | Ledger paths, which must not be writable by the run |
+| `schemaVersion` | Always `1`; any other value is refused |
+| `verifier`, `hooksConfig`, `hookScript`, `ledgerAppender` | Pinned control, each `{ path, sha256 }`. The verifier that runs must be the pinned file |
+| `ledgerSink`, `chainHead` | Ledger paths, which must be closed to the run |
 | `controllerEgressAllow`, `workerEgressAllow` | Must both be empty |
-| `controllerIdentity`, `workerIdentity` | Fixed identities being measured |
-| `immutableControlPaths` | Further paths that must be read-only to the run; the profile and the four pinned controls are always measured |
-| `writableRoots` | The exact roots the run may write |
+| `controllerIdentity`, `workerIdentity` | The account, by name or SID, the verifier must run as for each role; the two must differ |
+| `immutableControlPaths` | Further paths that must be closed to the run; the profile, the four pinned controls, and every live artifact are always measured |
+| `writableRoots` | The roots the run may write; each must be a directory the run identity can add files and folders to |
 | `liveProfile`, `liveRunner`, `liveCommandTemplates` | Required only when live mode is enabled |
+
+`hooksConfig` pins a `hooks.json` that registers the remote-mutation guard and
+no prompt hook. The shipped file also registers the hook that records a Remote
+grant from a Grant marker, which serves the human workflow, and the verifier
+refuses it for a contained run: the prompt text of such a run includes
+specification and issue content that is not the operator's own. `hookScript`
+must sit at `<root>/com.github.copilot/hooks/scripts/Block-RemoteMutation.ps1`,
+the layout the hook command resolves it from, and the pinned command must take
+its script from `PLUGIN_ROOT` before any other place, as the shipped command
+does. The verifier proves that with a decoy tree and fails a command that does
+not.
+
+### What each check says
 
 The verifier reports each check as `Pass`, `Fail`, or `Unavailable`, and an
 `Unavailable` check fails the run exactly like a `Fail`. A control that was not
 measured was not verified: a locked file, a read-only attribute, a missing path,
-or a git configuration that cannot be read is reported as unmeasured, never as
-protected or clean.
+a firewall profile whose state cannot be read, a canary endpoint that timed out
+or was unreachable, a probe that could not be validated, a git that cannot be
+resolved to a file the run cannot replace, and a git child that crashed or
+printed nothing are all reported as unmeasured, never as protected or clean.
+
+A check that executes a pinned control runs only after the controls it executes
+were measured and passed, so a writable or swapped control is never run. Every
+other check always runs, and a run that stops at the profile reports each check
+as not run instead of leaving it out.
+
+| Check | A Pass says | It does not say |
+|---|---|---|
+| `ProfileDigest`, `ProfileSchema` | The profile hashes to the digest argument, compared as typed, and satisfies the closed schema | |
+| `VerifierBinding` | The verifier that runs is the file the profile pins, by path and digest | |
+| `ControlDigest` | Each pinned control hashes to its pinned digest | |
+| `ControlImmutability` | This identity cannot replace or loosen the profile, a pinned control, a live artifact, or an immutable path: not by writing it, deleting it, changing its access list or owner, creating it, or through a directory above it or a reparse point, and none lies in or holds a writable root | What an identity other than the one that runs can do. Off Windows only write access is measured |
+| `IdentityBinding` | The verifier runs as the account the profile declares for the role, and the two roles differ | |
+| `HookContract` | The pinned hook command, with `PLUGIN_ROOT` set to the pinned root and the other places it looks emptied, runs the pinned script, and the script exits 0, 2 and 2 for a safe, a push and an issue-mutation payload | What a host passes the hook in a real run |
+| `GrantChannelClosed` | The pinned `hooks.json` registers no prompt hook and no command that records a Remote grant, and the grants folder of this identity is empty | A hook the host registers outside the pinned file |
+| `EgressPolicy` | Every firewall profile of the active store is enabled and defaults outbound to Block, and no enabled outbound allow rule could apply to this identity by its user condition | A system-wide proxy, and the program, service, port and address scoping of a rule |
+| `RemoteUnreachable` | The probe works against a loopback listener, and local policy denied the connection to both canary addresses | A network that is silent or down: a timeout is unmeasured, not closed |
+| `CredentialAbsence` | None of the credential and git steering variables is set, and a git that is closed to the run reports no credential helper. Evidence names variables and configuration keys, never their values | |
+| `WritableRoots` | Every declared root accepts new files and folders, and none of the escape set is writable outside them: the user profile, the temp folder, the folder of the profile, and the folders of the ledger sink and chain head | The rest of the filesystem, which is not enumerated |
+| `LedgerProtection` | This identity cannot replace or loosen the sink or the chain head, or a directory above them | The chain is not signed: whoever can write both files can write a chain that validates |
+| `LiveArtifacts` | Live mode only: the live artifacts are pinned and match | |
+
+An administrator holds every right the immutability probes ask for, so the
+verifier fails for an administrator by design. Run it as the role identity.
 
 ```powershell
 $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $profilePath).Hash.ToLowerInvariant()
@@ -140,7 +186,9 @@ $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $profilePath).Hash.ToLowe
 `$verifierPath` is the installed copy the profile pins as `verifier.path`.
 Compute the digest yourself and pass it as a direct argument. It is the trust
 anchor: a digest the run derives from the file it is about to trust proves
-nothing.
+nothing. `-ReportPath` writes the structured result, and must be an absolute
+path in a directory that already exists and not be, or lie inside, any file the
+verdict depends on.
 
 ### Ledger
 
