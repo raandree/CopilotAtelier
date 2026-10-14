@@ -1539,18 +1539,26 @@ function Get-HookInterpreter {
         A word the shell expands is refused as well, because the program it names is then not the
         text that was read.
 
-        Only the first word names the program, but the rest of the line is read by the same shell, so
-        it is read here the way a shell reads it and refused where that could start a program nobody
-        measured. Refused anywhere: a line break; a character outside printable ASCII, because
-        PowerShell reads curly quotes as quotes and some other characters as spaces or dashes, which
-        this scan cannot follow; '%' and '!', which a shell expands before it reads the line, even
-        inside quotes; and '$' and a backtick, which a PowerShell wrapper acts on inside double quotes
-        ($(...) runs code). Refused outside double quotes: '&', '|', '<', '>', '^', '(' and ')', and a
-        single quote, after which a double quote is text to PowerShell, so a scan that toggles on the
-        double quote would think a semicolon is quoted that PowerShell reads as a separator. After the
-        first unquoted ';' only the statement the shipped command ends with is accepted, for the
-        PowerShell that a host wraps the line in. The program path may not hold a dot segment, which
-        a shell follows through a link where a textual normalization does not.
+        Only the first word names the program, but the rest of the line is read by the same shell, and
+        a list of characters to refuse is never complete (a '#' is a comment to PowerShell and not to
+        cmd.exe), so what follows the program is accepted by shape. Refused anywhere: a line break; a
+        character outside printable ASCII, because PowerShell reads curly quotes as quotes and some
+        other characters as spaces or dashes; '%' and '!', which a shell expands before it reads the
+        line, even inside quotes; '$' and a backtick, which a PowerShell wrapper acts on inside double
+        quotes ($(...) runs code); and, off Windows, a backslash, which a POSIX shell reads as an
+        escape. The program path may not hold a dot segment, which a shell follows through a link where
+        a textual normalization does not, and may not be a network or device path (two separators in
+        any mix). An unquoted program word holds only letters, digits and . _ - / \ :.
+
+        After the program the line is words separated by spaces or tabs. A word is bare, of letters,
+        digits and . _ : \ / -, and a bare word that starts with a dash is an option name of letters
+        only, because PowerShell reads '-name:' as a parameter that binds to the next word or fails to
+        parse, and splits '-Z.7' in two, where cmd.exe passes each through whole. Or a word is double-
+        quoted, with no double quote inside and no backslash before its closing quote; inside it every
+        shell reads the rest as data, apart from the characters refused above. After the first unquoted
+        ';' only the statement the shipped command ends with is accepted, for the PowerShell that a
+        host wraps the line in. A test parses generated lines with the PowerShell parser and holds
+        every accepted line to this claim: it reads as one command whose words are the words seen here.
 
         The program must be PowerShell, a program named powershell or pwsh. What PowerShell loads
         before its command is known and read here: it must be given -NoProfile, because the profile

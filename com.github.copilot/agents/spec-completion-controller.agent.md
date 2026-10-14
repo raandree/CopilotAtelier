@@ -128,7 +128,9 @@ commands and record each raw result and exit code in the controller ledger:
   text of one plain shape that `cmd.exe`, PowerShell and a POSIX shell read
   alike (bare words, double-quoted words, and at most the one pinned exit
   statement), and says in its evidence when the program path is quoted, which a
-  PowerShell host cannot run. The command must start with the absolute path of
+  PowerShell host cannot run: record that in the report as a limitation, because
+  the hook is then not shown to run under a PowerShell host. The command must
+  start with the absolute path of
   PowerShell (`powershell` or `pwsh`; the verifier refuses any other program),
   and the verifier requires that interpreter to be closed to the run identity
   before it runs anything. In an
