@@ -332,6 +332,22 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Why = 'a name that only ends in powershell'; Line = 'C:\Tools\notpowershell.exe -NoProfile -File x.ps1'; Match = 'not PowerShell' }
         @{ Why = 'cmd.exe, whose registry AutoRun commands this check does not read'; Line = 'C:\Windows\System32\cmd.exe /d /c exit'; Match = 'not PowerShell' }
         @{ Why = 'a script host'; Line = 'C:\Windows\System32\wscript.exe //B x.vbs'; Match = 'not PowerShell' }
+        # Review pass 3 part B, S-17: a PowerShell wrapper expands $(...) inside double quotes, reads a
+        # single-quoted double quote as text, and treats curly quotes as quotes, so this scan, which toggles
+        # on the ASCII double quote, and that shell can disagree about where a quoted part ends.
+        @{ Why = 'a subexpression inside double quotes'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "$(calc.exe)"'; Match = 'backtick' }
+        @{ Why = 'a variable inside double quotes'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "$env:PLUGIN_ROOT"'; Match = 'backtick' }
+        @{ Why = 'a backtick inside double quotes'; Line = ('"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "a' + [char]96 + '"b"'); Match = 'backtick' }
+        @{ Why = 'a single-quoted double quote that hides a semicolon'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command x ''"'' ; calc.exe ''"'''; Match = 'single quote' }
+        @{ Why = 'a single-quoted double quote that hides an ampersand'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command x ''"'' & calc.exe ''"'''; Match = 'single quote' }
+        @{ Why = 'a single quote in an unquoted program word'; Line = 'C:\Tools\O''Brien\powershell.exe -NoProfile -File x.ps1'; Match = 'unquoted' }
+        @{ Why = 'a curly double quote that closes a string for PowerShell only'; Line = ('"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "a' + [char]0x201D + ' ; calc.exe ; ' + [char]0x201C + 'b"'); Match = 'outside printable ASCII' }
+        @{ Why = 'a curly single quote'; Line = ('"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command ' + [char]0x2018 + '"' + [char]0x2019 + ' ; calc.exe'); Match = 'outside printable ASCII' }
+        @{ Why = 'a no-break space before the program'; Line = ([string][char]0xA0 + '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit'); Match = 'outside printable ASCII' }
+        @{ Why = 'a zero-width space inside the program name'; Line = ('C:\Windows\System32\WindowsPowerShell\v1.0\power' + [char]0x200B + 'shell.exe -NoProfile -Command exit'); Match = 'outside printable ASCII' }
+        @{ Why = 'a form feed'; Line = ('"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit' + [char]12 + 'x'); Match = 'outside printable ASCII' }
+        @{ Why = 'a dot segment in the program path'; Line = 'C:\Windows\System32\..\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command exit'; Match = 'dot segment' }
+        @{ Why = 'a dot segment written with forward slashes'; Line = 'C:/Windows/System32/../System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command exit'; Match = 'dot segment' }
     ) {
         $result = Get-HookInterpreter -CommandLine $Line
 
@@ -347,6 +363,13 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
         $result.Problem | Should -BeNullOrEmpty
         $result.Path | Should -Be 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+    }
+
+    # The shipped commands carry single quotes only inside their -Command text, so inside double quotes they stay legal.
+    It 'reads single quotes that sit inside double quotes, with a semicolon between them' {
+        $line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "Write-Output ''a ; b''"'
+
+        (Get-HookInterpreter -CommandLine $line).Problem | Should -BeNullOrEmpty
     }
 
     It 'reads the statement the shipped Windows command ends with, which only an outer PowerShell understands' {

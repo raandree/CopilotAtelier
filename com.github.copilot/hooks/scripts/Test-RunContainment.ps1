@@ -1530,10 +1530,16 @@ function Get-HookInterpreter {
 
         Only the first word names the program, but the rest of the line is read by the same shell, so
         it is read here the way a shell reads it and refused where that could start a program nobody
-        measured: a line break; a '%' or a '!' anywhere, because a shell expands them before it reads
-        the line, even inside quotes; and, outside quotes, '&', '|', '<', '>', '^', '(' and ')'.
-        After the first unquoted ';' only the statement the shipped command ends with is accepted,
-        for the PowerShell that a host wraps the line in.
+        measured. Refused anywhere: a line break; a character outside printable ASCII, because
+        PowerShell reads curly quotes as quotes and some other characters as spaces or dashes, which
+        this scan cannot follow; '%' and '!', which a shell expands before it reads the line, even
+        inside quotes; and '$' and a backtick, which a PowerShell wrapper acts on inside double quotes
+        ($(...) runs code). Refused outside double quotes: '&', '|', '<', '>', '^', '(' and ')', and a
+        single quote, after which a double quote is text to PowerShell, so a scan that toggles on the
+        double quote would think a semicolon is quoted that PowerShell reads as a separator. After the
+        first unquoted ';' only the statement the shipped command ends with is accepted, for the
+        PowerShell that a host wraps the line in. The program path may not hold a dot segment, which
+        a shell follows through a link where a textual normalization does not.
 
         The program must be PowerShell, a program named powershell or pwsh. What PowerShell loads
         before its command is known and read here: it must be given -NoProfile, because the profile
@@ -1560,8 +1566,13 @@ function Get-HookInterpreter {
         return [pscustomobject]@{ Path = $null; Problem = 'the command spans more than one line, and a shell runs each line as a command of its own' }
     }
 
-    if ($text -match '[%!]') {
-        return [pscustomobject]@{ Path = $null; Problem = "the command line holds a '%' or a '!', which a shell expands before it reads the line, even inside quotes, so the program that runs is not the one the text names" }
+    # Read on the text as given, not as trimmed: TrimStart removes spaces that no shell reads as one.
+    if ($CommandLine -cmatch '[^\x20-\x7E\t\r\n]') {
+        return [pscustomobject]@{ Path = $null; Problem = 'the command line holds a character outside printable ASCII, and a shell may read some of those as a quote, a dash or a space that this scan does not (PowerShell reads curly quotes as quotes), so the line cannot be shown to run only what it appears to' }
+    }
+
+    if ($text -match '[%!$`]') {
+        return [pscustomobject]@{ Path = $null; Problem = 'the command line holds a ''%'', a ''!'', a ''$'' or a backtick, which a shell expands or acts on even inside double quotes (a PowerShell wrapper runs $(...) there), so the program that runs is not only the one the text names' }
     }
 
     if ($quoted) {
@@ -1587,8 +1598,8 @@ function Get-HookInterpreter {
         return [pscustomobject]@{ Path = $null; Problem = "the program '$word' contains a character the shell expands, so it is not the program the text names" }
     }
 
-    if (-not $quoted -and $word -match '[&|<>]') {
-        return [pscustomobject]@{ Path = $null; Problem = "the program word '$word' holds an unquoted shell character, which a shell reads as the start of another command or a redirection" }
+    if (-not $quoted -and $word -match "[&|<>']") {
+        return [pscustomobject]@{ Path = $null; Problem = "the program word '$word' holds an unquoted shell character or single quote, which a shell reads as the start of another command, a redirection or a string" }
     }
 
     if ($word.StartsWith('\\') -or $word.StartsWith('//')) {
@@ -1601,6 +1612,10 @@ function Get-HookInterpreter {
         }
 
         return [pscustomobject]@{ Path = $null; Problem = "the program '$word' is a bare name, which the host looks up in its working directory and then in PATH" }
+    }
+
+    if ($word -match '(^|[\\/])\.{1,2}($|[\\/])') {
+        return [pscustomobject]@{ Path = $null; Problem = "the program '$word' contains a dot segment, which hides where it leads: a shell follows '..' through a link where this check normalizes the text" }
     }
 
     $inQuote = $false
@@ -1622,6 +1637,8 @@ function Get-HookInterpreter {
 
             $head = $rest.Substring(0, $position)
             break
+        } elseif (-not $inQuote -and $character -eq [char]39) {
+            return [pscustomobject]@{ Path = $null; Problem = 'the command line has a single quote outside double quotes, which a PowerShell wrapper reads as the start of a string in which a double quote is text, so that shell and this scan can disagree about where a quoted part ends and a semicolon begins' }
         } elseif (-not $inQuote -and '&|<>^()'.IndexOf($character) -ge 0) {
             return [pscustomobject]@{ Path = $null; Problem = "the command line has an unquoted '$character' after its program, which a shell reads as another command, a redirection, an escape or a group, so the program that runs is not only the one named" }
         }
