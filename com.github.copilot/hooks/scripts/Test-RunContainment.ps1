@@ -81,7 +81,6 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 
 $script:OnWindows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
-$script:OverrideName = 'COPILOT_ATELIER_ALLOW_REMOTE'
 $script:PinnedControl = @('verifier', 'hooksConfig', 'hookScript', 'ledgerAppender')
 $script:LiveControl = @('liveProfile', 'liveRunner', 'liveCommandTemplates')
 $script:RightName = @('WriteData', 'AppendData', 'DeleteChild', 'Delete', 'WriteDac', 'WriteOwner')
@@ -1365,42 +1364,127 @@ function Test-HookContract {
     return New-CheckResult -Name 'HookContract' -Status 'Pass' -Evidence $evidence
 }
 
-function Test-OverrideAbsent {
+function Get-GrantRoot {
+    <#
+        Where the guard keeps the Remote grants of the identity that runs it. The expression is the
+        guard's own, so this measures the folder the guard reads.
+    #>
     [CmdletBinding()]
-    [OutputType([hashtable])]
+    [OutputType([string])]
     param()
 
-    $set = [System.Collections.Generic.List[string]]::new()
+    $profileRoot = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData)
 
-    foreach ($scope in @('Process', 'User', 'Machine')) {
-        try {
-            $value = [Environment]::GetEnvironmentVariable($script:OverrideName, $scope)
-        } catch {
-            # User and Machine scopes do not exist off Windows.
-            continue
-        }
-
-        if (-not [string]::IsNullOrEmpty($value)) {
-            $set.Add($scope)
-        }
+    if ([string]::IsNullOrWhiteSpace($profileRoot)) {
+        return $null
     }
 
-    # A fresh child proves the variable is not reintroduced by a profile or a
-    # machine policy the parent process never saw.
+    return [System.IO.Path]::Combine($profileRoot, 'CopilotAtelier', 'grants')
+}
+
+function Test-GrantChannelClosed {
+    <#
+        A Remote grant lets one named remote mutation through the guard, and the UserPromptSubmit
+        hook records it from a Grant marker in prompt text. In a contained run that text includes
+        specification and issue content pasted into prompts, none of it the operator's own, so the
+        hook that records grants must not exist there. Egress and credentials stay the boundary
+        against remote mutation; this check removes the one path around the guard.
+
+        It measures two things. The pinned hooks.json must register no hook on the prompt event and
+        no command that runs the recorder under any event, and the grants folder of the identity
+        that runs must hold nothing, so no grant recorded earlier is waiting. It proves what the
+        pinned file registers and what is on disk now; a hook registered by the host outside the
+        pinned file is outside what it can see.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$HookConfigPath,
+
+        [Parameter(Mandatory)]
+        [string]$HookConfigSha256,
+
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string]$GrantRoot
+    )
+
     try {
-        $child = & (Get-Process -Id $PID).Path -NoProfile -NonInteractive -Command "[Environment]::GetEnvironmentVariable('$($script:OverrideName)')"
-        if (-not [string]::IsNullOrWhiteSpace(($child | Out-String).Trim())) {
-            $set.Add('FreshProcess')
-        }
+        $configBytes = [System.IO.File]::ReadAllBytes($HookConfigPath)
     } catch {
-        return New-CheckResult -Name 'OverrideAbsent' -Status 'Unavailable' -Evidence 'could not spawn a probe process'
+        return New-CheckResult -Name 'GrantChannelClosed' -Status 'Unavailable' -Evidence "could not read the pinned hooks.json: $($_.Exception.Message)"
     }
 
-    if ($set.Count -gt 0) {
-        return New-CheckResult -Name 'OverrideAbsent' -Status 'Fail' -Evidence ("$($script:OverrideName) is set in: " + ($set -join ', '))
+    $configDigest = Get-BytesDigest -Bytes $configBytes
+
+    if ($configDigest -cne $HookConfigSha256) {
+        return New-CheckResult -Name 'GrantChannelClosed' -Status 'Fail' -Evidence "hooks.json hashes to $configDigest but the profile pins $HookConfigSha256; it was not read as the pinned file"
     }
 
-    return New-CheckResult -Name 'OverrideAbsent' -Status 'Pass' -Evidence "$($script:OverrideName) is unset in Process, User, Machine, and a fresh process"
+    try {
+        $configuration = ConvertFrom-JsonByteArray -Bytes $configBytes
+    } catch {
+        return New-CheckResult -Name 'GrantChannelClosed' -Status 'Unavailable' -Evidence 'hooks.json is not valid JSON'
+    }
+
+    $finding = [System.Collections.Generic.List[string]]::new()
+    $hooksProperty = $configuration.PSObject.Properties['hooks']
+
+    if ($null -ne $hooksProperty -and $hooksProperty.Value -is [System.Management.Automation.PSCustomObject]) {
+        foreach ($hookEvent in $hooksProperty.Value.PSObject.Properties) {
+            $entry = @($hookEvent.Value)
+
+            if ($hookEvent.Name -imatch '^userpromptsubmit(ted)?$' -and $entry.Count -gt 0) {
+                $finding.Add("hooks.json registers a $($hookEvent.Name) hook, which records a Remote grant from a Grant marker in any prompt text, including specification or issue text pasted into a prompt")
+            }
+
+            foreach ($hook in $entry) {
+                if ($hook -isnot [System.Management.Automation.PSCustomObject]) {
+                    continue
+                }
+
+                foreach ($field in @('command', 'windows', 'linux', 'osx', 'powershell', 'bash')) {
+                    $commandProperty = $hook.PSObject.Properties[$field]
+
+                    if ($null -ne $commandProperty -and ([string]$commandProperty.Value) -imatch 'Add-RemoteGrant') {
+                        $finding.Add("a $($hookEvent.Name) hook runs the Remote grant recorder in its $field command")
+                        break
+                    }
+                }
+            }
+        }
+    }
+
+    $root = if ([string]::IsNullOrWhiteSpace($GrantRoot)) { Get-GrantRoot } else { $GrantRoot }
+    $unmeasured = $null
+
+    if ([string]::IsNullOrWhiteSpace($root)) {
+        $unmeasured = 'the grants folder of this identity cannot be located'
+    } else {
+        try {
+            if ([System.IO.Directory]::Exists($root)) {
+                $waiting = @([System.IO.Directory]::EnumerateFileSystemEntries($root)).Count
+
+                if ($waiting -gt 0) {
+                    $finding.Add("$waiting entries wait in the grants folder $root, so a Remote grant recorded earlier can still authorize a remote mutation")
+                }
+            }
+        } catch {
+            $unmeasured = "could not list the grants folder ${root}: $($_.Exception.Message)"
+        }
+    }
+
+    if ($finding.Count -gt 0) {
+        return New-CheckResult -Name 'GrantChannelClosed' -Status 'Fail' -Evidence ($finding -join '; ')
+    }
+
+    if ($null -ne $unmeasured) {
+        return New-CheckResult -Name 'GrantChannelClosed' -Status 'Unavailable' -Evidence $unmeasured
+    }
+
+    return New-CheckResult -Name 'GrantChannelClosed' -Status 'Pass' -Evidence "the pinned hooks.json registers no prompt hook and no Remote grant recorder, and $root holds no Remote grant"
 }
 
 function Test-EgressPolicy {
@@ -1544,58 +1628,185 @@ function Test-CredentialAbsence {
     return New-CheckResult -Name 'CredentialAbsence' -Status 'Pass' -Evidence ("none of $($variable -join ', ') is set, and $gitEvidence")
 }
 
-function Test-WritableRoots {
+function Test-PathInside {
+    <#
+        True when the path equals a root or lies inside one. Unlike Test-PathOverlap it does not
+        count a path that merely contains a root: a folder wider than a declared root is not covered
+        by the declaration.
+    #>
     [CmdletBinding()]
-    [OutputType([hashtable])]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$Root
+    )
+
+    $comparison = if ($script:OnWindows) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
+    $separator = [string][System.IO.Path]::DirectorySeparatorChar
+    $subject = [System.IO.Path]::TrimEndingDirectorySeparator([System.IO.Path]::GetFullPath($Path))
+
+    foreach ($entry in @($Root | Where-Object -FilterScript { -not [string]::IsNullOrWhiteSpace($_) })) {
+        $candidate = [System.IO.Path]::TrimEndingDirectorySeparator([System.IO.Path]::GetFullPath($entry))
+        $candidatePrefix = if ($candidate.EndsWith($separator, $comparison)) { $candidate } else { $candidate + $separator }
+
+        if ($subject.Equals($candidate, $comparison) -or $subject.StartsWith($candidatePrefix, $comparison)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-EscapeSet {
+    <#
+        The places a run could use to get out of its declared roots: the user profile, the temp
+        folder, the folder that holds the profile, and the folders that hold the ledger sink and the
+        chain head. The set is fixed and named so that what a Pass says is exact; it is not a search
+        of the filesystem.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ProfilePath,
+
+        [Parameter(Mandatory)]
+        [string]$SinkPath,
+
+        [Parameter(Mandatory)]
+        [string]$ChainHeadPath
+    )
+
+    $candidate = @(
+        [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)
+        [System.IO.Path]::GetTempPath()
+        [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($ProfilePath))
+        [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($SinkPath))
+        [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($ChainHeadPath))
+    )
+
+    $comparer = if ($script:OnWindows) { [System.StringComparer]::OrdinalIgnoreCase } else { [System.StringComparer]::Ordinal }
+    $seen = [System.Collections.Generic.HashSet[string]]::new($comparer)
+    $set = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($path in $candidate) {
+        if ([string]::IsNullOrWhiteSpace($path)) {
+            continue
+        }
+
+        $normal = [System.IO.Path]::TrimEndingDirectorySeparator([System.IO.Path]::GetFullPath($path))
+
+        if ($seen.Add($normal)) {
+            $set.Add($normal)
+        }
+    }
+
+    return $set.ToArray()
+}
+
+function Test-WritableRoot {
+    <#
+        What a Pass here says, and no more: every declared root is a directory this identity can add
+        files and folders to, and none of the escape set is writable outside the declared roots. A
+        place a declared root covers is not an escape; a place wider than a declared root is. Rights
+        are measured, not exercised, so the check creates nothing. The filesystem is not enumerated:
+        a writable path outside the declared roots and outside the escape set is not found by this
+        check, and the filesystem policy of the deployment has to close it.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
     param(
         [Parameter()]
         [AllowNull()]
         [AllowEmptyCollection()]
-        [string[]]$Declared
+        [string[]]$Declared,
+
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$EscapeSet
     )
 
-    $root = @($Declared | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $root = @($Declared | Where-Object -FilterScript { -not [string]::IsNullOrWhiteSpace($_) })
 
     if ($root.Count -eq 0) {
         return New-CheckResult -Name 'WritableRoots' -Status 'Fail' -Evidence 'profile declares no writable root'
     }
 
-    $unwritable = [System.Collections.Generic.List[string]]::new()
+    $unusable = [System.Collections.Generic.List[string]]::new()
     $unmeasured = [System.Collections.Generic.List[string]]::new()
-
-    foreach ($declaredRoot in $root) {
-        $access = Get-WriteAccess -Path $declaredRoot
-
-        if ($access.State -eq 'Absent') {
-            $unwritable.Add("$declaredRoot (absent)")
-        } elseif ($access.State -eq 'Denied') {
-            $unwritable.Add("$declaredRoot (not writable)")
-        } elseif ($access.State -eq 'Unknown') {
-            $unmeasured.Add("$declaredRoot ($($access.Reason))")
-        }
-    }
-
-    # A bounded sample rather than a filesystem sweep: these are the roots whose
-    # writability would let a run escape its worktree, so one hit is decisive.
-    $forbidden = @(
-        [Environment]::GetFolderPath('UserProfile')
-        [System.IO.Path]::GetTempPath()
-    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-
     $escapable = [System.Collections.Generic.List[string]]::new()
 
-    foreach ($forbiddenRoot in $forbidden) {
-        $access = Get-WriteAccess -Path $forbiddenRoot
+    foreach ($declaredRoot in $root) {
+        $object = Get-ObjectRight -Path $declaredRoot
 
-        if ($access.State -eq 'Writable') {
-            $escapable.Add($forbiddenRoot)
-        } elseif ($access.State -eq 'Unknown') {
-            $unmeasured.Add("$forbiddenRoot ($($access.Reason))")
+        if ($object.State -eq 'Absent') {
+            $unusable.Add("$declaredRoot (does not exist)")
+            continue
+        }
+
+        if ($object.State -ne 'Measured') {
+            $unmeasured.Add("$declaredRoot ($($object.Reason))")
+            continue
+        }
+
+        if (-not $object.IsDirectory) {
+            $unusable.Add("$declaredRoot (not a directory)")
+            continue
+        }
+
+        $denied = @(@('WriteData', 'AppendData') | Where-Object -FilterScript { $object.Right[$_] -eq 'Denied' })
+        $unknown = @(@('WriteData', 'AppendData') | Where-Object -FilterScript { $object.Right[$_] -eq 'Unknown' })
+
+        if ($denied.Count -gt 0) {
+            $lacking = ($denied | ForEach-Object -Process { $script:RightLabel[$_][1] }) -join ', '
+            $unusable.Add("$declaredRoot (not writable: this identity lacks $lacking)")
+        } elseif ($unknown.Count -gt 0) {
+            $unmeasured.Add("$declaredRoot (could not measure " + (($unknown | ForEach-Object -Process { $script:RightLabel[$_][1] }) -join ', ') + ')')
         }
     }
 
-    if ($unwritable.Count -gt 0 -or $escapable.Count -gt 0) {
-        $evidence = 'declared roots unusable: [' + ($unwritable -join '; ') + ']; writable outside the declared set: [' + ($escapable -join '; ') + ']'
+    $escapeNote = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($escape in @($EscapeSet | Where-Object -FilterScript { -not [string]::IsNullOrWhiteSpace($_) })) {
+        if (Test-PathInside -Path $escape -Root $root) {
+            $escapeNote.Add("$escape (covered by a declared root)")
+            continue
+        }
+
+        $object = Get-ObjectRight -Path $escape
+
+        if ($object.State -eq 'Absent') {
+            $escapeNote.Add("$escape (absent)")
+            continue
+        }
+
+        if ($object.State -ne 'Measured') {
+            $unmeasured.Add("$escape ($($object.Reason))")
+            continue
+        }
+
+        $name = @('WriteData', 'AppendData', 'DeleteChild')
+        $granted = @($name | Where-Object -FilterScript { $object.Right[$_] -eq 'Granted' })
+        $unknown = @($name | Where-Object -FilterScript { $object.Right[$_] -eq 'Unknown' })
+
+        if ($granted.Count -gt 0) {
+            $escapable.Add("$escape (this identity holds " + (($granted | ForEach-Object -Process { $script:RightLabel[$_][[int]$object.IsDirectory] }) -join ', ') + ')')
+        } elseif ($unknown.Count -gt 0) {
+            $unmeasured.Add("$escape (could not measure " + (($unknown | ForEach-Object -Process { $script:RightLabel[$_][[int]$object.IsDirectory] }) -join ', ') + ')')
+        } else {
+            $escapeNote.Add("$escape (closed)")
+        }
+    }
+
+    if ($unusable.Count -gt 0 -or $escapable.Count -gt 0) {
+        $evidence = 'declared roots unusable: [' + ($unusable -join '; ') + ']; writable outside the declared roots: [' + ($escapable -join '; ') + ']'
+
         if ($unmeasured.Count -gt 0) {
             $evidence += '; not measurable: [' + ($unmeasured -join '; ') + ']'
         }
@@ -1607,52 +1818,59 @@ function Test-WritableRoots {
         return New-CheckResult -Name 'WritableRoots' -Status 'Unavailable' -Evidence ('not measurable: ' + ($unmeasured -join '; '))
     }
 
-    return New-CheckResult -Name 'WritableRoots' -Status 'Pass' -Evidence "declared roots are writable and the sampled roots outside them are not"
+    return New-CheckResult -Name 'WritableRoots' -Status 'Pass' -Evidence ("every declared root accepts new files and folders ($($root -join '; ')), and none of the escape set is writable outside them: $($escapeNote -join '; '); the rest of the filesystem is not enumerated")
 }
 
 function Test-LedgerProtection {
+    <#
+        The sink and the chain head are judged exactly like the pinned controls: by whether this
+        identity can replace or loosen either file, the directory that holds it, or any directory
+        above it, and whether either lies in or holds a writable root. A file that does not exist
+        yet is closed only if nothing on the way lets this identity create it.
+    #>
     [CmdletBinding()]
-    [OutputType([hashtable])]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
     param(
         [Parameter(Mandatory)]
         [string]$SinkPath,
 
         [Parameter(Mandatory)]
-        [string]$ChainHeadPath
+        [string]$ChainHeadPath,
+
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$WritableRoot = @()
     )
 
-    $writable = [System.Collections.Generic.List[string]]::new()
+    $violation = [System.Collections.Generic.List[string]]::new()
     $unmeasured = [System.Collections.Generic.List[string]]::new()
+    $perPathLimit = 6
 
     foreach ($path in @($SinkPath, $ChainHeadPath)) {
-        $access = Get-WriteAccess -Path $path
+        try {
+            $protection = Test-PathProtection -Path $path -WritableRoot $WritableRoot
+        } catch {
+            $unmeasured.Add("${path}: $($_.Exception.Message)")
+            continue
+        }
 
-        if ($access.State -eq 'Writable') {
-            $writable.Add($path)
-        } elseif ($access.State -eq 'Unknown') {
-            $unmeasured.Add("$path ($($access.Reason))")
-        } elseif ($access.State -eq 'Absent') {
-            # An absent record is only safe if the directory that would hold it
-            # is closed to this identity; otherwise the run can create its own
-            # ledger. A directory that does not exist yet cannot be measured.
-            $directory = Split-Path -Parent $path
+        foreach ($line in @($protection.Violation | Select-Object -First $perPathLimit)) {
+            $violation.Add($line)
+        }
 
-            if (-not $directory -or -not (Test-Path -LiteralPath $directory -PathType Container)) {
-                $unmeasured.Add("$path (its directory does not exist, so its protection cannot be measured)")
-            } else {
-                $directoryAccess = Get-WriteAccess -Path $directory
+        if (@($protection.Violation).Count -gt $perPathLimit) {
+            $violation.Add("${path}: and $(@($protection.Violation).Count - $perPathLimit) more breaches")
+        }
 
-                if ($directoryAccess.State -eq 'Writable') {
-                    $writable.Add("$directory (would accept a substitute ledger)")
-                } elseif ($directoryAccess.State -eq 'Unknown') {
-                    $unmeasured.Add("$directory ($($directoryAccess.Reason))")
-                }
-            }
+        foreach ($line in @($protection.Unmeasured)) {
+            $unmeasured.Add($line)
         }
     }
 
-    if ($writable.Count -gt 0) {
-        $evidence = 'writable by this identity: ' + ($writable -join '; ')
+    if ($violation.Count -gt 0) {
+        $evidence = 'this identity can replace or loosen: ' + ($violation -join '; ')
+
         if ($unmeasured.Count -gt 0) {
             $evidence += '; not measurable: ' + ($unmeasured -join '; ')
         }
@@ -1664,7 +1882,7 @@ function Test-LedgerProtection {
         return New-CheckResult -Name 'LedgerProtection' -Status 'Unavailable' -Evidence ('not measurable: ' + ($unmeasured -join '; '))
     }
 
-    return New-CheckResult -Name 'LedgerProtection' -Status 'Pass' -Evidence 'neither the sink nor the chain head is writable by this identity'
+    return New-CheckResult -Name 'LedgerProtection' -Status 'Pass' -Evidence 'neither the sink nor the chain head, nor any directory above them, can be replaced or loosened by this identity'
 }
 
 function Test-ControlDigest {
@@ -1778,7 +1996,7 @@ function Get-ContainmentCheckName {
         'ControlImmutability'
         'IdentityBinding'
         'HookContract'
-        'OverrideAbsent'
+        'GrantChannelClosed'
         'EgressPolicy'
         'RemoteUnreachable'
         'CredentialAbsence'
@@ -1841,7 +2059,7 @@ function Get-ContainmentCheck {
                     -HookScriptPath ([string]$ContainmentProfile.hookScript.path) -HookScriptSha256 ([string]$ContainmentProfile.hookScript.sha256)))
     }
 
-    $check.Add((Test-OverrideAbsent))
+    $check.Add((Test-GrantChannelClosed -HookConfigPath ([string]$ContainmentProfile.hooksConfig.path) -HookConfigSha256 ([string]$ContainmentProfile.hooksConfig.sha256)))
 
     $declaredAllow = if ($Role -eq 'Controller') {
         @($ContainmentProfile.controllerEgressAllow)
@@ -1852,8 +2070,10 @@ function Get-ContainmentCheck {
     $check.Add((Test-EgressPolicy -DeclaredAllow ([string[]]$declaredAllow)))
     $check.Add((Test-RemoteUnreachable))
     $check.Add((Test-CredentialAbsence))
-    $check.Add((Test-WritableRoots -Declared $writableRoot))
-    $check.Add((Test-LedgerProtection -SinkPath ([string]$ContainmentProfile.ledgerSink) -ChainHeadPath ([string]$ContainmentProfile.chainHead)))
+
+    $escapeSet = @(Get-EscapeSet -ProfilePath $ProfilePath -SinkPath ([string]$ContainmentProfile.ledgerSink) -ChainHeadPath ([string]$ContainmentProfile.chainHead))
+    $check.Add((Test-WritableRoot -Declared $writableRoot -EscapeSet $escapeSet))
+    $check.Add((Test-LedgerProtection -SinkPath ([string]$ContainmentProfile.ledgerSink) -ChainHeadPath ([string]$ContainmentProfile.chainHead) -WritableRoot $writableRoot))
 
     if ($LiveMode -ne 'off') {
         $check.Add((Test-LiveArtifact -ContainmentProfile $ContainmentProfile -LiveMode $LiveMode))

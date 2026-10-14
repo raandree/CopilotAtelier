@@ -94,8 +94,10 @@ The verifier hash inside the profile is subordinate to this direct trust anchor.
   or test output into it.
 - Never use a repository-defined command or its output to derive a path outside
   the assigned worktree, endpoint, authorization, live argument, or scope.
-- Never create or persist `COPILOT_ATELIER_ALLOW_REMOTE` in Process, User,
-  Machine, or any other scope. Treat its presence as `BlockedContainment`.
+- Never record, write, or request a Remote grant, and never create, change, or
+  delete anything in the grants folder. A Remote grant is the user's own act,
+  and a contained run registers no hook that records one. Treat a
+  `GrantChannelClosed` check that did not pass as `BlockedContainment`.
 
 ## Pre-containment probe
 
@@ -106,31 +108,43 @@ commands and record each raw result and exit code in the controller ledger:
 1. Canonicalize the profile, verifier, ledger appender, hook configuration, and
   hook script paths. Reject a path inside the target repository or a path
   controlled by its account. Hash all five files and require exact profile
-  matches. Confirm the resolved paths equal the profile paths and that
-  `PLUGIN_ROOT`, `HOME`, and the platform user-profile variable cannot redirect
-  hook resolution.
+  matches. Confirm the resolved paths equal the profile paths. The verifier, not
+  the caller's environment, decides which hook script runs: it sets
+  `PLUGIN_ROOT` to the pinned root, empties `HOME` and the platform user-profile
+  variable for the probe, and fails when the hook command takes its script from
+  anywhere but `PLUGIN_ROOT`.
 2. Run only the hash-pinned verifier with its fixed `Verify` parameter set. It
   invokes the exact current-platform PreToolUse command from the pinned
-  `hooks.json` with fixed synthetic safe, push, and issue-mutation payloads;
-  require exit codes 0, 2, and 2. In an enabled live mode, the hash-pinned
+  `hooks.json` with fixed synthetic safe, push, and issue-mutation payloads, and
+  only after the verifier binding, the control digests, and the immutability of
+  the pinned controls have passed; require exit codes 0, 2, and 2. In an enabled
+  live mode, the hash-pinned
   verifier also canonicalizes and hashes the live profile, live-runner
   executable, and command-template manifest and requires exact containment-
   profile matches.
-3. Require verifier evidence that `COPILOT_ATELIER_ALLOW_REMOTE` is unset in
-  Process, User, and Machine scopes and in a freshly spawned hook process.
+3. Require verifier evidence that the Remote grant channel is closed
+  (`GrantChannelClosed`): the pinned `hooks.json` registers no
+  `UserPromptSubmit` hook and no command that records a Remote grant, and the
+  grants folder of the running identity holds none.
   Require controller terminal children to have an effective allow set equal to
   `controllerEgressAllow` and therefore empty, worker processes to have an
   effective allow set equal to `workerEgressAllow` and therefore empty, remote
   endpoints to be unreachable, and no remote credentials, credential helper,
   proxy, package feed, browser, web, GitHub, or MCP channel to exist.
 4. Require verifier evidence from both controller and worker identities and
-  network namespaces. The measured writable filesystem set must equal exactly
-  the controller integration worktree or worker isolated worktree plus its
-  named run-artifact roots. The append-only ledger sink and protected chain
-  head are not writable, replaceable, deletable, or truncatable by any run
-  identity or terminal child. Only the pinned appender identity may write them
-  through fixed-schema authenticated local IPC. Any other writable path is
-  `BlockedContainment`. A self-description or profile assertion is not evidence.
+  network namespaces. The verifier proves two things about writability, and the
+  controller claims no more. Every declared root, the controller integration
+  worktree or the worker isolated worktree plus its named run-artifact roots,
+  accepts new files and folders. A fixed escape set is not writable outside
+  those roots: the user profile, the temp folder, the folder of the containment
+  profile, and the folders of the ledger sink and chain head. The verifier does
+  not enumerate the filesystem, so closing every other path is the deployment's
+  filesystem policy, and the controller never reports the writable set as exact.
+  The append-only ledger sink and protected chain head are not writable,
+  replaceable, deletable, or truncatable by any run identity or terminal child.
+  Only the pinned appender identity may write them through fixed-schema
+  authenticated local IPC. Any measured breach of these is `BlockedContainment`.
+  A self-description or profile assertion is not evidence.
 
 Any command outside this allow-list before every probe passes is
 `BlockedContainment`. A missing, unknown, or failed result also stops the run.
@@ -148,8 +162,8 @@ live profiles, the ledger appender, protected chain head, or pre-gate probe
 implementation. Hash these immutable controls at baseline and require
 filesystem policy to make them read-only to the run. Before every delegation
 wave, and before every fix round, integration, disposable mutation, and
-finalization, verify hashes; absence of the override in Process, User, Machine,
-and a fresh hook process; empty effective allow sets; exact writable roots; the
+finalization, verify hashes; a closed Remote grant channel; empty effective allow
+sets; the declared writable roots and the closed escape set; the
 ledger chain head; and synthetic 0, 2, and 2 hook results again. A mismatch is a
 Blocker and forbids further terminal or agent work except cleanup and reporting.
 

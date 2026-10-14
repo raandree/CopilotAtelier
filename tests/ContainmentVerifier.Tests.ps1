@@ -442,7 +442,7 @@ Describe 'Containment verifier' -Tag 'Unit' {
                 'ControlImmutability'
                 'IdentityBinding'
                 'HookContract'
-                'OverrideAbsent'
+                'GrantChannelClosed'
                 'EgressPolicy'
                 'RemoteUnreachable'
                 'CredentialAbsence'
@@ -451,6 +451,16 @@ Describe 'Containment verifier' -Tag 'Unit' {
             )) {
             $names | Should -Contain $expected
         }
+    }
+
+    It 'refuses the shipped hooks.json, which records Remote grants from prompt text' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p32/profile.json')
+
+        $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
+
+        $check = Get-Check -Result $result -Name 'GrantChannelClosed'
+        $check.status | Should -Be 'Fail' -Because $check.evidence
+        $check.evidence | Should -Match 'UserPromptSubmit'
     }
 
     It 'never passes overall while any check is unmeasured' {
@@ -629,7 +639,7 @@ Describe 'Containment verifier' -Tag 'Unit' {
         (Get-Check -Result $result -Name 'IdentityBinding').status | Should -Be 'Unavailable'
     }
 
-    It 'reports a locked ledger as unmeasured rather than protected' -Skip:(-not $script:onWindows) {
+    It 'does not call a ledger that another process holds open protected' -Skip:(-not $script:onWindows) {
         $ledgerRoot = Join-Path $TestDrive 'p17/ledger'
         $null = New-Item -Path $ledgerRoot -ItemType Directory -Force
         $sink = Join-Path $ledgerRoot 'run.jsonl'
@@ -641,8 +651,8 @@ Describe 'Containment verifier' -Tag 'Unit' {
             chainHead = $head
         }
 
-        # A sharing violation says another process holds the file, not that
-        # this identity lacks write access.
+        # A sharing violation says another process holds the file, not that this identity lacks
+        # write access; the directory above it is still measured, and this identity can write it.
         $lock = @(
             [System.IO.File]::Open($sink, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
             [System.IO.File]::Open($head, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
@@ -654,7 +664,8 @@ Describe 'Containment verifier' -Tag 'Unit' {
         }
 
         $check = Get-Check -Result $result -Name 'LedgerProtection'
-        $check.status | Should -Be 'Unavailable' -Because $check.evidence
+        $check.status | Should -Not -Be 'Pass' -Because $check.evidence
+        $check.evidence | Should -Match 'run.jsonl'
     }
 
     It 'does not call a ledger protected when its directory does not exist' {
@@ -666,8 +677,10 @@ Describe 'Containment verifier' -Tag 'Unit' {
 
         $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
 
+        # This identity can create the missing directory, so a substitute ledger could be planted.
         $check = Get-Check -Result $result -Name 'LedgerProtection'
-        $check.status | Should -Be 'Unavailable' -Because $check.evidence
+        $check.status | Should -Not -Be 'Pass' -Because $check.evidence
+        $check.evidence | Should -Match 'missing-ledger'
     }
 
     It 'reports an unreadable git configuration as unmeasured, not as clean' {

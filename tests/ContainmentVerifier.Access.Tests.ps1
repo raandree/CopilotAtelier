@@ -341,6 +341,24 @@ Describe 'Containment access rights of a real object' -Tag 'Unit' {
         $result.Right['WriteDac'] | Should -Be 'Granted'
     }
 
+    It 'reports a right as unmeasured, not denied, while another process holds the file without sharing' -Skip:(-not $script:onWindows) {
+        # A sharing violation says another process has the file, not that access control refuses
+        # this identity, so it must never read as a closed right.
+        $path = Join-Path $script:room 'held-open.jsonl'
+        [System.IO.File]::WriteAllText($path, '')
+        $hold = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+        try {
+            $result = Get-ObjectRight -Path $path
+        } finally {
+            $hold.Dispose()
+        }
+
+        $result.State | Should -Be 'Measured'
+        $result.Right['WriteData'] | Should -Be 'Unknown'
+        $result.Right['Delete'] | Should -Be 'Unknown'
+        $result.Reason | Should -Match 'Win32 error 32'
+    }
+
     It 'reports a directory with the rights that matter for its children' -Skip:(-not $script:onWindows) {
         $result = Get-ObjectRight -Path $script:room
 

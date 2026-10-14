@@ -21,11 +21,12 @@ BeforeAll {
             'Test-ControlImmutability'
             'Test-IdentityBinding'
             'Test-HookContract'
-            'Test-OverrideAbsent'
+            'Test-GrantChannelClosed'
             'Test-EgressPolicy'
             'Test-RemoteUnreachable'
             'Test-CredentialAbsence'
-            'Test-WritableRoots'
+            'Test-WritableRoot'
+            'Get-EscapeSet'
             'Test-LedgerProtection'
         ))
 
@@ -61,11 +62,12 @@ BeforeAll {
         Mock Test-ControlImmutability { New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'mock' }
         Mock Test-IdentityBinding { New-CheckResult -Name 'IdentityBinding' -Status 'Pass' -Evidence 'mock' }
         Mock Test-HookContract { New-CheckResult -Name 'HookContract' -Status 'Pass' -Evidence 'mock' }
-        Mock Test-OverrideAbsent { New-CheckResult -Name 'OverrideAbsent' -Status 'Pass' -Evidence 'mock' }
+        Mock Test-GrantChannelClosed { New-CheckResult -Name 'GrantChannelClosed' -Status 'Pass' -Evidence 'mock' }
         Mock Test-EgressPolicy { New-CheckResult -Name 'EgressPolicy' -Status 'Pass' -Evidence 'mock' }
         Mock Test-RemoteUnreachable { New-CheckResult -Name 'RemoteUnreachable' -Status 'Pass' -Evidence 'mock' }
         Mock Test-CredentialAbsence { New-CheckResult -Name 'CredentialAbsence' -Status 'Pass' -Evidence 'mock' }
-        Mock Test-WritableRoots { New-CheckResult -Name 'WritableRoots' -Status 'Pass' -Evidence 'mock' }
+        Mock Test-WritableRoot { New-CheckResult -Name 'WritableRoots' -Status 'Pass' -Evidence 'mock' }
+        Mock Get-EscapeSet { @('escape-a', 'escape-b') }
         Mock Test-LedgerProtection { New-CheckResult -Name 'LedgerProtection' -Status 'Pass' -Evidence 'mock' }
         Mock Test-LiveArtifact { New-CheckResult -Name 'LiveArtifacts' -Status 'Pass' -Evidence 'mock' }
     }
@@ -141,6 +143,22 @@ Describe 'Containment check flow' -Tag 'Unit' {
         Should -Invoke Test-HookContract -Times 1 -Exactly
     }
 
+    It 'gives the grant channel check the pinned hooks.json path and digest' {
+        $null = Invoke-Flow
+
+        Should -Invoke Test-GrantChannelClosed -Times 1 -Exactly -ParameterFilter {
+            $HookConfigPath -eq (Join-Path $script:base 'hooks.json') -and $HookConfigSha256 -ceq ('b' * 64)
+        }
+    }
+
+    It 'measures the grant channel even when a control it reads is unverified' {
+        Mock Test-ControlDigest { New-CheckResult -Name 'ControlDigest' -Status 'Fail' -Evidence 'mock breach' }
+
+        $result = Invoke-Flow
+
+        ($result | Where-Object { $_.name -ceq 'GrantChannelClosed' }).evidence | Should -Be 'mock'
+    }
+
     It 'does not run the hook probe when <Gate> is <Status>' -ForEach @(
         @{ Gate = 'VerifierBinding'; Status = 'Fail' }
         @{ Gate = 'ControlDigest'; Status = 'Fail' }
@@ -169,12 +187,59 @@ Describe 'Containment check flow' -Tag 'Unit' {
     }
 
     It 'still runs every other check when one fails' {
-        Mock Test-WritableRoots { New-CheckResult -Name 'WritableRoots' -Status 'Fail' -Evidence 'mock' }
+        Mock Test-WritableRoot { New-CheckResult -Name 'WritableRoots' -Status 'Fail' -Evidence 'mock' }
 
         $result = Invoke-Flow
 
         @($result.name) | Should -Be @(Get-ContainmentCheckName -LiveMode 'off')
         Should -Invoke Test-LedgerProtection -Times 1 -Exactly
+    }
+
+    It 'gives the writable roots check the declared roots and the escape set' {
+        $null = Invoke-Flow
+
+        Should -Invoke Test-WritableRoot -Times 1 -Exactly -ParameterFilter {
+            $Declared -contains (Join-Path $script:base 'work') -and $EscapeSet -contains 'escape-a' -and $EscapeSet -contains 'escape-b'
+        }
+    }
+
+    It 'builds the escape set from the profile, the ledger and the head it was given' {
+        $null = Invoke-Flow
+
+        Should -Invoke Get-EscapeSet -Times 1 -Exactly -ParameterFilter {
+            $ProfilePath -eq (Join-Path $script:base 'profile.json') -and
+            $SinkPath -eq (Join-Path $script:base 'run.jsonl') -and
+            $ChainHeadPath -eq (Join-Path $script:base 'run.head.json')
+        }
+    }
+
+    It 'gives the ledger check the writable roots, so a ledger inside one fails' {
+        $null = Invoke-Flow
+
+        Should -Invoke Test-LedgerProtection -Times 1 -Exactly -ParameterFilter {
+            $WritableRoot -contains (Join-Path $script:base 'work') -and $SinkPath -eq (Join-Path $script:base 'run.jsonl') -and
+            $ChainHeadPath -eq (Join-Path $script:base 'run.head.json')
+        }
+    }
+}
+
+Describe 'Containment escape set' -Tag 'Unit' {
+    It 'names the user profile, the temp folder, the folder of the profile and the folders of the ledger and the chain head' {
+        $set = @(Get-EscapeSet -ProfilePath (Join-Path $script:base 'cfg/profile.json') -SinkPath (Join-Path $script:base 'ledger/run.jsonl') `
+                -ChainHeadPath (Join-Path $script:base 'head/run.head.json'))
+
+        $set | Should -Contain ([System.Environment]::GetFolderPath('UserProfile'))
+        $set | Should -Contain ([System.IO.Path]::TrimEndingDirectorySeparator([System.IO.Path]::GetTempPath()))
+        $set | Should -Contain (Join-Path $script:base 'cfg')
+        $set | Should -Contain (Join-Path $script:base 'ledger')
+        $set | Should -Contain (Join-Path $script:base 'head')
+    }
+
+    It 'lists a folder once when the ledger and the head share it' {
+        $set = @(Get-EscapeSet -ProfilePath (Join-Path $script:base 'profile.json') -SinkPath (Join-Path $script:base 'run.jsonl') `
+                -ChainHeadPath (Join-Path $script:base 'run.head.json'))
+
+        @($set | Where-Object { $_ -eq $script:base }) | Should -HaveCount 1
     }
 }
 
