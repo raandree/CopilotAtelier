@@ -1732,3 +1732,154 @@ Describe 'Ledger appender seal' -Tag 'Unit' {
         $later.ExitCode | Should -Be 0 -Because 'an oversized request must not take the service down'
     }
 }
+
+Describe 'Ledger appender ordinal grammar' -Tag 'Unit' {
+    BeforeDiscovery {
+        # PowerShell's -ceq and -cin are case-sensitive but culture-ordered, so a
+        # character the collation ignores compares equal to nothing at all. The
+        # invisible characters are built from code points: a literal one in the
+        # file would be unreadable and would not survive a copy.
+        $script:unrealInstant = @(
+            @{ Name = 'a day and a time that do not exist'; Utc = '2026-99-99T99:99:99Z' }
+            @{ Name = 'the thirtieth of February'; Utc = '2026-02-30T00:00:00Z' }
+            @{ Name = 'a thirteenth month'; Utc = '2026-13-01T00:00:00Z' }
+            @{ Name = 'the twenty-fourth hour'; Utc = '2026-09-02T24:00:00Z' }
+            @{ Name = 'a leap second'; Utc = '2026-06-30T23:59:60Z' }
+        )
+
+        $script:realInstant = @(
+            @{ Name = 'without fractional seconds'; Utc = '2026-09-02T22:00:00Z' }
+            @{ Name = 'with one fractional digit'; Utc = '2026-09-02T22:00:00.5Z' }
+            @{ Name = 'with seven fractional digits'; Utc = '2026-09-02T22:00:00.1234567Z' }
+            @{ Name = 'with nine fractional digits'; Utc = '2026-09-02T22:00:00.123456789Z' }
+            @{ Name = 'on a leap day'; Utc = '2024-02-29T00:00:00Z' }
+        )
+    }
+
+    BeforeEach {
+        $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
+        $script:sinkPath = Join-Path $TestDrive "ledger-$([guid]::NewGuid().ToString('N')).jsonl"
+        $script:headPath = Join-Path $TestDrive "head-$([guid]::NewGuid().ToString('N')).json"
+        $script:profilePath = Join-Path $TestDrive "profile-$([guid]::NewGuid().ToString('N')).json"
+        $script:appender = $null
+        $script:zeroWidthSpace = [string][char]0x200B
+    }
+
+    AfterEach {
+        Stop-TestAppender -Process $script:appender
+    }
+
+    It 'refuses a record whose extra field name only a culture folds into type' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $confusable = 'ty' + $script:zeroWidthSpace + 'pe'
+        $record = '{"type":"Note","' + $confusable + '":"Seal","runId":"run-0001","utc":"2026-09-02T22:00:00Z","data":{}}'
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'unknown field'
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0 -Because 'a smuggled field must never be stored'
+    }
+
+    It 'refuses an operation whose name only a culture folds into Seal' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $confusable = 'Seal' + $script:zeroWidthSpace
+        $record = '{"type":"' + $confusable + '","runId":"run-0001","utc":"2026-09-02T22:00:00Z","data":{}}'
+        $payload = '{"operation":"' + $confusable + '","record":' + $record + '}'
+
+        $response = Invoke-RawRequest -PipeName $script:pipeName -Payload $payload
+        $response | Should -Match '"status":"Error"'
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'refuses an envelope whose extra key only a culture folds into operation' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $confusable = 'oper' + $script:zeroWidthSpace + 'ation'
+        $payload = '{"operation":"Append","' + $confusable + '":"Seal","record":' +
+            (New-TestRecordJson -Type 'Baseline') + '}'
+
+        $response = Invoke-RawRequest -PipeName $script:pipeName -Payload $payload
+        $response | Should -Match '"status":"Error"'
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'refuses a stored line whose extra field name only a culture folds into type' -Skip:(-not $script:onWindows) {
+        # The canonical form escapes the zero-width space, so the planted key has
+        # to be written escaped for the line to be canonical at all; that is what
+        # makes this line pass every check but the closed schema.
+        $forged = New-ForgedLine -Member @(
+            '"data":{}'
+            '"prevSha256":"' + ('0' * 64) + '"'
+            '"runId":"run-0001"'
+            '"sequence":1'
+            '"type":"Note"'
+            '"ty\u200Bpe":"Seal"'
+            '"utc":"2026-09-02T22:00:00Z"'
+        )
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($forged.Line)
+        Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 $forged.Digest
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+        $validation.Output | Should -Match 'unknown field'
+    }
+
+    It 'refuses a utc that is <Name>' -ForEach $script:unrealInstant -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $record = '{"type":"Baseline","runId":"run-0001","utc":"' + $Utc + '","data":{}}'
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'refuses a utc with a trailing line feed' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        # The line feed is escaped in the JSON, so it reaches the field value as
+        # one character; an anchor of $ matches in front of it.
+        $record = '{"type":"Baseline","runId":"run-0001","utc":"2026-10-14T16:00:00Z\n","data":{}}'
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'refuses a utc with a leading space' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $record = '{"type":"Baseline","runId":"run-0001","utc":" 2026-10-14T16:00:00Z","data":{}}'
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
+    }
+
+    It 'stores a utc <Name> exactly as it was given' -ForEach $script:realInstant -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $record = '{"type":"Baseline","runId":"run-0001","utc":"' + $Utc + '","data":{}}'
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        $line[0] | Should -BeLike ('*"utc":"' + $Utc + '"*') -Because 'a validated instant is never rewritten'
+    }
+
+    It 'refuses a profile digest with a trailing line feed' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+
+        $digest = New-TestProfile -ProfilePath $script:profilePath -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $result = Invoke-AppenderSplit -Argument @(
+            '-Validate', '-ProfilePath', $script:profilePath, '-ProfileSha256', ($digest + [string][char]0x000A))
+
+        $result.ExitCode | Should -Be 2
+        $result.StandardOutput.Trim() | Should -BeExactly ''
+        $result.StandardError | Should -Match 'hexadecimal' -Because 'a digest that is not 64 hexadecimal characters is a format refusal, not a mismatch'
+    }
+}

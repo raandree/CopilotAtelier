@@ -172,17 +172,96 @@ $script:RequestField = @('operation', 'record')
 $script:Operation = @('Append', 'Seal')
 $script:StoredField = @('data', 'prevSha256', 'recordSha256', 'runId', 'sequence', 'type', 'utc')
 $script:HeadField = @('recordSha256', 'sealed', 'sequence', 'updatedUtc')
+
+# Every name that arrives from outside is matched against these sets, never with
+# -ceq or -cin. PowerShell's case-sensitive operators are still culture-ordered:
+# a character the collation ignores, such as a zero-width space, compares equal
+# to nothing at all, so 'ty<U+200B>pe' -ceq 'type' is $true and a closed grammar
+# is only closed up to culture equivalence.
+$script:RequiredFieldSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$script:RequiredField, [System.StringComparer]::Ordinal)
+$script:RequestFieldSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$script:RequestField, [System.StringComparer]::Ordinal)
+$script:OperationSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$script:Operation, [System.StringComparer]::Ordinal)
+$script:StoredFieldSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$script:StoredField, [System.StringComparer]::Ordinal)
+$script:HeadFieldSet = [System.Collections.Generic.HashSet[string]]::new([string[]]$script:HeadField, [System.StringComparer]::Ordinal)
+
 $script:Utf8 = [System.Text.UTF8Encoding]::new($false)
 $script:StrictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
-$script:DigestPattern = '^[0-9a-f]{64}$'
-$script:UtcPattern = '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$'
-$script:IntegerPattern = '^-?(0|[1-9][0-9]*)$'
+
+# \A and \z, never ^ and $: $ also matches in front of a final line feed, so an
+# anchored-looking pattern would accept a digest or an instant with one appended.
+$script:DigestPattern = '\A[0-9a-f]{64}\z'
+$script:UtcPattern = '\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z\z'
+$script:IntegerPattern = '\A-?(0|[1-9][0-9]*)\z'
+$script:SidPattern = '\AS-1-[0-9-]+\z'
+
+# The shape is not the instant: 2026-99-99T99:99:99Z has the shape. .NET parses
+# at most seven fractional digits, so a longer fraction is checked for shape and
+# parsed with the fraction cut to seven. The value itself is never rewritten.
+$script:UtcFormat = [string[]]@("yyyy-MM-dd'T'HH:mm:ss'Z'", "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'")
+$script:UtcStyle = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
+$script:LongFractionPattern = '\A(?<kept>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{7})[0-9]{1,2}Z\z'
+
 $script:SafeInteger = 9007199254740991
 $script:MaxRequestLength = 262144
 $script:OnWindows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
 $script:FatalError = ''
 $script:JsonOption = [System.Text.Json.JsonDocumentOptions]::new()
 $script:JsonOption.MaxDepth = 32
+
+function Test-OrdinalEqual {
+    <#
+        The only string equality this script uses on text from outside it.
+        [string]::Equals with StringComparison.Ordinal compares code units, so
+        no character is ignorable and no culture can make two different names
+        the same name.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$Left,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$Right
+    )
+
+    return [string]::Equals($Left, $Right, [System.StringComparison]::Ordinal)
+}
+
+function Test-UtcInstant {
+    <#
+        An ISO-8601 instant in UTC, and a date that exists: the pattern alone
+        accepts the thirtieth of February and the twenty-fourth hour. Parsing is
+        invariant and exact, so nothing is inferred from the host's culture, and
+        the caller keeps the original text to store.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$Value
+    )
+
+    if ($null -eq $Value -or $Value -cnotmatch $script:UtcPattern) {
+        return $false
+    }
+
+    $candidate = $Value
+    $long = [regex]::Match($Value, $script:LongFractionPattern)
+    if ($long.Success) {
+        $candidate = $long.Groups['kept'].Value + 'Z'
+    }
+
+    $parsed = [datetimeoffset]::MinValue
+    return [System.DateTimeOffset]::TryParseExact($candidate, $script:UtcFormat,
+        [System.Globalization.CultureInfo]::InvariantCulture, $script:UtcStyle, [ref]$parsed)
+}
 
 function Write-Refusal {
     [CmdletBinding()]
@@ -458,7 +537,7 @@ function Test-RecordSchema {
     $present = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::Ordinal)
 
     foreach ($property in $Record.EnumerateObject()) {
-        if ($property.Name -cnotin $script:RequiredField) {
+        if (-not $script:RequiredFieldSet.Contains($property.Name)) {
             return "unknown field '$($property.Name)'"
         }
 
@@ -491,7 +570,7 @@ function Test-RecordSchema {
         return "field 'data' must be a JSON object"
     }
 
-    if (([System.Text.Json.JsonElement]$present['utc']).GetString() -cnotmatch $script:UtcPattern) {
+    if (-not (Test-UtcInstant -Value ([System.Text.Json.JsonElement]$present['utc']).GetString())) {
         return "field 'utc' must be an ISO-8601 instant in UTC, for example 2026-09-02T22:00:00Z"
     }
 
@@ -554,7 +633,7 @@ function Read-StoredRecord {
         }
 
         foreach ($name in @($member.Keys)) {
-            if ($name -cnotin $script:StoredField) {
+            if (-not $script:StoredFieldSet.Contains($name)) {
                 $record.Error = "carries the unknown field '$name'"
                 return $record
             }
@@ -567,7 +646,7 @@ function Read-StoredRecord {
             }
         }
 
-        if ((Join-CanonicalMember -Member $member) -cne $Text) {
+        if (-not (Test-OrdinalEqual -Left (Join-CanonicalMember -Member $member) -Right $Text)) {
             $record.Error = 'is not stored in canonical form'
             return $record
         }
@@ -595,7 +674,7 @@ function Read-StoredRecord {
 
         $preimageMember = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::Ordinal)
         foreach ($key in @($member.Keys)) {
-            if ($key -cne 'recordSha256') {
+            if (-not (Test-OrdinalEqual -Left $key -Right 'recordSha256')) {
                 $preimageMember[$key] = $member[$key]
             }
         }
@@ -649,7 +728,7 @@ function Read-ContainmentProfile {
     }
 
     $bytes = Read-FileByte -Path $Path
-    if ((Get-Sha256HexFromByte -Byte $bytes) -cne $Sha256) {
+    if (-not (Test-OrdinalEqual -Left (Get-Sha256HexFromByte -Byte $bytes) -Right $Sha256)) {
         $containmentProfile.Error = 'the containment profile does not match the digest given on the command line'
         return $containmentProfile
     }
@@ -690,7 +769,7 @@ function Read-ContainmentProfile {
                 return $containmentProfile
             }
 
-            if ($name -ceq 'ledgerSink') {
+            if (Test-OrdinalEqual -Left $name -Right 'ledgerSink') {
                 $containmentProfile.SinkPath = $value.GetString()
             } else {
                 $containmentProfile.ChainHeadPath = $value.GetString()
@@ -767,7 +846,7 @@ function Test-PinnedAppender {
     }
 
     $digest = Get-Sha256HexFromByte -Byte (Read-FileByte -Path $running)
-    if ($digest -cne $Sha256) {
+    if (-not (Test-OrdinalEqual -Left $digest -Right $Sha256)) {
         return 'the running appender does not match the digest the profile pins'
     }
 
@@ -781,6 +860,8 @@ function Read-FileByte {
         mode that does not, and would turn a running appender into a
         verification failure.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseOutputTypeCorrectly', '',
+        Justification = 'The comma wraps the array so PowerShell cannot unroll it; the caller receives the byte[] the attribute declares.')]
     [CmdletBinding()]
     [OutputType([byte[]])]
     param(
@@ -966,17 +1047,17 @@ function Read-ChainState {
             return $state
         }
 
-        if ($record.PreviousHash -cne $expectedPrevious) {
+        if (-not (Test-OrdinalEqual -Left $record.PreviousHash -Right $expectedPrevious)) {
             $state.Error = "record at sequence $sequence does not chain to its predecessor"
             return $state
         }
 
-        if ($record.RecordSha256 -cne $record.ComputedDigest) {
+        if (-not (Test-OrdinalEqual -Left $record.RecordSha256 -Right $record.ComputedDigest)) {
             $state.Error = "record at sequence $sequence fails its own digest"
             return $state
         }
 
-        if ($record.Type -ceq 'Seal') {
+        if (Test-OrdinalEqual -Left $record.Type -Right 'Seal') {
             $state.Sealed = $true
         }
 
@@ -1055,7 +1136,7 @@ function Read-ChainHeadState {
         }
 
         foreach ($name in @($member.Keys)) {
-            if ($name -cnotin $script:HeadField) {
+            if (-not $script:HeadFieldSet.Contains($name)) {
                 $head.Error = "the chain head carries the unknown field '$name'"
                 return $head
             }
@@ -1068,7 +1149,7 @@ function Read-ChainHeadState {
             }
         }
 
-        if ((Join-CanonicalMember -Member $member) -cne $text) {
+        if (-not (Test-OrdinalEqual -Left (Join-CanonicalMember -Member $member) -Right $text)) {
             $head.Error = 'the chain head is not stored in canonical form'
             return $head
         }
@@ -1093,7 +1174,7 @@ function Read-ChainHeadState {
         }
 
         if (($root.GetProperty('updatedUtc')).ValueKind -ne [System.Text.Json.JsonValueKind]::String -or
-            ($root.GetProperty('updatedUtc')).GetString() -cnotmatch $script:UtcPattern) {
+            -not (Test-UtcInstant -Value ($root.GetProperty('updatedUtc')).GetString())) {
             $head.Error = 'the chain head names an updatedUtc that is not an ISO-8601 instant in UTC'
             return $head
         }
@@ -1150,7 +1231,7 @@ function Test-HeadAgreement {
     }
 
     if ($Head.Sequence -eq $State.Sequence) {
-        if ($Head.RecordSha256 -cne $State.LastHash) {
+        if (-not (Test-OrdinalEqual -Left $Head.RecordSha256 -Right $State.LastHash)) {
             $agreement.Error = "the chain head names a different record at sequence $($State.Sequence)"
             return $agreement
         }
@@ -1164,7 +1245,7 @@ function Test-HeadAgreement {
     }
 
     if ($Head.Sequence -eq $State.Sequence - 1) {
-        if ($Head.RecordSha256 -cne $State.PreviousHash) {
+        if (-not (Test-OrdinalEqual -Left $Head.RecordSha256 -Right $State.PreviousHash)) {
             $agreement.Error = "the chain head names a different record at sequence $($Head.Sequence)"
             return $agreement
         }
@@ -1255,7 +1336,7 @@ function Read-AppenderRequest {
     $seen = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::Ordinal)
 
     foreach ($property in $Element.EnumerateObject()) {
-        if ($property.Name -cnotin $script:RequestField) {
+        if (-not $script:RequestFieldSet.Contains($property.Name)) {
             $request.Error = "request carries the unknown field '$($property.Name)'"
             return $request
         }
@@ -1277,7 +1358,7 @@ function Read-AppenderRequest {
 
     $operation = [System.Text.Json.JsonElement]$seen['operation']
     if ($operation.ValueKind -ne [System.Text.Json.JsonValueKind]::String -or
-        $operation.GetString() -cnotin $script:Operation) {
+        -not $script:OperationSet.Contains($operation.GetString())) {
         $request.Error = "request names an operation that is not one of: $($script:Operation -join ', ')"
         return $request
     }
@@ -1291,12 +1372,12 @@ function Read-AppenderRequest {
 
     $type = ($record.GetProperty('type')).GetString()
 
-    if ($operation.GetString() -ceq 'Seal') {
-        if ($type -cne 'Seal') {
+    if (Test-OrdinalEqual -Left $operation.GetString() -Right 'Seal') {
+        if (-not (Test-OrdinalEqual -Left $type -Right 'Seal')) {
             $request.Error = "a seal operation must carry a record of type 'Seal'"
             return $request
         }
-    } elseif ($type -ceq 'Seal') {
+    } elseif (Test-OrdinalEqual -Left $type -Right 'Seal') {
         $request.Error = "the record type 'Seal' is reserved for the seal operation"
         return $request
     }
@@ -1349,7 +1430,7 @@ function Add-Record {
     }
 
     # The operation seals, not the record's own type: the server decides.
-    $sealed = [bool]$State.Sealed -or ($Operation -ceq 'Seal')
+    $sealed = [bool]$State.Sealed -or (Test-OrdinalEqual -Left $Operation -Right 'Seal')
 
     $State.Sequence = $sequence
     $State.PreviousHash = [string]$State.LastHash
@@ -1384,7 +1465,7 @@ function Test-PipeNameInUse {
     )
 
     foreach ($entry in [System.IO.Directory]::GetFiles('\\.\pipe\')) {
-        if ([System.IO.Path]::GetFileName($entry) -ceq $Name) {
+        if (Test-OrdinalEqual -Left ([System.IO.Path]::GetFileName($entry)) -Right $Name) {
             return $true
         }
     }
@@ -1429,7 +1510,7 @@ function New-RestrictedPipeServer {
         $account = [System.Security.Principal.NTAccount]::new($Identity)
         $allowed = $account.Translate([System.Security.Principal.SecurityIdentifier])
 
-        if ($allowed.Value -cne $current.User.Value) {
+        if (-not (Test-OrdinalEqual -Left $allowed.Value -Right $current.User.Value)) {
             $security.AddAccessRule([System.IO.Pipes.PipeAccessRule]::new(
                     $allowed,
                     [System.IO.Pipes.PipeAccessRights]::ReadWrite,
@@ -1466,21 +1547,28 @@ function Get-ExpectedServerIdentity {
     )
 
     $current = [System.Security.Principal.WindowsIdentity]::GetCurrent()
-    $self = @($current.User.Value, $current.Owner.Value) | Select-Object -Unique
+    $self = [System.Collections.Generic.HashSet[string]]::new(
+        [string[]]@($current.User.Value, $current.Owner.Value), [System.StringComparer]::Ordinal)
 
     if ([string]::IsNullOrWhiteSpace($Identity)) {
         return @{ Owner = $self; Allowed = $self; Explicit = $false }
     }
 
-    if ($Identity -cmatch '^S-1-[0-9-]+$') {
+    if ($Identity -cmatch $script:SidPattern) {
         $sid = [System.Security.Principal.SecurityIdentifier]::new($Identity)
     } else {
         $sid = ([System.Security.Principal.NTAccount]::new($Identity)).Translate([System.Security.Principal.SecurityIdentifier])
     }
 
+    # The owner must be exactly the identity the caller named; the channel may
+    # additionally be open to this client, and to nobody else.
+    $owner = [System.Collections.Generic.HashSet[string]]::new([string[]]@($sid.Value), [System.StringComparer]::Ordinal)
+    $allowed = [System.Collections.Generic.HashSet[string]]::new($self, [System.StringComparer]::Ordinal)
+    $null = $allowed.Add($sid.Value)
+
     return @{
-        Owner = @($sid.Value)
-        Allowed = @(@($sid.Value) + $self | Select-Object -Unique)
+        Owner = $owner
+        Allowed = $allowed
         Explicit = $true
     }
 }
@@ -1512,7 +1600,7 @@ function Test-PipeServerIdentity {
     }
 
     $owner = $security.GetOwner([System.Security.Principal.SecurityIdentifier])
-    if ($null -eq $owner -or $owner.Value -cnotin $Expected.Owner) {
+    if ($null -eq $owner -or -not $Expected.Owner.Contains($owner.Value)) {
         return "the pipe is owned by $($owner) and not by the expected appender identity"
     }
 
@@ -1521,7 +1609,7 @@ function Test-PipeServerIdentity {
             continue
         }
 
-        if ($rule.IdentityReference.Value -cnotin $Expected.Allowed) {
+        if (-not $Expected.Allowed.Contains($rule.IdentityReference.Value)) {
             return "the pipe grants access to $($rule.IdentityReference.Value), so the channel is not exclusive"
         }
     }
@@ -1626,7 +1714,7 @@ function Read-AppenderResponse {
     $response.Status = $status.GetString()
     $response.Message = $message.GetString()
 
-    if ($response.Status -cne 'Ok') {
+    if (-not (Test-OrdinalEqual -Left $response.Status -Right 'Ok')) {
         return $response
     }
 
@@ -1693,7 +1781,7 @@ function Test-Acknowledgement {
         return "the acknowledged record cannot be read back: it $($record.Error)"
     }
 
-    if ($record.RecordSha256 -cne $RecordSha256) {
+    if (-not (Test-OrdinalEqual -Left $record.RecordSha256 -Right $RecordSha256)) {
         return "the ledger holds a different record at sequence $Sequence than the acknowledgement names"
     }
 
@@ -1950,7 +2038,7 @@ switch ($PSCmdlet.ParameterSetName) {
                 $intended.Dispose()
             }
 
-            if ($intendedType -cne 'Seal') {
+            if (-not (Test-OrdinalEqual -Left $intendedType -Right 'Seal')) {
                 Write-Refusal -Message "-Seal requires a record of type 'Seal'"
                 exit 2
             }
@@ -2000,7 +2088,7 @@ switch ($PSCmdlet.ParameterSetName) {
             exit 2
         }
 
-        if ($response.Status -cne 'Ok') {
+        if (-not (Test-OrdinalEqual -Left $response.Status -Right 'Ok')) {
             Write-Refusal -Message $response.Message
             exit 2
         }
@@ -2019,7 +2107,7 @@ switch ($PSCmdlet.ParameterSetName) {
     }
 
     { $_ -in @('Validate', 'ValidateBound') } {
-        $bound = $PSCmdlet.ParameterSetName -ceq 'ValidateBound'
+        $bound = Test-OrdinalEqual -Left $PSCmdlet.ParameterSetName -Right 'ValidateBound'
         $resolvedSink = $SinkPath
         $resolvedHead = $ChainHeadPath
 
