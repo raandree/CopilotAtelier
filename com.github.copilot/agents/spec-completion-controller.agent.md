@@ -125,11 +125,13 @@ commands and record each raw result and exit code in the controller ledger:
   passed; require exit codes 0, 2, and 2. The verifier runs that command through
   `cmd.exe /d /c` on Windows, while the documented hosts wrap it in PowerShell,
   so that is not a measurement under a host: the verifier accepts only command
-  text of one plain shape that `cmd.exe`, PowerShell and a POSIX shell read
-  alike (bare words, double-quoted words, and at most the one pinned exit
-  statement), and says in its evidence when the program path is quoted, which a
-  PowerShell host cannot run: record that in the report as a limitation, because
-  the hook is then not shown to run under a PowerShell host. The command must
+  text of one plain shape that `cmd.exe`, PowerShell and a POSIX shell are
+  expected to read alike (bare words, non-empty double-quoted words, and at most
+  the one pinned exit statement; a test parses generated lines, and no check
+  runs the pinned line under a host), and says in its evidence when the program
+  path is quoted, which a PowerShell host cannot run: record that in the report
+  as a limitation, because the hook is then not shown to run under a PowerShell
+  host. The command must
   start with the absolute path of
   PowerShell (`powershell` or `pwsh`; the verifier refuses any other program),
   and the verifier requires that interpreter to be closed to the run identity
