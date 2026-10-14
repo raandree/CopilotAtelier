@@ -277,6 +277,14 @@ Describe 'Containment protected paths' -Tag 'Unit' {
         $path | Should -HaveCount 2
     }
 
+    It 'lists the extra paths it is given, and ignores an empty one' {
+        $path = @(Get-ProtectedPath -ContainmentProfile (New-FlowProfile) -ProfilePath (Join-Path $script:base 'profile.json') `
+                -VerifierPath (Join-Path $script:base 'running.ps1') -ExtraPath @((Join-Path $script:base 'final-report.md'), $null, ''))
+
+        @($path | Where-Object { $_ -like '*final-report.md' }) | Should -HaveCount 1
+        @($path | Where-Object { [string]::IsNullOrWhiteSpace($_) }) | Should -HaveCount 0
+    }
+
     It 'ignores an entry that is not a path' {
         $containmentProfile = New-FlowProfile
         $containmentProfile.immutableControlPaths = @('', $null, (Join-Path $script:base 'kept.json'))

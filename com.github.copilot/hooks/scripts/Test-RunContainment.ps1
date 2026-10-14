@@ -1,15 +1,25 @@
 <#
 .SYNOPSIS
     Measures the containment controls the specification completion workflow
-    depends on and refuses the run when any of them is unproven.
+    depends on, revalidates its sealed ledger, and refuses the run when any of
+    them is unproven.
 .DESCRIPTION
     The /complete-specifications controller may not vouch for its own sandbox.
     This script is the external verifier its containment profile pins. It reads
-    the profile as data, then measures the operating system: pinned control
-    digests, whether the profile and the controls it pins are closed to the run,
-    the remote-mutation hook's real exit codes, the absence of the
-    remote override, egress policy, reachability, credential material, the
-    writable filesystem set, and the ledger's protection.
+    the profile as data, then measures the operating system.
+
+    -Verify measures: that the verifier that runs is the pinned file; the pinned
+    control digests; whether the profile and every control it pins are closed to
+    the run, with the directories above them; that the verifier runs as the
+    identity the profile declares for the role; the remote-mutation hook's real
+    exit codes, run only on controls already measured; that the Remote grant
+    channel is closed; egress policy; reachability; credential material; that
+    each declared writable root is writable and a named escape set is not; and
+    the ledger's protection. It does not enumerate the filesystem.
+
+    -Revalidate runs the pinned appender's profile-bound validation of the sealed
+    ledger, again only on controls already measured, and checks that the ledger
+    records the digest of the final report.
 
     Three rules make the result meaningful.
 
@@ -28,23 +38,32 @@
     out of the run's writable set are deployment work. On an ordinary developer
     workstation this script is expected to fail, and that failure is correct.
 .PARAMETER Verify
-    Runs the fixed verification set. This is the only supported operation.
+    Runs the fixed verification set.
+.PARAMETER Revalidate
+    Revalidates the sealed ledger and the final report instead.
 .PARAMETER ProfilePath
     Containment profile to measure against.
 .PARAMETER ProfileSha256
     Lowercase 64-hex digest of the profile, supplied by the operator as a direct
-    argument. This is the trust anchor: it must arrive from outside the data the
-    run can influence, so the verifier can detect a swapped profile.
+    argument and compared exactly as written. This is the trust anchor: it must
+    arrive from outside the data the run can influence, so the verifier can
+    detect a swapped profile.
 .PARAMETER Role
-    Identity being measured. Controller and worker have separate egress and
-    writable-root expectations.
+    Identity being measured. The verifier must run as the identity the profile
+    declares for this role.
 .PARAMETER LiveMode
     Live validation mode the caller intends to use. Anything other than off
     requires the live artifacts to be pinned in the profile.
+.PARAMETER FinalReportPath
+    Absolute path of the final report to revalidate against the sealed ledger.
 .PARAMETER ReportPath
     Writes the structured result as JSON. Without it only the summary is shown.
+    It must be an absolute path in a directory that already exists, and it must
+    not be, or lie inside, any file the verdict depends on.
 .EXAMPLE
     Test-RunContainment.ps1 -Verify -ProfilePath D:\containment\profile.json -ProfileSha256 $digest -Role Controller
+.EXAMPLE
+    Test-RunContainment.ps1 -Revalidate -ProfilePath D:\containment\profile.json -ProfileSha256 $digest -Role Controller -FinalReportPath D:\run\final-report.md
 .NOTES
     Exit codes: 0 every check passed, 2 at least one check failed or could not
     be measured. There is no partial success.
@@ -56,15 +75,21 @@ param(
     [Parameter(Mandatory, ParameterSetName = 'Verify')]
     [switch]$Verify,
 
+    [Parameter(Mandatory, ParameterSetName = 'Revalidate')]
+    [switch]$Revalidate,
+
     [Parameter(Mandatory, ParameterSetName = 'Verify')]
+    [Parameter(Mandatory, ParameterSetName = 'Revalidate')]
     [ValidateNotNullOrEmpty()]
     [string]$ProfilePath,
 
     [Parameter(Mandatory, ParameterSetName = 'Verify')]
+    [Parameter(Mandatory, ParameterSetName = 'Revalidate')]
     [ValidateNotNullOrEmpty()]
     [string]$ProfileSha256,
 
     [Parameter(Mandatory, ParameterSetName = 'Verify')]
+    [Parameter(Mandatory, ParameterSetName = 'Revalidate')]
     [ValidateSet('Controller', 'Worker')]
     [string]$Role,
 
@@ -72,7 +97,12 @@ param(
     [ValidateSet('off', 'read-only', 'disposable')]
     [string]$LiveMode = 'off',
 
+    [Parameter(Mandatory, ParameterSetName = 'Revalidate')]
+    [ValidateNotNullOrEmpty()]
+    [string]$FinalReportPath,
+
     [Parameter(ParameterSetName = 'Verify')]
+    [Parameter(ParameterSetName = 'Revalidate')]
     [AllowEmptyString()]
     [string]$ReportPath
 )
@@ -2098,12 +2128,21 @@ function Get-ProtectedPath {
         [string]$ProfilePath,
 
         [Parameter(Mandatory)]
-        [string]$VerifierPath
+        [string]$VerifierPath,
+
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$ExtraPath = @()
     )
 
     $path = [System.Collections.Generic.List[string]]::new()
     $path.Add($ProfilePath)
     $path.Add($VerifierPath)
+
+    foreach ($extra in @($ExtraPath)) {
+        $path.Add([string]$extra)
+    }
 
     if ($ContainmentProfile -is [System.Management.Automation.PSCustomObject]) {
         $field = $ContainmentProfile.PSObject.Properties
@@ -2142,8 +2181,402 @@ function Get-ProtectedPath {
     return [string[]]@($path | Where-Object -FilterScript { -not [string]::IsNullOrWhiteSpace($_) })
 }
 
-if (-not $Verify) {
+function Get-RevalidationCheckName {
+    <#
+        The one list of checks a revalidation reports, for the same reason Get-ContainmentCheckName is
+        the one list for a verification: a run that stops early names what it did not run.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param()
+
+    return [string[]]@(
+        'VerifierBinding'
+        'ControlDigest'
+        'ControlImmutability'
+        'IdentityBinding'
+        'LedgerChain'
+        'FinalReport'
+        'LedgerProtection'
+    )
+}
+
+function Lock-LedgerSink {
+    <#
+        Holds the sink open for reading and refuses every writer while it is held. The chain is
+        validated and the last records are read under one hold, so the file that was validated is the
+        file that is read. A sink that someone already has open for writing cannot be held, and that
+        is a failure to revalidate, not something to read around.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.IO.FileStream])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    return [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+}
+
+function Invoke-ChainValidation {
+    <#
+        Runs the pinned appender's profile-bound validation. The appender is run by the PowerShell
+        that runs this verifier, not by whatever PATH names, with a time limit, and with its standard
+        input closed so that nothing can wait for an answer.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$AppenderPath,
+
+        [Parameter(Mandatory)]
+        [string]$ProfilePath,
+
+        [Parameter(Mandatory)]
+        [string]$ProfileSha256,
+
+        [Parameter()]
+        [ValidateRange(1, 600)]
+        [int]$TimeoutSecond = 60
+    )
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+
+    foreach ($argument in @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $AppenderPath, '-Validate', '-ProfilePath', $ProfilePath, '-ProfileSha256', $ProfileSha256, '-RequireSealed')) {
+        $startInfo.ArgumentList.Add($argument)
+    }
+
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardInput = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    $process = [System.Diagnostics.Process]::Start($startInfo)
+
+    try {
+        # Both streams are read while the appender runs: a full pipe would block it for good.
+        $standardOutput = $process.StandardOutput.ReadToEndAsync()
+        $standardError = $process.StandardError.ReadToEndAsync()
+        $process.StandardInput.Close()
+
+        if (-not $process.WaitForExit($TimeoutSecond * 1000)) {
+            try {
+                $process.Kill($true)
+            } catch {
+                Write-Verbose "could not stop the pinned appender: $($_.Exception.Message)"
+            }
+
+            throw "the pinned appender did not finish within $TimeoutSecond seconds"
+        }
+
+        $process.WaitForExit()
+
+        return [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            Output = $standardOutput.GetAwaiter().GetResult().Trim()
+            Error = $standardError.GetAwaiter().GetResult().Trim()
+        }
+    } finally {
+        $process.Dispose()
+    }
+}
+
+function Get-LedgerChainResult {
+    <#
+        What the pinned appender says about the ledger, held to the contract it is specified to
+        keep: one JSON object that says the chain is valid from genesis, bound to the pinned profile
+        and sealed. Anything else is a failure, and an appender that cannot be run is unmeasured. The
+        summary is returned only for a chain that passed, so nothing downstream reads from one that
+        did not.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$AppenderPath,
+
+        [Parameter(Mandatory)]
+        [string]$ProfilePath,
+
+        [Parameter(Mandatory)]
+        [string]$ProfileSha256
+    )
+
+    try {
+        $run = Invoke-ChainValidation -AppenderPath $AppenderPath -ProfilePath $ProfilePath -ProfileSha256 $ProfileSha256
+    } catch {
+        return [pscustomobject]@{
+            Check = (New-CheckResult -Name 'LedgerChain' -Status 'Unavailable' -Evidence "could not run the pinned appender: $($_.Exception.Message)")
+            Summary = $null
+        }
+    }
+
+    if ($run.ExitCode -ne 0) {
+        $reason = if ([string]::IsNullOrWhiteSpace($run.Error)) { 'it gave no reason' } else { ($run.Error -split "\r?\n")[0] }
+
+        return [pscustomobject]@{
+            Check = (New-CheckResult -Name 'LedgerChain' -Status 'Fail' -Evidence "the pinned appender refused the ledger (exit $($run.ExitCode)): $reason")
+            Summary = $null
+        }
+    }
+
+    try {
+        $summary = $run.Output | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        $summary = $null
+    }
+
+    if ($summary -isnot [System.Management.Automation.PSCustomObject]) {
+        return [pscustomobject]@{
+            Check = (New-CheckResult -Name 'LedgerChain' -Status 'Fail' -Evidence 'the pinned appender wrote output that is not one JSON object')
+            Summary = $null
+        }
+    }
+
+    $problem = [System.Collections.Generic.List[string]]::new()
+    $field = $summary.PSObject.Properties
+
+    foreach ($name in @('valid', 'records', 'headSequence', 'sealed', 'headRecordSha256', 'bound')) {
+        if ($null -eq $field[$name]) {
+            $problem.Add("the summary lacks '$name'")
+        }
+    }
+
+    if ($problem.Count -eq 0) {
+        foreach ($name in @('valid', 'sealed', 'bound')) {
+            if ($field[$name].Value -isnot [bool] -or -not $field[$name].Value) {
+                $problem.Add("$name is not true")
+            }
+        }
+
+        $records = $field['records'].Value
+
+        if (($records -isnot [int] -and $records -isnot [long]) -or [long]$records -lt 1) {
+            $problem.Add('records is not a positive count')
+        }
+
+        if ($field['headRecordSha256'].Value -isnot [string] -or $field['headRecordSha256'].Value -cnotmatch '^[0-9a-f]{64}$') {
+            $problem.Add('headRecordSha256 is not a lowercase 64-hex digest')
+        }
+    }
+
+    if ($problem.Count -gt 0) {
+        return [pscustomobject]@{
+            Check = (New-CheckResult -Name 'LedgerChain' -Status 'Fail' -Evidence ('the pinned appender did not report a valid, bound, sealed chain: ' + ($problem -join '; ')))
+            Summary = $null
+        }
+    }
+
+    return [pscustomobject]@{
+        Check = (New-CheckResult -Name 'LedgerChain' -Status 'Pass' -Evidence "the pinned appender validated $($summary.records) records from genesis, bound to the pinned profile and sealed (head sequence $($summary.headSequence), head digest $($summary.headRecordSha256))")
+        Summary = $summary
+    }
+}
+
+function Test-FinalReport {
+    <#
+        The ledger must say that this report is the final one. Directly before the seal there is a
+        FinalReport record whose data.sha256 is the digest of the report file, the seal chains to it,
+        and the seal is the head the pinned appender validated. The records are read here, from the
+        file the appender validated, and tied to what it validated by their count and by the head
+        digest; the caller holds the sink for both. Digests are compared as written.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$SinkPath,
+
+        [Parameter(Mandatory)]
+        [string]$FinalReportPath,
+
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        $ChainSummary
+    )
+
+    if ($null -eq $ChainSummary) {
+        return New-CheckResult -Name 'FinalReport' -Status 'Unavailable' -Evidence 'there is no validated chain to read the final report record from'
+    }
+
+    if (-not (Test-Path -LiteralPath $FinalReportPath -PathType Leaf)) {
+        return New-CheckResult -Name 'FinalReport' -Status 'Fail' -Evidence "the final report $FinalReportPath does not exist"
+    }
+
+    try {
+        $reportDigest = Get-BytesDigest -Bytes ([System.IO.File]::ReadAllBytes($FinalReportPath))
+    } catch {
+        return New-CheckResult -Name 'FinalReport' -Status 'Unavailable' -Evidence "could not read the final report: $($_.Exception.Message)"
+    }
+
+    try {
+        $sinkBytes = [System.IO.File]::ReadAllBytes($SinkPath)
+    } catch {
+        return New-CheckResult -Name 'FinalReport' -Status 'Unavailable' -Evidence "could not read the ledger sink: $($_.Exception.Message)"
+    }
+
+    try {
+        $text = [System.Text.UTF8Encoding]::new($false, $true).GetString($sinkBytes)
+    } catch {
+        return New-CheckResult -Name 'FinalReport' -Status 'Fail' -Evidence 'the ledger sink is not valid UTF-8'
+    }
+
+    $line = @($text -split "`n" | ForEach-Object -Process { $_.TrimEnd("`r") } | Where-Object -FilterScript { $_.Length -gt 0 })
+
+    if ($line.Count -ne [long]$ChainSummary.records) {
+        return New-CheckResult -Name 'FinalReport' -Status 'Fail' -Evidence "the ledger sink holds $($line.Count) records, but the pinned appender validated $($ChainSummary.records) records"
+    }
+
+    if ($line.Count -lt 2) {
+        return New-CheckResult -Name 'FinalReport' -Status 'Fail' -Evidence 'a sealed ledger that records a final report holds at least a FinalReport record and the Seal'
+    }
+
+    try {
+        $last = $line[-1] | ConvertFrom-Json -ErrorAction Stop
+        $previous = $line[-2] | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        return New-CheckResult -Name 'FinalReport' -Status 'Fail' -Evidence 'one of the last two ledger records is not valid JSON'
+    }
+
+    $read = {
+        param($Record, $Name)
+
+        if ($Record -is [System.Management.Automation.PSCustomObject] -and $null -ne $Record.PSObject.Properties[$Name]) {
+            return $Record.PSObject.Properties[$Name].Value
+        }
+
+        return $null
+    }
+
+    $problem = [System.Collections.Generic.List[string]]::new()
+    $lastType = & $read $last 'type'
+    $previousType = & $read $previous 'type'
+    $recorded = & $read (& $read $previous 'data') 'sha256'
+
+    if ($lastType -cne 'Seal') {
+        $problem.Add("the last record is of type '$lastType', not Seal")
+    }
+
+    if ((& $read $last 'recordSha256') -cne [string]$ChainSummary.headRecordSha256) {
+        $problem.Add("the last record's digest is not the head digest $($ChainSummary.headRecordSha256) the pinned appender validated")
+    }
+
+    if ((& $read $last 'prevSha256') -cne (& $read $previous 'recordSha256')) {
+        $problem.Add('the seal does not chain to the record before it')
+    }
+
+    if ($previousType -cne 'FinalReport') {
+        $problem.Add("the record before the seal is of type '$previousType', not FinalReport")
+    } elseif ($recorded -cne $reportDigest) {
+        $problem.Add("the ledger records the final report as $recorded, but $FinalReportPath hashes to $reportDigest")
+    }
+
+    if ($problem.Count -gt 0) {
+        return New-CheckResult -Name 'FinalReport' -Status 'Fail' -Evidence ($problem -join '; ')
+    }
+
+    return New-CheckResult -Name 'FinalReport' -Status 'Pass' -Evidence "the Seal chains to the FinalReport record, which records $reportDigest, the digest of $FinalReportPath, and the Seal is the head the pinned appender validated"
+}
+
+function Get-RevalidationCheck {
+    <#
+        Runs the revalidation against a profile that already satisfies the schema. The pinned
+        appender is executed, so it runs only after the verifier, the control digests and the
+        immutability of the controls were measured and passed, exactly like the hook probe. The sink
+        is held for the whole validation and read, and the report is looked for only in a chain that
+        validated. The protection of the ledger is measured again whatever else happened.
+    #>
+    [CmdletBinding()]
+    [OutputType([object[]])]
+    param(
+        [Parameter(Mandatory)]
+        $ContainmentProfile,
+
+        [Parameter(Mandatory)]
+        [string]$ProfilePath,
+
+        [Parameter(Mandatory)]
+        [string]$ProfileSha256,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Controller', 'Worker')]
+        [string]$Role,
+
+        [Parameter(Mandatory)]
+        [string]$VerifierPath,
+
+        [Parameter(Mandatory)]
+        [string]$FinalReportPath
+    )
+
+    $check = [System.Collections.Generic.List[hashtable]]::new()
+    $writableRoot = [string[]]@($ContainmentProfile.writableRoots)
+    $sinkPath = [string]$ContainmentProfile.ledgerSink
+
+    $check.Add((Test-VerifierBinding -ContainmentProfile $ContainmentProfile -ScriptPath $VerifierPath))
+    $check.Add((Test-ControlDigest -ContainmentProfile $ContainmentProfile))
+    $check.Add((Test-ControlImmutability -ProfilePath $ProfilePath -ContainmentProfile $ContainmentProfile -WritableRoot $writableRoot))
+    $check.Add((Test-IdentityBinding -Role $Role -ControllerIdentity ([string]$ContainmentProfile.controllerIdentity) -WorkerIdentity ([string]$ContainmentProfile.workerIdentity)))
+
+    $unmet = @(Get-GateFailure -Check @($check) -Require @('VerifierBinding', 'ControlDigest', 'ControlImmutability'))
+
+    if ($unmet.Count -gt 0) {
+        foreach ($notRun in @(Get-NotRunCheck -Name @('LedgerChain', 'FinalReport') -Reason "the pinned appender is executed, and is trusted only after $($unmet -join ', ') passed")) {
+            $check.Add($notRun)
+        }
+    } else {
+        $sinkLock = $null
+        $lockProblem = $null
+
+        try {
+            try {
+                $sinkLock = Lock-LedgerSink -Path $sinkPath
+            } catch {
+                $lockProblem = $_.Exception.Message
+            }
+
+            if ($null -ne $lockProblem -or $null -eq $sinkLock) {
+                $check.Add((New-CheckResult -Name 'LedgerChain' -Status 'Unavailable' -Evidence "could not hold the ledger sink while it is validated: $lockProblem"))
+
+                foreach ($notRun in @(Get-NotRunCheck -Name @('FinalReport') -Reason 'the ledger sink could not be held, so no chain was validated')) {
+                    $check.Add($notRun)
+                }
+            } else {
+                $chain = Get-LedgerChainResult -AppenderPath ([string]$ContainmentProfile.ledgerAppender.path) -ProfilePath $ProfilePath -ProfileSha256 $ProfileSha256
+                $check.Add($chain.Check)
+
+                if ($chain.Check.status -ceq 'Pass') {
+                    $check.Add((Test-FinalReport -SinkPath $sinkPath -FinalReportPath $FinalReportPath -ChainSummary $chain.Summary))
+                } else {
+                    foreach ($notRun in @(Get-NotRunCheck -Name @('FinalReport') -Reason 'the ledger chain did not validate')) {
+                        $check.Add($notRun)
+                    }
+                }
+            }
+        } finally {
+            if ($null -ne $sinkLock) {
+                $sinkLock.Dispose()
+            }
+        }
+    }
+
+    $check.Add((Test-LedgerProtection -SinkPath $sinkPath -ChainHeadPath ([string]$ContainmentProfile.chainHead) -WritableRoot $writableRoot))
+
+    return @($check)
+}
+
+$mode = $PSCmdlet.ParameterSetName
+
+if ($mode -eq 'Verify' -and -not $Verify) {
     [Console]::Error.WriteLine('Containment verification requires -Verify.')
+    exit 2
+}
+
+if ($mode -eq 'Revalidate' -and -not $Revalidate) {
+    [Console]::Error.WriteLine('Containment revalidation requires -Revalidate.')
     exit 2
 }
 
@@ -2152,6 +2585,22 @@ if (-not $Verify) {
 if ($ProfileSha256 -cnotmatch '^[0-9a-f]{64}$') {
     [Console]::Error.WriteLine('Containment refused: -ProfileSha256 must be a lowercase 64-hex digest.')
     exit 2
+}
+
+$canonicalFinalReportPath = $null
+
+if ($mode -eq 'Revalidate') {
+    if (-not [System.IO.Path]::IsPathFullyQualified($FinalReportPath)) {
+        [Console]::Error.WriteLine('Containment refused: -FinalReportPath must be an absolute path.')
+        exit 2
+    }
+
+    if (-not (Test-Path -LiteralPath $FinalReportPath -PathType Leaf)) {
+        [Console]::Error.WriteLine("Containment refused: the final report '$FinalReportPath' does not exist.")
+        exit 2
+    }
+
+    $canonicalFinalReportPath = (Resolve-Path -LiteralPath $FinalReportPath).ProviderPath
 }
 
 if (-not (Test-Path -LiteralPath $ProfilePath -PathType Leaf)) {
@@ -2186,7 +2635,7 @@ try {
 # A report path is operator input. It is judged before anything is measured, against every file the
 # verdict depends on, so it can never be the way a control is overwritten.
 if (-not [string]::IsNullOrWhiteSpace($ReportPath)) {
-    $reportProblem = Test-ReportPath -ReportPath $ReportPath -ProtectedPath @(Get-ProtectedPath -ContainmentProfile $containmentProfile -ProfilePath $canonicalProfilePath -VerifierPath $PSCommandPath)
+    $reportProblem = Test-ReportPath -ReportPath $ReportPath -ProtectedPath @(Get-ProtectedPath -ContainmentProfile $containmentProfile -ProfilePath $canonicalProfilePath -VerifierPath $PSCommandPath -ExtraPath @($canonicalFinalReportPath))
 
     if ($reportProblem) {
         [Console]::Error.WriteLine("Containment refused: $reportProblem.")
@@ -2212,13 +2661,21 @@ if ($schemaProblem.Count -gt 0) {
 
     # Nothing the profile declares can be measured, and reading its fields would throw. Every
     # other check is named and reported as not run.
-    foreach ($notRun in @(Get-NotRunCheck -Name @(Get-ContainmentCheckName -LiveMode $LiveMode) -Reason 'the profile does not satisfy the schema, so nothing it declares can be measured')) {
+    $notRunName = if ($mode -eq 'Revalidate') { @(Get-RevalidationCheckName) } else { @(Get-ContainmentCheckName -LiveMode $LiveMode) }
+
+    foreach ($notRun in @(Get-NotRunCheck -Name $notRunName -Reason 'the profile does not satisfy the schema, so nothing it declares can be measured')) {
         $check.Add($notRun)
     }
 } else {
     $check.Add((New-CheckResult -Name 'ProfileSchema' -Status 'Pass' -Evidence 'closed schema satisfied and both egress lists are empty'))
 
-    foreach ($result in @(Get-ContainmentCheck -ContainmentProfile $containmentProfile -ProfilePath $canonicalProfilePath -Role $Role -LiveMode $LiveMode -VerifierPath $PSCommandPath)) {
+    $measured = if ($mode -eq 'Revalidate') {
+        Get-RevalidationCheck -ContainmentProfile $containmentProfile -ProfilePath $canonicalProfilePath -ProfileSha256 $ProfileSha256 -Role $Role -VerifierPath $PSCommandPath -FinalReportPath $canonicalFinalReportPath
+    } else {
+        Get-ContainmentCheck -ContainmentProfile $containmentProfile -ProfilePath $canonicalProfilePath -Role $Role -LiveMode $LiveMode -VerifierPath $PSCommandPath
+    }
+
+    foreach ($result in @($measured)) {
         $check.Add($result)
     }
 }
@@ -2229,13 +2686,20 @@ $verdict = $outcome.Verdict
 
 $report = [ordered]@{
     verdict = $verdict
+    mode = $mode
     role = $Role
-    liveMode = $LiveMode
-    profilePath = $canonicalProfilePath
-    profileSha256 = $measuredProfileDigest
-    measuredUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-    checks = @($check)
 }
+
+if ($mode -eq 'Revalidate') {
+    $report['finalReportPath'] = $canonicalFinalReportPath
+} else {
+    $report['liveMode'] = $LiveMode
+}
+
+$report['profilePath'] = $canonicalProfilePath
+$report['profileSha256'] = $measuredProfileDigest
+$report['measuredUtc'] = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+$report['checks'] = @($check)
 
 if (-not [string]::IsNullOrWhiteSpace($ReportPath)) {
     try {
@@ -2251,9 +2715,19 @@ foreach ($result in $blocking) {
 }
 
 if ($verdict -eq 'Pass') {
-    Write-Output "Containment verified for $Role with $($check.Count) checks passed."
+    if ($mode -eq 'Revalidate') {
+        Write-Output "Ledger and final report revalidated for $Role with $($check.Count) checks passed."
+    } else {
+        Write-Output "Containment verified for $Role with $($check.Count) checks passed."
+    }
+
     exit 0
 }
 
-Write-Output "Containment NOT verified for ${Role}: $($blocking.Count) of $($check.Count) checks did not pass."
+if ($mode -eq 'Revalidate') {
+    Write-Output "Ledger and final report NOT revalidated for ${Role}: $($blocking.Count) of $($check.Count) checks did not pass."
+} else {
+    Write-Output "Containment NOT verified for ${Role}: $($blocking.Count) of $($check.Count) checks did not pass."
+}
+
 exit 2

@@ -407,8 +407,15 @@ local implementation as live-verified.
 8. Verify local `refs/remotes/*` and their reflogs are unchanged. Write
   `final-report.md` with the frozen matrix, denominator diff, percentages,
   budget use, commits, tests, every review request/response hash, live evidence,
-  prepared procedures, blockers, cleanup, and residual risk. Append its SHA-256
-  to the ledger, seal the appender, and have the verifier revalidate the report,
-  complete chain, and protected checkpoint chain head before returning it.
+  prepared procedures, blockers, cleanup, and residual risk. Append a
+  `FinalReport` record whose `data.sha256` is the
+  lowercase SHA-256 of `final-report.md` as the last record before the seal,
+  seal the appender, and run the hash-pinned verifier with `Revalidate` on the
+  profile, its direct digest, and the report path. It runs the pinned
+  appender's profile-bound
+  validation of the complete chain, requires the seal and the protected chain
+  head, and requires the report's digest in the `FinalReport` record; require
+  exit code 0 before returning the report. Never return a report the verifier
+  did not revalidate as final.
 9. Return a concise summary and report path. Never claim success while tests,
    cleanup, worktree, or remote refs are not clean.

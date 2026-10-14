@@ -708,6 +708,183 @@ Describe 'Containment verifier' -Tag 'Unit' {
     }
 }
 
+Describe 'Containment revalidation command' -Tag 'Unit' {
+    BeforeAll {
+        function script:Invoke-Revalidation {
+            param(
+                [Parameter(Mandatory)]
+                [string]$ProfilePath,
+
+                [Parameter()]
+                [AllowEmptyString()]
+                [string]$FinalReportPath = '',
+
+                [Parameter()]
+                [string]$ReportPath = '',
+
+                [Parameter()]
+                [string]$Digest = ''
+            )
+
+            if (-not $Digest) {
+                $Digest = Get-Digest -Path $ProfilePath
+            }
+
+            $argument = @('-Revalidate', '-ProfilePath', $ProfilePath, '-ProfileSha256', $Digest, '-Role', 'Controller')
+
+            if ($FinalReportPath) {
+                $argument += @('-FinalReportPath', $FinalReportPath)
+            }
+
+            if ($ReportPath) {
+                $argument += @('-ReportPath', $ReportPath)
+            }
+
+            $result = Invoke-Verifier -Argument $argument
+            $report = $null
+
+            if ($ReportPath -and (Test-Path -LiteralPath $ReportPath)) {
+                # In a refusal the path may be the protected file itself, which is not JSON.
+                try {
+                    $report = Get-Content -LiteralPath $ReportPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+                } catch {
+                    $report = $null
+                }
+            }
+
+            [pscustomobject]@{ ExitCode = $result.ExitCode; Output = $result.Output; Report = $report }
+        }
+
+        function script:New-FinalReport {
+            param(
+                [Parameter(Mandatory)]
+                [string]$Name
+            )
+
+            $path = Join-Path $TestDrive "$Name/final-report.md"
+            $null = New-Item -Path (Split-Path -Parent $path) -ItemType Directory -Force
+            [System.IO.File]::WriteAllText($path, 'the final report')
+
+            return $path
+        }
+    }
+
+    It 'refuses a revalidation that names no final report' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r1/profile.json')
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath
+
+        $result.ExitCode | Should -Not -Be 0 -Because $result.Output
+    }
+
+    It 'refuses a relative final report path' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r2/profile.json')
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath 'final-report.md'
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'absolute'
+    }
+
+    It 'refuses a final report that does not exist' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r3/profile.json')
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (Join-Path $TestDrive 'r3/absent.md')
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'does not exist'
+    }
+
+    It 'refuses a profile digest that does not match the direct argument' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r4/profile.json')
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (New-FinalReport -Name 'r4') -Digest ('b' * 64)
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'digest'
+    }
+
+    It 'refuses a structured report path that is the final report, and leaves the final report untouched' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r5/profile.json')
+        $finalReport = New-FinalReport -Name 'r5'
+        $before = Get-Digest -Path $finalReport
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath $finalReport -ReportPath $finalReport
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'protected'
+        Get-Digest -Path $finalReport | Should -Be $before
+    }
+
+    It 'refuses a structured report path that is a pinned control' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r6/profile.json')
+        $before = Get-Digest -Path $script:appenderScript
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (New-FinalReport -Name 'r6') -ReportPath $script:appenderScript
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        Get-Digest -Path $script:appenderScript | Should -Be $before
+    }
+
+    It 'names every revalidation check and marks the mode in the report' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r7/profile.json')
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (New-FinalReport -Name 'r7') -ReportPath (Join-Path $TestDrive 'r7/result.json')
+
+        $result.Report | Should -Not -BeNullOrEmpty -Because $result.Output
+        $result.Report.mode | Should -Be 'Revalidate'
+        $names = @($result.Report.checks.name)
+        foreach ($expected in @('ProfileDigest', 'ProfileSchema', 'VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'LedgerChain', 'FinalReport', 'LedgerProtection')) {
+            $names | Should -Contain $expected
+        }
+    }
+
+    It 'reports every other check as not run when the profile fails its schema' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r8/profile.json') -Remove @('ledgerSink')
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (New-FinalReport -Name 'r8') -ReportPath (Join-Path $TestDrive 'r8/result.json')
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        foreach ($name in @('ControlDigest', 'LedgerChain', 'FinalReport', 'LedgerProtection')) {
+            $check = $result.Report.checks | Where-Object name -EQ $name
+            $check.status | Should -Be 'Unavailable'
+            $check.evidence | Should -Match 'not run'
+        }
+    }
+
+    It 'executes nothing from an appender that is not the one the profile pins' {
+        $marker = Join-Path $TestDrive 'r9/marker.txt'
+        $null = New-Item -Path (Split-Path -Parent $marker) -ItemType Directory -Force
+        $stub = Join-Path $TestDrive 'r9/appender.ps1'
+        [System.IO.File]::WriteAllText($stub, "Set-Content -LiteralPath '$marker' -Value ran`nexit 0")
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r9/profile.json') -Override @{
+            ledgerAppender = [ordered]@{ path = $stub; sha256 = ('b' * 64) }
+        }
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (New-FinalReport -Name 'r9') -ReportPath (Join-Path $TestDrive 'r9/result.json')
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        Test-Path -LiteralPath $marker | Should -BeFalse -Because 'an appender that is not the pinned one must never run'
+        ($result.Report.checks | Where-Object name -EQ 'ControlDigest').status | Should -Be 'Fail'
+        ($result.Report.checks | Where-Object name -EQ 'LedgerChain').status | Should -Not -Be 'Pass'
+    }
+
+    It 'does not run the pinned appender while a control it executes is writable by the run' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r10/profile.json')
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (New-FinalReport -Name 'r10') -ReportPath (Join-Path $TestDrive 'r10/result.json')
+
+        $immutability = $result.Report.checks | Where-Object name -EQ 'ControlImmutability'
+        $chain = $result.Report.checks | Where-Object name -EQ 'LedgerChain'
+
+        # The test identity owns and can write every control, so on a workstation the gate is closed.
+        if ($immutability.status -ne 'Pass') {
+            $chain.status | Should -Be 'Unavailable' -Because $chain.evidence
+            $chain.evidence | Should -Match 'not run'
+        }
+    }
+}
+
 Describe 'Containment verifier function loading' -Tag 'Unit' {
     BeforeAll {
         . (Join-Path -Path $script:repoRoot -ChildPath 'tests/Helpers/ScriptFunction.ps1')

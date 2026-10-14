@@ -354,6 +354,15 @@ agents: []
         $controller | Should -Match '(?s)Never record, write, or request a Remote grant.*grants\s+folder'
     }
 
+    It 'revalidates the final report against the sealed ledger before returning it' {
+        $controller = Get-Content -LiteralPath $script:controllerPath -Raw -Encoding UTF8
+
+        $controller | Should -Match '(?s)`FinalReport` record whose `data\.sha256` is the\s+lowercase SHA-256 of `final-report\.md`'
+        $controller | Should -Match '(?s)seal the appender.*verifier with `Revalidate`'
+        $controller | Should -Match '(?s)profile-bound\s+validation of the complete chain'
+        $controller | Should -Match 'require\s+exit code 0 before returning'
+    }
+
     It 'retains dirty-tree, issue, injection, budget, and remote safety gates' {
         $controller = Get-Content -LiteralPath $script:controllerPath -Raw -Encoding UTF8
         $workers = @(
