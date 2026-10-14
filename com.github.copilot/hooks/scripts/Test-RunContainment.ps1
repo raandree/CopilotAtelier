@@ -1538,24 +1538,112 @@ function Test-EgressPolicy {
         return New-CheckResult -Name 'EgressPolicy' -Status 'Unavailable' -Evidence 'outbound policy enumeration is implemented for Windows Defender Firewall only'
     }
 
-    if (-not (Get-Command -Name 'Get-NetFirewallProfile' -ErrorAction SilentlyContinue)) {
-        return New-CheckResult -Name 'EgressPolicy' -Status 'Unavailable' -Evidence 'Get-NetFirewallProfile is unavailable, so the outbound default cannot be measured'
+    try {
+        $firewallProfile = @(Get-FirewallProfileState)
+    } catch {
+        return New-CheckResult -Name 'EgressPolicy' -Status 'Unavailable' -Evidence "could not read the firewall profiles: $($_.Exception.Message)"
+    }
+
+    if ($firewallProfile.Count -eq 0) {
+        return New-CheckResult -Name 'EgressPolicy' -Status 'Unavailable' -Evidence 'the firewall returned no profile, so the outbound default was not measured'
+    }
+
+    # A default of Block on a profile that is switched off enforces nothing, so
+    # the enabled state is part of the measurement rather than an assumption.
+    $disabled = [System.Collections.Generic.List[string]]::new()
+    $permissive = [System.Collections.Generic.List[string]]::new()
+    $unreadable = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($entry in $firewallProfile) {
+        $name = Get-PropertyText -InputObject $entry -Name 'Name'
+
+        if ([string]::IsNullOrWhiteSpace($name)) {
+            $name = 'an unnamed profile'
+        }
+
+        $enabled = Get-PropertyText -InputObject $entry -Name 'Enabled'
+        $action = Get-PropertyText -InputObject $entry -Name 'DefaultOutboundAction'
+
+        if ($enabled -eq 'False') {
+            $disabled.Add($name)
+            continue
+        }
+
+        if ($enabled -ne 'True') {
+            $unreadable.Add("$name reports Enabled='$enabled'")
+            continue
+        }
+
+        if ([string]::IsNullOrWhiteSpace($action)) {
+            $unreadable.Add("$name reports no DefaultOutboundAction")
+            continue
+        }
+
+        if ($action -ne 'Block') {
+            $permissive.Add("$name=$action")
+        }
+    }
+
+    if ($disabled.Count -gt 0) {
+        return New-CheckResult -Name 'EgressPolicy' -Status 'Fail' -Evidence ('the firewall profile is disabled, so its outbound default enforces nothing: ' + ($disabled -join ', '))
+    }
+
+    if ($permissive.Count -gt 0) {
+        return New-CheckResult -Name 'EgressPolicy' -Status 'Fail' -Evidence ('outbound default is not Block: ' + ($permissive -join ', '))
+    }
+
+    if ($unreadable.Count -gt 0) {
+        return New-CheckResult -Name 'EgressPolicy' -Status 'Unavailable' -Evidence ('the outbound policy was not measured: ' + ($unreadable -join ', '))
+    }
+
+    # A default-deny policy that allow-lists this identity is not a closed
+    # egress policy, so the rules are enumerated rather than assumed absent.
+    try {
+        $allowRule = @(Get-OutboundAllowRule)
+    } catch {
+        return New-CheckResult -Name 'EgressPolicy' -Status 'Unavailable' -Evidence "could not read the outbound allow rules: $($_.Exception.Message)"
     }
 
     try {
-        $firewallProfile = @(Get-NetFirewallProfile -ErrorAction Stop)
+        $callerSid = @(Get-CallerSecurityIdentifier)
     } catch {
-        return New-CheckResult -Name 'EgressPolicy' -Status 'Unavailable' -Evidence "could not read the firewall profile: $($_.Exception.Message)"
+        return New-CheckResult -Name 'EgressPolicy' -Status 'Unavailable' -Evidence "could not resolve the identity running the verifier: $($_.Exception.Message)"
     }
 
-    $permissive = @($firewallProfile | Where-Object { $_.DefaultOutboundAction -ne 'Block' })
-
-    if ($permissive.Count -gt 0) {
-        $names = ($permissive | ForEach-Object { "$($_.Name)=$($_.DefaultOutboundAction)" }) -join ', '
-        return New-CheckResult -Name 'EgressPolicy' -Status 'Fail' -Evidence "outbound default is not Block: $names"
+    if ($callerSid.Count -eq 0) {
+        return New-CheckResult -Name 'EgressPolicy' -Status 'Unavailable' -Evidence 'the identity running the verifier resolved to no security identifier, so the allow rules were not evaluated'
     }
 
-    return New-CheckResult -Name 'EgressPolicy' -Status 'Pass' -Evidence 'every firewall profile defaults outbound traffic to Block'
+    $applicable = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($rule in $allowRule) {
+        if (-not (Test-RuleAppliesToIdentity -LocalUser (Get-PropertyText -InputObject $rule -Name 'LocalUser') -SecurityIdentifier $callerSid)) {
+            continue
+        }
+
+        $display = Get-PropertyText -InputObject $rule -Name 'DisplayName'
+
+        if ([string]::IsNullOrWhiteSpace($display)) {
+            $display = Get-PropertyText -InputObject $rule -Name 'Name'
+        }
+
+        $applicable.Add($display)
+    }
+
+    if ($applicable.Count -gt 0) {
+        # Names, bounded: the evidence has to identify the hole without turning
+        # a report into a dump of the whole rule set.
+        $listed = @($applicable | Select-Object -First 10)
+        $evidence = "$($applicable.Count) enabled outbound allow rules could apply to this identity: " + ($listed -join ', ')
+
+        if ($applicable.Count -gt $listed.Count) {
+            $evidence += " (and $($applicable.Count - $listed.Count) more)"
+        }
+
+        return New-CheckResult -Name 'EgressPolicy' -Status 'Fail' -Evidence $evidence
+    }
+
+    return New-CheckResult -Name 'EgressPolicy' -Status 'Pass' -Evidence "every firewall profile is enabled and defaults outbound traffic to Block, and none of $($allowRule.Count) enabled outbound allow rules applies to this identity; a system-wide proxy setting is not measured"
 }
 
 function Test-RemoteUnreachable {
@@ -1564,32 +1652,59 @@ function Test-RemoteUnreachable {
     param()
 
     # Literal addresses, so a blocked DNS resolver cannot be mistaken for a
-    # blocked network. Reaching any of them means egress is open.
+    # blocked network. An endpoint that answers at all, whether it accepts or
+    # refuses, proves the packets left this machine.
     $canary = @(
         @{ Address = '1.1.1.1'; Port = 443 }
         @{ Address = '8.8.8.8'; Port = 53 }
     )
 
-    $reached = [System.Collections.Generic.List[string]]::new()
+    # A probe that cannot connect to anything would report a closed network no
+    # matter what the policy is, so it is validated against a listener this
+    # process owns before a canary is attempted.
+    $control = Invoke-ProbeSelfTest
+
+    if (-not $control.Validated) {
+        return New-CheckResult -Name 'RemoteUnreachable' -Status 'Unavailable' -Evidence "the probe could not be validated: $($control.Detail)"
+    }
+
+    $open = [System.Collections.Generic.List[string]]::new()
+    $closed = [System.Collections.Generic.List[string]]::new()
+    $unproven = [System.Collections.Generic.List[string]]::new()
 
     foreach ($target in $canary) {
-        $client = [System.Net.Sockets.TcpClient]::new()
-        try {
-            if ($client.ConnectAsync($target.Address, $target.Port).Wait(2000) -and $client.Connected) {
-                $reached.Add("$($target.Address):$($target.Port)")
+        $endpoint = "$($target.Address):$($target.Port)"
+
+        # Three seconds each, so the whole check stays under ten seconds with
+        # the positive control included. A host that refuses slowly would
+        # otherwise be read as unreachable, which costs a measurement.
+        $outcome = Test-TcpEndpoint -Address $target.Address -Port $target.Port -TimeoutMilliseconds 3000
+
+        switch ($outcome.Outcome) {
+            'Connected' {
+                $open.Add("$endpoint $($outcome.Detail)")
             }
-        } catch {
-            # An exception here is the desired outcome: the endpoint is closed.
-        } finally {
-            $client.Dispose()
+            'Refused' {
+                $open.Add("$endpoint $($outcome.Detail)")
+            }
+            'Denied' {
+                $closed.Add($endpoint)
+            }
+            default {
+                $unproven.Add("$endpoint $($outcome.Detail)")
+            }
         }
     }
 
-    if ($reached.Count -gt 0) {
-        return New-CheckResult -Name 'RemoteUnreachable' -Status 'Fail' -Evidence ('reached ' + ($reached -join ', '))
+    if ($open.Count -gt 0) {
+        return New-CheckResult -Name 'RemoteUnreachable' -Status 'Fail' -Evidence ('egress is open: ' + ($open -join '; '))
     }
 
-    return New-CheckResult -Name 'RemoteUnreachable' -Status 'Pass' -Evidence 'no canary endpoint was reachable'
+    if ($unproven.Count -gt 0) {
+        return New-CheckResult -Name 'RemoteUnreachable' -Status 'Unavailable' -Evidence ('not proven closed: ' + ($unproven -join '; ') + '; a network that is down cannot be told apart from one that is blocked')
+    }
+
+    return New-CheckResult -Name 'RemoteUnreachable' -Status 'Pass' -Evidence ('local policy denied the connection to ' + ($closed -join ', ') + ", and $($control.Detail)")
 }
 
 function Test-CredentialAbsence {
@@ -1597,7 +1712,15 @@ function Test-CredentialAbsence {
     [OutputType([hashtable])]
     param()
 
-    $variable = @('GH_TOKEN', 'GITHUB_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'GIT_ASKPASS', 'SSH_AUTH_SOCK')
+    # The git steering variables are measured next to the credential ones,
+    # because each of them can hide a helper from the child or add one to it.
+    # Their presence is the failure; their value is never printed, since a
+    # value is exactly where a token would sit.
+    $variable = @(
+        'GH_TOKEN', 'GITHUB_TOKEN', 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'SSH_AUTH_SOCK'
+        'GIT_ASKPASS', 'SSH_ASKPASS', 'GIT_SSH', 'GIT_SSH_COMMAND'
+        'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_SYSTEM', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS'
+    )
     $found = [System.Collections.Generic.List[string]]::new()
 
     foreach ($name in $variable) {
@@ -1606,56 +1729,549 @@ function Test-CredentialAbsence {
         }
     }
 
-    $gitEvidence = 'git is not installed'
-    $gitProblem = $null
+    $gitEvidence = ''
+    $gitProblem = ''
+    $gitPath = Resolve-GitExecutable
 
-    if (Get-Command -Name 'git' -CommandType Application -ErrorAction SilentlyContinue) {
-        # The pattern also matches helpers scoped to one URL. git exits 1 when no
-        # key matches, which is the clean case; any other non-zero exit means the
-        # configuration was not read, which proves nothing.
-        $previousPreference = $ErrorActionPreference
-        $helper = @()
-        $exitCode = $null
+    if ([string]::IsNullOrWhiteSpace($gitPath)) {
+        # A git that cannot be resolved is an unmeasured check. "Not installed,
+        # therefore clean" would let an empty PATH prove containment.
+        $gitProblem = 'git could not be resolved to an absolute application path, so its credential helpers were not measured'
+    } else {
+        # The sentinel makes an empty credential result mean something: a child
+        # that crashed or printed nothing must not read as "no helper set".
+        $sentinel = Invoke-GitConfigProcess -GitPath $gitPath -Argument @('config', '--list', '--show-origin')
 
-        try {
-            $ErrorActionPreference = 'Continue'
-            $helper = @(& git config --get-regexp '^credential\..*helper$' 2>$null)
-            $exitCode = $LASTEXITCODE
-        } catch {
-            $gitProblem = "git config could not run: $($_.Exception.Message)"
-        } finally {
-            $ErrorActionPreference = $previousPreference
-        }
+        if (-not [string]::IsNullOrWhiteSpace($sentinel.Failure)) {
+            $gitProblem = "$($sentinel.Failure), so the configuration was not read"
+        } elseif ($null -eq $sentinel.ExitCode) {
+            $gitProblem = 'git config --list reported no exit code, so the configuration was not read'
+        } elseif ($sentinel.ExitCode -ne 0) {
+            $gitProblem = "git config --list exited $($sentinel.ExitCode), so the configuration was not read"
+        } elseif (@($sentinel.Output).Count -eq 0) {
+            $gitProblem = 'git config --list printed no line, so an empty credential result would prove nothing'
+        } else {
+            # The pattern also matches helpers scoped to one URL.
+            $probe = Invoke-GitConfigProcess -GitPath $gitPath -Argument @('config', '--show-origin', '--get-regexp', '^credential\..*helper$')
+            $helper = @($probe.Output)
 
-        if ($null -eq $gitProblem) {
-            if ($exitCode -eq 0) {
-                foreach ($line in $helper) {
-                    if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
-                        $found.Add("git $line")
+            if (-not [string]::IsNullOrWhiteSpace($probe.Failure)) {
+                $gitProblem = "$($probe.Failure), so its credential helpers were not read"
+            } elseif ($null -eq $probe.ExitCode) {
+                $gitProblem = 'git config --get-regexp reported no exit code, so its credential helpers were not read'
+            } elseif ($probe.ExitCode -eq 0 -and $helper.Count -eq 0) {
+                $gitProblem = 'git config --get-regexp exited 0 without naming a key, so its credential helpers were not read'
+            } elseif ($probe.ExitCode -eq 0) {
+                # Only a line that carries an origin is a key line. A value that
+                # spans lines continues without one, and a continuation line is
+                # pure value, so it is dropped rather than parsed.
+                $key = @($helper | ForEach-Object { Get-ConfigKeyName -Line $_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+                if ($key.Count -eq 0) {
+                    $gitProblem = 'git config --get-regexp printed no line carrying an origin and a key, so its credential helpers were not read'
+                } else {
+                    foreach ($name in $key) {
+                        $found.Add("git $name")
                     }
                 }
-            } elseif ($exitCode -eq 1) {
-                $gitEvidence = 'git reports no credential helper, global or URL-scoped'
+            } elseif ($probe.ExitCode -eq 1) {
+                # git exits 1 when no key matches, which is the clean case.
+                $gitEvidence = "git ($gitPath) reports no credential helper, global or URL-scoped"
             } else {
-                $gitProblem = "git config exited $exitCode, so its credential helpers were not read"
+                $gitProblem = "git config --get-regexp exited $($probe.ExitCode), so its credential helpers were not read"
             }
         }
     }
 
     if ($found.Count -gt 0) {
         $evidence = 'credential or proxy material present: ' + ($found -join ', ')
-        if ($gitProblem) {
+
+        if (-not [string]::IsNullOrWhiteSpace($gitProblem)) {
             $evidence += "; $gitProblem"
         }
 
         return New-CheckResult -Name 'CredentialAbsence' -Status 'Fail' -Evidence $evidence
     }
 
-    if ($gitProblem) {
+    if (-not [string]::IsNullOrWhiteSpace($gitProblem)) {
         return New-CheckResult -Name 'CredentialAbsence' -Status 'Unavailable' -Evidence $gitProblem
     }
 
     return New-CheckResult -Name 'CredentialAbsence' -Status 'Pass' -Evidence ("none of $($variable -join ', ') is set, and $gitEvidence")
+}
+
+function Get-ConfigKeyName {
+    <#
+        The key and the file it came from, never the value. A credential helper
+        value can be a shell snippet with a token in it, and this evidence is
+        printed and written to a report.
+
+        With --show-origin every key line begins with its origin and a tab. A
+        line without one is the continuation of a value that spans lines, so it
+        is pure value and this function returns nothing for it rather than
+        guessing a key out of it.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Line
+    )
+
+    $separator = $Line.IndexOf("`t")
+
+    if ($separator -lt 0) {
+        return ''
+    }
+
+    $origin = $Line.Substring(0, $separator).Trim()
+    $remainder = $Line.Substring($separator + 1)
+    $space = $remainder.IndexOf(' ')
+    $key = if ($space -ge 0) { $remainder.Substring(0, $space) } else { $remainder }
+    $key = $key.Trim()
+
+    if ([string]::IsNullOrWhiteSpace($key)) {
+        $key = 'an unnamed credential key'
+    }
+
+    if ([string]::IsNullOrWhiteSpace($origin)) {
+        return $key
+    }
+
+    return "$key ($origin)"
+}
+
+function Resolve-GitExecutable {
+    <#
+        git as an absolute path to an application, never as an alias, a
+        function, or whatever PATH resolves to at the moment. Returns an empty
+        string when it cannot be resolved, which the caller reports as
+        unmeasured: "git is not installed" would let an empty PATH prove a
+        clean machine.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+
+    $command = Get-Command -Name 'git' -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+
+    if ($null -eq $command) {
+        return ''
+    }
+
+    $path = [string]$command.Source
+
+    if ([string]::IsNullOrWhiteSpace($path) -or -not [System.IO.Path]::IsPathRooted($path)) {
+        return ''
+    }
+
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        return ''
+    }
+
+    return (Get-Item -LiteralPath $path -Force).FullName
+}
+
+function Get-ScrubbedGitEnvironment {
+    <#
+        The environment the git child is given. Every GIT_ variable and
+        SSH_ASKPASS is dropped, because each can steer git at another
+        configuration or at another askpass, and HOME and USERPROFILE are
+        pinned to the operating system's own user profile folder so that the
+        measurement does not depend on where the caller started the verifier.
+        GIT_CONFIG_NOSYSTEM is deliberately not set: the system configuration
+        is part of what a run would see, so it stays in scope.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param()
+
+    $scrubbed = @{}
+
+    foreach ($entry in [Environment]::GetEnvironmentVariables().GetEnumerator()) {
+        $name = [string]$entry.Key
+
+        if ($name -like 'GIT_*' -or $name -eq 'SSH_ASKPASS') {
+            continue
+        }
+
+        $scrubbed[$name] = [string]$entry.Value
+    }
+
+    $profileFolder = [Environment]::GetFolderPath('UserProfile')
+    $scrubbed['HOME'] = $profileFolder
+    $scrubbed['USERPROFILE'] = $profileFolder
+
+    return $scrubbed
+}
+
+function Invoke-GitConfigProcess {
+    <#
+        Runs git as a child process with a scrubbed environment, a pinned
+        working directory and a bounded run time, and reports what happened
+        rather than what it hoped. A process that could not start, one that had
+        to be killed, and one that returned no exit code are all failed
+        measurements, never a clean result. The arguments are passed as a list,
+        so nothing is re-quoted through a shell.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$GitPath,
+
+        [Parameter(Mandatory)]
+        [string[]]$Argument,
+
+        [Parameter()]
+        [int]$TimeoutMilliseconds = 10000
+    )
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $GitPath
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.CreateNoWindow = $true
+    $startInfo.WorkingDirectory = [Environment]::GetFolderPath('UserProfile')
+
+    foreach ($value in $Argument) {
+        $startInfo.ArgumentList.Add($value)
+    }
+
+    $startInfo.Environment.Clear()
+
+    foreach ($entry in (Get-ScrubbedGitEnvironment).GetEnumerator()) {
+        $startInfo.Environment[[string]$entry.Key] = [string]$entry.Value
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+
+    try {
+        try {
+            $null = $process.Start()
+        } catch {
+            return @{ ExitCode = $null; Output = @(); TimedOut = $false; Failure = "git could not be started: $($_.Exception.Message)" }
+        }
+
+        # Both streams are drained before the wait, so a child that fills a pipe
+        # cannot deadlock the measurement.
+        $standardOutput = $process.StandardOutput.ReadToEndAsync()
+        $standardError = $process.StandardError.ReadToEndAsync()
+
+        if (-not $process.WaitForExit($TimeoutMilliseconds)) {
+            try {
+                $process.Kill($true)
+            } catch {
+                return @{ ExitCode = $null; Output = @(); TimedOut = $true; Failure = "git did not finish within $TimeoutMilliseconds ms and could not be killed: $($_.Exception.Message)" }
+            }
+
+            return @{ ExitCode = $null; Output = @(); TimedOut = $true; Failure = "git did not finish within $TimeoutMilliseconds ms" }
+        }
+
+        # The overload without a timeout waits for the redirected streams too.
+        $process.WaitForExit()
+
+        $text = $standardOutput.GetAwaiter().GetResult()
+        $null = $standardError.GetAwaiter().GetResult()
+        $line = @()
+
+        if (-not [string]::IsNullOrEmpty($text)) {
+            $line = @($text -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        }
+
+        return @{ ExitCode = $process.ExitCode; Output = $line; TimedOut = $false; Failure = '' }
+    } finally {
+        $process.Dispose()
+    }
+}
+
+function Get-PropertyText {
+    <#
+        Reads one property as text without assuming it is there. A measurement
+        that trips over a missing property is not a measurement, and under
+        Set-StrictMode plain property access would do exactly that.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        $InputObject,
+
+        [Parameter(Mandatory)]
+        [string]$Name
+    )
+
+    if ($null -eq $InputObject) {
+        return ''
+    }
+
+    $property = $InputObject.PSObject.Properties[$Name]
+
+    if ($null -eq $property -or $null -eq $property.Value) {
+        return ''
+    }
+
+    return [string]$property.Value
+}
+
+function Get-FirewallProfileState {
+    <#
+        Every firewall cmdlet call lives in one of these wrappers, so a test can
+        replace the operating system without touching it, and so a missing
+        module is one failure path instead of several. The active store is the
+        effective policy, which is what a run is actually subject to.
+    #>
+    [CmdletBinding()]
+    [OutputType([object[]])]
+    param()
+
+    if (-not (Get-Command -Name 'Get-NetFirewallProfile' -ErrorAction SilentlyContinue)) {
+        throw 'Get-NetFirewallProfile is unavailable, so the outbound default cannot be measured'
+    }
+
+    return @(Get-NetFirewallProfile -PolicyStore 'ActiveStore' -ErrorAction Stop)
+}
+
+function Get-OutboundAllowRule {
+    <#
+        The enabled outbound allow rules of the active store, each carrying the
+        user condition that decides whether it could apply to this run. The
+        security filters are read once and joined on the rule identifier
+        because the per-rule association is a separate call for every rule.
+    #>
+    [CmdletBinding()]
+    [OutputType([object[]])]
+    param()
+
+    foreach ($name in @('Get-NetFirewallRule', 'Get-NetFirewallSecurityFilter')) {
+        if (-not (Get-Command -Name $name -ErrorAction SilentlyContinue)) {
+            throw "$name is unavailable, so the outbound allow rules cannot be measured"
+        }
+    }
+
+    $rule = @(Get-NetFirewallRule -Direction 'Outbound' -Action 'Allow' -Enabled 'True' -PolicyStore 'ActiveStore' -ErrorAction Stop)
+    $filter = @(Get-NetFirewallSecurityFilter -PolicyStore 'ActiveStore' -ErrorAction Stop)
+
+    $userCondition = @{}
+
+    foreach ($entry in $filter) {
+        $key = Get-PropertyText -InputObject $entry -Name 'InstanceID'
+
+        if (-not [string]::IsNullOrWhiteSpace($key)) {
+            $userCondition[$key] = Get-PropertyText -InputObject $entry -Name 'LocalUser'
+        }
+    }
+
+    return @($rule | ForEach-Object {
+            $key = Get-PropertyText -InputObject $_ -Name 'InstanceID'
+
+            [pscustomobject]@{
+                Name = Get-PropertyText -InputObject $_ -Name 'Name'
+                DisplayName = Get-PropertyText -InputObject $_ -Name 'DisplayName'
+                LocalUser = if ($userCondition.ContainsKey($key)) { $userCondition[$key] } else { '' }
+            }
+        })
+}
+
+function Get-CallerSecurityIdentifier {
+    <#
+        The security identifiers of the identity running the verifier: its own
+        and every group in its token, because a rule scoped to a group applies
+        to every member of it.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param()
+
+    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $sid = [System.Collections.Generic.List[string]]::new()
+
+    if ($null -ne $identity.User) {
+        $sid.Add($identity.User.Value)
+    }
+
+    foreach ($group in @($identity.Groups)) {
+        if ($null -ne $group) {
+            $sid.Add($group.Value)
+        }
+    }
+
+    return $sid.ToArray()
+}
+
+function Test-RuleAppliesToIdentity {
+    <#
+        Decides whether one outbound allow rule could apply to this run.
+
+        What is evaluated: the rule's LocalUser condition. An absent or 'Any'
+        condition applies to everyone. A condition that denies one of the
+        caller's identifiers does not apply to it; one that allows any of them
+        does; one that names only other principals does not. A condition that
+        cannot be parsed applies, because an unread condition never proves a
+        rule harmless.
+
+        What is not evaluated, and is therefore treated as applying: the
+        RemoteUser and RemoteMachine conditions, the program, service, port,
+        address and interface scoping of the rule, the profile it is bound to,
+        and the order in which Windows would evaluate several rules. A
+        system-wide proxy is not measured at all, by this function or any other.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string]$LocalUser,
+
+        [Parameter(Mandatory)]
+        [string[]]$SecurityIdentifier
+    )
+
+    if ([string]::IsNullOrWhiteSpace($LocalUser) -or $LocalUser -eq 'Any') {
+        return $true
+    }
+
+    # One SDDL access control entry: (type;flags;rights;objectGuid;inheritGuid;sid).
+    $ace = [regex]::Matches($LocalUser, '\((?<type>[A-Z]+);[^;]*;[^;]*;[^;]*;[^;]*;(?<sid>[^;)]+)\)')
+
+    if ($ace.Count -eq 0) {
+        return $true
+    }
+
+    $known = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($value in $SecurityIdentifier) {
+        $null = $known.Add($value)
+    }
+
+    $allowsCaller = $false
+
+    foreach ($entry in $ace) {
+        $sid = $entry.Groups['sid'].Value.Trim()
+
+        if (-not $known.Contains($sid)) {
+            continue
+        }
+
+        if ($entry.Groups['type'].Value -like 'D*') {
+            return $false
+        }
+
+        $allowsCaller = $true
+    }
+
+    return $allowsCaller
+}
+
+function Test-TcpEndpoint {
+    <#
+        Classifies one connection attempt by what the socket reports. Only a
+        denial by local policy proves an endpoint is closed to this run: a
+        timeout or an unreachable network is indistinguishable from a network
+        that is simply switched off, and a refusal proves the opposite of a
+        closed egress, because something answered.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Address,
+
+        [Parameter(Mandatory)]
+        [int]$Port,
+
+        [Parameter()]
+        [int]$TimeoutMilliseconds = 2000
+    )
+
+    $client = [System.Net.Sockets.TcpClient]::new()
+
+    try {
+        if (-not $client.ConnectAsync($Address, $Port).Wait($TimeoutMilliseconds)) {
+            return @{ Outcome = 'Unreachable'; Detail = "timed out after $TimeoutMilliseconds ms" }
+        }
+
+        if ($client.Connected) {
+            return @{ Outcome = 'Connected'; Detail = 'accepted the connection' }
+        }
+
+        return @{ Outcome = 'Unreachable'; Detail = 'ended without a connection and without an error' }
+    } catch {
+        $cause = $_.Exception.GetBaseException()
+        $socketError = $null
+
+        if ($cause -is [System.Net.Sockets.SocketException]) {
+            $socketError = $cause.SocketErrorCode
+        }
+
+        switch ($socketError) {
+            ([System.Net.Sockets.SocketError]::ConnectionRefused) {
+                return @{ Outcome = 'Refused'; Detail = 'refused the connection, so it answered' }
+            }
+            ([System.Net.Sockets.SocketError]::AccessDenied) {
+                return @{ Outcome = 'Denied'; Detail = 'was blocked by local policy' }
+            }
+            default {
+                $reason = if ($null -eq $socketError) { $cause.Message } else { "$socketError" }
+                return @{ Outcome = 'Unreachable'; Detail = "was not reached: $reason" }
+            }
+        }
+    } finally {
+        $client.Dispose()
+    }
+}
+
+function Invoke-ProbeSelfTest {
+    <#
+        The positive control for the reachability check. It opens a listener on
+        the loopback interface on a port the operating system picks, connects to
+        it with the same function the canaries use, and closes it again. If this
+        fails, the probe machinery is broken and a quiet network proves nothing.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter()]
+        [int]$TimeoutMilliseconds = 2000
+    )
+
+    $listener = $null
+
+    try {
+        try {
+            $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+            $listener.Start()
+            $port = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+        } catch {
+            # Inside the outer try, so a listener that was constructed but could
+            # not start is still released by the one finally below.
+            return @{ Validated = $false; Detail = "no loopback listener could be opened: $($_.Exception.Message)" }
+        }
+
+        $outcome = Test-TcpEndpoint -Address '127.0.0.1' -Port $port -TimeoutMilliseconds $TimeoutMilliseconds
+
+        if ($outcome.Outcome -eq 'Connected') {
+            return @{ Validated = $true; Detail = "the probe reached a loopback listener on port $port" }
+        }
+
+        return @{ Validated = $false; Detail = "the loopback listener on port $port $($outcome.Detail)" }
+    } catch {
+        return @{ Validated = $false; Detail = "the loopback probe failed: $($_.Exception.Message)" }
+    } finally {
+        if ($null -ne $listener) {
+            $listener.Stop()
+
+            if ($listener -is [System.IDisposable]) {
+                $listener.Dispose()
+            }
+        }
+    }
 }
 
 function Test-PathInside {
