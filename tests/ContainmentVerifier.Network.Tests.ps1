@@ -885,6 +885,57 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
             $result.evidence | Should -Not -Match 'password='
         }
 
+        It 'never prints a line that carries no origin, so a multi-line value cannot leak' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 0; Output = @("file:C:/profile/.gitconfig`tuser.name nobody"); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--list' }
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{
+                        ExitCode = 0
+                        Output = @(
+                            "file:C:/profile/.gitconfig`tcredential.helper !f() {"
+                            'password=hunter2-not-a-real-secret'
+                            '}'
+                        )
+                        TimedOut = $false
+                        Failure = ''
+                    }
+                } -ParameterFilter { $Argument -contains '--get-regexp' }
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match 'credential\.helper'
+            $result.evidence | Should -Not -Match 'hunter2-not-a-real-secret'
+            $result.evidence | Should -Not -Match 'password='
+        }
+
+        It 'reports a credential query whose lines carry no origin as unmeasured' {
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 0; Output = @("file:C:/profile/.gitconfig`tuser.name nobody"); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--list' }
+                Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                    @{ ExitCode = 0; Output = @('password=hunter2-not-a-real-secret'); TimedOut = $false; Failure = '' }
+                } -ParameterFilter { $Argument -contains '--get-regexp' }
+
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+            $result.evidence | Should -Not -Match 'hunter2-not-a-real-secret'
+        }
+
         It 'names exactly what it measured when it finds no credential material' {
             $saved = Clear-MeasuredEnvironment
 

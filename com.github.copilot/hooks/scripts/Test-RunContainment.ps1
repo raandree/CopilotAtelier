@@ -662,8 +662,17 @@ function Test-CredentialAbsence {
             } elseif ($probe.ExitCode -eq 0 -and $helper.Count -eq 0) {
                 $gitProblem = 'git config --get-regexp exited 0 without naming a key, so its credential helpers were not read'
             } elseif ($probe.ExitCode -eq 0) {
-                foreach ($line in $helper) {
-                    $found.Add('git ' + (Get-ConfigKeyName -Line $line))
+                # Only a line that carries an origin is a key line. A value that
+                # spans lines continues without one, and a continuation line is
+                # pure value, so it is dropped rather than parsed.
+                $key = @($helper | ForEach-Object { Get-ConfigKeyName -Line $_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+                if ($key.Count -eq 0) {
+                    $gitProblem = 'git config --get-regexp printed no line carrying an origin and a key, so its credential helpers were not read'
+                } else {
+                    foreach ($name in $key) {
+                        $found.Add("git $name")
+                    }
                 }
             } elseif ($probe.ExitCode -eq 1) {
                 # git exits 1 when no key matches, which is the clean case.
@@ -696,6 +705,11 @@ function Get-ConfigKeyName {
         The key and the file it came from, never the value. A credential helper
         value can be a shell snippet with a token in it, and this evidence is
         printed and written to a report.
+
+        With --show-origin every key line begins with its origin and a tab. A
+        line without one is the continuation of a value that spans lines, so it
+        is pure value and this function returns nothing for it rather than
+        guessing a key out of it.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -705,15 +719,14 @@ function Get-ConfigKeyName {
         [string]$Line
     )
 
-    $origin = ''
-    $remainder = $Line
     $separator = $Line.IndexOf("`t")
 
-    if ($separator -ge 0) {
-        $origin = $Line.Substring(0, $separator).Trim()
-        $remainder = $Line.Substring($separator + 1)
+    if ($separator -lt 0) {
+        return ''
     }
 
+    $origin = $Line.Substring(0, $separator).Trim()
+    $remainder = $Line.Substring($separator + 1)
     $space = $remainder.IndexOf(' ')
     $key = if ($space -ge 0) { $remainder.Substring(0, $space) } else { $remainder }
     $key = $key.Trim()
