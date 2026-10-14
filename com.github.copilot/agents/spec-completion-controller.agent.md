@@ -122,10 +122,14 @@ commands and record each raw result and exit code in the controller ledger:
   `hooks.json` with fixed synthetic safe, push, and issue-mutation payloads, and
   only after the verifier binding, the control digests, the immutability of
   the pinned controls, and the binding of the running identity to its role have
-  passed; require exit codes 0, 2, and 2. That command must start with the
-  absolute path of PowerShell (`powershell` or `pwsh`; the verifier refuses any
-  other program), and the verifier requires that interpreter to be closed to the
-  run identity before it runs anything. In an enabled
+  passed; require exit codes 0, 2, and 2. The verifier runs that command through
+  `cmd.exe /d /c` on Windows, which a host may not, so it refuses command text
+  that two shells could read differently (`$`, a backtick, a single quote
+  outside double quotes, anything outside printable ASCII). The command must
+  start with the absolute path of PowerShell (`powershell` or `pwsh`; the
+  verifier refuses any other program), and the verifier requires that
+  interpreter to be closed to the run identity before it runs anything. In an
+  enabled
   live mode, the hash-pinned
   verifier also canonicalizes and hashes the live profile, live-runner
   executable, and command-template manifest and requires exact containment-

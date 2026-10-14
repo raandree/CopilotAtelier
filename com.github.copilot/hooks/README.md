@@ -184,7 +184,7 @@ as not run instead of leaving it out.
 | `ControlDigest` | Each pinned control hashes to its pinned digest | |
 | `ControlImmutability` | This identity cannot replace or loosen the profile, a pinned control, a live artifact, or an immutable path: not by writing it, deleting it, changing its access list or owner, creating it, or through a directory above it or a reparse point, and none lies in or holds a writable root | What an identity other than the one that runs can do. A directory entry is judged as one object, its own rights and those above it, not the rights of what it holds. What the token of this identity holds beyond what the probes show: a disabled privilege and a filtered administrator group are not read (see below). Off Windows only write access is measured |
 | `IdentityBinding` | The verifier runs as the account the profile declares for the role, and the two roles differ. The pinned hook command, git and, in `-Revalidate`, the pinned appender run only when this passes, because the immutability above is measured for the identity that verifies | That the account is a standard one: its token is not read (see below) |
-| `HookContract` | The pinned `hooks.json` is the plugin's own at the root of the pinned script and registers only the guard. Its one `PreToolUse` entry carries no key but `type`, an integer `timeout` and the command keys (`timeoutSec`, `env`, `cwd` and any other key fail the check, because a host may act on a key the check does not read), is of type `command` with no matcher, and holds the same command text under every command key. That command starts with the absolute path of PowerShell (a program named `powershell` or `pwsh`; this check reads what PowerShell loads first and cannot read what any other program loads, so any other program, `cmd.exe` included, is refused) that this identity cannot replace; has no line break and no `%` or `!`, which a shell expands before it reads the line; has no unquoted `&`, `\|`, `<`, `>`, `^`, `(` or `)` after its program; and has after an unquoted `;` only the statement the shipped command ends with (`exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]`). It passes `-NoProfile` before its script or command, and no option that loads code first: the same options as the verifier's own launch are allowed. Run from a folder of its own, with `PLUGIN_ROOT` set to the pinned root and the other places it looks emptied, within the timeout, it runs the pinned script, which exits 0, 2 and 2 for a safe, a push and an issue-mutation payload | What a host passes the hook in a real run, and how a host spawns the command. The probe runs the line through `cmd.exe /d /c` (`/d` keeps the `AutoRun` commands of the registry of the identity under test from running ahead of the probe); a host that wraps it in PowerShell, as VS Code does for the `windows` key, reads quoting and separators by that shell's rules, and PowerShell needs a leading `&` before a quoted program path, which this check does not accept, so how a contained deployment pins one command that passes this check and also runs under that wrapper is not settled here. The absolute interpreter path in the pinned command is what stops a host looking its interpreter up in its own working directory |
+| `HookContract` | The pinned `hooks.json` is the plugin's own at the root of the pinned script and registers only the guard. Its one `PreToolUse` entry carries no key but `type`, an integer `timeout` and the command keys (`timeoutSec`, `env`, `cwd` and any other key fail the check, because a host may act on a key the check does not read), is of type `command` with no matcher, and holds the same command text under every command key. That command starts with the absolute path of PowerShell (a program named `powershell` or `pwsh`; this check reads what PowerShell loads first and cannot read what any other program loads, so any other program, `cmd.exe` included, is refused) that this identity cannot replace; has no line break, no character outside printable ASCII (PowerShell reads curly quotes as quotes, and some other characters as spaces or dashes), and no `%`, `!`, `$` or backtick, which a shell expands or acts on even inside quotes; has no unquoted `&`, `\|`, `<`, `>`, `^`, `(` or `)`, and no `'` outside double quotes, after its program, because a PowerShell wrapper reads a single-quoted double quote as text and a scan that toggles on the double quote would take a semicolon after it for quoted; has no `.` or `..` segment in the program path; and has after an unquoted `;` only the statement the shipped command ends with (`exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]`). It passes `-NoProfile` before its script or command, and no option that loads code first: the same options as the verifier's own launch are allowed. Run from a folder of its own, with `PLUGIN_ROOT` set to the pinned root and the other places it looks emptied, within the timeout, it runs the pinned script, which exits 0, 2 and 2 for a safe, a push and an issue-mutation payload | What a host passes the hook in a real run, and how a host spawns the command. The probe runs the line through `cmd.exe /d /c` (`/d` keeps the `AutoRun` commands of the registry of the identity under test from running ahead of the probe); a host that wraps it in PowerShell, as VS Code does for the `windows` key, reads quoting and separators by that shell's rules, so this scan refuses the characters on which the two shells could disagree (`$`, a backtick, a single quote outside double quotes, anything outside printable ASCII). For Windows PowerShell in the system folder, whose path holds no space, the shipped `windows` command with that path written unquoted passes this check, and was run under a Windows PowerShell 5.1 wrapper (`-ExecutionPolicy Bypass -NoProfile -NoLogo -Command <command>`, 2026-10-14): exit 0 for a safe payload, and exit 2 with the block message for a push. PowerShell needs a leading `&` before a quoted program path, the form a path with a space needs (PowerShell 7 under `Program Files`); without it the wrapper fails with a parse error, and this check does not accept the `&`, so for such a path how a contained deployment pins one command that passes this check and also runs under that wrapper is not settled here. A POSIX shell reads a backslash outside quotes as an escape, which this scan does not model. The program is judged by its name, not by its identity: nothing checks a signature or a digest of the interpreter, only that the run cannot replace it. The absolute interpreter path in the pinned command is what stops a host looking its interpreter up in its own working directory |
 | `GrantRecorderUnregistered` | The pinned `hooks.json` is of a shape the check reads, registers no prompt hook, and does not contain the name `Add-RemoteGrant` anywhere in the file, at any depth, and the grants folder of this identity is empty | That no grant can exist: the guard honors any well-formed grant file in a folder the run owns, so a run that writes one is not stopped here, and egress and credentials are the boundary against a remote mutation. A recorder under another name (a renamed copy, a wildcard, a name built by an expansion) is not seen. A hook file the host finds outside the pinned file, such as a user-level or workspace hooks folder or an installed copy of the plugin |
 | `EgressPolicy` | The three firewall cmdlets come from a module under the system folder, every firewall profile of the active store is enabled and defaults outbound to Block, and no enabled outbound allow rule could apply to this identity by its user condition | A system-wide proxy, and the program, service, port and address scoping of a rule. A host that reaches NetSecurity through the Windows PowerShell compatibility layer resolves it outside the system folder, so the check is unmeasured there until the module loads natively |
 | `RemoteUnreachable` | The probe works against a loopback listener, and local policy denied the connection to both canary addresses | A network that is silent or down: a timeout is unmeasured, not closed |
@@ -227,13 +227,20 @@ before its first line, such as a .NET startup hook named by `DOTNET_STARTUP_HOOK
 and the environment belongs to whatever starts the verifier: only a launcher that
 builds it can close that. Start the verifier through
 `System.Diagnostics.ProcessStartInfo` with an explicit environment
-(`Environment.Clear()`, then only what it needs, and a `PSModulePath` of system
-folders). `Start-Process -UseNewEnvironment` is not that: it clears what the
-launching process inherited, and still hands the verifier the account's own user
-environment and its own module folder, which for the worker role is the run's.
-The firewall cmdlets are resolved by name, so `EgressPolicy` measures where they
-come from and is unmeasured unless all three come from a module under the
-system folder.
+(`Environment.Clear()`, then only what it needs). That closes the environment
+variables. It does not close the module path: pwsh adds the account's own module
+folder (`Documents\PowerShell\Modules`) ahead of the system ones whatever
+`PSModulePath` the launcher sets, measured on 2026-10-14 with a cleared
+environment and a `PSModulePath` of the system folder only, and for the worker
+role that folder is the run's. `Start-Process -UseNewEnvironment` is no better:
+it clears what the launching process inherited, and still hands the verifier the
+account's own user environment and its own module folder. So the module path is
+closed only where the verifier measures it. The firewall cmdlets are resolved by
+name, so `EgressPolicy` measures where they come from and is unmeasured unless
+all three come from a module under the system folder. A module that the
+verifier's other commands would auto-load from the account's module folder is not
+measured, and adding the folders pwsh searches to the escape set of
+`WritableRoots` is a follow-up.
 
 ```powershell
 $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $profilePath).Hash.ToLowerInvariant()
@@ -328,7 +335,9 @@ record. It reports success only after it has rebuilt the digest of the record it
 sent, at the acknowledged sequence and on top of the stored record before it, and
 found that digest both in the acknowledgement and in the ledger at that
 sequence: a server that merely answers `Ok` is not believed, and neither is one
-that answers with the sequence and digest of a record that was already stored.
+that answers with the sequence and digest of a different record that was already
+stored. A record identical to one that is already stored is the exception, set
+out under the limits below.
 By default the client expects the pipe to belong to the account that would own
 what the client creates, which is the right account when both run as one
 identity. When the service runs as another account, as in a separate-account
@@ -387,9 +396,12 @@ a chain that validates; keeping both out of the reach of the run identity is
 filesystem policy. A process of the service's own account can still take the
 pipe name before the service starts, or join it: it can make an append fail, but
 it cannot make a record that was not stored read as stored, because the client
-rebuilds the digest of its own record and looks for it in the ledger. Separate
-accounts and `-ExpectedServerIdentity` are what tell such a process from the
-service.
+rebuilds the digest of its own record and looks for it in the ledger. The one
+exception is a record identical to one already stored: a server that replays the
+earlier acknowledgement of an identical record is believed at the earlier
+sequence, since the ledger does hold that record there. What the client cannot
+prove is how many times the record was stored. Separate accounts and
+`-ExpectedServerIdentity` are what tell such a process from the service.
 
 Two availability limits remain, and neither changes what the ledger says. Any
 open handle on the chain head, even one opened with sharing, makes the service's
