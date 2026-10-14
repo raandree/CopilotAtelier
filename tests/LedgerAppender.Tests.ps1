@@ -155,6 +155,89 @@ exit `$LASTEXITCODE
         )
     }
 
+    function script:Invoke-AppenderSplit {
+        <#
+            Keeps standard output and standard error apart, because the
+            -Validate contract is about what reaches standard output: on a
+            refusal it must stay empty.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string[]]$Argument
+        )
+
+        $outPath = Join-Path $TestDrive "out-$([guid]::NewGuid().ToString('N')).txt"
+        $errPath = Join-Path $TestDrive "err-$([guid]::NewGuid().ToString('N')).txt"
+
+        $process = Start-Process -FilePath $script:powerShellPath -PassThru -Wait -WindowStyle Hidden `
+            -RedirectStandardOutput $outPath -RedirectStandardError $errPath -ArgumentList (
+            @('-NoProfile', '-NonInteractive', '-File', $script:appenderScript) + $Argument)
+
+        $standardOutput = ''
+        if (Test-Path -LiteralPath $outPath -PathType Leaf) {
+            $standardOutput = [System.IO.File]::ReadAllText($outPath)
+        }
+
+        $standardError = ''
+        if (Test-Path -LiteralPath $errPath -PathType Leaf) {
+            $standardError = [System.IO.File]::ReadAllText($errPath)
+        }
+
+        [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            StandardOutput = $standardOutput
+            StandardError = $standardError
+        }
+    }
+
+    function script:New-TestProfile {
+        <#
+            The same document shape the containment verifier reads. Only
+            ledgerSink, chainHead and ledgerAppender matter to the appender.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string]$ProfilePath,
+
+            [Parameter(Mandatory)]
+            [string]$SinkPath,
+
+            [Parameter(Mandatory)]
+            [string]$ChainHeadPath,
+
+            [Parameter()]
+            [string]$AppenderPath = $script:appenderScript,
+
+            [Parameter()]
+            [string]$AppenderSha256
+        )
+
+        if (-not $AppenderSha256) {
+            $AppenderSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $script:appenderScript).Hash.ToLowerInvariant()
+        }
+
+        $pinned = @{ path = $AppenderPath; sha256 = $AppenderSha256 }
+        $content = [ordered]@{
+            schemaVersion = 1
+            verifier = $pinned
+            hooksConfig = $pinned
+            hookScript = $pinned
+            ledgerAppender = $pinned
+            ledgerSink = $SinkPath
+            chainHead = $ChainHeadPath
+            controllerEgressAllow = @()
+            workerEgressAllow = @()
+            controllerIdentity = 'CONTOSO\controller'
+            workerIdentity = 'CONTOSO\worker'
+            immutableControlPaths = @()
+            writableRoots = @()
+        } | ConvertTo-Json -Depth 8
+
+        [System.IO.File]::WriteAllBytes($ProfilePath, [System.Text.UTF8Encoding]::new($false).GetBytes($content))
+
+        return (Get-FileHash -Algorithm SHA256 -LiteralPath $ProfilePath).Hash.ToLowerInvariant()
+    }
+
     function script:Invoke-Validate {
         param(
             [Parameter(Mandatory)]
@@ -553,7 +636,7 @@ Describe 'Ledger appender' -Tag 'Unit' {
 
         $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         $validation.ExitCode | Should -Be 0 -Because $validation.Output
-        $validation.Output | Should -Match 'Valid'
+        $validation.Output | Should -Match '"valid":true'
     }
 
     It 'rejects a record whose body was rewritten' -Skip:(-not $script:onWindows) {
@@ -1329,5 +1412,159 @@ Describe 'Ledger appender channel' -Tag 'Unit' {
         Test-PipeName -PipeName $script:pipeName |
             Should -BeTrue -Because 'the pipe owner is the creator, so a third-party identity can be granted access'
         $script:appender.HasExited | Should -BeFalse
+    }
+}
+
+Describe 'Ledger appender bound validation' -Tag 'Unit' {
+    BeforeEach {
+        $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
+        $script:sinkPath = Join-Path $TestDrive "ledger-$([guid]::NewGuid().ToString('N')).jsonl"
+        $script:headPath = Join-Path $TestDrive "head-$([guid]::NewGuid().ToString('N')).json"
+        $script:profilePath = Join-Path $TestDrive "profile-$([guid]::NewGuid().ToString('N')).json"
+        $script:appender = $null
+    }
+
+    AfterEach {
+        Stop-TestAppender -Process $script:appender
+    }
+
+    It 'reports the pinned ledger on standard output and exits 0' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        foreach ($step in 1..2) {
+            (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
+        }
+        Stop-TestAppender -Process $script:appender
+
+        $digest = New-TestProfile -ProfilePath $script:profilePath -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $result = Invoke-AppenderSplit -Argument @('-Validate', '-ProfilePath', $script:profilePath, '-ProfileSha256', $digest)
+
+        $result.ExitCode | Should -Be 0 -Because $result.StandardError
+        $record = Get-SinkRecord -SinkPath $script:sinkPath
+        $result.StandardOutput.Trim() | Should -BeExactly (
+            '{{"valid":true,"records":2,"headSequence":2,"sealed":false,"headRecordSha256":"{0}","bound":true}}' -f $record[-1].recordSha256)
+    }
+
+    It 'refuses a profile that does not match the digest it was given' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+
+        $null = New-TestProfile -ProfilePath $script:profilePath -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $result = Invoke-AppenderSplit -Argument @('-Validate', '-ProfilePath', $script:profilePath, '-ProfileSha256', ('a' * 64))
+
+        $result.ExitCode | Should -Be 2
+        $result.StandardOutput.Trim() | Should -BeExactly '' -Because 'a refusal never writes a verdict'
+        $result.StandardError | Should -Match 'digest'
+    }
+
+    It 'refuses a profile that pins another appender script' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+
+        $decoyScript = Join-Path $TestDrive "decoy-$([guid]::NewGuid().ToString('N')).ps1"
+        Copy-Item -LiteralPath $script:appenderScript -Destination $decoyScript
+        $digest = New-TestProfile -ProfilePath $script:profilePath -SinkPath $script:sinkPath `
+            -ChainHeadPath $script:headPath -AppenderPath $decoyScript
+
+        $result = Invoke-AppenderSplit -Argument @('-Validate', '-ProfilePath', $script:profilePath, '-ProfileSha256', $digest)
+
+        $result.ExitCode | Should -Be 2
+        $result.StandardOutput.Trim() | Should -BeExactly ''
+        $result.StandardError | Should -Match 'pinned'
+    }
+
+    It 'refuses a profile whose appender digest does not match this script' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+
+        $digest = New-TestProfile -ProfilePath $script:profilePath -SinkPath $script:sinkPath `
+            -ChainHeadPath $script:headPath -AppenderSha256 ('b' * 64)
+
+        $result = Invoke-AppenderSplit -Argument @('-Validate', '-ProfilePath', $script:profilePath, '-ProfileSha256', $digest)
+
+        $result.ExitCode | Should -Be 2
+        $result.StandardOutput.Trim() | Should -BeExactly ''
+    }
+
+    It 'measures the pinned ledger and not a decoy that would validate' -Skip:(-not $script:onWindows) {
+        $decoySink = Join-Path $TestDrive "decoy-$([guid]::NewGuid().ToString('N')).jsonl"
+        $decoyHead = Join-Path $TestDrive "decoy-$([guid]::NewGuid().ToString('N')).json"
+
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $decoySink -ChainHeadPath $decoyHead
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Decoy') `
+                -SinkPath $decoySink -ChainHeadPath $decoyHead).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+
+        $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Real')).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+
+        # The real ledger is tampered with; the decoy stays valid.
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        Set-SinkLine -SinkPath $script:sinkPath -Line @($line[0] -replace '"note":"test"', '"note":"edited"')
+
+        $digest = New-TestProfile -ProfilePath $script:profilePath -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $result = Invoke-AppenderSplit -Argument @('-Validate', '-ProfilePath', $script:profilePath, '-ProfileSha256', $digest)
+
+        $result.ExitCode | Should -Be 2 -Because 'the paths come from the profile, so a valid decoy cannot answer for the pinned ledger'
+        $result.StandardOutput.Trim() | Should -BeExactly ''
+
+        $decoy = Invoke-AppenderSplit -Argument @('-Validate', '-SinkPath', $decoySink, '-ChainHeadPath', $decoyHead)
+        $decoy.ExitCode | Should -Be 0 -Because 'the decoy really is a valid chain'
+    }
+
+    It 'refuses an unsealed ledger when a seal is required' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+
+        $digest = New-TestProfile -ProfilePath $script:profilePath -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $result = Invoke-AppenderSplit -Argument @(
+            '-Validate', '-ProfilePath', $script:profilePath, '-ProfileSha256', $digest, '-RequireSealed')
+
+        $result.ExitCode | Should -Be 2
+        $result.StandardOutput.Trim() | Should -BeExactly ''
+        $result.StandardError | Should -Match 'seal'
+    }
+
+    It 'accepts a sealed ledger when a seal is required' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+
+        $sealJson = [ordered]@{
+            type = 'Seal'
+            runId = 'run-0001'
+            utc = '2026-09-02T22:10:00Z'
+            data = @{ reason = 'run complete' }
+        } | ConvertTo-Json -Depth 8 -Compress
+
+        $seal = Invoke-Appender -Argument @(
+            '-Seal', '-PipeName', $script:pipeName, '-RecordJson', $sealJson,
+            '-SinkPath', $script:sinkPath, '-ChainHeadPath', $script:headPath
+        )
+        $seal.ExitCode | Should -Be 0 -Because $seal.Output
+        Stop-TestAppender -Process $script:appender
+
+        $digest = New-TestProfile -ProfilePath $script:profilePath -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $result = Invoke-AppenderSplit -Argument @(
+            '-Validate', '-ProfilePath', $script:profilePath, '-ProfileSha256', $digest, '-RequireSealed')
+
+        $result.ExitCode | Should -Be 0 -Because $result.StandardError
+        $result.StandardOutput | Should -Match '"sealed":true'
+    }
+
+    It 'marks the free-path form as unbound and warns about it' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+
+        $result = Invoke-AppenderSplit -Argument @('-Validate', '-SinkPath', $script:sinkPath, '-ChainHeadPath', $script:headPath)
+
+        $result.ExitCode | Should -Be 0 -Because $result.StandardError
+        $result.StandardOutput | Should -Match '"bound":false'
+        $result.StandardError | Should -Match 'only'
     }
 }

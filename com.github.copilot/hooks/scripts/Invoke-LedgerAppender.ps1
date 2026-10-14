@@ -74,7 +74,20 @@ param(
     [switch]$Seal,
 
     [Parameter(Mandatory, ParameterSetName = 'Validate')]
+    [Parameter(Mandatory, ParameterSetName = 'ValidateBound')]
     [switch]$Validate,
+
+    [Parameter(Mandatory, ParameterSetName = 'ValidateBound')]
+    [ValidateNotNullOrEmpty()]
+    [string]$ProfilePath,
+
+    [Parameter(Mandatory, ParameterSetName = 'ValidateBound')]
+    [ValidateNotNullOrEmpty()]
+    [string]$ProfileSha256,
+
+    [Parameter(ParameterSetName = 'Validate')]
+    [Parameter(ParameterSetName = 'ValidateBound')]
+    [switch]$RequireSealed,
 
     [Parameter(Mandatory, ParameterSetName = 'Serve')]
     [Parameter(Mandatory, ParameterSetName = 'Append')]
@@ -313,6 +326,23 @@ function ConvertTo-CanonicalJson {
     throw "unsupported JSON value kind '$($Element.ValueKind)'"
 }
 
+function Get-Sha256HexFromByte {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [byte[]]$Byte
+    )
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return [System.Convert]::ToHexString($sha256.ComputeHash($Byte)).ToLowerInvariant()
+    } finally {
+        $sha256.Dispose()
+    }
+}
+
 function Get-Sha256Hex {
     [CmdletBinding()]
     [OutputType([string])]
@@ -543,6 +573,168 @@ function Read-StoredRecord {
     }
 
     return $record
+}
+
+function Read-ContainmentProfile {
+    <#
+        The profile is read exactly once and the digest given on the command
+        line is the trust anchor: a digest the run derives from the file it is
+        about to trust proves nothing. The bytes that are hashed are the bytes
+        that are parsed, so the paths this returns cannot come from a document
+        the caller swapped in afterwards.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [string]$Sha256
+    )
+
+    $containmentProfile = @{
+        Error = ''
+        SinkPath = ''
+        ChainHeadPath = ''
+        AppenderPath = ''
+        AppenderSha256 = ''
+    }
+
+    if ($Sha256 -cnotmatch $script:DigestPattern) {
+        $containmentProfile.Error = 'the profile digest must be a lowercase 64-character hexadecimal string'
+        return $containmentProfile
+    }
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        $containmentProfile.Error = "the containment profile '$Path' does not exist"
+        return $containmentProfile
+    }
+
+    $bytes = Read-FileByte -Path $Path
+    if ((Get-Sha256HexFromByte -Byte $bytes) -cne $Sha256) {
+        $containmentProfile.Error = 'the containment profile does not match the digest given on the command line'
+        return $containmentProfile
+    }
+
+    try {
+        $text = $script:StrictUtf8.GetString($bytes)
+    } catch {
+        $containmentProfile.Error = 'the containment profile is not valid UTF-8'
+        return $containmentProfile
+    }
+
+    # A byte-order mark is part of the hashed bytes but is not JSON; the
+    # verifier reads the same file through a reader that skips it.
+    $text = $text.TrimStart([char]0xFEFF)
+
+    try {
+        $document = ConvertFrom-JsonText -Text $text
+    } catch {
+        $containmentProfile.Error = 'the containment profile is not valid JSON'
+        return $containmentProfile
+    }
+
+    try {
+        $root = $document.RootElement
+
+        if ($root.ValueKind -ne [System.Text.Json.JsonValueKind]::Object) {
+            $containmentProfile.Error = 'the containment profile is not a JSON object'
+            return $containmentProfile
+        }
+
+        foreach ($name in @('ledgerSink', 'chainHead')) {
+            $value = [System.Text.Json.JsonElement]::new()
+
+            if (-not $root.TryGetProperty($name, [ref]$value) -or
+                $value.ValueKind -ne [System.Text.Json.JsonValueKind]::String -or
+                [string]::IsNullOrWhiteSpace($value.GetString())) {
+                $containmentProfile.Error = "the containment profile does not declare '$name' as a path"
+                return $containmentProfile
+            }
+
+            if ($name -ceq 'ledgerSink') {
+                $containmentProfile.SinkPath = $value.GetString()
+            } else {
+                $containmentProfile.ChainHeadPath = $value.GetString()
+            }
+        }
+
+        $appender = [System.Text.Json.JsonElement]::new()
+        if (-not $root.TryGetProperty('ledgerAppender', [ref]$appender) -or
+            $appender.ValueKind -ne [System.Text.Json.JsonValueKind]::Object) {
+            $containmentProfile.Error = "the containment profile does not declare 'ledgerAppender'"
+            return $containmentProfile
+        }
+
+        $appenderPath = [System.Text.Json.JsonElement]::new()
+        $appenderDigest = [System.Text.Json.JsonElement]::new()
+
+        if (-not $appender.TryGetProperty('path', [ref]$appenderPath) -or
+            $appenderPath.ValueKind -ne [System.Text.Json.JsonValueKind]::String -or
+            [string]::IsNullOrWhiteSpace($appenderPath.GetString())) {
+            $containmentProfile.Error = "the containment profile does not declare 'ledgerAppender.path'"
+            return $containmentProfile
+        }
+
+        if (-not $appender.TryGetProperty('sha256', [ref]$appenderDigest) -or
+            $appenderDigest.ValueKind -ne [System.Text.Json.JsonValueKind]::String -or
+            $appenderDigest.GetString() -cnotmatch $script:DigestPattern) {
+            $containmentProfile.Error = "the containment profile does not declare 'ledgerAppender.sha256' as a lowercase 64-character hexadecimal digest"
+            return $containmentProfile
+        }
+
+        $containmentProfile.AppenderPath = $appenderPath.GetString()
+        $containmentProfile.AppenderSha256 = $appenderDigest.GetString()
+    } finally {
+        $document.Dispose()
+    }
+
+    return $containmentProfile
+}
+
+function Test-PinnedAppender {
+    <#
+        Binding the verdict to the profile is only worth something if the
+        script producing it is the one the profile pins, so the running file
+        is compared with ledgerAppender both by path and by digest.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [string]$Sha256
+    )
+
+    if ([string]::IsNullOrWhiteSpace($PSCommandPath)) {
+        return 'the running appender has no file path to compare with the pinned one'
+    }
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return "the pinned appender '$Path' does not exist"
+    }
+
+    $pinned = [System.IO.Path]::GetFullPath($Path)
+    $running = [System.IO.Path]::GetFullPath($PSCommandPath)
+    $comparison = if ($script:OnWindows) {
+        [System.StringComparison]::OrdinalIgnoreCase
+    } else {
+        [System.StringComparison]::Ordinal
+    }
+
+    if (-not [string]::Equals($pinned, $running, $comparison)) {
+        return "the running appender '$running' is not the pinned appender '$pinned'"
+    }
+
+    $digest = Get-Sha256HexFromByte -Byte (Read-FileByte -Path $running)
+    if ($digest -cne $Sha256) {
+        return 'the running appender does not match the digest the profile pins'
+    }
+
+    return ''
 }
 
 function Read-FileByte {
@@ -1701,18 +1893,42 @@ switch ($PSCmdlet.ParameterSetName) {
         exit 0
     }
 
-    'Validate' {
-        if (-not (Test-Path -LiteralPath $SinkPath -PathType Leaf)) {
-            Write-Refusal -Message "ledger sink '$SinkPath' does not exist; an absent chain is never valid"
+    { $_ -in @('Validate', 'ValidateBound') } {
+        $bound = $PSCmdlet.ParameterSetName -ceq 'ValidateBound'
+        $resolvedSink = $SinkPath
+        $resolvedHead = $ChainHeadPath
+
+        if ($bound) {
+            $containmentProfile = Read-ContainmentProfile -Path $ProfilePath -Sha256 $ProfileSha256
+            if ($containmentProfile.Error) {
+                Write-Refusal -Message $containmentProfile.Error
+                exit 2
+            }
+
+            $pinnedError = Test-PinnedAppender -Path $containmentProfile.AppenderPath -Sha256 $containmentProfile.AppenderSha256
+            if ($pinnedError) {
+                Write-Refusal -Message $pinnedError
+                exit 2
+            }
+
+            $resolvedSink = $containmentProfile.SinkPath
+            $resolvedHead = $containmentProfile.ChainHeadPath
+        } else {
+            [Console]::Error.WriteLine(
+                'Ledger appender warning: an unbound check proves only that the given files form a valid chain, not that they are the ledger a run was contained to.')
+        }
+
+        if (-not (Test-Path -LiteralPath $resolvedSink -PathType Leaf)) {
+            Write-Refusal -Message "ledger sink '$resolvedSink' does not exist; an absent chain is never valid"
             exit 2
         }
 
-        if (-not (Test-Path -LiteralPath $ChainHeadPath -PathType Leaf)) {
-            Write-Refusal -Message "chain head '$ChainHeadPath' does not exist"
+        if (-not (Test-Path -LiteralPath $resolvedHead -PathType Leaf)) {
+            Write-Refusal -Message "chain head '$resolvedHead' does not exist"
             exit 2
         }
 
-        $state = Read-ChainState -Path $SinkPath -HeadPath $ChainHeadPath
+        $state = Read-ChainState -Path $resolvedSink -HeadPath $resolvedHead
 
         if ($state.Error) {
             Write-Refusal -Message $state.Error
@@ -1724,7 +1940,7 @@ switch ($PSCmdlet.ParameterSetName) {
             exit 2
         }
 
-        $head = Read-ChainHeadState -Path $ChainHeadPath
+        $head = Read-ChainHeadState -Path $resolvedHead
         if ($head.Error) {
             Write-Refusal -Message $head.Error
             exit 2
@@ -1743,7 +1959,18 @@ switch ($PSCmdlet.ParameterSetName) {
             exit 2
         }
 
-        Write-Output ('Valid: {0} records from genesis to {1}' -f $state.Sequence, $state.LastHash)
+        if ($RequireSealed -and -not ($state.Sealed -and $head.Sealed)) {
+            Write-Refusal -Message 'the ledger is not sealed: the last record is not a seal record or the chain head does not say so'
+            exit 2
+        }
+
+        # Exactly one JSON object, and only when everything above held.
+        Write-Output ('{{"valid":true,"records":{0},"headSequence":{1},"sealed":{2},"headRecordSha256":"{3}","bound":{4}}}' -f
+            $state.Sequence,
+            $head.Sequence,
+            $(if ($state.Sealed) { 'true' } else { 'false' }),
+            $state.LastHash,
+            $(if ($bound) { 'true' } else { 'false' }))
         exit 0
     }
 }
