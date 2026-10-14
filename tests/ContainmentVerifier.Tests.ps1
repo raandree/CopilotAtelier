@@ -512,7 +512,8 @@ Describe 'Containment verifier' -Tag 'Unit' {
 
         $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
 
-        # The test identity can write every one of them, so each must be named.
+        # The test identity can write every one of them, so each must be named as a measured breach,
+        # not merely mentioned: naming a path would also be true of one that could not be measured.
         $check = Get-Check -Result $result -Name 'ControlImmutability'
         $check.status | Should -Be 'Fail' -Because $check.evidence
         foreach ($path in @(
@@ -522,7 +523,7 @@ Describe 'Containment verifier' -Tag 'Unit' {
                 $script:hookScript
                 $script:appenderScript
             )) {
-            $check.evidence | Should -Match ([regex]::Escape($path))
+            $check.evidence | Should -Match ([regex]::Escape("${path}: this identity holds"))
         }
     }
 
