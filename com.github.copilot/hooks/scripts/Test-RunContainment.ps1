@@ -168,8 +168,10 @@ $script:HookExitTail = 'exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -Erro
 # A list is never complete: a '#' makes PowerShell read the closing statement as a comment, and a doubled
 # quote, a quote after a backslash and an unterminated quote are read three ways by cmd.exe, a PowerShell
 # wrapper and a POSIX shell. A word is bare, of characters that no shell reads as syntax, or double-quoted
-# with no double quote inside and no backslash before its closing quote.
-$script:HookLineShape = '\A(?:[ \t]+(?:[A-Za-z0-9_.:\\/-]+|"(?:[^"\\]|\\(?!"))*"))*[ \t]*\z'
+# with no double quote inside and no backslash before its closing quote. A bare word that starts with a dash
+# is an option name of letters only: PowerShell reads '-name:' as a parameter that binds to the next word or
+# fails to parse, and splits '-Z.7' in two, where cmd.exe passes each through as one word.
+$script:HookLineShape = '\A(?:[ \t]+(?:-[A-Za-z]+|[A-Za-z0-9_.:\\/][A-Za-z0-9_.:\\/-]*|"(?:[^"\\]|\\(?!"))*"))*[ \t]*\z'
 # An unquoted program word is read by the shell as well, so it may hold only those characters too.
 $script:HookProgramWord = '\A(?:[A-Za-z]:)?[\\/][A-Za-z0-9_.\\/-]+\z'
 
@@ -223,6 +225,7 @@ function Get-PowerShellLaunchOption {
     param(
         [Parameter(Mandatory)]
         [AllowEmptyCollection()]
+        [AllowEmptyString()]
         [string[]]$Argument
     )
 
@@ -1583,6 +1586,10 @@ function Get-HookInterpreter {
         return [pscustomobject]@{ Path = $null; Problem = 'the command line holds a ''%'', a ''!'', a ''$'' or a backtick, which a shell expands or acts on even inside double quotes (a PowerShell wrapper runs $(...) there), so the program that runs is not only the one the text names' }
     }
 
+    if (-not $script:OnWindows -and $CommandLine.Contains('\')) {
+        return [pscustomobject]@{ Path = $null; Problem = 'the command line holds a backslash, which a POSIX shell reads as an escape (it joins a word to the next, drops a separator, and can start a sibling path that was not measured), so the line cannot be shown to run only what it appears to' }
+    }
+
     if ($quoted) {
         $close = $text.IndexOf('"', 1)
 
@@ -1610,7 +1617,7 @@ function Get-HookInterpreter {
         return [pscustomobject]@{ Path = $null; Problem = "the program word '$word' holds an unquoted shell character or single quote, which a shell reads as the start of another command, a redirection or a string" }
     }
 
-    if ($word.StartsWith('\\') -or $word.StartsWith('//')) {
+    if ($word -match '\A[\\/]{2}') {
         return [pscustomobject]@{ Path = $null; Problem = "the program '$word' is named through a network or device path" }
     }
 

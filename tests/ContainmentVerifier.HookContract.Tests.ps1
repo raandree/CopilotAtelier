@@ -365,6 +365,18 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Why = 'a semicolon in an unquoted program word'; Line = 'C:\Tools\a;b\powershell.exe -NoProfile -File x.ps1'; Match = 'program word' }
         @{ Why = 'a comma in an unquoted program word'; Line = 'C:\Tools\a,b\powershell.exe -NoProfile -File x.ps1'; Match = 'program word' }
         @{ Why = 'an equals sign in an unquoted program word'; Line = 'C:\Tools\a=b\powershell.exe -NoProfile -File x.ps1'; Match = 'program word' }
+        # Review pass 3 part D, S-25: PowerShell reads a word that starts with a dash as a parameter, and binds
+        # '-name:' to the next word or fails to parse it; cmd.exe passes it through. Reproduced on the shipped body.
+        @{ Why = 'a dash word that ends in a colon, before the closing statement'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" -x: ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'; Match = 'shape' }
+        @{ Why = 'a dash word that ends in a colon, as the last word'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "exit 0" -x:'; Match = 'shape' }
+        @{ Why = 'a dash word that PowerShell splits at a dot'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File x.ps1 -Z.7'; Match = 'shape' }
+        @{ Why = 'a dash word that ends in a dot'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File x.ps1 -y.'; Match = 'shape' }
+        @{ Why = 'a dash word that holds a digit'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File x.ps1 -x1'; Match = 'shape' }
+        @{ Why = 'a lone dash'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File x.ps1 -'; Match = 'shape' }
+        # S-26: a network path is two separators in any mix, and the check measured the access list over the network.
+        @{ Why = 'a network path written with a slash and a backslash'; Line = '\/server\share\powershell.exe -NoProfile -Command exit'; Match = 'network or device' }
+        @{ Why = 'a network path written with a backslash and a slash'; Line = '/\server\share\powershell.exe -NoProfile -Command exit'; Match = 'network or device' }
+        @{ Why = 'a quoted network path written with a slash and a backslash'; Line = '"\/server\share\powershell.exe" -NoProfile -Command exit'; Match = 'network or device' }
     ) {
         $result = Get-HookInterpreter -CommandLine $Line
 
@@ -441,6 +453,113 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -Command exit' }
     ) {
         (Get-HookInterpreter -CommandLine $Line).Problem | Should -BeNullOrEmpty
+    }
+
+    # Review pass 3 part D, S-28: an empty word reached the option reader as an empty string and threw, so the
+    # verifier ended with exit code 1 and nothing verified, where it should refuse the line with its reason.
+    It 'reads a line with an empty quoted word without throwing' {
+        $line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit ""'
+
+        { Get-HookInterpreter -CommandLine $line } | Should -Not -Throw
+        (Get-HookInterpreter -CommandLine $line).Problem | Should -BeNullOrEmpty
+    }
+
+    It 'refuses an empty word before the command as an argument that is not an option, without throwing' {
+        $line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile "" -Command exit'
+
+        { Get-HookInterpreter -CommandLine $line } | Should -Not -Throw
+        (Get-HookInterpreter -CommandLine $line).Problem | Should -Not -BeNullOrEmpty
+    }
+
+    # Review pass 3 part D, S-27: a POSIX shell reads a backslash outside double quotes as an escape, and inside them
+    # before a dollar, a backtick, a quote or another backslash, so it can drop a separator, join two words, or start
+    # a sibling path that nobody measured. The platform is switched here so that the rule is tested on every host.
+    It 'refuses a backslash anywhere in the line off Windows: <Line>' -ForEach @(
+        @{ Line = '/opt/x\y/pwsh -NoProfile -Command exit' }
+        @{ Line = '/opt/pwsh -NoProfile -Command "a\\b"' }
+        @{ Line = '/opt/pwsh -NoProfile -Command a\ b' }
+    ) {
+        $before = $script:OnWindows
+        $script:OnWindows = $false
+
+        try {
+            $result = Get-HookInterpreter -CommandLine $Line
+        } finally {
+            $script:OnWindows = $before
+        }
+
+        $result.Path | Should -BeNullOrEmpty
+        $result.Problem | Should -Match 'backslash'
+    }
+
+    # Review pass 3 part D, S-25: the shape says that PowerShell reads an accepted line as the words the shape saw. That
+    # is measured here, with the parser of this host, over generated lines, so a word that the shape lets through and
+    # PowerShell reads differently (a dash word that ends in a colon, or that splits at a dot) is found by the suite
+    # and not by the next review. The generator is seeded, so a failure repeats.
+    It 'reads every accepted line as one command whose words are the words the shape saw' {
+        $random = [System.Random]::new(20261014)
+        $program = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+        $bareAlphabet = [char[]]'abcdefXYZ019_.:\/-'
+        $quotedAlphabet = [char[]](' #&''()*+,-./0123456789:;<=>?@ABCXYZ[]\^_{|}~abcxyz')
+        $pick = {
+            param([char[]]$Alphabet, [int]$Length)
+
+            $builder = [System.Text.StringBuilder]::new()
+            for ($index = 0; $index -lt $Length; $index++) {
+                $null = $builder.Append($Alphabet[$random.Next(0, $Alphabet.Length)])
+            }
+
+            $builder.ToString()
+        }
+        $accepted = 0
+        $deviation = [System.Collections.Generic.List[string]]::new()
+
+        for ($line = 0; $line -lt 4000; $line++) {
+            $word = [System.Collections.Generic.List[string]]::new()
+
+            for ($count = $random.Next(1, 6); $count -gt 0; $count--) {
+                if ($random.Next(0, 10) -lt 6) {
+                    $text = & $pick $bareAlphabet $random.Next(1, 8)
+                    if ($random.Next(0, 3) -eq 0) { $text = '-' + $text }
+                    if ($random.Next(0, 3) -eq 0) { $text += ':.'[$random.Next(0, 2)] }
+                    $word.Add($text)
+                } else {
+                    $word.Add('"' + (& $pick $quotedAlphabet $random.Next(0, 10)) + '"')
+                }
+            }
+
+            $expected = @($program, '-NoProfile', '-Command') + $word
+            $text = $expected -join @(' ', "`t", '  ')[$random.Next(0, 3)]
+
+            if ($null -ne (Get-HookInterpreter -CommandLine $text).Problem) {
+                continue
+            }
+
+            $accepted++
+            $errors = $null
+            $tokens = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$errors)
+            $statement = @($ast.EndBlock.Statements)
+            $command = $null
+
+            if ($statement.Count -eq 1 -and $statement[0] -is [System.Management.Automation.Language.PipelineAst] -and $statement[0].PipelineElements.Count -eq 1) {
+                $command = $statement[0].PipelineElements[0]
+            }
+
+            $same = $errors.Count -eq 0 -and $command -is [System.Management.Automation.Language.CommandAst] -and
+                $command.Redirections.Count -eq 0 -and $command.CommandElements.Count -eq $expected.Count
+
+            for ($element = 0; $same -and $element -lt $expected.Count; $element++) {
+                $same = [string]::Equals($command.CommandElements[$element].Extent.Text, $expected[$element], [System.StringComparison]::Ordinal)
+            }
+
+            if (-not $same) {
+                $deviation.Add($text)
+            }
+        }
+
+        $accepted | Should -BeGreaterThan 500 -Because 'the generator has to reach lines that the shape accepts, or this test proves nothing'
+        $deviation.Count | Should -Be 0 -Because ('PowerShell read these accepted lines as other words than the shape did: ' + (($deviation | Select-Object -First 5) -join ' || '))
     }
 }
 
@@ -593,6 +712,24 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $script:marker = Join-Path $TestDrive "interpreter-marker-$([guid]::NewGuid().ToString('N')).txt"
             # A command that leaves a file behind if it is ever run, so that "runs nothing" can be read off the disk.
             $script:markerRun = "`"$script:systemPowerShell`" -NoProfile -NonInteractive -Command `"Set-Content -LiteralPath '$script:marker' -Value ran`""
+        }
+
+        # Review pass 3 part D, S-25, reproduced end to end: PowerShell reads '-x:' as a parameter that binds to the next
+        # word or, as the last word, fails to parse, so both documented hosts exit 1 for a push, which does not block,
+        # and the cmd.exe probe still reports 0, 2, 2.
+        It 'fails the shipped command with a dash word that ends in a colon before its closing statement' {
+            $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
+            $text = [string]@($shipped.hooks.PreToolUse)[0].windows
+            $contained = '"' + $script:systemPowerShell + '"' + $text.Substring('powershell'.Length)
+            $dashed = $contained.Replace('; exit (@(', ' -x: ; exit (@(')
+            $dashed | Should -Not -Be $contained -Because 'the edit has to change the command for this test to mean anything'
+            $tree = New-PluginTree -Name 'dash-word' -Command $dashed
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'shape'
         }
 
         # Review pass 3 part C, S-21, reproduced end to end: PowerShell reads everything after a hash as a comment, so
