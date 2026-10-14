@@ -377,6 +377,16 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Why = 'a network path written with a slash and a backslash'; Line = '\/server\share\powershell.exe -NoProfile -Command exit'; Match = 'network or device' }
         @{ Why = 'a network path written with a backslash and a slash'; Line = '/\server\share\powershell.exe -NoProfile -Command exit'; Match = 'network or device' }
         @{ Why = 'a quoted network path written with a slash and a backslash'; Line = '"\/server\share\powershell.exe" -NoProfile -Command exit'; Match = 'network or device' }
+        # Review pass 3 part E, S-30: .NET calls a path that starts with \??\ fully qualified and CreateFileW opens it as
+        # the NT path it names, so a quoted program path could point the measurement of the access list at a share.
+        # Only a path that starts with a drive letter and a separator is read.
+        @{ Why = 'a quoted NT path to a local program'; Line = '"\??\C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit'; Match = 'drive letter' }
+        @{ Why = 'a quoted NT path to a share'; Line = '"\??\UNC\server\share\powershell.exe" -NoProfile -Command exit'; Match = 'drive letter' }
+        @{ Why = 'a quoted path with a single question mark'; Line = '"\?\C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit'; Match = 'drive letter' }
+        @{ Why = 'an unquoted NT path'; Line = '\??\C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command exit'; Match = 'drive letter' }
+        # S-31: the Windows PowerShell 5.1 wrapper drops an empty quoted argument that cmd.exe and the PowerShell 7
+        # wrapper pass on, so the shape does not read an empty quoted word.
+        @{ Why = 'an empty quoted word'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File x.ps1 ""'; Match = 'shape' }
     ) {
         $result = Get-HookInterpreter -CommandLine $Line
 
@@ -457,11 +467,17 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
     # Review pass 3 part D, S-28: an empty word reached the option reader as an empty string and threw, so the
     # verifier ended with exit code 1 and nothing verified, where it should refuse the line with its reason.
-    It 'reads a line with an empty quoted word without throwing' {
+    # Part E, S-31: the shape now refuses an empty quoted word, and the option reader still takes an empty argument.
+    It 'refuses a line with an empty quoted word, with the reason of the shape and without throwing' {
         $line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit ""'
 
         { Get-HookInterpreter -CommandLine $line } | Should -Not -Throw
-        (Get-HookInterpreter -CommandLine $line).Problem | Should -BeNullOrEmpty
+        (Get-HookInterpreter -CommandLine $line).Problem | Should -Match 'shape'
+    }
+
+    It 'lets the option reader take an empty argument and refuse it as no option, without throwing' {
+        { Get-PowerShellLaunchOption -Argument @('-NoProfile', '') } | Should -Not -Throw
+        (Get-PowerShellLaunchOption -Argument @('-NoProfile', '')).Problem | Should -Match 'not an option'
     }
 
     It 'refuses an empty word before the command as an argument that is not an option, without throwing' {
@@ -495,12 +511,14 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
     # Review pass 3 part D, S-25: the shape says that PowerShell reads an accepted line as the words the shape saw. That
     # is measured here, with the parser of this host, over generated lines, so a word that the shape lets through and
     # PowerShell reads differently (a dash word that ends in a colon, or that splits at a dot) is found by the suite
-    # and not by the next review. The generator is seeded, so a failure repeats.
+    # and not by the next review. The generator is seeded, so a failure repeats. Part E: it also writes a tab inside a
+    # quoted word, uses -File as well as -Command, and ends some lines with the pinned statement. It checks the
+    # structure PowerShell reads, not what a wrapper hands on to the program it starts, so it cannot see S-31.
     It 'reads every accepted line as one command whose words are the words the shape saw' {
         $random = [System.Random]::new(20261014)
         $program = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
         $bareAlphabet = [char[]]'abcdefXYZ019_.:\/-'
-        $quotedAlphabet = [char[]](' #&''()*+,-./0123456789:;<=>?@ABCXYZ[]\^_{|}~abcxyz')
+        $quotedAlphabet = [char[]](' #&''()*+,-./0123456789:;<=>?@ABCXYZ[]\^_{|}~abcxyz' + "`t")
         $pick = {
             param([char[]]$Alphabet, [int]$Length)
 
@@ -528,8 +546,13 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
                 }
             }
 
-            $expected = @($program, '-NoProfile', '-Command') + $word
+            $expected = @($program, '-NoProfile', @('-Command', '-File')[$random.Next(0, 2)]) + $word
             $text = $expected -join @(' ', "`t", '  ')[$random.Next(0, 3)]
+            $closed = $random.Next(0, 4) -eq 0
+
+            if ($closed) {
+                $text += '; ' + $script:HookExitTail
+            }
 
             if ($null -ne (Get-HookInterpreter -CommandLine $text).Problem) {
                 continue
@@ -542,7 +565,7 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $statement = @($ast.EndBlock.Statements)
             $command = $null
 
-            if ($statement.Count -eq 1 -and $statement[0] -is [System.Management.Automation.Language.PipelineAst] -and $statement[0].PipelineElements.Count -eq 1) {
+            if ($statement.Count -eq $(if ($closed) { 2 } else { 1 }) -and $statement[0] -is [System.Management.Automation.Language.PipelineAst] -and $statement[0].PipelineElements.Count -eq 1) {
                 $command = $statement[0].PipelineElements[0]
             }
 
@@ -551,6 +574,10 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
             for ($element = 0; $same -and $element -lt $expected.Count; $element++) {
                 $same = [string]::Equals($command.CommandElements[$element].Extent.Text, $expected[$element], [System.StringComparison]::Ordinal)
+            }
+
+            if ($same -and $closed) {
+                $same = [string]::Equals($statement[1].Extent.Text, $script:HookExitTail, [System.StringComparison]::Ordinal)
             }
 
             if (-not $same) {

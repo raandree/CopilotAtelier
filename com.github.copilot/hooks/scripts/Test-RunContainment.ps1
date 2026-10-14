@@ -167,11 +167,13 @@ $script:HookExitTail = 'exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -Erro
 # What may follow the program on a hook command line, as a shape and not as a list of characters to refuse.
 # A list is never complete: a '#' makes PowerShell read the closing statement as a comment, and a doubled
 # quote, a quote after a backslash and an unterminated quote are read three ways by cmd.exe, a PowerShell
-# wrapper and a POSIX shell. A word is bare, of characters that no shell reads as syntax, or double-quoted
-# with no double quote inside and no backslash before its closing quote. A bare word that starts with a dash
-# is an option name of letters only: PowerShell reads '-name:' as a parameter that binds to the next word or
-# fails to parse, and splits '-Z.7' in two, where cmd.exe passes each through as one word.
-$script:HookLineShape = '\A(?:[ \t]+(?:-[A-Za-z]+|[A-Za-z0-9_.:\\/][A-Za-z0-9_.:\\/-]*|"(?:[^"\\]|\\(?!"))*"))*[ \t]*\z'
+# wrapper and a POSIX shell. A word is bare, of characters that no shell reads as syntax, or double-quoted,
+# not empty, with no double quote inside and no backslash before its closing quote. A bare word that starts
+# with a dash is an option name of letters only: PowerShell reads '-name:' as a parameter that binds to the
+# next word or fails to parse, and splits '-Z.7' in two, where cmd.exe passes each through as one word. An
+# empty quoted word is dropped as an argument by the Windows PowerShell 5.1 wrapper, which cmd.exe and the
+# PowerShell 7 wrapper pass on.
+$script:HookLineShape = '\A(?:[ \t]+(?:-[A-Za-z]+|[A-Za-z0-9_.:\\/][A-Za-z0-9_.:\\/-]*|"(?:[^"\\]|\\(?!"))+"))*[ \t]*\z'
 # An unquoted program word is read by the shell as well, so it may hold only those characters too.
 $script:HookProgramWord = '\A(?:[A-Za-z]:)?[\\/][A-Za-z0-9_.\\/-]+\z'
 
@@ -1547,18 +1549,24 @@ function Get-HookInterpreter {
         line, even inside quotes; '$' and a backtick, which a PowerShell wrapper acts on inside double
         quotes ($(...) runs code); and, off Windows, a backslash, which a POSIX shell reads as an
         escape. The program path may not hold a dot segment, which a shell follows through a link where
-        a textual normalization does not, and may not be a network or device path (two separators in
-        any mix). An unquoted program word holds only letters, digits and . _ - / \ :.
+        a textual normalization does not, and may not start with two separators in any mix (a network
+        or device path). On Windows it has to start with a drive letter and a separator, because the
+        call that measures the rights opens a path such as \??\UNC\server\share as the NT path it
+        names and reads its access list over the network. An unquoted program word holds only
+        letters, digits and . _ - / \ :.
 
         After the program the line is words separated by spaces or tabs. A word is bare, of letters,
         digits and . _ : \ / -, and a bare word that starts with a dash is an option name of letters
         only, because PowerShell reads '-name:' as a parameter that binds to the next word or fails to
         parse, and splits '-Z.7' in two, where cmd.exe passes each through whole. Or a word is double-
-        quoted, with no double quote inside and no backslash before its closing quote; inside it every
-        shell reads the rest as data, apart from the characters refused above. After the first unquoted
-        ';' only the statement the shipped command ends with is accepted, for the PowerShell that a
-        host wraps the line in. A test parses generated lines with the PowerShell parser and holds
-        every accepted line to this claim: it reads as one command whose words are the words seen here.
+        quoted, not empty, with no double quote inside and no backslash before its closing quote (the
+        Windows PowerShell 5.1 wrapper drops an empty quoted argument that cmd.exe and the PowerShell
+        7 wrapper pass on); inside it every shell reads the rest as data, apart from the characters
+        refused above. After the first unquoted ';' only the statement the shipped command ends with
+        is accepted, for the PowerShell that a host wraps the line in. A test parses generated lines
+        with the PowerShell parser and holds every accepted line to this claim: it reads as one command
+        whose words are the words seen here. That checks the structure PowerShell reads, not what a
+        wrapper hands on to the program it starts.
 
         The program must be PowerShell, a program named powershell or pwsh. What PowerShell loads
         before its command is known and read here: it must be given -NoProfile, because the profile
@@ -1641,6 +1649,12 @@ function Get-HookInterpreter {
         return [pscustomobject]@{ Path = $null; Problem = "the program '$word' contains a dot segment, which hides where it leads: a shell follows '..' through a link where this check normalizes the text" }
     }
 
+    # .NET calls \??\C:\x fully qualified, and the call that measures the rights opens it as the NT path it names,
+    # which also reaches a share (\??\UNC\server\share), so on Windows only a drive letter and a separator start the path.
+    if ($script:OnWindows -and $word -cnotmatch '\A[A-Za-z]:[\\/]') {
+        return [pscustomobject]@{ Path = $null; Problem = "the program '$word' does not start with a drive letter and a separator, so it may be a network, device or NT path (\??\ is opened as the NT path it names, and a share is read over the network as the identity of the verifier), which this check does not read" }
+    }
+
     if (-not $quoted -and $word -cnotmatch $script:HookProgramWord) {
         return [pscustomobject]@{ Path = $null; Problem = "the program word '$word' holds a character other than letters, digits and . _ - / \ :, which a shell may read as a separator, so the program that runs may not be the one the text names" }
     }
@@ -1672,7 +1686,7 @@ function Get-HookInterpreter {
     }
 
     if ($head -cnotmatch $script:HookLineShape) {
-        return [pscustomobject]@{ Path = $null; Problem = 'the command line has text of a shape this check does not read: after the program only words of letters, digits and . _ - / \ : and double-quoted words with no double quote inside may follow, then at most the one statement the shipped command ends with, because cmd.exe, a PowerShell wrapper and a POSIX shell read anything else differently (a hash is a comment to PowerShell and not to cmd.exe)' }
+        return [pscustomobject]@{ Path = $null; Problem = 'the command line has text of a shape this check does not read: after the program only words of letters, digits and . _ - / \ : and double-quoted words that are not empty and have no double quote inside may follow, then at most the one statement the shipped command ends with, because cmd.exe, a PowerShell wrapper and a POSIX shell read anything else differently (a hash is a comment to PowerShell and not to cmd.exe)' }
     }
 
     $program = [System.IO.Path]::GetFullPath($word)
