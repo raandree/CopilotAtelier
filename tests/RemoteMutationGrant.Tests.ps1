@@ -325,6 +325,11 @@ BeforeAll {
     $script:scriptRoot = Join-Path -Path $script:repoRoot -ChildPath 'com.github.copilot/hooks/scripts'
     $script:guardScript = Join-Path -Path $script:scriptRoot -ChildPath 'Block-RemoteMutation.ps1'
     $script:grantScript = Join-Path -Path $script:scriptRoot -ChildPath 'Add-RemoteGrant.ps1'
+    # A command the guard cannot inspect within its time limit (5 seconds by default) is blocked with a different message,
+    # and a hosted runner can stall one process that long: the Windows job of PR 38 answered "could not be inspected" for one
+    # payload after a 7.8-second test. These cases test the rules and the grant, not the limit (tests/Hooks.Tests.ps1 does),
+    # so the guard runs with the longest limit it accepts.
+    $script:guardTimeLimit = @('-TimeLimitSecond', '10')
     $script:hookConfigPath = Join-Path -Path $script:repoRoot -ChildPath 'com.github.copilot/hooks/hooks.json'
     $script:powerShellPath = (Get-Process -Id $PID).Path
     $script:windowsPowerShellPath = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
@@ -415,9 +420,9 @@ BeforeAll {
             [hashtable]$Environment = @{}
         )
 
-        $argumentList = @()
+        $argumentList = @($script:guardTimeLimit)
         if ($GrantRoot) {
-            $argumentList = @('-GrantRoot', ('"{0}"' -f $GrantRoot))
+            $argumentList += @('-GrantRoot', ('"{0}"' -f $GrantRoot))
         }
 
         $started = script:Start-HookProcess -ScriptPath $script:guardScript -Payload $Payload -ArgumentList $argumentList -PowerShellPath $PowerShellPath -Environment $Environment
@@ -1029,7 +1034,7 @@ Describe 'Block-RemoteMutation with a Remote grant' -Tag 'Unit' {
         $payload = script:New-ToolPayload -Command 'git push origin main'
 
         $started = 1..4 | ForEach-Object -Process {
-            script:Start-HookProcess -ScriptPath $script:guardScript -Payload $payload -ArgumentList @('-GrantRoot', ('"{0}"' -f $script:root))
+            script:Start-HookProcess -ScriptPath $script:guardScript -Payload $payload -ArgumentList (@($script:guardTimeLimit) + @('-GrantRoot', ('"{0}"' -f $script:root)))
         }
         $results = $started | ForEach-Object -Process { script:Wait-HookProcess -Started $_ }
 

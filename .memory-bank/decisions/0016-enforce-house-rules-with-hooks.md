@@ -621,6 +621,27 @@ grant hook `51C0F39B…`) passed: 4,295 tests passed, 0 failed, 145 skipped
 denied the push and named the marker, the marker prompt wrote the grant, one
 push ran, and the next one was denied again.
 
+The first CI run of pull request 38 (2026-10-14) passed on Ubuntu and macOS and
+failed one test of 4,251 on the Windows PowerShell 7 job: a payload that takes
+0.65 s locally took 7.79 s, and the guard answered "could not be inspected
+within the time limit" instead of naming the push. It still blocked the command,
+as designed: the time limit counts wall-clock seconds from the start of the
+script, so a process that a hosted runner stalls for that long is blocked as not
+inspected. The other 462 guard tests of that job had a median of 0.84 s and a
+worst case of 1.92 s, and the two suites that failed were new, so this was their
+first run on a hosted runner. Replaying the payload locally gave the right
+message 40 of 40 times; with 96 guard processes started at once on 8 cores and
+the default limit, 55 of 96 gave the time-limit message, and with
+`-TimeLimitSecond 10` under the same load all 96 gave the right one. Every one of
+the 192 runs exited 2. Both suites now start the guard with
+`-TimeLimitSecond 10`, the longest value it accepts, as `tests/Hooks.Tests.ps1`
+already does for its slow-runner cases; the time limit has its own tests there,
+and the guard did not change. Forcing the limit to 0.1 s in both suites made
+186 blocked cases and 52 grant cases fail with the time-limit message, so the
+argument reaches the guard, and with the limit restored both suites passed
+(621 tests). A stall longer than 10 s would still fail a test; the cure then is a
+re-run, not a longer limit.
+
 Live acceptance ran on 2026-10-13, from 14:50 to 15:17 UTC, in four new chats
 against a throwaway repository whose `origin` is a local bare repository, so a
 push that gets through leaves a branch that can be counted. Each chat received

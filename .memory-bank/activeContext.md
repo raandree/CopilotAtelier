@@ -10,22 +10,21 @@ source: current task evidence
 ## Current focus
 
 **P2, per-command remote approval, is built, reviewed, deployed, and accepted live on
-`ai/hook-ask-remote-approval`; the owner pushes and opens the pull request.** A Grant
-marker the user types in their own prompt (for example
-`[[allow-remote: git push, gh pr create]]`) makes the new `UserPromptSubmit` hook
-`Add-RemoteGrant.ps1` record a short-lived, session-bound grant that
-`Block-RemoteMutation.ps1` consumes: each named operation once (`x2` twice, a loop or
-function needs `x20`, `--all`, `--tags`, and force pushes need `git push --force`), until
-the next prompt or 15 minutes. A hook `ask` was disproved live (the Agent Host approves
-it under `chat.tools.global.autoApprove`), so the guard stays a hard block and never
-prints `allow`; `COPILOT_ATELIER_ALLOW_REMOTE` is removed; `git reset --hard`,
-`git clean -f`, and `--no-verify` have no marker. The same change fixes the
-string-literal false positive: the guard reads PowerShell as a syntax tree and blanks a
-string only when everything it flows into treats it as data. Seven independent review
-passes (three rejections, an approval with changes, two more rejections the owner asked
-for, and a last bounded pass whose one finding was narrowed and approved in a delta
-check) left no Blocker or Major; each finding is a test that failed first. Decision 0016
-and the Desktop `LEDGER.md` hold the evidence.
+`ai/hook-ask-remote-approval`, which is pull request #38 (opened by the owner on
+2026-10-14); the owner pushes and merges.** A Grant marker the user types in their own
+prompt (for example `[[allow-remote: git push, gh pr create]]`) makes the new
+`UserPromptSubmit` hook `Add-RemoteGrant.ps1` record a short-lived, session-bound grant
+that `Block-RemoteMutation.ps1` consumes: each named operation once (`x2` twice, a loop
+or function needs `x20`, `--all`, `--tags`, and force pushes need `git push --force`),
+until the next prompt or 15 minutes. The guard stays a hard block and never prints
+`allow` (a hook `ask` is auto-approved in the Agent Host); `COPILOT_ATELIER_ALLOW_REMOTE`
+is removed; `git reset --hard`, `git clean -f`, and `--no-verify` have no marker. The
+same change fixes the string-literal false positive: the guard reads PowerShell as a
+syntax tree and blanks a string only when everything it flows into treats it as data.
+Seven independent review passes (three rejections, an approval with changes, two more
+rejections the owner asked for, and a last bounded pass whose one finding was narrowed
+and approved in a delta check) left no Blocker or Major; each finding is a test that
+failed first. Decision 0016 and the Desktop `LEDGER.md` hold the evidence.
 
 State: the final gate passed on the final tree (4,295 passed, 0 failed, 145 skipped,
 90.84 % coverage) and `~/.copilot` is redeployed (257 files match the clone). **Live
@@ -37,8 +36,13 @@ block, and the bare repository held only the three branches that the marked prom
 pushed. The CLI's `COPILOT_ALLOW_ALL=1` does approve shell commands in the working folder.
 Accepted residuals (hooks README, Residual risks): a forged grant file, a script written
 and run in one command, a quote that PowerShell and a POSIX shell read differently, and a
-push beside a loop (asks for x20). A code span such as `git push` is text in a
-single-quoted message and still counts in a double-quoted one.
+push beside a loop (asks for x20).
+
+**CI of #38 (run 38528625293, 2026-10-14):** Ubuntu and macOS passed; the Windows
+PowerShell 7 job failed one test of 4,251 through a runner stall (the guard blocked as
+designed but named the time limit). The two new suites now start the guard with
+`-TimeLimitSecond 10`, as `Hooks.Tests.ps1` does for slow runners; the guard did not
+change. One local commit, for the owner to push (CI then re-runs).
 
 **Decision 0028 is merged and released** (#32 to #36; `main` is `e393875` at
 `6.1.0-preview0009`). Criteria 1 to 20 and 22 to 30 are met; **criterion 21 is not
@@ -64,18 +68,14 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
   live (`b05efe3`). The RAANDREE3 `FailFast` is a .NET 10.0.6 runtime fault on
   PowerShell 7.6.1, not this repository's code. Evidence: the record's Confirmation.
 - **Hook guard and deny reason (prompts 02 to 06, #28 to #30; `d8cc6f5` to `fea564f`).**
-  Ten reviews ended in an approval. The guard decides within about five seconds (1 MB
-  parse, 20,000-field walk, 4 MB block) and errs toward blocking. The bundled SDK
-  runtime drops a PascalCase deny that also carries `hookSpecificOutput`, so the guard
-  prints the top-level pair alone (`tests/HookSdkRuntime.Tests.ps1`; Decision 0016),
-  and a resumed chat keeps its clock. Deployed 2026-10-04; A2 and B2 then passed.
-- **Contributor calibration Phase 1 (#27, `7a48abe`).** On `main`, as is Phase 2
-  (Decision 0028). The private behavior eval scored 52.1% without the Instruction
-  and 100% with it, and arms are compared only when run concurrently.
-- **Runtime tool names (`a592832`, on `main`).** Every Custom agent pairs its
-  VS Code tool names with runtime names, so agent-host sessions keep `web_fetch`,
-  `grep`, `glob`, `ask_user`, browser, and session tools (Decision 0026,
-  github/copilot-cli#4594). Red 28 then green; offline probe 16 of 16 agents.
+  Ten reviews ended in an approval. The guard decides within about five seconds and errs
+  toward blocking. The bundled SDK runtime drops a PascalCase deny that also carries
+  `hookSpecificOutput`, so the guard prints the top-level pair alone
+  (`tests/HookSdkRuntime.Tests.ps1`; Decision 0016). Deployed 2026-10-04.
+- **Contributor calibration Phases 1 and 2 (#27, `7a48abe`; Decision 0028).** On `main`.
+  The private behavior eval scored 52.1% without the Instruction and 100% with it.
+- **Runtime tool names (`a592832`, on `main`; Decision 0026).** Every Custom agent
+  pairs its VS Code tool names with runtime names (github/copilot-cli#4594).
 - **Plan-review findings PR-01 to PR-09.** Resolved in the integrated tree with a
   mandatory heading verifier; browser feedback never grants chat sign-off, the
   cross-platform artifact transfer stayed unproven, and `review: on` remains

@@ -38,7 +38,10 @@ PowerShell Gallery (verified 2026-10-12). Incremental work is tracked under
   that failed first. Live acceptance on 2026-10-13 passed in the Agent Host, VS Code
   Local, and Copilot CLI 1.0.96 started as usual and under `--yolo` (no marker: denied;
   marker: pushed once; auto-approval and `--yolo` did not lift the block). Decision 0016
-  holds the evidence; `activeContext.md` holds the state.
+  holds the evidence; `activeContext.md` holds the state. The owner opened pull request #38
+  on 2026-10-14; its Windows job failed one test through a runner stall (the guard blocked
+  as designed but named the time limit), so the two new suites now run the guard with the
+  longest limit it accepts.
 - **2026-10-12**: Merged #32 to #36 into `main` one at a time (CI runs #130, #139 to
   #142; `6.1.0-preview0005` to `0009` on GitHub Releases and the Gallery; `main` is
   `e393875`). The review of the hand-merged hook scripts approved with changes

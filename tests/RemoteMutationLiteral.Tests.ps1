@@ -407,6 +407,11 @@ BeforeDiscovery {
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
     $script:guardScript = Join-Path -Path $script:repoRoot -ChildPath 'com.github.copilot/hooks/scripts/Block-RemoteMutation.ps1'
+    # A command the guard cannot inspect within its time limit (5 seconds by default) is blocked with a different message,
+    # and a hosted runner can stall one process that long: the Windows job of PR 38 answered "could not be inspected" for one
+    # payload after a 7.8-second test. These cases test the rules, not the limit (tests/Hooks.Tests.ps1 does), so the guard
+    # runs with the longest limit it accepts.
+    $script:guardTimeLimit = '-TimeLimitSecond 10'
     $script:powerShellPath = (Get-Process -Id $PID).Path
     $script:windowsPowerShellPath = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         Join-Path -Path $env:SystemRoot -ChildPath 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -424,7 +429,7 @@ BeforeAll {
 
         $utf8 = [Text.UTF8Encoding]::new($false)
         $startInfo = [Diagnostics.ProcessStartInfo]::new($PowerShellPath)
-        $startInfo.Arguments = '-NoProfile -NonInteractive -File "{0}"' -f $script:guardScript
+        $startInfo.Arguments = '-NoProfile -NonInteractive -File "{0}" {1}' -f $script:guardScript, $script:guardTimeLimit
         $startInfo.UseShellExecute = $false
         $startInfo.CreateNoWindow = $true
         $startInfo.RedirectStandardInput = $true
