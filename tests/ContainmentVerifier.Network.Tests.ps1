@@ -668,7 +668,27 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
             $result.evidence | Should -Not -Match 'steered-to-something-else'
         }
 
-        It 'fails a GIT_CONFIG_GLOBAL that steers git at another configuration' -Skip:(-not $script:hasGit) {
+        <#
+            Both cases mock the protection probe to "closed" so that the check
+            reaches the git child. Without that mock Test-PathProtection runs for
+            real, is not loaded with the helpers it needs, and throws, so the
+            check stops before git and the case proves nothing about git at all.
+        #>
+        It 'reports both the steering variable and the helper git found, each without its value' {
+            Mock -CommandName 'Test-PathProtection' -MockWith { New-GitProtection }
+            Mock -CommandName 'Resolve-GitExecutable' -MockWith { 'C:\pinned\git.exe' }
+            Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                @{ ExitCode = 0; Output = @("file:C:/profile/.gitconfig`tuser.name nobody"); TimedOut = $false; Failure = '' }
+            } -ParameterFilter { $Argument -contains '--list' }
+            Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                @{
+                    ExitCode = 0
+                    Output = @("file:C:/profile/.gitconfig`tcredential.https://planted-marmalade.invalid.helper !f() { printf marmalade-lighthouse-42; }")
+                    TimedOut = $false
+                    Failure = ''
+                }
+            } -ParameterFilter { $Argument -contains '--get-regexp' }
+
             $configurationPath = New-GitConfigurationFile -CaseName 'steered' -Text "[user]`n`tname = nobody`n"
             $saved = Clear-MeasuredEnvironment
 
@@ -682,13 +702,29 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
 
             $result.status | Should -Be 'Fail' -Because $result.evidence
             $result.evidence | Should -Match 'GIT_CONFIG_GLOBAL'
+            $result.evidence | Should -Match 'credential\.https://planted-marmalade\.invalid\.helper'
+            $result.evidence | Should -Match 'C:/profile/\.gitconfig'
             $result.evidence | Should -Not -Match ([regex]::Escape($configurationPath))
+            $result.evidence | Should -Not -Match 'marmalade-lighthouse-42'
+            Should -Invoke -CommandName 'Invoke-GitConfigProcess' -Times 1 -Exactly -ParameterFilter {
+                $Argument -contains '--get-regexp'
+            }
         }
 
-        It 'never prints the value of a credential helper planted in a steered configuration' -Skip:(-not $script:hasGit) {
+        <#
+            The scrub, end to end through a real git child: the caller plants a
+            credential helper and points GIT_CONFIG_GLOBAL at it, and the child
+            must never see it. Key and value are both distinctive and both in the
+            fixture above, so either one reaching the evidence fails the case.
+            Pester cannot count calls to a command it does not mock, so that the
+            child ran at all is asserted one step earlier, on the protection gate
+            that stands immediately in front of it and is mocked open here.
+        #>
+        It 'does not read a credential helper out of a configuration the caller planted, and prints nothing from it' -Skip:(-not $script:hasGit) {
+            Mock -CommandName 'Test-PathProtection' -MockWith { New-GitProtection }
             $configurationPath = New-GitConfigurationFile -CaseName 'planted' -Text @"
-[credential "https://example.invalid"]
-	helper = !f() { echo password=hunter2-not-a-real-secret; }
+[credential "https://planted-marmalade.invalid"]
+	helper = !f() { printf marmalade-lighthouse-42; }
 "@
             $saved = Clear-MeasuredEnvironment
 
@@ -701,7 +737,13 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
             }
 
             $result.status | Should -Be 'Fail' -Because $result.evidence
-            $result.evidence | Should -Not -Match 'hunter2-not-a-real-secret'
+            $result.evidence | Should -Match 'GIT_CONFIG_GLOBAL'
+            $result.evidence | Should -Not -Match 'planted-marmalade\.invalid'
+            $result.evidence | Should -Not -Match 'marmalade-lighthouse-42'
+            $result.evidence | Should -Not -Match ([regex]::Escape($configurationPath))
+            Should -Invoke -CommandName 'Test-PathProtection' -Times 1 -Exactly -ParameterFilter {
+                $Path -eq (Resolve-GitExecutable)
+            }
         }
     }
 
@@ -719,6 +761,7 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
             }
 
             $result.status | Should -Be 'Unavailable' -Because $result.evidence
+            $result.evidence | Should -Match 'could not be resolved to an absolute application path'
             $result.evidence | Should -Not -Match 'not installed'
             Should -Invoke -CommandName 'Invoke-GitConfigProcess' -Times 0 -Exactly
         }
@@ -737,7 +780,13 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
             $resolved | Should -BeNullOrEmpty
         }
 
-        It 'resolves git to the absolute path of the application PATH names' {
+        <#
+            Windows only: the fixture is a git.cmd, and only PATHEXT makes a
+            bare "git" resolve to it. A POSIX shell would never find it, so the
+            case would fail there for a reason that has nothing to do with the
+            resolver.
+        #>
+        It 'resolves git to the absolute path of the application PATH names' -Skip:(-not $script:onWindows) {
             $applicationRoot = Join-Path $TestDrive 'pinned-git'
             $null = New-Item -Path $applicationRoot -ItemType Directory -Force
             $applicationPath = Join-Path $applicationRoot 'git.cmd'
@@ -1022,7 +1071,7 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
                 Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
                     @{
                         ExitCode = 0
-                        Output = @("file:C:/profile/.gitconfig`tcredential.helper !f() { echo password=hunter2-not-a-real-secret; }")
+                        Output = @("file:C:/profile/.gitconfig`tcredential.helper !f() { printf marmalade-lighthouse-42; }")
                         TimedOut = $false
                         Failure = ''
                     }
@@ -1035,8 +1084,9 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
 
             $result.status | Should -Be 'Fail' -Because $result.evidence
             $result.evidence | Should -Match 'credential\.helper'
-            $result.evidence | Should -Not -Match 'hunter2-not-a-real-secret'
-            $result.evidence | Should -Not -Match 'password='
+            $result.evidence | Should -Match 'C:/profile/\.gitconfig'
+            $result.evidence | Should -Not -Match 'marmalade-lighthouse-42'
+            $result.evidence | Should -Not -Match ([regex]::Escape('!f()'))
         }
 
         It 'never prints a line that carries no origin, so a multi-line value cannot leak' {
@@ -1051,7 +1101,7 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
                         ExitCode = 0
                         Output = @(
                             "file:C:/profile/.gitconfig`tcredential.helper !f() {"
-                            'password=hunter2-not-a-real-secret'
+                            'printf marmalade-lighthouse-42'
                             '}'
                         )
                         TimedOut = $false
@@ -1066,8 +1116,8 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
 
             $result.status | Should -Be 'Fail' -Because $result.evidence
             $result.evidence | Should -Match 'credential\.helper'
-            $result.evidence | Should -Not -Match 'hunter2-not-a-real-secret'
-            $result.evidence | Should -Not -Match 'password='
+            $result.evidence | Should -Not -Match 'marmalade-lighthouse-42'
+            $result.evidence | Should -Not -Match 'printf'
         }
 
         It 'reports a credential query whose lines carry no origin as unmeasured' {
@@ -1078,7 +1128,7 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
                     @{ ExitCode = 0; Output = @("file:C:/profile/.gitconfig`tuser.name nobody"); TimedOut = $false; Failure = '' }
                 } -ParameterFilter { $Argument -contains '--list' }
                 Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
-                    @{ ExitCode = 0; Output = @('password=hunter2-not-a-real-secret'); TimedOut = $false; Failure = '' }
+                    @{ ExitCode = 0; Output = @('printf marmalade-lighthouse-42'); TimedOut = $false; Failure = '' }
                 } -ParameterFilter { $Argument -contains '--get-regexp' }
 
                 $result = Test-CredentialAbsence
@@ -1087,7 +1137,8 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
             }
 
             $result.status | Should -Be 'Unavailable' -Because $result.evidence
-            $result.evidence | Should -Not -Match 'hunter2-not-a-real-secret'
+            $result.evidence | Should -Match 'no line carrying an origin and a key'
+            $result.evidence | Should -Not -Match 'marmalade-lighthouse-42'
         }
 
         It 'names exactly what it measured when it finds no credential material' {
@@ -1105,6 +1156,7 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
             $result.evidence | Should -Match 'GH_TOKEN'
             $result.evidence | Should -Match 'GIT_CONFIG_GLOBAL'
             $result.evidence | Should -Match ([regex]::Escape('C:\pinned\git.exe'))
+            $result.evidence | Should -Match 'reports no credential helper'
             $result.evidence | Should -Not -Match 'not installed'
         }
 
