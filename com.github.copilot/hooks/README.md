@@ -219,6 +219,16 @@ spelling of it, and on Windows a path whose directory goes through a junction
 or a symbolic link are refused as well, because each reaches the file under a
 name the text does not show.
 
+`-LiveMode` is `off` (the default), `read-only`, or `disposable`: the live
+validation the caller intends to run. Anything but `off` adds the `LiveArtifacts`
+check, which requires `liveProfile`, `liveRunner`, and `liveCommandTemplates` to
+be pinned in the profile, each an existing file that matches its digest.
+
+The exit code is 0 when every check passed, and 2 when a check failed or could
+not be measured, or when the call is refused: there is no partial success. Any
+other code, including 1 from an unhandled error, means the verifier itself failed
+and nothing was verified.
+
 ### Revalidation
 
 `-Revalidate` is the second use of the verifier, after a run. It runs the same
