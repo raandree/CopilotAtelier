@@ -286,16 +286,146 @@ Describe 'Containment verifier' -Tag 'Unit' {
             Should -Be 'Fail'
     }
 
-    It 'exercises the pinned hook with safe, push, and issue payloads' -Skip:(-not $script:onWindows) {
+    It 'does not run the hook probe while a control it executes is writable by the run' {
         $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p8/profile.json')
 
         $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
 
-        $hookCheck = $result.Report.checks | Where-Object name -EQ 'HookContract'
+        $immutability = Get-Check -Result $result -Name 'ControlImmutability'
+        $hookCheck = Get-Check -Result $result -Name 'HookContract'
         $hookCheck | Should -Not -BeNullOrEmpty
-        $hookCheck.status | Should -Be 'Pass' -Because $hookCheck.evidence
-        $hookCheck.evidence | Should -Match '0'
-        $hookCheck.evidence | Should -Match '2'
+
+        # The test identity owns and can write every control, so on a workstation the gate is closed.
+        if ($immutability.status -ne 'Pass') {
+            $hookCheck.status | Should -Be 'Unavailable' -Because $hookCheck.evidence
+            $hookCheck.evidence | Should -Match 'not run'
+            $hookCheck.evidence | Should -Match 'ControlImmutability'
+        }
+    }
+
+    It 'executes nothing from a hooks.json that is not the one the profile pins' {
+        $marker = Join-Path $TestDrive 'p27/marker.txt'
+        $null = New-Item -Path (Split-Path -Parent $marker) -ItemType Directory -Force
+        $config = Join-Path $TestDrive 'p27/hooks.json'
+        $command = if ($script:onWindows) { "echo ran> `"$marker`"" } else { "touch '$marker'" }
+        $json = @{ hooks = @{ PreToolUse = @(@{ type = 'command'; windows = $command; command = $command }) } } | ConvertTo-Json -Depth 6
+        [System.IO.File]::WriteAllText($config, $json)
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p27/profile.json') -Override @{
+            hooksConfig = [ordered]@{ path = $config; sha256 = ('b' * 64) }
+        }
+
+        $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        Test-Path -LiteralPath $marker | Should -BeFalse -Because 'a hooks.json that is not the pinned one must never run'
+        (Get-Check -Result $result -Name 'ControlDigest').status | Should -Be 'Fail'
+        (Get-Check -Result $result -Name 'HookContract').status | Should -Not -Be 'Pass'
+    }
+
+    It 'refuses a profile digest argument written in upper case' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p26/profile.json')
+        $upper = (Get-Digest -Path $profilePath).ToUpperInvariant()
+
+        $result = Invoke-Verifier -Argument @(
+            '-Verify', '-ProfilePath', $profilePath, '-ProfileSha256', $upper, '-Role', 'Controller'
+        )
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'lowercase'
+    }
+
+    It 'reports every other check as not run when the profile fails its schema' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p28/profile.json') -Remove @('ledgerSink')
+
+        $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        (Get-Check -Result $result -Name 'ProfileSchema').status | Should -Be 'Fail'
+
+        foreach ($name in @('VerifierBinding', 'ControlDigest', 'HookContract', 'LedgerProtection')) {
+            $check = Get-Check -Result $result -Name $name
+            $check | Should -Not -BeNullOrEmpty -Because "$name must be named even when it did not run"
+            $check.status | Should -Be 'Unavailable'
+            $check.evidence | Should -Match 'not run'
+        }
+    }
+
+    It 'refuses a profile that is not a JSON object without measuring anything' {
+        $profilePath = Join-Path $TestDrive 'p28b/profile.json'
+        $null = New-Item -Path (Split-Path -Parent $profilePath) -ItemType Directory -Force
+        [System.IO.File]::WriteAllText($profilePath, '["not","an","object"]')
+
+        $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        (Get-Check -Result $result -Name 'ProfileSchema').evidence | Should -Match 'not a JSON object'
+    }
+
+    It 'fails when the verifier that runs is not the pinned file' {
+        $copy = Join-Path $TestDrive 'p31/Test-RunContainment.ps1'
+        $null = New-Item -Path (Split-Path -Parent $copy) -ItemType Directory -Force
+        Copy-Item -LiteralPath $script:verifierScript -Destination $copy
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p31/profile.json') -Override @{
+            verifier = [ordered]@{ path = $copy; sha256 = (Get-Digest -Path $copy) }
+        }
+
+        $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
+
+        $check = Get-Check -Result $result -Name 'VerifierBinding'
+        $check.status | Should -Be 'Fail' -Because $check.evidence
+        $check.evidence | Should -Match ([regex]::Escape($copy))
+    }
+
+    It 'refuses a report path that is a pinned control and leaves the control untouched' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p29/profile.json')
+        $before = Get-Digest -Path $script:hookScript
+
+        $result = Invoke-Verifier -Argument @(
+            '-Verify', '-ProfilePath', $profilePath, '-ProfileSha256', (Get-Digest -Path $profilePath), '-Role', 'Controller'
+            '-ReportPath', $script:hookScript
+        )
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'protected'
+        Get-Digest -Path $script:hookScript | Should -Be $before -Because 'the report must never overwrite a control'
+    }
+
+    It 'refuses a report path that is the profile itself and leaves the profile untouched' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p29b/profile.json')
+        $before = Get-Digest -Path $profilePath
+
+        $result = Invoke-Verifier -Argument @(
+            '-Verify', '-ProfilePath', $profilePath, '-ProfileSha256', $before, '-Role', 'Controller'
+            '-ReportPath', $profilePath
+        )
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        Get-Digest -Path $profilePath | Should -Be $before
+    }
+
+    It 'refuses a relative report path' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p29c/profile.json')
+
+        $result = Invoke-Verifier -Argument @(
+            '-Verify', '-ProfilePath', $profilePath, '-ProfileSha256', (Get-Digest -Path $profilePath), '-Role', 'Controller'
+            '-ReportPath', 'report.json'
+        )
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'absolute'
+    }
+
+    It 'does not create the directory of a report path' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p29d/profile.json')
+        $missing = Join-Path $TestDrive 'p29d/absent-directory/report.json'
+
+        $result = Invoke-Verifier -Argument @(
+            '-Verify', '-ProfilePath', $profilePath, '-ProfileSha256', (Get-Digest -Path $profilePath), '-Role', 'Controller'
+            '-ReportPath', $missing
+        )
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        Test-Path -LiteralPath (Split-Path -Parent $missing) | Should -BeFalse
     }
 
     It 'reports every declared check by name' {
@@ -307,8 +437,10 @@ Describe 'Containment verifier' -Tag 'Unit' {
         foreach ($expected in @(
                 'ProfileDigest'
                 'ProfileSchema'
+                'VerifierBinding'
                 'ControlDigest'
                 'ControlImmutability'
+                'IdentityBinding'
                 'HookContract'
                 'OverrideAbsent'
                 'EgressPolicy'
@@ -469,6 +601,34 @@ Describe 'Containment verifier' -Tag 'Unit' {
         $check.evidence | Should -Match ([regex]::Escape("this identity holds WRITE_DAC on the file $flagged"))
     }
 
+    It 'measures a role only when the verifier runs as the identity the profile declares for it' -Skip:(-not $script:onWindows) {
+        # Review of 2026-10-12, C-01: every probe measured whoever ran the script, so -Role Worker
+        # from any account read Pass.
+        $caller = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p24/profile.json') -Override @{
+            controllerIdentity = $caller
+            workerIdentity = 'NT AUTHORITY\LOCAL SERVICE'
+        }
+        $digest = Get-Digest -Path $profilePath
+
+        $asController = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest $digest -Role 'Controller'
+        $asWorker = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest $digest -Role 'Worker'
+
+        (Get-Check -Result $asController -Name 'IdentityBinding').status | Should -Be 'Pass'
+        $workerCheck = Get-Check -Result $asWorker -Name 'IdentityBinding'
+        $workerCheck.status | Should -Be 'Fail' -Because $workerCheck.evidence
+    }
+
+    It 'reports a role identity it cannot resolve as unmeasured' -Skip:(-not $script:onWindows) {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p25/profile.json') -Override @{
+            controllerIdentity = 'CONTAINMENT\no-such-account-for-the-test'
+        }
+
+        $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
+
+        (Get-Check -Result $result -Name 'IdentityBinding').status | Should -Be 'Unavailable'
+    }
+
     It 'reports a locked ledger as unmeasured rather than protected' -Skip:(-not $script:onWindows) {
         $ledgerRoot = Join-Path $TestDrive 'p17/ledger'
         $null = New-Item -Path $ledgerRoot -ItemType Directory -Force
@@ -550,12 +710,15 @@ Describe 'Containment verifier function loading' -Tag 'Unit' {
         (Get-Variable -Name 'PinnedControl' -Scope Script -ValueOnly) | Should -Contain 'hooksConfig'
     }
 
-    It 'lets Pester mock the cmdlets a loaded function calls' {
-        . (Get-ScriptFunctionDefinition -Path $script:verifierScript -Name 'Get-Digest')
-        Mock -CommandName 'Get-FileHash' -MockWith { [pscustomobject]@{ Hash = 'ABCDEF' } }
+    It 'lets Pester mock the commands a loaded function calls' {
+        . (Get-ScriptFunctionDefinition -Path $script:verifierScript -Name @('New-CheckResult', 'Get-NotRunCheck'))
+        Mock -CommandName 'New-CheckResult' -MockWith { @{ name = $Name; status = 'Mocked'; evidence = $Evidence } }
 
-        Get-Digest -Path 'anything' | Should -Be 'abcdef'
-        Should -Invoke -CommandName 'Get-FileHash' -Times 1 -Exactly
+        $result = @(Get-NotRunCheck -Name 'Example' -Reason 'anything')
+
+        $result | Should -HaveCount 1
+        $result[0].status | Should -Be 'Mocked'
+        Should -Invoke -CommandName 'New-CheckResult' -Times 1 -Exactly
     }
 
     It 'refuses a function name the script does not define' {

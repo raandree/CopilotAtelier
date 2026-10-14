@@ -112,8 +112,9 @@ $script:AllowedKey = @(
 ) + $script:LiveControl
 
 function New-CheckResult {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory result object and changes no system state.')]
     [CmdletBinding()]
-    [OutputType([hashtable])]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
     param(
         [Parameter(Mandatory)]
         [string]$Name,
@@ -132,17 +133,6 @@ function New-CheckResult {
         status = $Status
         evidence = $Evidence
     }
-}
-
-function Get-Digest {
-    [CmdletBinding()]
-    [OutputType([string])]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Path
-    )
-
-    return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
 }
 
 function Resolve-WriteFailure {
@@ -623,6 +613,317 @@ function Test-ControlImmutability {
     return New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'the profile, every pinned control, every declared immutable path, and the directories above them are closed to this identity'
 }
 
+function Get-IdentitySid {
+    <#
+        An account name, or a security identifier written as text, resolved to its security identifier.
+        Nothing when it does not resolve: a name that cannot be resolved proves nothing about who a
+        probe measured.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Identity
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Identity)) {
+        return $null
+    }
+
+    try {
+        if ($Identity -cmatch '^S-1-\d+(?:-\d+)+$') {
+            return ([System.Security.Principal.SecurityIdentifier]::new($Identity)).Value
+        }
+
+        return ([System.Security.Principal.NTAccount]::new($Identity).Translate([System.Security.Principal.SecurityIdentifier])).Value
+    } catch {
+        return $null
+    }
+}
+
+function Get-CallerIdentity {
+    <#
+        The account this process runs as, read from its own token. It never comes from the profile or
+        from an argument, so no input can make a probe claim to be someone else.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param()
+
+    try {
+        $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+
+        return [pscustomobject]@{ Name = $identity.Name; Sid = $identity.User.Value }
+    } catch {
+        return $null
+    }
+}
+
+function Test-IdentityBinding {
+    <#
+        Every probe in this script measures the account that runs it. The profile declares which
+        account is the controller and which is the worker, and -Role names the one being measured,
+        so a result means something only when the verifier runs as that account: run as any other
+        account, a Worker measurement would describe the wrong identity and read Pass. The two roles
+        must also be two accounts, or "separate identities" is a claim and not a measurement.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('Controller', 'Worker')]
+        [string]$Role,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$ControllerIdentity,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$WorkerIdentity
+    )
+
+    if (-not $script:OnWindows) {
+        return New-CheckResult -Name 'IdentityBinding' -Status 'Unavailable' -Evidence 'identity binding is implemented for Windows only'
+    }
+
+    $caller = Get-CallerIdentity
+
+    if ($null -eq $caller) {
+        return New-CheckResult -Name 'IdentityBinding' -Status 'Unavailable' -Evidence 'could not read the identity this verifier runs as'
+    }
+
+    $controllerSid = Get-IdentitySid -Identity $ControllerIdentity
+    $workerSid = Get-IdentitySid -Identity $WorkerIdentity
+    $unresolved = [System.Collections.Generic.List[string]]::new()
+
+    if (-not $controllerSid) {
+        $unresolved.Add("controller identity '$ControllerIdentity'")
+    }
+
+    if (-not $workerSid) {
+        $unresolved.Add("worker identity '$WorkerIdentity'")
+    }
+
+    if ($unresolved.Count -gt 0) {
+        return New-CheckResult -Name 'IdentityBinding' -Status 'Unavailable' -Evidence ('could not resolve ' + ($unresolved -join ' and '))
+    }
+
+    if ($controllerSid -ceq $workerSid) {
+        return New-CheckResult -Name 'IdentityBinding' -Status 'Fail' -Evidence "the controller and the worker declare the same identity ($controllerSid)"
+    }
+
+    $declared = if ($Role -eq 'Controller') { $controllerSid } else { $workerSid }
+    $other = if ($Role -eq 'Controller') { $workerSid } else { $controllerSid }
+
+    if ($caller.Sid -cne $declared) {
+        return New-CheckResult -Name 'IdentityBinding' -Status 'Fail' -Evidence "this verifier runs as $($caller.Name) ($($caller.Sid)), but the profile declares the $Role as $declared; a probe run as another account measures that account, not the $Role"
+    }
+
+    return New-CheckResult -Name 'IdentityBinding' -Status 'Pass' -Evidence "this verifier runs as $($caller.Name) ($($caller.Sid)), the identity the profile declares for the $Role; the other role is $other"
+}
+
+function Get-BytesDigest {
+    <#
+        The SHA-256 of exactly the bytes given, as lowercase hex. A file is hashed and parsed from
+        one read of its bytes, so what was verified is what is used.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [byte[]]$Bytes
+    )
+
+    return [System.Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($Bytes)).ToLowerInvariant()
+}
+
+function ConvertFrom-JsonByteArray {
+    <#
+        JSON from bytes that were already hashed. Invalid UTF-8 is refused instead of being replaced
+        with substitute characters, and a byte-order mark is dropped.
+    #>
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter(Mandatory)]
+        [byte[]]$Bytes
+    )
+
+    $text = [System.Text.UTF8Encoding]::new($false, $true).GetString($Bytes)
+
+    if ($text.Length -gt 0 -and $text[0] -eq [char]0xFEFF) {
+        $text = $text.Substring(1)
+    }
+
+    return ($text | ConvertFrom-Json -ErrorAction Stop)
+}
+
+function Get-PathProblem {
+    <#
+        Why a path in the profile does not name one object. A relative path names whatever the
+        working directory makes it, a dot segment hides where it leads, and a Windows short name is
+        another spelling of a file whose real name the text does not show.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Path
+    )
+
+    $problem = [System.Collections.Generic.List[string]]::new()
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not [System.IO.Path]::IsPathFullyQualified($Path)) {
+        $problem.Add('is not an absolute path')
+
+        return $problem.ToArray()
+    }
+
+    if ($Path -match '(^|[\\/])\.{1,2}($|[\\/])') {
+        $problem.Add('contains a dot segment')
+    }
+
+    if ($script:OnWindows -and $Path -match '~\d') {
+        $problem.Add('contains a Windows short name')
+    }
+
+    return $problem.ToArray()
+}
+
+function Test-VerifierBinding {
+    <#
+        The profile pins a verifier by path and digest, and ControlDigest hashes the file at that
+        path. That proves nothing about the script that is running unless the two are the same file:
+        a copy of the verifier that was edited to pass could run beside a pinned original. This check
+        requires the running script to be the pinned path and to hash to the pinned digest.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        $ContainmentProfile,
+
+        [Parameter(Mandatory)]
+        [string]$ScriptPath
+    )
+
+    if ('verifier' -notin @($ContainmentProfile.PSObject.Properties.Name)) {
+        return New-CheckResult -Name 'VerifierBinding' -Status 'Unavailable' -Evidence 'the profile pins no verifier'
+    }
+
+    $entry = $ContainmentProfile.verifier
+    $comparison = if ($script:OnWindows) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
+
+    try {
+        $declared = [System.IO.Path]::GetFullPath([string]$entry.path)
+        $running = [System.IO.Path]::GetFullPath($ScriptPath)
+        $runningDigest = Get-BytesDigest -Bytes ([System.IO.File]::ReadAllBytes($running))
+    } catch {
+        return New-CheckResult -Name 'VerifierBinding' -Status 'Unavailable' -Evidence "could not read the running verifier: $($_.Exception.Message)"
+    }
+
+    if (-not $declared.Equals($running, $comparison)) {
+        return New-CheckResult -Name 'VerifierBinding' -Status 'Fail' -Evidence "the profile pins the verifier at $declared, but the verifier that runs is $running"
+    }
+
+    if ($runningDigest -cne [string]$entry.sha256) {
+        return New-CheckResult -Name 'VerifierBinding' -Status 'Fail' -Evidence "the verifier that runs hashes to $runningDigest, but the profile pins $($entry.sha256)"
+    }
+
+    return New-CheckResult -Name 'VerifierBinding' -Status 'Pass' -Evidence "the verifier that runs is the pinned file at $running with digest $runningDigest"
+}
+
+function Get-Verdict {
+    <#
+        Unavailable is not a lesser failure. A control that could not be measured was not verified,
+        and the run must stop for it exactly as for a measured breach. A run in which no check ran
+        verified nothing.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [hashtable[]]$Check
+    )
+
+    $blocking = @($Check | Where-Object -FilterScript { $_.status -ne 'Pass' })
+
+    return [pscustomobject]@{
+        Verdict = $(if (@($Check).Count -gt 0 -and $blocking.Count -eq 0) { 'Pass' } else { 'Fail' })
+        Blocking = $blocking
+    }
+}
+
+function Get-NotRunCheck {
+    <#
+        A check that was not run is Unavailable with the reason, never absent from the report and
+        never a pass: the report always names every check the controller depends on.
+    #>
+    [CmdletBinding()]
+    [OutputType([object[]])]
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$Name,
+
+        [Parameter(Mandatory)]
+        [string]$Reason
+    )
+
+    return @($Name | ForEach-Object -Process { New-CheckResult -Name $_ -Status 'Unavailable' -Evidence "not run: $Reason" })
+}
+
+function Test-ReportPath {
+    <#
+        Where the verifier may write its report. It writes only a new or existing regular file in a
+        directory that already exists, never over a protected control or inside one, never through a
+        link, and it creates no directory: a report path is operator input and must not become a way
+        to overwrite the evidence the report is about. Returns the reason for a refusal, nothing when
+        the path is acceptable.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ReportPath,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [string[]]$ProtectedPath
+    )
+
+    if (-not [System.IO.Path]::IsPathFullyQualified($ReportPath)) {
+        return 'the report path must be an absolute path'
+    }
+
+    $full = [System.IO.Path]::GetFullPath($ReportPath)
+    $directory = [System.IO.Path]::GetDirectoryName($full)
+
+    if ([string]::IsNullOrEmpty($directory) -or -not [System.IO.Directory]::Exists($directory)) {
+        return "the directory of the report path does not exist (the verifier creates none): $directory"
+    }
+
+    if ([System.IO.Directory]::Exists($full)) {
+        return "the report path names a directory: $full"
+    }
+
+    foreach ($protected in @($ProtectedPath | Where-Object -FilterScript { -not [string]::IsNullOrWhiteSpace($_) })) {
+        if (Test-PathOverlap -Path $full -WritableRoot $protected) {
+            return "the report path is, or lies inside, a protected control: $protected"
+        }
+    }
+
+    if ([System.IO.File]::Exists($full) -and ([System.IO.File]::GetAttributes($full) -band [System.IO.FileAttributes]::ReparsePoint)) {
+        return "the report path is a link: $full"
+    }
+
+    return $null
+}
+
 function Test-ProfileSchema {
     [CmdletBinding()]
     [OutputType([string[]])]
@@ -652,6 +953,16 @@ function Test-ProfileSchema {
         }
     }
 
+    if ('schemaVersion' -in $present -and $ContainmentProfile.schemaVersion -ne 1) {
+        $problem.Add("'schemaVersion' must be 1")
+    }
+
+    foreach ($name in @('controllerIdentity', 'workerIdentity')) {
+        if ($name -in $present -and [string]::IsNullOrWhiteSpace([string]$ContainmentProfile.$name)) {
+            $problem.Add("'$name' must name an identity")
+        }
+    }
+
     foreach ($name in @('controllerEgressAllow', 'workerEgressAllow')) {
         if ($name -in $present) {
             $value = @($ContainmentProfile.$name)
@@ -661,7 +972,7 @@ function Test-ProfileSchema {
         }
     }
 
-    foreach ($name in $script:PinnedControl) {
+    foreach ($name in @($script:PinnedControl) + @($script:LiveControl)) {
         if ($name -notin $present) {
             continue
         }
@@ -674,12 +985,26 @@ function Test-ProfileSchema {
             continue
         }
 
-        if ([string]$entry.sha256 -notmatch '^[0-9a-f]{64}$') {
+        if ([string]$entry.sha256 -cnotmatch '^[0-9a-f]{64}$') {
             $problem.Add("'$name' declares a digest that is not lowercase 64-hex")
         }
 
         if ([string]$entry.path -match '[*?]') {
             $problem.Add("'$name' path contains a wildcard")
+        }
+
+        foreach ($pathProblem in @(Get-PathProblem -Path ([string]$entry.path))) {
+            $problem.Add("'$name' path $pathProblem")
+        }
+    }
+
+    foreach ($name in @('ledgerSink', 'chainHead')) {
+        if ($name -notin $present) {
+            continue
+        }
+
+        foreach ($pathProblem in @(Get-PathProblem -Path ([string]$ContainmentProfile.$name))) {
+            $problem.Add("'$name' $pathProblem")
         }
     }
 
@@ -692,10 +1017,83 @@ function Test-ProfileSchema {
             if ([string]$value -match '[*?]') {
                 $problem.Add("'$name' contains a wildcard entry")
             }
+
+            foreach ($pathProblem in @(Get-PathProblem -Path ([string]$value))) {
+                $problem.Add("'$name' entry '$value' $pathProblem")
+            }
         }
     }
 
     return $problem.ToArray()
+}
+
+function Get-HookRootBinding {
+    <#
+        The plugin root the hook command must find its script under, derived from the pinned script
+        path. The shipped command looks for <PLUGIN_ROOT>/com.github.copilot/hooks/scripts/
+        Block-RemoteMutation.ps1 before any other place, so a script pinned at that layout can be
+        made the only one the command runs. Any other layout cannot be bound, and no root is guessed
+        for it.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ScriptPath
+    )
+
+    $layout = @('com.github.copilot', 'hooks', 'scripts', 'Block-RemoteMutation.ps1')
+    $expected = '<root>/' + ($layout -join '/')
+
+    if (-not [System.IO.Path]::IsPathFullyQualified($ScriptPath)) {
+        return [pscustomobject]@{ Root = $null; Problem = "the pinned hook script path '$ScriptPath' is not an absolute path, so no plugin root can be derived from it" }
+    }
+
+    $comparison = if ($script:OnWindows) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
+    $current = [System.IO.Path]::GetFullPath($ScriptPath)
+
+    for ($index = $layout.Count - 1; $index -ge 0; $index--) {
+        $leaf = [System.IO.Path]::GetFileName($current)
+
+        if (-not $leaf.Equals($layout[$index], $comparison)) {
+            return [pscustomobject]@{ Root = $null; Problem = "the pinned hook script is not at $expected, the layout the hook command resolves it from: found '$leaf' where '$($layout[$index])' is required in $ScriptPath" }
+        }
+
+        $current = [System.IO.Path]::GetDirectoryName($current)
+
+        if ([string]::IsNullOrEmpty($current)) {
+            return [pscustomobject]@{ Root = $null; Problem = "the pinned hook script is not at $expected, the layout the hook command resolves it from: $ScriptPath has no root above that layout" }
+        }
+    }
+
+    return [pscustomobject]@{ Root = $current; Problem = $null }
+}
+
+function Get-GateFailure {
+    <#
+        The required checks that did not pass. A check that is absent from the list counts as one
+        that did not pass: a control that was never measured is not a satisfied precondition.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [hashtable[]]$Check,
+
+        [Parameter(Mandatory)]
+        [string[]]$Require
+    )
+
+    $unmet = foreach ($name in $Require) {
+        $found = @($Check | Where-Object -FilterScript { $_.name -ceq $name })
+
+        if ($found.Count -eq 0 -or $found[0].status -cne 'Pass') {
+            $name
+        }
+    }
+
+    return [string[]]@($unmet)
 }
 
 function Invoke-HookPayload {
@@ -704,6 +1102,10 @@ function Invoke-HookPayload {
         shell script rather than being split into an executable and arguments;
         re-quoting it here is exactly how a probe stops matching the command the
         agent loop actually executes.
+
+        The shell is the system one, not whatever ComSpec names, and the command sees the environment
+        it is given: a probe that inherits the caller's variables measures the caller's choices.
+        A command that does not finish is stopped and refused, never waited for.
     #>
     [CmdletBinding()]
     [OutputType([int])]
@@ -712,93 +1114,249 @@ function Invoke-HookPayload {
         [string]$CommandLine,
 
         [Parameter(Mandatory)]
-        [string]$Payload
+        [string]$Payload,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [System.Collections.IDictionary]$EnvironmentVariable,
+
+        [Parameter()]
+        [ValidateRange(1, 600)]
+        [int]$TimeoutSecond = 30
     )
 
     $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) "containment-hook-$([guid]::NewGuid().ToString('N'))"
     $null = New-Item -Path $workRoot -ItemType Directory -Force
+    $process = $null
 
     try {
-        $payloadPath = Join-Path $workRoot 'payload.json'
-        [System.IO.File]::WriteAllText($payloadPath, $Payload, [System.Text.UTF8Encoding]::new($false))
+        $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
 
         if ($script:OnWindows) {
             $scriptPath = Join-Path $workRoot 'probe.cmd'
             [System.IO.File]::WriteAllText($scriptPath, "@echo off`r`n$CommandLine`r`n", [System.Text.ASCIIEncoding]::new())
-            $process = Start-Process -FilePath $env:ComSpec -ArgumentList '/c', $scriptPath `
-                -RedirectStandardInput $payloadPath -RedirectStandardOutput (Join-Path $workRoot 'out.txt') `
-                -RedirectStandardError (Join-Path $workRoot 'err.txt') -Wait -PassThru -WindowStyle Hidden
+            $startInfo.FileName = [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System), 'cmd.exe')
+            $startInfo.ArgumentList.Add('/c')
+            $startInfo.ArgumentList.Add($scriptPath)
         } else {
             $scriptPath = Join-Path $workRoot 'probe.sh'
             [System.IO.File]::WriteAllText($scriptPath, "#!/bin/sh`n$CommandLine`n", [System.Text.UTF8Encoding]::new($false))
-            $process = Start-Process -FilePath '/bin/sh' -ArgumentList $scriptPath `
-                -RedirectStandardInput $payloadPath -RedirectStandardOutput (Join-Path $workRoot 'out.txt') `
-                -RedirectStandardError (Join-Path $workRoot 'err.txt') -Wait -PassThru
+            $startInfo.FileName = '/bin/sh'
+            $startInfo.ArgumentList.Add($scriptPath)
         }
+
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.RedirectStandardInput = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+        $startInfo.StandardInputEncoding = [System.Text.UTF8Encoding]::new($false)
+
+        foreach ($name in $EnvironmentVariable.Keys) {
+            if ($null -eq $EnvironmentVariable[$name]) {
+                $null = $startInfo.Environment.Remove([string]$name)
+            } else {
+                $startInfo.Environment[[string]$name] = [string]$EnvironmentVariable[$name]
+            }
+        }
+
+        $process = [System.Diagnostics.Process]::Start($startInfo)
+        # Read both streams while the command runs: a full pipe would otherwise block it for good.
+        $standardOutput = $process.StandardOutput.ReadToEndAsync()
+        $standardError = $process.StandardError.ReadToEndAsync()
+
+        try {
+            $process.StandardInput.Write($Payload)
+            $process.StandardInput.Close()
+        } catch [System.IO.IOException] {
+            Write-Verbose 'the command ended before it read its input'
+        }
+
+        if (-not $process.WaitForExit($TimeoutSecond * 1000)) {
+            try {
+                $process.Kill($true)
+            } catch {
+                Write-Verbose "could not stop the hook command: $($_.Exception.Message)"
+            }
+
+            throw "the hook command did not finish within $TimeoutSecond seconds"
+        }
+
+        $process.WaitForExit()
+        $null = $standardOutput.Wait(5000)
+        $null = $standardError.Wait(5000)
 
         return [int]$process.ExitCode
     } finally {
+        if ($null -ne $process) {
+            $process.Dispose()
+        }
+
         Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
 function Test-HookContract {
+    <#
+        Runs the pinned hook through the pinned hooks.json command and measures its real exit codes.
+
+        The command line comes from a file and is executed, so this runs only on bytes it has itself
+        hashed: hooks.json is read once, hashed, and parsed from those bytes, and the script is
+        hashed here as well, so a file that changed after ControlDigest is refused, not executed.
+
+        Which script runs is decided by the command, not by this check. PLUGIN_ROOT is therefore set
+        to the root the pinned script lives under and every other place the command looks is given
+        an empty directory. A decoy tree proves the command honours that: a decoy script under
+        PLUGIN_ROOT must run ahead of a decoy in the user profile. A command that resolves its script
+        any other way cannot be shown to run the pinned one, and fails.
+    #>
     [CmdletBinding()]
     [OutputType([hashtable])]
     param(
         [Parameter(Mandatory)]
-        [string]$HookConfigPath
+        [string]$HookConfigPath,
+
+        [Parameter(Mandatory)]
+        [string]$HookConfigSha256,
+
+        [Parameter(Mandatory)]
+        [string]$HookScriptPath,
+
+        [Parameter(Mandatory)]
+        [string]$HookScriptSha256
     )
 
+    $binding = Get-HookRootBinding -ScriptPath $HookScriptPath
+
+    if ($null -ne $binding.Problem) {
+        return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence $binding.Problem
+    }
+
     try {
-        $configuration = Get-Content -LiteralPath $HookConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $configBytes = [System.IO.File]::ReadAllBytes($HookConfigPath)
+        $scriptBytes = [System.IO.File]::ReadAllBytes($HookScriptPath)
+    } catch {
+        return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not read a pinned hook control: $($_.Exception.Message)"
+    }
+
+    $configDigest = Get-BytesDigest -Bytes $configBytes
+
+    if ($configDigest -cne $HookConfigSha256) {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "hooks.json hashes to $configDigest but the profile pins $HookConfigSha256; its command was not run"
+    }
+
+    $scriptDigest = Get-BytesDigest -Bytes $scriptBytes
+
+    if ($scriptDigest -cne $HookScriptSha256) {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the hook script hashes to $scriptDigest but the profile pins $HookScriptSha256; hooks.json was not run"
+    }
+
+    try {
+        $configuration = ConvertFrom-JsonByteArray -Bytes $configBytes
     } catch {
         return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence 'hooks.json is not valid JSON'
     }
 
-    $preToolUse = @($configuration.hooks.PreToolUse)
+    $preToolUse = @()
+    $hooksProperty = $configuration.PSObject.Properties['hooks']
+
+    if ($null -ne $hooksProperty -and $null -ne $hooksProperty.Value -and $null -ne $hooksProperty.Value.PSObject.Properties['PreToolUse']) {
+        $preToolUse = @($hooksProperty.Value.PreToolUse)
+    }
 
     if ($preToolUse.Count -ne 1) {
         return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "expected exactly one PreToolUse hook, measured $($preToolUse.Count)"
     }
 
     $entry = $preToolUse[0]
-    $commandLine = if ($script:OnWindows -and 'windows' -in @($entry.PSObject.Properties.Name)) {
-        [string]$entry.windows
-    } else {
-        [string]$entry.command
+    $commandProperty = if ($script:OnWindows) { $entry.PSObject.Properties['windows'] } else { $null }
+
+    if ($null -eq $commandProperty) {
+        $commandProperty = $entry.PSObject.Properties['command']
     }
+
+    $commandLine = if ($null -ne $commandProperty) { [string]$commandProperty.Value } else { '' }
 
     if ([string]::IsNullOrWhiteSpace($commandLine)) {
         return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence 'PreToolUse hook declares no command for this platform'
     }
 
-    # Fixed synthetic payloads: one benign, one remote mutation, one issue
-    # mutation. Nothing here is derived from the repository under test.
-    $case = [ordered]@{
-        safe = @{ expected = 0; payload = '{"tool_name":"read_file","tool_input":{"filePath":"README.md"}}' }
-        push = @{ expected = 2; payload = '{"tool_name":"run_in_terminal","tool_input":{"command":"git push origin main"}}' }
-        issue = @{ expected = 2; payload = '{"tool_name":"run_in_terminal","tool_input":{"command":"gh issue close 12"}}' }
-    }
+    $resolvedScript = [System.IO.Path]::GetFullPath($HookScriptPath)
+    $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) "containment-hook-contract-$([guid]::NewGuid().ToString('N'))"
 
-    $measured = [System.Collections.Generic.List[string]]::new()
-    $failed = $false
+    try {
+        $null = New-Item -Path $workRoot -ItemType Directory -Force
+        $emptyHome = Join-Path $workRoot 'empty-home'
+        $null = New-Item -Path $emptyHome -ItemType Directory -Force
 
-    foreach ($name in $case.Keys) {
+        # Two decoy scripts: one where the command looks first, one in the user profile it falls
+        # back to. Only a command that takes PLUGIN_ROOT ahead of the profile runs the first.
+        $pluginDecoyRoot = Join-Path $workRoot 'decoy-plugin'
+        $pluginDecoyDirectory = Join-Path $pluginDecoyRoot 'com.github.copilot/hooks/scripts'
+        $profileDecoyHome = Join-Path $workRoot 'decoy-profile'
+        $profileDecoyDirectory = Join-Path $profileDecoyHome '.copilot/hooks/scripts'
+
+        foreach ($decoy in @(
+                @{ Directory = $pluginDecoyDirectory; Name = 'plugin'; Code = 7 }
+                @{ Directory = $profileDecoyDirectory; Name = 'profile'; Code = 8 }
+            )) {
+            $null = New-Item -Path $decoy.Directory -ItemType Directory -Force
+            $body = "Set-Content -LiteralPath (Join-Path `$PSScriptRoot 'ran.txt') -Value '$($decoy.Name)'`nexit $($decoy.Code)`n"
+            [System.IO.File]::WriteAllText((Join-Path $decoy.Directory 'Block-RemoteMutation.ps1'), $body, [System.Text.UTF8Encoding]::new($false))
+        }
+
+        $safePayload = '{"tool_name":"read_file","tool_input":{"filePath":"README.md"}}'
+
         try {
-            $exitCode = Invoke-HookPayload -CommandLine $commandLine -Payload $case[$name].payload
+            $canaryExit = Invoke-HookPayload -CommandLine $commandLine -Payload $safePayload -EnvironmentVariable @{
+                PLUGIN_ROOT = $pluginDecoyRoot
+                USERPROFILE = $profileDecoyHome
+                HOME = $profileDecoyHome
+            }
         } catch {
-            return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not run the $name payload: $($_.Exception.Message)"
+            return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not run the resolution probe: $($_.Exception.Message)"
         }
 
-        $measured.Add("$name=$exitCode")
+        $pluginDecoyRan = Test-Path -LiteralPath (Join-Path $pluginDecoyDirectory 'ran.txt')
+        $profileDecoyRan = Test-Path -LiteralPath (Join-Path $profileDecoyDirectory 'ran.txt')
 
-        if ($exitCode -ne $case[$name].expected) {
-            $failed = $true
+        if ($canaryExit -ne 7 -or -not $pluginDecoyRan -or $profileDecoyRan) {
+            return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the hook command does not take its script from PLUGIN_ROOT ahead of the user profile (a decoy under PLUGIN_ROOT gave exit $canaryExit; the PLUGIN_ROOT decoy ran: $pluginDecoyRan; the user-profile decoy ran: $profileDecoyRan), so the pinned script cannot be shown to be the one it runs"
         }
+
+        # Fixed synthetic payloads: one benign, one remote mutation, one issue
+        # mutation. Nothing here is derived from the repository under test.
+        $case = [ordered]@{
+            safe = @{ expected = 0; payload = $safePayload }
+            push = @{ expected = 2; payload = '{"tool_name":"run_in_terminal","tool_input":{"command":"git push origin main"}}' }
+            issue = @{ expected = 2; payload = '{"tool_name":"run_in_terminal","tool_input":{"command":"gh issue close 12"}}' }
+        }
+
+        $measured = [System.Collections.Generic.List[string]]::new()
+        $failed = $false
+
+        foreach ($name in $case.Keys) {
+            try {
+                $exitCode = Invoke-HookPayload -CommandLine $commandLine -Payload $case[$name].payload -EnvironmentVariable @{
+                    PLUGIN_ROOT = $binding.Root
+                    USERPROFILE = $emptyHome
+                    HOME = $emptyHome
+                }
+            } catch {
+                return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not run the $name payload: $($_.Exception.Message)"
+            }
+
+            $measured.Add("$name=$exitCode")
+
+            if ($exitCode -ne $case[$name].expected) {
+                $failed = $true
+            }
+        }
+    } finally {
+        Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    $evidence = 'expected 0,2,2 and measured ' + ($measured -join ' ')
+    $evidence = 'expected 0,2,2 and measured ' + ($measured -join ' ') + " from the pinned script $resolvedScript"
 
     if ($failed) {
         return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence $evidence
@@ -1109,12 +1667,269 @@ function Test-LedgerProtection {
     return New-CheckResult -Name 'LedgerProtection' -Status 'Pass' -Evidence 'neither the sink nor the chain head is writable by this identity'
 }
 
+function Test-ControlDigest {
+    <#
+        Each pinned control is hashed from one read of its bytes and compared as written: the
+        profile's digests are validated lowercase, so a case difference is a mismatch, not a match.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        $ContainmentProfile
+    )
+
+    $present = @($ContainmentProfile.PSObject.Properties.Name)
+    $problem = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($name in $script:PinnedControl) {
+        if ($name -notin $present) {
+            $problem.Add("$name is not declared")
+            continue
+        }
+
+        $declaredPath = [string]$ContainmentProfile.$name.path
+
+        if (-not (Test-Path -LiteralPath $declaredPath -PathType Leaf)) {
+            $problem.Add("$name path does not exist")
+            continue
+        }
+
+        try {
+            $measured = Get-BytesDigest -Bytes ([System.IO.File]::ReadAllBytes($declaredPath))
+        } catch {
+            $problem.Add("$name could not be read: $($_.Exception.Message)")
+            continue
+        }
+
+        if ($measured -cne [string]$ContainmentProfile.$name.sha256) {
+            $problem.Add("$name digest is $measured but the profile pins $($ContainmentProfile.$name.sha256)")
+        }
+    }
+
+    if ($problem.Count -gt 0) {
+        return New-CheckResult -Name 'ControlDigest' -Status 'Fail' -Evidence ($problem -join '; ')
+    }
+
+    return New-CheckResult -Name 'ControlDigest' -Status 'Pass' -Evidence 'every pinned control matches its declared digest'
+}
+
+function Test-LiveArtifact {
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        $ContainmentProfile,
+
+        [Parameter(Mandatory)]
+        [string]$LiveMode
+    )
+
+    $present = @($ContainmentProfile.PSObject.Properties.Name)
+    $problem = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($name in $script:LiveControl) {
+        if ($name -notin $present) {
+            $problem.Add("live mode '$LiveMode' requires '$name' to be pinned in the profile")
+            continue
+        }
+
+        $declaredPath = [string]$ContainmentProfile.$name.path
+
+        if (-not (Test-Path -LiteralPath $declaredPath -PathType Leaf)) {
+            $problem.Add("live artifact '$name' does not exist")
+            continue
+        }
+
+        try {
+            $measured = Get-BytesDigest -Bytes ([System.IO.File]::ReadAllBytes($declaredPath))
+        } catch {
+            $problem.Add("live artifact '$name' could not be read: $($_.Exception.Message)")
+            continue
+        }
+
+        if ($measured -cne [string]$ContainmentProfile.$name.sha256) {
+            $problem.Add("live artifact '$name' does not match its declared digest")
+        }
+    }
+
+    if ($problem.Count -gt 0) {
+        return New-CheckResult -Name 'LiveArtifacts' -Status 'Fail' -Evidence ($problem -join '; ')
+    }
+
+    return New-CheckResult -Name 'LiveArtifacts' -Status 'Pass' -Evidence "live artifacts are pinned and match for mode '$LiveMode'"
+}
+
+function Get-ContainmentCheckName {
+    <#
+        The one list of checks a run reports. A run that stops early reports the same names as one
+        that completes, each marked not run, so a controller never has to guess what is missing.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$LiveMode
+    )
+
+    $name = @(
+        'VerifierBinding'
+        'ControlDigest'
+        'ControlImmutability'
+        'IdentityBinding'
+        'HookContract'
+        'OverrideAbsent'
+        'EgressPolicy'
+        'RemoteUnreachable'
+        'CredentialAbsence'
+        'WritableRoots'
+        'LedgerProtection'
+    )
+
+    if ($LiveMode -ne 'off') {
+        $name += 'LiveArtifacts'
+    }
+
+    return $name
+}
+
+function Get-ContainmentCheck {
+    <#
+        Runs the measurements against a profile that already satisfies the schema. The order is part
+        of the contract: the hook probe executes the pinned hook command, so it runs only after the
+        verifier, the digests and the immutability of the controls it executes were measured and
+        passed. Every other check is independent and always runs.
+    #>
+    [CmdletBinding()]
+    [OutputType([object[]])]
+    param(
+        [Parameter(Mandatory)]
+        $ContainmentProfile,
+
+        [Parameter(Mandatory)]
+        [string]$ProfilePath,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Controller', 'Worker')]
+        [string]$Role,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('off', 'read-only', 'disposable')]
+        [string]$LiveMode,
+
+        [Parameter(Mandatory)]
+        [string]$VerifierPath
+    )
+
+    $check = [System.Collections.Generic.List[hashtable]]::new()
+    $writableRoot = [string[]]@($ContainmentProfile.writableRoots)
+
+    $check.Add((Test-VerifierBinding -ContainmentProfile $ContainmentProfile -ScriptPath $VerifierPath))
+    $check.Add((Test-ControlDigest -ContainmentProfile $ContainmentProfile))
+    $check.Add((Test-ControlImmutability -ProfilePath $ProfilePath -ContainmentProfile $ContainmentProfile -WritableRoot $writableRoot))
+    $check.Add((Test-IdentityBinding -Role $Role -ControllerIdentity ([string]$ContainmentProfile.controllerIdentity) -WorkerIdentity ([string]$ContainmentProfile.workerIdentity)))
+
+    $unmet = @(Get-GateFailure -Check @($check) -Require @('VerifierBinding', 'ControlDigest', 'ControlImmutability'))
+
+    if ($unmet.Count -gt 0) {
+        foreach ($notRun in @(Get-NotRunCheck -Name 'HookContract' -Reason "it executes the pinned hook command, which is trusted only after $($unmet -join ', ') passed")) {
+            $check.Add($notRun)
+        }
+    } else {
+        $check.Add((Test-HookContract `
+                    -HookConfigPath ([string]$ContainmentProfile.hooksConfig.path) -HookConfigSha256 ([string]$ContainmentProfile.hooksConfig.sha256) `
+                    -HookScriptPath ([string]$ContainmentProfile.hookScript.path) -HookScriptSha256 ([string]$ContainmentProfile.hookScript.sha256)))
+    }
+
+    $check.Add((Test-OverrideAbsent))
+
+    $declaredAllow = if ($Role -eq 'Controller') {
+        @($ContainmentProfile.controllerEgressAllow)
+    } else {
+        @($ContainmentProfile.workerEgressAllow)
+    }
+
+    $check.Add((Test-EgressPolicy -DeclaredAllow ([string[]]$declaredAllow)))
+    $check.Add((Test-RemoteUnreachable))
+    $check.Add((Test-CredentialAbsence))
+    $check.Add((Test-WritableRoots -Declared $writableRoot))
+    $check.Add((Test-LedgerProtection -SinkPath ([string]$ContainmentProfile.ledgerSink) -ChainHeadPath ([string]$ContainmentProfile.chainHead)))
+
+    if ($LiveMode -ne 'off') {
+        $check.Add((Test-LiveArtifact -ContainmentProfile $ContainmentProfile -LiveMode $LiveMode))
+    }
+
+    return @($check)
+}
+
+function Get-ProtectedPath {
+    <#
+        Every file the verdict depends on, so that no operator-chosen output path can overwrite one.
+        Read defensively: it runs before the profile is known to be valid.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        $ContainmentProfile,
+
+        [Parameter(Mandatory)]
+        [string]$ProfilePath,
+
+        [Parameter(Mandatory)]
+        [string]$VerifierPath
+    )
+
+    $path = [System.Collections.Generic.List[string]]::new()
+    $path.Add($ProfilePath)
+    $path.Add($VerifierPath)
+
+    if ($ContainmentProfile -is [System.Management.Automation.PSCustomObject]) {
+        $field = $ContainmentProfile.PSObject.Properties
+
+        foreach ($name in @($script:PinnedControl) + @($script:LiveControl)) {
+            $entry = $field[$name]
+
+            if ($null -ne $entry -and $entry.Value -is [System.Management.Automation.PSCustomObject]) {
+                $declared = $entry.Value.PSObject.Properties['path']
+
+                if ($null -ne $declared -and $declared.Value -is [string]) {
+                    $path.Add($declared.Value)
+                }
+            }
+        }
+
+        foreach ($name in @('ledgerSink', 'chainHead')) {
+            $entry = $field[$name]
+
+            if ($null -ne $entry -and $entry.Value -is [string]) {
+                $path.Add($entry.Value)
+            }
+        }
+
+        $immutable = $field['immutableControlPaths']
+
+        if ($null -ne $immutable) {
+            foreach ($declared in @($immutable.Value)) {
+                if ($declared -is [string]) {
+                    $path.Add($declared)
+                }
+            }
+        }
+    }
+
+    return [string[]]@($path | Where-Object -FilterScript { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
 if (-not $Verify) {
     [Console]::Error.WriteLine('Containment verification requires -Verify.')
     exit 2
 }
 
-if ($ProfileSha256 -notmatch '^[0-9a-f]{64}$') {
+# The digest is the trust anchor, so it is compared exactly as the operator typed it. Folding its
+# case first would accept a spelling the operator never wrote.
+if ($ProfileSha256 -cnotmatch '^[0-9a-f]{64}$') {
     [Console]::Error.WriteLine('Containment refused: -ProfileSha256 must be a lowercase 64-hex digest.')
     exit 2
 }
@@ -1125,117 +1940,72 @@ if (-not (Test-Path -LiteralPath $ProfilePath -PathType Leaf)) {
 }
 
 $canonicalProfilePath = (Resolve-Path -LiteralPath $ProfilePath).ProviderPath
-$measuredProfileDigest = Get-Digest -Path $canonicalProfilePath
 
-if ($measuredProfileDigest -ne $ProfileSha256.ToLowerInvariant()) {
+# One read: the bytes that are hashed are the bytes that are parsed.
+try {
+    $profileBytes = [System.IO.File]::ReadAllBytes($canonicalProfilePath)
+} catch {
+    [Console]::Error.WriteLine("Containment refused: profile '$canonicalProfilePath' cannot be read: $($_.Exception.Message)")
+    exit 2
+}
+
+$measuredProfileDigest = Get-BytesDigest -Bytes $profileBytes
+
+if ($measuredProfileDigest -cne $ProfileSha256) {
     [Console]::Error.WriteLine("Containment refused: profile digest $measuredProfileDigest does not match the direct argument.")
     exit 2
 }
 
-$check = [System.Collections.Generic.List[hashtable]]::new()
-$check.Add((New-CheckResult -Name 'ProfileDigest' -Status 'Pass' -Evidence "profile matches the direct argument $measuredProfileDigest"))
-
 try {
-    $containmentProfile = Get-Content -LiteralPath $canonicalProfilePath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $containmentProfile = ConvertFrom-JsonByteArray -Bytes $profileBytes
 } catch {
     [Console]::Error.WriteLine('Containment refused: profile is not valid JSON.')
     exit 2
 }
 
-# Wrapped because an empty result unwraps to $null, and strict mode refuses
-# .Count on it.
-$schemaProblem = @(Test-ProfileSchema -ContainmentProfile $containmentProfile)
+# A report path is operator input. It is judged before anything is measured, against every file the
+# verdict depends on, so it can never be the way a control is overwritten.
+if (-not [string]::IsNullOrWhiteSpace($ReportPath)) {
+    $reportProblem = Test-ReportPath -ReportPath $ReportPath -ProtectedPath @(Get-ProtectedPath -ContainmentProfile $containmentProfile -ProfilePath $canonicalProfilePath -VerifierPath $PSCommandPath)
+
+    if ($reportProblem) {
+        [Console]::Error.WriteLine("Containment refused: $reportProblem.")
+        exit 2
+    }
+}
+
+$check = [System.Collections.Generic.List[hashtable]]::new()
+$check.Add((New-CheckResult -Name 'ProfileDigest' -Status 'Pass' -Evidence "profile matches the direct argument $measuredProfileDigest"))
+
+# Wrapped because an empty result unwraps to $null and a single one to a scalar, and strict mode
+# refuses .Count on either.
+$schemaProblem = @(
+    if ($containmentProfile -is [System.Management.Automation.PSCustomObject]) {
+        Test-ProfileSchema -ContainmentProfile $containmentProfile
+    } else {
+        'the profile is not a JSON object'
+    }
+)
 
 if ($schemaProblem.Count -gt 0) {
     $check.Add((New-CheckResult -Name 'ProfileSchema' -Status 'Fail' -Evidence ($schemaProblem -join '; ')))
+
+    # Nothing the profile declares can be measured, and reading its fields would throw. Every
+    # other check is named and reported as not run.
+    foreach ($notRun in @(Get-NotRunCheck -Name @(Get-ContainmentCheckName -LiveMode $LiveMode) -Reason 'the profile does not satisfy the schema, so nothing it declares can be measured')) {
+        $check.Add($notRun)
+    }
 } else {
     $check.Add((New-CheckResult -Name 'ProfileSchema' -Status 'Pass' -Evidence 'closed schema satisfied and both egress lists are empty'))
-}
 
-$profileKey = @($containmentProfile.PSObject.Properties.Name)
-$digestProblem = [System.Collections.Generic.List[string]]::new()
-
-foreach ($name in $script:PinnedControl) {
-    if ($name -notin $profileKey) {
-        $digestProblem.Add("$name is not declared")
-        continue
-    }
-
-    $declaredPath = [string]$containmentProfile.$name.path
-
-    if (-not (Test-Path -LiteralPath $declaredPath -PathType Leaf)) {
-        $digestProblem.Add("$name path does not exist")
-        continue
-    }
-
-    $canonical = (Resolve-Path -LiteralPath $declaredPath).ProviderPath
-    $measured = Get-Digest -Path $canonical
-
-    if ($measured -ne [string]$containmentProfile.$name.sha256) {
-        $digestProblem.Add("$name digest is $measured but the profile pins $($containmentProfile.$name.sha256)")
+    foreach ($result in @(Get-ContainmentCheck -ContainmentProfile $containmentProfile -ProfilePath $canonicalProfilePath -Role $Role -LiveMode $LiveMode -VerifierPath $PSCommandPath)) {
+        $check.Add($result)
     }
 }
 
-if ($digestProblem.Count -gt 0) {
-    $check.Add((New-CheckResult -Name 'ControlDigest' -Status 'Fail' -Evidence ($digestProblem -join '; ')))
-} else {
-    $check.Add((New-CheckResult -Name 'ControlDigest' -Status 'Pass' -Evidence "every pinned control matches its declared digest"))
-}
-
-$check.Add((Test-ControlImmutability -ProfilePath $canonicalProfilePath -ContainmentProfile $containmentProfile -WritableRoot ([string[]]@($containmentProfile.writableRoots))))
-
-if ('hooksConfig' -in $profileKey -and (Test-Path -LiteralPath ([string]$containmentProfile.hooksConfig.path) -PathType Leaf)) {
-    $check.Add((Test-HookContract -HookConfigPath ([string]$containmentProfile.hooksConfig.path)))
-} else {
-    $check.Add((New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence 'no readable hooks.json to exercise'))
-}
-
-$check.Add((Test-OverrideAbsent))
-
-$declaredAllow = if ($Role -eq 'Controller') {
-    @($containmentProfile.controllerEgressAllow)
-} else {
-    @($containmentProfile.workerEgressAllow)
-}
-
-$check.Add((Test-EgressPolicy -DeclaredAllow ([string[]]$declaredAllow)))
-$check.Add((Test-RemoteUnreachable))
-$check.Add((Test-CredentialAbsence))
-$check.Add((Test-WritableRoots -Declared ([string[]]@($containmentProfile.writableRoots))))
-$check.Add((Test-LedgerProtection -SinkPath ([string]$containmentProfile.ledgerSink) -ChainHeadPath ([string]$containmentProfile.chainHead)))
-
-if ($LiveMode -ne 'off') {
-    $liveProblem = [System.Collections.Generic.List[string]]::new()
-
-    foreach ($name in $script:LiveControl) {
-        if ($name -notin $profileKey) {
-            $liveProblem.Add("live mode '$LiveMode' requires '$name' to be pinned in the profile")
-            continue
-        }
-
-        $declaredPath = [string]$containmentProfile.$name.path
-
-        if (-not (Test-Path -LiteralPath $declaredPath -PathType Leaf)) {
-            $liveProblem.Add("live artifact '$name' does not exist")
-            continue
-        }
-
-        if ((Get-Digest -Path $declaredPath) -ne [string]$containmentProfile.$name.sha256) {
-            $liveProblem.Add("live artifact '$name' does not match its declared digest")
-        }
-    }
-
-    if ($liveProblem.Count -gt 0) {
-        $check.Add((New-CheckResult -Name 'LiveArtifacts' -Status 'Fail' -Evidence ($liveProblem -join '; ')))
-    } else {
-        $check.Add((New-CheckResult -Name 'LiveArtifacts' -Status 'Pass' -Evidence "live artifacts are pinned and match for mode '$LiveMode'"))
-    }
-}
-
-# Unavailable is not a lesser failure. A control that could not be measured was
-# not verified, and the run must stop for it exactly as for a measured breach.
-$blocking = @($check | Where-Object { $_.status -ne 'Pass' })
-$verdict = if ($blocking.Count -eq 0) { 'Pass' } else { 'Fail' }
+$outcome = Get-Verdict -Check @($check)
+$blocking = @($outcome.Blocking)
+$verdict = $outcome.Verdict
 
 $report = [ordered]@{
     verdict = $verdict
@@ -1248,13 +2018,12 @@ $report = [ordered]@{
 }
 
 if (-not [string]::IsNullOrWhiteSpace($ReportPath)) {
-    $reportDirectory = Split-Path -Parent $ReportPath
-
-    if ($reportDirectory -and -not (Test-Path -LiteralPath $reportDirectory)) {
-        $null = New-Item -Path $reportDirectory -ItemType Directory -Force
+    try {
+        $report | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $ReportPath -Encoding UTF8
+    } catch {
+        [Console]::Error.WriteLine("Containment refused: the report could not be written to '$ReportPath': $($_.Exception.Message)")
+        exit 2
     }
-
-    $report | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $ReportPath -Encoding UTF8
 }
 
 foreach ($result in $blocking) {
