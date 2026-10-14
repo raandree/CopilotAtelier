@@ -55,7 +55,7 @@ Durable relationships and the Decision record index; read a linked record only w
     than inferring it from prose. Grader tests do not prove model behavior.
 - Agent conformance needs schema, executable behavior, and containment. Tool
     lists prove schema only; agent-host drops unresolved names (0026). Enforce
-    no-egress across terminals, delegates, handoffs, MCP, and hooks; prose is no sandbox.
+    no-egress across terminals, delegates, handoffs, MCP, and hooks; prose is no sandbox. A verifier proves only what it measures: accept a plain shape, never refuse a list of characters (two shells read a `#` differently); relay printable ASCII only; compare names ordinally; call its own checks through the function table; say in each Pass what it does not show (0025).
 - Sensitive-data work separates read-only intake, local transformation, public
     research, and explicitly shared authenticated actions. Tools are capability,
     not authorization; `agents` grants delegation, not body inheritance. Share Instructions with a drift test.
