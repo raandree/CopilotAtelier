@@ -12,8 +12,13 @@
 
     Every record is assigned a monotonic sequence, the previous record's digest,
     and its own digest over a canonical serialization. A record is flushed to
-    disk before the append is acknowledged, so an acknowledged record survives a
-    crash and an unacknowledged one never appears to have been written.
+    disk before the append is acknowledged, so an acknowledged record always
+    survives a crash. The reverse does not hold: a crash, a lock, or an I/O
+    error between the sink flush and the head write can leave a record that is
+    stored but was never acknowledged. That is why the sequence is spent when
+    the record becomes durable rather than when it is acknowledged, why a head
+    that cannot be written stops the service, and why a restart refuses to serve
+    unless the head names the last record or the one before it.
 
     Verification recomputes the whole chain from genesis and compares the final
     digest with the protected head, so a rewritten body, a removed line, a
@@ -114,6 +119,7 @@ $script:DigestPattern = '^[0-9a-f]{64}$'
 $script:UtcPattern = '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$'
 $script:IntegerPattern = '^-?(0|[1-9][0-9]*)$'
 $script:SafeInteger = 9007199254740991
+$script:FatalError = ''
 $script:JsonOption = [System.Text.Json.JsonDocumentOptions]::new()
 $script:JsonOption.MaxDepth = 32
 
@@ -863,6 +869,12 @@ function Test-HeadAgreement {
 }
 
 function Write-ChainHead {
+    <#
+        Written to a temporary file in the same directory, flushed through the
+        operating-system cache, and then moved over the old head, so a reader
+        never sees a half-written head and a failed write leaves the previous
+        one in place.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -885,22 +897,34 @@ function Write-ChainHead {
     $member['sealed'] = if ($Sealed) { 'true' } else { 'false' }
 
     $head = Join-CanonicalMember -Member $member
+    $temporary = '{0}.{1}.tmp' -f $Path, [guid]::NewGuid().ToString('N')
 
-    $stream = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
     try {
-        $bytes = $script:Utf8.GetBytes($head)
-        $stream.Write($bytes, 0, $bytes.Length)
-        $stream.Flush($true)
+        $stream = [System.IO.FileStream]::new($temporary, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+        try {
+            $bytes = $script:Utf8.GetBytes($head)
+            $stream.Write($bytes, 0, $bytes.Length)
+            $stream.Flush($true)
+        } finally {
+            $stream.Dispose()
+        }
+
+        [System.IO.File]::Move($temporary, $Path, $true)
     } finally {
-        $stream.Dispose()
+        if (Test-Path -LiteralPath $temporary -PathType Leaf) {
+            Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 
 function Add-Record {
     <#
-        Persist before acknowledging. The sink write is flushed through the
-        operating-system cache, then the head, and only then does the caller
-        learn the sequence.
+        Persist, then advance, then publish. The sink write is flushed through
+        the operating-system cache and the in-memory state advances with it, so
+        a sequence is spent the moment its record is durable and can never be
+        handed to a second record. Publishing the head comes last and is fatal
+        when it fails: the record stays unacknowledged, and the restart check
+        accepts a head exactly one behind and continues from the sink.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -926,16 +950,26 @@ function Add-Record {
         $bytes = $script:Utf8.GetBytes($stored.Line + "`n")
         $stream.Write($bytes, 0, $bytes.Length)
         $stream.Flush($true)
+    } catch {
+        $script:FatalError = "could not write the ledger sink: $($_.Exception.Message)"
+        throw
     } finally {
         $stream.Dispose()
     }
 
     $sealed = [bool]$State.Sealed -or (($Record.GetProperty('type')).GetString() -ceq 'Seal')
-    Write-ChainHead -Path $HeadPath -Sequence $sequence -RecordHash $stored.RecordSha256 -Sealed $sealed
 
     $State.Sequence = $sequence
+    $State.PreviousHash = [string]$State.LastHash
     $State.LastHash = $stored.RecordSha256
     $State.Sealed = $sealed
+
+    try {
+        Write-ChainHead -Path $HeadPath -Sequence $sequence -RecordHash $stored.RecordSha256 -Sealed $sealed
+    } catch {
+        $script:FatalError = "could not write the chain head: $($_.Exception.Message)"
+        throw
+    }
 
     return @{
         sequence = $sequence
@@ -1022,9 +1056,13 @@ function Invoke-AppenderRequest {
 
 switch ($PSCmdlet.ParameterSetName) {
     'Serve' {
-        $sinkDirectory = Split-Path -Parent $SinkPath
-        if ($sinkDirectory -and -not (Test-Path -LiteralPath $sinkDirectory)) {
-            $null = New-Item -Path $sinkDirectory -ItemType Directory -Force
+        # Both directories, not only the sink's: a head that cannot be written
+        # is fatal, so an absent directory would stop the service on its first
+        # append rather than at start.
+        foreach ($directory in @((Split-Path -Parent $SinkPath), (Split-Path -Parent $ChainHeadPath))) {
+            if ($directory -and -not (Test-Path -LiteralPath $directory)) {
+                $null = New-Item -Path $directory -ItemType Directory -Force
+            }
         }
 
         $state = Read-ChainState -Path $SinkPath -HeadPath $ChainHeadPath
@@ -1132,6 +1170,15 @@ switch ($PSCmdlet.ParameterSetName) {
                 # that merely probes the pipe cannot keep the service alive.
                 $idleDeadline = (Get-Date).AddSeconds($IdleTimeoutSeconds)
             } catch {
+                if ($script:FatalError) {
+                    # Never continue on stale state: the record may be durable
+                    # but unpublished, and the next append would have to guess
+                    # which sequence is free.
+                    Write-Refusal -Message $script:FatalError
+                    $server.Dispose()
+                    exit 2
+                }
+
                 # A client that hangs up, times out, or sends garbage must not
                 # take the ledger service down with it: losing the appender
                 # mid-run would strand every later record.

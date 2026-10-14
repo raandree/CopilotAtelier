@@ -965,3 +965,97 @@ Describe 'Ledger appender restart' -Tag 'Unit' {
         $validation.ExitCode | Should -Be 2 -Because $validation.Output
     }
 }
+
+Describe 'Ledger appender durability' -Tag 'Unit' {
+    BeforeEach {
+        $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
+        $script:sinkPath = Join-Path $TestDrive "ledger-$([guid]::NewGuid().ToString('N')).jsonl"
+        $script:headPath = Join-Path $TestDrive "head-$([guid]::NewGuid().ToString('N')).json"
+        $script:appender = $null
+    }
+
+    AfterEach {
+        if ($script:appender -and -not $script:appender.HasExited) {
+            $script:appender | Stop-Process -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'creates the directory of the chain head' -Skip:(-not $script:onWindows) {
+        $script:headPath = Join-Path $TestDrive "protected-$([guid]::NewGuid().ToString('N'))/head.json"
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        Test-Path -LiteralPath $script:headPath -PathType Leaf | Should -BeTrue
+    }
+
+    It 'does not reuse a sequence after a head write failed' -Skip:(-not $script:onWindows) {
+        # A path that cannot become a file is the cheapest stand-in for the
+        # review's triggers: a missing directory, an antivirus lock, an I/O error.
+        $null = New-Item -Path $script:headPath -ItemType Directory -Force
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $first = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')
+        $first.ExitCode | Should -Be 2 -Because 'a record whose head write failed is never acknowledged'
+
+        $script:appender.WaitForExit(15000) | Should -BeTrue -Because 'a head failure stops the service'
+        $script:appender.ExitCode | Should -Be 2
+
+        Remove-Item -LiteralPath $script:headPath -Recurse -Force
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        $second = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Second')
+        $second.ExitCode | Should -Be 0 -Because $second.Output
+
+        $record = Get-SinkRecord -SinkPath $script:sinkPath
+        @($record.sequence) | Should -Be @(1, 2) -Because 'the persisted record keeps sequence 1'
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 0 -Because $validation.Output
+    }
+
+    It 'stops serving and leaves the head untouched when the head is locked' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+
+        $headBefore = [System.IO.File]::ReadAllText($script:headPath)
+        $lock = [System.IO.FileStream]::new($script:headPath, [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+        try {
+            $blocked = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Blocked')
+            $blocked.ExitCode | Should -Be 2 -Because $blocked.Output
+
+            $script:appender.WaitForExit(15000) | Should -BeTrue
+            $script:appender.ExitCode | Should -Be 2
+        } finally {
+            $lock.Dispose()
+        }
+
+        [System.IO.File]::ReadAllText($script:headPath) | Should -BeExactly $headBefore
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 2 -Because 'the record was flushed before the head was written'
+        @(Get-ChildItem -LiteralPath (Split-Path -Parent $script:headPath) -Filter '*.tmp').Count |
+            Should -Be 0 -Because 'a failed head write cleans up its temporary file'
+
+        # The restart check accepts exactly this state and continues from the sink.
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $resumed = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Resumed')
+        $resumed.ExitCode | Should -Be 0 -Because $resumed.Output
+        $resumed.Output | Should -Match 'sequence 3'
+    }
+
+    It 'keeps an acknowledged record across a crash' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+
+        $script:appender | Stop-Process -Force
+        $script:appender.WaitForExit(15000) | Should -BeTrue
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 0 -Because $validation.Output
+
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $next = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'AfterCrash')
+        $next.ExitCode | Should -Be 0 -Because $next.Output
+        $next.Output | Should -Match 'sequence 2'
+    }
+}
