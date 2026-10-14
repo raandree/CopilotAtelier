@@ -123,11 +123,20 @@ Describe 'Containment path overlap' -Tag 'Unit' {
 
 Describe 'Containment path protection' -Tag 'Unit' {
     BeforeEach {
-        # The fake file system: a leaf in a directory in a directory, all closed.
-        $script:leaf = if ($script:onWindows) { 'C:\control\scripts\hook.ps1' } else { '/control/scripts/hook.ps1' }
-        $script:parent = Split-Path -Parent $script:leaf
-        $script:grandparent = Split-Path -Parent $script:parent
-        $script:root = Split-Path -Parent $script:grandparent
+        # The fake file system: a leaf in a directory in a directory, all closed. The chain is written out and not
+        # taken apart with Split-Path, which returns an empty string for the parent of a top-level path off Windows.
+        if ($script:onWindows) {
+            $script:leaf = 'C:\control\scripts\hook.ps1'
+            $script:parent = 'C:\control\scripts'
+            $script:grandparent = 'C:\control'
+            $script:root = 'C:\'
+        } else {
+            $script:leaf = '/control/scripts/hook.ps1'
+            $script:parent = '/control/scripts'
+            $script:grandparent = '/control'
+            $script:root = '/'
+        }
+
         $script:object = @{}
         $script:object[$script:leaf] = New-ObjectRight -Path $script:leaf
         foreach ($directory in $script:parent, $script:grandparent, $script:root) {
@@ -135,6 +144,15 @@ Describe 'Containment path protection' -Tag 'Unit' {
         }
 
         Mock -CommandName 'Get-ObjectRight' -MockWith { $script:object[$Path] }
+    }
+
+    It 'holds an object for every path of the chain that the function walks' {
+        $chain = @(Get-PathChain -Path $script:leaf)
+
+        $chain | Should -Be @($script:leaf, $script:parent, $script:grandparent, $script:root)
+        foreach ($path in $chain) {
+            $script:object.ContainsKey($path) | Should -BeTrue -Because "$path is part of the chain of the leaf"
+        }
     }
 
     It 'passes a file and a chain of ancestors that grant this identity nothing' {
