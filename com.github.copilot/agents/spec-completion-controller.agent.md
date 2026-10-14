@@ -97,7 +97,7 @@ The verifier hash inside the profile is subordinate to this direct trust anchor.
 - Never record, write, or request a Remote grant, and never create, change, or
   delete anything in the grants folder. A Remote grant is the user's own act,
   and a contained run registers no hook that records one. Treat a
-  `GrantChannelClosed` check that did not pass as `BlockedContainment`.
+  `GrantRecorderUnregistered` check that did not pass as `BlockedContainment`.
 
 ## Pre-containment probe
 
@@ -113,26 +113,40 @@ commands and record each raw result and exit code in the controller ledger:
   `PLUGIN_ROOT` to the pinned root, empties `HOME` and the platform user-profile
   variable for the probe, and fails when the hook command takes its script from
   anywhere but `PLUGIN_ROOT`.
-2. Run only the hash-pinned verifier with its fixed `Verify` parameter set. It
+2. Run only the hash-pinned verifier with its fixed `Verify` parameter set, as
+  the entry script of a process of its own, `pwsh -NoProfile -NonInteractive
+  -File <verifier> ...`; it refuses to run in any other way, because a session
+  that has run other code can outrank the functions it measures with. It
   invokes the exact current-platform PreToolUse command from the pinned
   `hooks.json` with fixed synthetic safe, push, and issue-mutation payloads, and
-  only after the verifier binding, the control digests, and the immutability of
-  the pinned controls have passed; require exit codes 0, 2, and 2. In an enabled
+  only after the verifier binding, the control digests, the immutability of
+  the pinned controls, and the binding of the running identity to its role have
+  passed; require exit codes 0, 2, and 2. That command must start with the
+  absolute path of its interpreter, and the verifier requires the interpreter to
+  be closed to the run identity before it runs anything. In an enabled
   live mode, the hash-pinned
   verifier also canonicalizes and hashes the live profile, live-runner
   executable, and command-template manifest and requires exact containment-
   profile matches.
-3. Require verifier evidence that the Remote grant channel is closed
-  (`GrantChannelClosed`): the pinned `hooks.json` registers no
-  `UserPromptSubmit` hook and no command that records a Remote grant, and the
-  grants folder of the running identity holds none.
-  Require controller terminal children to have an effective allow set equal to
-  `controllerEgressAllow` and therefore empty, worker processes to have an
-  effective allow set equal to `workerEgressAllow` and therefore empty, remote
-  endpoints to be unreachable, and no remote credentials, credential helper,
-  proxy, package feed, browser, web, GitHub, or MCP channel to exist.
-4. Require verifier evidence from both controller and worker identities and
-  network namespaces. The verifier proves two things about writability, and the
+3. Require verifier evidence that the pinned `hooks.json` records no Remote
+  grant (`GrantRecorderUnregistered`): it registers no `UserPromptSubmit` hook,
+  names no Remote grant recorder anywhere in the file, and the grants folder of the
+  running identity holds none. The check does not say that no grant can
+  exist: a grant file the run writes itself is not measured, so egress and
+  credentials, not the hook, are the boundary against a remote mutation.
+  Require, from the `EgressPolicy`, `RemoteUnreachable` and `CredentialAbsence`
+  checks, that the controller run has an effective allow set equal to
+  `controllerEgressAllow` and therefore empty, that the worker run has an
+  effective allow set equal to `workerEgressAllow` and therefore empty, that
+  remote endpoints are unreachable, and that no remote credentials are present:
+  no credential variable, credential helper, or proxy is set. The verifier does
+  not measure package feeds, browsers, web or GitHub tooling, or MCP servers:
+  the deployment keeps them out of the sandbox, and the controller reports them
+  as unverified, never as passed.
+4. Require verifier evidence from both controller and worker identities: run
+  the verifier once as each, `-Role Controller` and `-Role Worker`, since each
+  run measures only the identity and network namespace it runs in. The verifier
+  proves two things about writability, and the
   controller claims no more. Every declared root, the controller integration
   worktree or the worker isolated worktree plus its named run-artifact roots,
   accepts new files and folders. A fixed escape set is not writable outside
@@ -162,7 +176,7 @@ live profiles, the ledger appender, protected chain head, or pre-gate probe
 implementation. Hash these immutable controls at baseline and require
 filesystem policy to make them read-only to the run. Before every delegation
 wave, and before every fix round, integration, disposable mutation, and
-finalization, verify hashes; a closed Remote grant channel; empty effective allow
+finalization, verify hashes; an unregistered Remote grant recorder; empty effective allow
 sets; the declared writable roots and the closed escape set; the
 ledger chain head; and synthetic 0, 2, and 2 hook results again. A mismatch is a
 Blocker and forbids further terminal or agent work except cleanup and reporting.

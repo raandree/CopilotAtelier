@@ -1498,6 +1498,11 @@ function Test-HookContract {
         interpreter, and that interpreter, with its folder and every folder above it, must be closed
         to this identity before anything is run. A command that does not, fails; an interpreter that
         cannot be measured is unmeasured, and the command is not run in either case.
+
+        Which file the command comes from is decided by the host: it loads hooks.json from the
+        plugin root the hook script lives under. The pinned hooks.json must therefore be that file,
+        <root>/com.github.copilot/hooks/hooks.json for the root derived from the pinned script; a
+        byte-identical file anywhere else is not the one a host reads, and fails before it is run.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -1543,6 +1548,17 @@ function Test-HookContract {
 
     if ($scriptDigest -cne $HookScriptSha256) {
         return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the hook script hashes to $scriptDigest but the profile pins $HookScriptSha256; hooks.json was not run"
+    }
+
+    # The command that is measured must be the one a host runs. A host loads hooks.json from the
+    # plugin root the hook script lives under, so the pinned file has to be that one: a
+    # byte-identical file anywhere else is not the file the host reads.
+    $comparison = if ($script:OnWindows) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
+    $ownConfig = [System.IO.Path]::GetFullPath([System.IO.Path]::Combine($binding.Root, 'com.github.copilot', 'hooks', 'hooks.json'))
+    $pinnedConfig = [System.IO.Path]::GetFullPath($HookConfigPath)
+
+    if (-not $pinnedConfig.Equals($ownConfig, $comparison)) {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the pinned hooks.json $pinnedConfig is not the plugin's own at $ownConfig, the file a host loads from the plugin root the hook script lives under, so the command that was measured is not shown to be the one a host runs. It was not run"
     }
 
     try {
@@ -1705,22 +1721,27 @@ function Get-GrantRoot {
     return [System.IO.Path]::Combine($profileRoot, 'CopilotAtelier', 'grants')
 }
 
-function Test-GrantChannelClosed {
+function Test-GrantRecorderUnregistered {
     <#
         A Remote grant lets one named remote mutation through the guard, and the UserPromptSubmit
         hook records it from a Grant marker in prompt text. In a contained run that text includes
-        specification and issue content pasted into prompts, none of it the operator's own, so the
-        hook that records grants must not exist there. Egress and credentials stay the boundary
-        against remote mutation; this check removes the one path around the guard.
+        specification and issue content pasted into prompts, none of it the operator's own, so no
+        hook that records grants may be registered there.
 
-        It measures two things. The pinned hooks.json must register no hook on the prompt event and
-        must not name the recorder anywhere, and the grants folder of the identity that runs must
-        hold nothing, so no grant recorded earlier is waiting. Both file scans read every property
-        and string at any depth, so a nested matcher group or a field the host reads under another
-        name is covered; a prompt event is a property named for it that holds anything, and the
-        recorder is named by any string or property name that contains it, whatever the casing. It
-        proves what the pinned file registers and what is on disk now; a hook registered by the
-        host outside the pinned file is outside what it can see.
+        What a Pass says, and no more. The pinned hooks.json is of a shape this check reads, an object
+        whose hooks object holds only lists; it registers no hook on the prompt event and names the
+        recorder nowhere; and the grants folder of the identity that runs holds nothing, so no grant
+        recorded earlier is waiting. Both reads of the file cover every property and string at any
+        depth, so a nested matcher group or a field the host reads under another name is covered: a
+        prompt event is a property named for it that holds anything, and the recorder is named by
+        any string or property name that contains it, whatever the casing. A shape that is not read
+        is unmeasured, never a pass.
+
+        What it does not say. It does not say that no grant can exist: the guard honors any
+        well-formed grant file in a folder the run owns, so a run that writes one itself is not
+        stopped here, and egress and credentials are the boundary against a remote mutation. It does
+        not read a hook file the host finds outside the pinned file, such as a user-level or
+        workspace hooks folder or an installed copy of the plugin.
     #>
     [CmdletBinding()]
     [OutputType([System.Collections.Specialized.OrderedDictionary])]
@@ -1740,19 +1761,19 @@ function Test-GrantChannelClosed {
     try {
         $configBytes = [System.IO.File]::ReadAllBytes($HookConfigPath)
     } catch {
-        return New-CheckResult -Name 'GrantChannelClosed' -Status 'Unavailable' -Evidence "could not read the pinned hooks.json: $($_.Exception.Message)"
+        return New-CheckResult -Name 'GrantRecorderUnregistered' -Status 'Unavailable' -Evidence "could not read the pinned hooks.json: $($_.Exception.Message)"
     }
 
     $configDigest = Get-BytesDigest -Bytes $configBytes
 
     if ($configDigest -cne $HookConfigSha256) {
-        return New-CheckResult -Name 'GrantChannelClosed' -Status 'Fail' -Evidence "hooks.json hashes to $configDigest but the profile pins $HookConfigSha256; it was not read as the pinned file"
+        return New-CheckResult -Name 'GrantRecorderUnregistered' -Status 'Fail' -Evidence "hooks.json hashes to $configDigest but the profile pins $HookConfigSha256; it was not read as the pinned file"
     }
 
     try {
         $configuration = ConvertFrom-JsonByteArray -Bytes $configBytes
     } catch {
-        return New-CheckResult -Name 'GrantChannelClosed' -Status 'Unavailable' -Evidence 'hooks.json is not valid JSON'
+        return New-CheckResult -Name 'GrantRecorderUnregistered' -Status 'Unavailable' -Evidence 'hooks.json is not valid JSON'
     }
 
     $finding = [System.Collections.Generic.List[string]]::new()
@@ -1784,6 +1805,26 @@ function Test-GrantChannelClosed {
         $finding.Add("hooks.json names the Remote grant recorder at $(Format-LimitedList -Item $recorderPath), so a command under any event can record a Remote grant")
     }
 
+    $shapeProblem = $null
+
+    if ($configuration -isnot [System.Management.Automation.PSCustomObject]) {
+        $shapeProblem = 'the document is not a JSON object'
+    } else {
+        $hooksProperty = $configuration.PSObject.Properties['hooks']
+
+        if ($null -eq $hooksProperty) {
+            $shapeProblem = "it has no 'hooks' object"
+        } elseif ($hooksProperty.Value -isnot [System.Management.Automation.PSCustomObject]) {
+            $shapeProblem = "'hooks' is not an object"
+        } else {
+            $notList = @($hooksProperty.Value.PSObject.Properties | Where-Object { $_.Value -isnot [System.Array] } | ForEach-Object { $_.Name })
+
+            if ($notList.Count -gt 0) {
+                $shapeProblem = "the event $($notList -join ', ') does not hold a list"
+            }
+        }
+    }
+
     $root = if ([string]::IsNullOrWhiteSpace($GrantRoot)) { Get-GrantRoot } else { $GrantRoot }
     $unmeasured = $null
 
@@ -1804,14 +1845,18 @@ function Test-GrantChannelClosed {
     }
 
     if ($finding.Count -gt 0) {
-        return New-CheckResult -Name 'GrantChannelClosed' -Status 'Fail' -Evidence ($finding -join '; ')
+        return New-CheckResult -Name 'GrantRecorderUnregistered' -Status 'Fail' -Evidence ($finding -join '; ')
+    }
+
+    if ($null -ne $shapeProblem) {
+        return New-CheckResult -Name 'GrantRecorderUnregistered' -Status 'Unavailable' -Evidence "hooks.json has a shape this check does not read ($shapeProblem), so a hook registered in it would not be seen"
     }
 
     if ($null -ne $unmeasured) {
-        return New-CheckResult -Name 'GrantChannelClosed' -Status 'Unavailable' -Evidence $unmeasured
+        return New-CheckResult -Name 'GrantRecorderUnregistered' -Status 'Unavailable' -Evidence $unmeasured
     }
 
-    return New-CheckResult -Name 'GrantChannelClosed' -Status 'Pass' -Evidence "the pinned hooks.json registers no prompt hook and no Remote grant recorder, and $root holds no Remote grant"
+    return New-CheckResult -Name 'GrantRecorderUnregistered' -Status 'Pass' -Evidence "the pinned hooks.json registers no prompt hook and names no Remote grant recorder, and $root holds no Remote grant; a grant file a run writes itself is not measured"
 }
 
 function Test-EgressPolicy {
@@ -3004,7 +3049,7 @@ function Get-ContainmentCheckName {
         'ControlImmutability'
         'IdentityBinding'
         'HookContract'
-        'GrantChannelClosed'
+        'GrantRecorderUnregistered'
         'EgressPolicy'
         'RemoteUnreachable'
         'CredentialAbsence'
@@ -3071,7 +3116,7 @@ function Get-ContainmentCheck {
                     -WritableRoot $writableRoot))
     }
 
-    $check.Add((Test-GrantChannelClosed -HookConfigPath ([string]$ContainmentProfile.hooksConfig.path) -HookConfigSha256 ([string]$ContainmentProfile.hooksConfig.sha256)))
+    $check.Add((Test-GrantRecorderUnregistered -HookConfigPath ([string]$ContainmentProfile.hooksConfig.path) -HookConfigSha256 ([string]$ContainmentProfile.hooksConfig.sha256)))
 
     $declaredAllow = if ($Role -eq 'Controller') {
         @($ContainmentProfile.controllerEgressAllow)

@@ -14,7 +14,7 @@ BeforeAll {
             'Get-JsonNode'
             'Format-LimitedList'
             'Get-GrantRoot'
-            'Test-GrantChannelClosed'
+            'Test-GrantRecorderUnregistered'
         ))
 
     # Writes a hooks.json and returns its path and digest, as the profile would pin them.
@@ -45,19 +45,19 @@ BeforeAll {
             [string]$GrantRoot = (Join-Path $TestDrive 'no-grants-here')
         )
 
-        return Test-GrantChannelClosed -HookConfigPath $Config.Path -HookConfigSha256 $Config.Digest -GrantRoot $GrantRoot
+        return Test-GrantRecorderUnregistered -HookConfigPath $Config.Path -HookConfigSha256 $Config.Digest -GrantRoot $GrantRoot
     }
 
     $script:guardOnly = '{"hooks":{"PreToolUse":[{"type":"command","windows":"powershell -File guard.ps1","command":"pwsh -File guard.ps1"}]}}'
 }
 
-Describe 'Containment grant channel' -Tag 'Unit' {
+Describe 'Containment grant recorder' -Tag 'Unit' {
     Context 'the hooks.json the profile pins' {
         It 'passes a hooks.json that registers only the guard' {
             $result = Invoke-Check -Config (New-ConfigFile -Name 'guard-only.json' -Json $script:guardOnly)
 
             $result.status | Should -Be 'Pass' -Because $result.evidence
-            $result.name | Should -Be 'GrantChannelClosed'
+            $result.name | Should -Be 'GrantRecorderUnregistered'
         }
 
         It 'fails a hooks.json that registers a UserPromptSubmit hook' {
@@ -168,7 +168,7 @@ Describe 'Containment grant channel' -Tag 'Unit' {
         It 'does not parse a hooks.json that does not match its digest' {
             $config = New-ConfigFile -Name 'digest.json' -Json $script:guardOnly
 
-            $result = Test-GrantChannelClosed -HookConfigPath $config.Path -HookConfigSha256 ('b' * 64) -GrantRoot (Join-Path $TestDrive 'none')
+            $result = Test-GrantRecorderUnregistered -HookConfigPath $config.Path -HookConfigSha256 ('b' * 64) -GrantRoot (Join-Path $TestDrive 'none')
 
             $result.status | Should -Be 'Fail'
             $result.evidence | Should -Match 'digest|hashes'
@@ -181,24 +181,53 @@ Describe 'Containment grant channel' -Tag 'Unit' {
         }
 
         It 'reports a hooks.json that cannot be read as unmeasured' {
-            $result = Test-GrantChannelClosed -HookConfigPath (Join-Path $TestDrive 'absent.json') -HookConfigSha256 ('a' * 64) -GrantRoot (Join-Path $TestDrive 'none')
+            $result = Test-GrantRecorderUnregistered -HookConfigPath (Join-Path $TestDrive 'absent.json') -HookConfigSha256 ('a' * 64) -GrantRoot (Join-Path $TestDrive 'none')
 
             $result.status | Should -Be 'Unavailable'
         }
 
-        It 'does not throw on a hooks.json whose hooks is not an object' {
+        It 'reports a hooks.json whose hooks is not an object as unmeasured, because nothing in it was read as a registration' {
             $result = Invoke-Check -Config (New-ConfigFile -Name 'odd.json' -Json '{"hooks":["a","b"]}')
 
-            $result.status | Should -Be 'Pass'
+            $result.status | Should -Be 'Unavailable'
+            $result.evidence | Should -Match 'shape'
         }
 
-        It 'does not throw on a hooks.json that is not an object: <Json>' -ForEach @(
+        It 'reports a hooks.json that is not a JSON object as unmeasured, and does not throw: <Json>' -ForEach @(
             @{ Json = 'null' }
             @{ Json = '[]' }
             @{ Json = '"text"' }
             @{ Json = '42' }
         ) {
-            (Invoke-Check -Config (New-ConfigFile -Name 'not-object.json' -Json $Json)).status | Should -Be 'Pass'
+            $result = Invoke-Check -Config (New-ConfigFile -Name 'not-object.json' -Json $Json)
+
+            $result.status | Should -Be 'Unavailable'
+            $result.evidence | Should -Match 'shape'
+        }
+
+        It 'reports a hooks.json with no hooks object as unmeasured' {
+            (Invoke-Check -Config (New-ConfigFile -Name 'no-hooks.json' -Json '{"version":1}')).status | Should -Be 'Unavailable'
+        }
+
+        It 'reports an event that holds an object instead of a list as unmeasured' {
+            $result = Invoke-Check -Config (New-ConfigFile -Name 'event-object.json' -Json '{"hooks":{"PreToolUse":{"type":"command","command":"guard"}}}')
+
+            $result.status | Should -Be 'Unavailable'
+            $result.evidence | Should -Match 'PreToolUse'
+        }
+
+        It 'reports an event that holds nothing as unmeasured' {
+            (Invoke-Check -Config (New-ConfigFile -Name 'event-null.json' -Json '{"hooks":{"PreToolUse":null}}')).status | Should -Be 'Unavailable'
+        }
+
+        It 'passes a hooks object that declares no event, because nothing is registered' {
+            (Invoke-Check -Config (New-ConfigFile -Name 'no-events.json' -Json '{"hooks":{}}')).status | Should -Be 'Pass'
+        }
+
+        It 'fails a recorder in a hooks.json of a shape it does not read, rather than reporting it unmeasured' {
+            $json = '{"hooks":{"PreToolUse":{"type":"command","command":"pwsh -File Add-RemoteGrant.ps1"}}}'
+
+            (Invoke-Check -Config (New-ConfigFile -Name 'odd-shape-recorder.json' -Json $json)).status | Should -Be 'Fail'
         }
     }
 
@@ -268,7 +297,7 @@ Describe 'Containment grant channel' -Tag 'Unit' {
             $script:mockedRoot = $root
             Mock -CommandName Get-GrantRoot -MockWith { $script:mockedRoot }
 
-            $result = Test-GrantChannelClosed -HookConfigPath $config.Path -HookConfigSha256 $config.Digest
+            $result = Test-GrantRecorderUnregistered -HookConfigPath $config.Path -HookConfigSha256 $config.Digest
 
             $result.status | Should -Be 'Fail'
         }

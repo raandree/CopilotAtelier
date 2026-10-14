@@ -241,7 +241,8 @@ agents: []
         $implementer = Get-Content -LiteralPath $script:implementerPath -Raw -Encoding UTF8
 
         $controller | Should -Match 'Block-RemoteMutation'
-        $controller | Should -Match 'GrantChannelClosed'
+        $controller | Should -Match 'GrantRecorderUnregistered'
+        $controller | Should -Not -Match 'GrantChannelClosed'
         $controller | Should -Not -Match 'COPILOT_ATELIER_ALLOW_REMOTE'
         $controller | Should -Match 'containment-profile'
         $controller | Should -Match 'default-deny outbound'

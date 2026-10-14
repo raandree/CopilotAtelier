@@ -435,7 +435,7 @@ Describe 'Containment verifier' -Tag 'Unit' {
                 'ControlImmutability'
                 'IdentityBinding'
                 'HookContract'
-                'GrantChannelClosed'
+                'GrantRecorderUnregistered'
                 'EgressPolicy'
                 'RemoteUnreachable'
                 'CredentialAbsence'
@@ -451,7 +451,7 @@ Describe 'Containment verifier' -Tag 'Unit' {
 
         $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
 
-        $check = Get-Check -Result $result -Name 'GrantChannelClosed'
+        $check = Get-Check -Result $result -Name 'GrantRecorderUnregistered'
         $check.status | Should -Be 'Fail' -Because $check.evidence
         $check.evidence | Should -Match 'UserPromptSubmit'
     }

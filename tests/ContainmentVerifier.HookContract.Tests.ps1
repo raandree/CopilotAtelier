@@ -88,6 +88,40 @@ BeforeAll {
         return New-HookConfig -Path $Path -Command ('"' + $script:systemPowerShell + '"' + $command.Substring('powershell'.Length))
     }
 
+    # A plugin tree as a deployment lays it out: a copy of the guard under scripts, and beside it the
+    # hooks.json the host loads from that root. Both are digested the way a profile pins them.
+    function script:New-PluginTree {
+        param(
+            [Parameter(Mandatory)]
+            [string]$Name,
+
+            [Parameter()]
+            [string]$Command,
+
+            [Parameter()]
+            [string]$Body
+        )
+
+        $root = Join-Path $TestDrive "plugin-$Name"
+        $text = if ($PSBoundParameters.ContainsKey('Body')) { $Body } else { [System.IO.File]::ReadAllText($script:realScript) }
+        $scriptPath = New-HookTree -Root $root -Body $text
+        $configPath = Join-Path $root 'com.github.copilot/hooks/hooks.json'
+
+        if ($PSBoundParameters.ContainsKey('Command')) {
+            $null = New-HookConfig -Path $configPath -Command $Command
+        } else {
+            $null = New-ContainedConfig -Path $configPath
+        }
+
+        return [pscustomobject]@{
+            Root = $root
+            Script = $scriptPath
+            ScriptDigest = (Get-FileDigest -Path $scriptPath)
+            Config = $configPath
+            ConfigDigest = (Get-FileDigest -Path $configPath)
+        }
+    }
+
     # Runs a script block with both the PowerShell location and the process working directory set, then restores them.
     function script:Invoke-InDirectory {
         param(
@@ -345,8 +379,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
     BeforeAll {
         $script:realConfigDigest = Get-FileDigest -Path $script:realConfig
         $script:realScriptDigest = Get-FileDigest -Path $script:realScript
-        $script:containedConfig = New-ContainedConfig -Path (Join-Path $TestDrive 'contained-hooks.json')
-        $script:containedConfigDigest = Get-FileDigest -Path $script:containedConfig
+        $script:plugin = New-PluginTree -Name 'contained'
 
         # The access check is the subject of its own suites; here the interpreter is closed to the run unless a case says otherwise.
         $script:closed = [pscustomobject]@{ Path = ''; Closed = $true; Absent = $false; Violation = @(); Unmeasured = @() }
@@ -355,8 +388,8 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
     Context 'on the shipped hook with its interpreter named by absolute path' {
         BeforeAll {
-            $script:shippedRun = Test-HookContract -HookConfigPath $script:containedConfig -HookConfigSha256 $script:containedConfigDigest `
-                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+            $script:shippedRun = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
         }
 
         It 'passes with the exit codes 0, 2 and 2' {
@@ -365,7 +398,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         }
 
         It 'names the pinned script that it ran' {
-            $script:shippedRun.evidence | Should -Match ([regex]::Escape([System.IO.Path]::GetFullPath($script:realScript)))
+            $script:shippedRun.evidence | Should -Match ([regex]::Escape([System.IO.Path]::GetFullPath($script:plugin.Script)))
         }
 
         It 'names the interpreter that it ran' {
@@ -405,10 +438,10 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         }
 
         It 'fails a command that names its interpreter by a relative path, and runs nothing' {
-            $config = New-HookConfig -Path (Join-Path $TestDrive 'relative-interpreter.json') -Command ".\cmd.exe /c echo ran> `"$script:marker`""
+            $tree = New-PluginTree -Name 'relative-interpreter' -Command ".\cmd.exe /c echo ran> `"$script:marker`""
 
-            $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `
-                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
 
             $result.status | Should -Be 'Fail'
             $result.evidence | Should -Match 'relative'
@@ -419,10 +452,10 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             Mock -CommandName Test-PathProtection -MockWith {
                 [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @("${Path}: this identity holds the right to delete it"); Unmeasured = @() }
             }
-            $config = New-HookConfig -Path (Join-Path $TestDrive 'replaceable-interpreter.json') -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+            $tree = New-PluginTree -Name 'replaceable-interpreter' -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
 
-            $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `
-                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
 
             $result.status | Should -Be 'Fail'
             $result.evidence | Should -Match 'can be replaced'
@@ -434,10 +467,10 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             Mock -CommandName Test-PathProtection -MockWith {
                 [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @(); Unmeasured = @("${Path}: a right could not be measured") }
             }
-            $config = New-HookConfig -Path (Join-Path $TestDrive 'unmeasured-interpreter.json') -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+            $tree = New-PluginTree -Name 'unmeasured-interpreter' -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
 
-            $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `
-                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
 
             $result.status | Should -Be 'Unavailable'
             $result.evidence | Should -Match 'not be shown to be closed'
@@ -446,10 +479,10 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
         It 'reports an interpreter that cannot be measured at all as unmeasured, and runs nothing' {
             Mock -CommandName Test-PathProtection -MockWith { throw 'access check unavailable' }
-            $config = New-HookConfig -Path (Join-Path $TestDrive 'throwing-interpreter.json') -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+            $tree = New-PluginTree -Name 'throwing-interpreter' -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
 
-            $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `
-                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
 
             $result.status | Should -Be 'Unavailable'
             $result.evidence | Should -Match 'access check unavailable'
@@ -460,10 +493,10 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             Mock -CommandName Test-PathProtection -MockWith {
                 [pscustomobject]@{ Path = $Path; Closed = $true; Absent = $true; Violation = @(); Unmeasured = @() }
             }
-            $config = New-HookConfig -Path (Join-Path $TestDrive 'absent-interpreter.json') -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+            $tree = New-PluginTree -Name 'absent-interpreter' -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
 
-            $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `
-                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
 
             $result.status | Should -Be 'Fail'
             $result.evidence | Should -Match 'does not exist'
@@ -473,8 +506,8 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         It 'measures the interpreter against the writable roots it is given' {
             $root = Join-Path $TestDrive 'a-writable-root'
 
-            $null = Test-HookContract -HookConfigPath $script:containedConfig -HookConfigSha256 $script:containedConfigDigest `
-                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest -WritableRoot @($root)
+            $null = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest -WritableRoot @($root)
 
             Should -Invoke Test-PathProtection -Times 1 -Exactly -ParameterFilter {
                 $Path -eq [System.IO.Path]::GetFullPath($script:systemPowerShell) -and $WritableRoot -contains $root
@@ -488,20 +521,19 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $null = New-HookTree -Root $decoyRoot -Body 'exit 0'
 
             $result = Invoke-WithEnvironment -Name 'PLUGIN_ROOT' -Value $decoyRoot -Action {
-                Test-HookContract -HookConfigPath $script:containedConfig -HookConfigSha256 $script:containedConfigDigest `
-                    -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+                Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                    -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
             }
 
             $result.status | Should -Be 'Pass' -Because $result.evidence
         }
 
         It 'fails a pinned script that does not block, even when PLUGIN_ROOT names one that does' {
-            $brokenRoot = Join-Path $TestDrive 'pinned-broken'
-            $broken = New-HookTree -Root $brokenRoot -Body 'exit 0'
+            $broken = New-PluginTree -Name 'pinned-broken' -Body 'exit 0'
 
             $result = Invoke-WithEnvironment -Name 'PLUGIN_ROOT' -Value $script:repoRoot -Action {
-                Test-HookContract -HookConfigPath $script:containedConfig -HookConfigSha256 $script:containedConfigDigest `
-                    -HookScriptPath $broken -HookScriptSha256 (Get-FileDigest -Path $broken)
+                Test-HookContract -HookConfigPath $broken.Config -HookConfigSha256 $broken.ConfigDigest `
+                    -HookScriptPath $broken.Script -HookScriptSha256 $broken.ScriptDigest
             }
 
             $result.status | Should -Be 'Fail'
@@ -510,8 +542,8 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
         It 'does not take the shell from the ComSpec variable' {
             $result = Invoke-WithEnvironment -Name 'ComSpec' -Value (Join-Path $TestDrive 'absent\cmd.exe') -Action {
-                Test-HookContract -HookConfigPath $script:containedConfig -HookConfigSha256 $script:containedConfigDigest `
-                    -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+                Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                    -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
             }
 
             $result.status | Should -Be 'Pass' -Because $result.evidence
@@ -520,11 +552,10 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
     Context 'when the command does not resolve its script from PLUGIN_ROOT' {
         It 'fails, because the pinned script cannot be shown to be the one that runs' {
-            $command = '"' + $script:systemPowerShell + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $script:realScript + '"'
-            $config = New-HookConfig -Path (Join-Path $TestDrive 'fixed-path-hooks.json') -Command $command
+            $tree = New-PluginTree -Name 'fixed-path' -Command ('"' + $script:systemPowerShell + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $script:realScript + '"')
 
-            $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `
-                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
 
             $result.status | Should -Be 'Fail'
             $result.evidence | Should -Match 'PLUGIN_ROOT'
@@ -569,13 +600,57 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         }
     }
 
+    Context 'which hooks.json the host loads' {
+        BeforeEach {
+            $script:marker = Join-Path $TestDrive "tie-marker-$([guid]::NewGuid().ToString('N')).txt"
+            $script:cmdExe = [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System), 'cmd.exe')
+        }
+
+        It 'fails a pinned hooks.json that is not the plugin''s own, and runs nothing' {
+            $tree = New-PluginTree -Name 'tie-script'
+            $elsewhere = New-HookConfig -Path (Join-Path $TestDrive 'elsewhere-hooks.json') -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+
+            $result = Test-HookContract -HookConfigPath $elsewhere -HookConfigSha256 (Get-FileDigest -Path $elsewhere) `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'plugin''s own'
+            Test-Path -LiteralPath $script:marker | Should -BeFalse
+            Should -Invoke Test-PathProtection -Times 0 -Exactly
+        }
+
+        It 'fails the hooks.json of another plugin tree, even a byte-identical one' {
+            $one = New-PluginTree -Name 'tie-one'
+            $two = New-PluginTree -Name 'tie-two'
+
+            $result = Test-HookContract -HookConfigPath $two.Config -HookConfigSha256 $two.ConfigDigest `
+                -HookScriptPath $one.Script -HookScriptSha256 $one.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'plugin''s own'
+        }
+
+        It 'accepts the plugin''s own hooks.json spelled <Spelling>' -ForEach @(
+            @{ Spelling = 'in another case'; Convert = { param($path) $path.ToUpperInvariant() } }
+            @{ Spelling = 'with forward slashes'; Convert = { param($path) $path.Replace('\', '/') } }
+        ) {
+            $tree = New-PluginTree -Name 'tie-spelling'
+            $spelled = & $Convert $tree.Config
+
+            $result = Test-HookContract -HookConfigPath $spelled -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Pass' -Because $result.evidence
+        }
+    }
+
     Context 'when hooks.json does not declare exactly one PreToolUse hook' {
         It 'fails when there is none, and does not throw on the missing property' {
-            $config = Join-Path $TestDrive 'no-pretooluse.json'
-            [System.IO.File]::WriteAllText($config, '{"hooks":{}}', [System.Text.UTF8Encoding]::new($false))
+            $tree = New-PluginTree -Name 'no-pretooluse'
+            [System.IO.File]::WriteAllText($tree.Config, '{"hooks":{}}', [System.Text.UTF8Encoding]::new($false))
 
-            $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `
-                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 (Get-FileDigest -Path $tree.Config) `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
 
             $result.status | Should -Be 'Fail'
             $result.evidence | Should -Match 'exactly one PreToolUse'

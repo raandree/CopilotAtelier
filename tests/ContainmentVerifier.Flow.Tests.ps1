@@ -21,7 +21,7 @@ BeforeAll {
             'Test-ControlImmutability'
             'Test-IdentityBinding'
             'Test-HookContract'
-            'Test-GrantChannelClosed'
+            'Test-GrantRecorderUnregistered'
             'Test-EgressPolicy'
             'Test-RemoteUnreachable'
             'Test-CredentialAbsence'
@@ -62,7 +62,7 @@ BeforeAll {
         Mock Test-ControlImmutability { New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'mock' }
         Mock Test-IdentityBinding { New-CheckResult -Name 'IdentityBinding' -Status 'Pass' -Evidence 'mock' }
         Mock Test-HookContract { New-CheckResult -Name 'HookContract' -Status 'Pass' -Evidence 'mock' }
-        Mock Test-GrantChannelClosed { New-CheckResult -Name 'GrantChannelClosed' -Status 'Pass' -Evidence 'mock' }
+        Mock Test-GrantRecorderUnregistered { New-CheckResult -Name 'GrantRecorderUnregistered' -Status 'Pass' -Evidence 'mock' }
         Mock Test-EgressPolicy { New-CheckResult -Name 'EgressPolicy' -Status 'Pass' -Evidence 'mock' }
         Mock Test-RemoteUnreachable { New-CheckResult -Name 'RemoteUnreachable' -Status 'Pass' -Evidence 'mock' }
         Mock Test-CredentialAbsence { New-CheckResult -Name 'CredentialAbsence' -Status 'Pass' -Evidence 'mock' }
@@ -144,20 +144,20 @@ Describe 'Containment check flow' -Tag 'Unit' {
         Should -Invoke Test-HookContract -Times 1 -Exactly
     }
 
-    It 'gives the grant channel check the pinned hooks.json path and digest' {
+    It 'gives the grant recorder check the pinned hooks.json path and digest' {
         $null = Invoke-Flow
 
-        Should -Invoke Test-GrantChannelClosed -Times 1 -Exactly -ParameterFilter {
+        Should -Invoke Test-GrantRecorderUnregistered -Times 1 -Exactly -ParameterFilter {
             $HookConfigPath -eq (Join-Path $script:base 'hooks.json') -and $HookConfigSha256 -ceq ('b' * 64)
         }
     }
 
-    It 'measures the grant channel even when a control it reads is unverified' {
+    It 'measures the grant recorder even when a control it reads is unverified' {
         Mock Test-ControlDigest { New-CheckResult -Name 'ControlDigest' -Status 'Fail' -Evidence 'mock breach' }
 
         $result = Invoke-Flow
 
-        ($result | Where-Object { $_.name -ceq 'GrantChannelClosed' }).evidence | Should -Be 'mock'
+        ($result | Where-Object { $_.name -ceq 'GrantRecorderUnregistered' }).evidence | Should -Be 'mock'
     }
 
     It 'does not run the hook probe when <Gate> is <Status>' -ForEach @(
@@ -181,12 +181,12 @@ Describe 'Containment check flow' -Tag 'Unit' {
         $hook.evidence | Should -Match $Gate
     }
 
-    It 'still measures the grant channel when the identity cannot be bound' {
+    It 'still measures the grant recorder when the identity cannot be bound' {
         Mock Test-IdentityBinding { New-CheckResult -Name 'IdentityBinding' -Status 'Fail' -Evidence 'mock' }
 
         $result = Invoke-Flow
 
-        ($result | Where-Object { $_.name -ceq 'GrantChannelClosed' }).evidence | Should -Be 'mock'
+        ($result | Where-Object { $_.name -ceq 'GrantRecorderUnregistered' }).evidence | Should -Be 'mock'
     }
 
     It 'still runs every other check when one fails' {
