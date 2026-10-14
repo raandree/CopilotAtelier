@@ -158,6 +158,28 @@ exit `$LASTEXITCODE
         Invoke-Appender -Argument @('-Validate', '-SinkPath', $SinkPath, '-ChainHeadPath', $ChainHeadPath)
     }
 
+    function script:Invoke-Serve {
+        <#
+            Runs the service in the foreground. Every case that uses it expects
+            the start itself to be refused, so it returns rather than listens.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string]$PipeName,
+
+            [Parameter(Mandatory)]
+            [string]$SinkPath,
+
+            [Parameter(Mandatory)]
+            [string]$ChainHeadPath
+        )
+
+        Invoke-Appender -Argument @(
+            '-Serve', '-PipeName', $PipeName, '-SinkPath', $SinkPath,
+            '-ChainHeadPath', $ChainHeadPath, '-IdleTimeoutSeconds', '5'
+        )
+    }
+
     function script:New-TestRecordJson {
         param(
             [Parameter(Mandatory)]
@@ -809,6 +831,135 @@ Describe 'Ledger appender stored line' -Tag 'Unit' {
 
         $line = @(Get-SinkLine -SinkPath $script:sinkPath)
         Set-SinkLine -SinkPath $script:sinkPath -Line @($line[0], $line[2])
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+    }
+}
+
+Describe 'Ledger appender restart' -Tag 'Unit' {
+    BeforeEach {
+        $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
+        $script:sinkPath = Join-Path $TestDrive "ledger-$([guid]::NewGuid().ToString('N')).jsonl"
+        $script:headPath = Join-Path $TestDrive "head-$([guid]::NewGuid().ToString('N')).json"
+        $script:appender = $null
+    }
+
+    AfterEach {
+        if ($script:appender -and -not $script:appender.HasExited) {
+            $script:appender | Stop-Process -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'refuses to serve a sink that was truncated while it was down' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        foreach ($step in 1..3) {
+            (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
+        }
+        $script:appender | Stop-Process -Force
+        $headBefore = [System.IO.File]::ReadAllText($script:headPath)
+
+        $line = @(Get-SinkLine -SinkPath $script:sinkPath)
+        Set-SinkLine -SinkPath $script:sinkPath -Line $line[0..1]
+
+        $restart = Invoke-Serve -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $restart.ExitCode | Should -Be 2 -Because $restart.Output
+        [System.IO.File]::ReadAllText($script:headPath) |
+            Should -BeExactly $headBefore -Because 'a refused start must not adopt the shortened sink'
+    }
+
+    It 'refuses to serve when the head names a sequence the sink never reached' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        foreach ($step in 1..2) {
+            (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
+        }
+        $script:appender | Stop-Process -Force
+
+        Set-ChainHead -ChainHeadPath $script:headPath -Sequence 3 -RecordSha256 ('b' * 64)
+
+        $restart = Invoke-Serve -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $restart.ExitCode | Should -Be 2 -Because $restart.Output
+    }
+
+    It 'refuses to serve when the head names another record at the same sequence' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        $script:appender | Stop-Process -Force
+
+        Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 ('c' * 64)
+
+        $restart = Invoke-Serve -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $restart.ExitCode | Should -Be 2 -Because $restart.Output
+    }
+
+    It 'refuses to serve when the head is missing but the sink holds several records' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        foreach ($step in 1..2) {
+            (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
+        }
+        $script:appender | Stop-Process -Force
+        Remove-Item -LiteralPath $script:headPath -Force
+
+        $restart = Invoke-Serve -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $restart.ExitCode | Should -Be 2 -Because $restart.Output
+    }
+
+    It 'resumes when the head is exactly one record behind the sink' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        foreach ($step in 1..2) {
+            (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
+        }
+        $script:appender | Stop-Process -Force
+
+        # The state a crash between the sink flush and the head write leaves.
+        $record = Get-SinkRecord -SinkPath $script:sinkPath
+        Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 $record[0].recordSha256
+
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Step3')
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $result.Output | Should -Match 'sequence 3'
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 0 -Because $validation.Output
+    }
+
+    It 'refuses a chain head that is not stored in canonical form' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        $script:appender | Stop-Process -Force
+
+        $head = [System.IO.File]::ReadAllText($script:headPath)
+        [System.IO.File]::WriteAllBytes($script:headPath,
+            [System.Text.UTF8Encoding]::new($false).GetBytes(($head -replace '^\{', '{ ')))
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+        $validation.Output | Should -Match 'canonical'
+    }
+
+    It 'refuses a chain head whose sealed flag contradicts the chain' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        $script:appender | Stop-Process -Force
+
+        $record = Get-SinkRecord -SinkPath $script:sinkPath
+        Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 $record[0].recordSha256 -Sealed
+
+        $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        $validation.ExitCode | Should -Be 2 -Because $validation.Output
+        $validation.Output | Should -Match 'sealed'
+    }
+
+    It 'refuses to validate a head that is one record behind' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        foreach ($step in 1..2) {
+            (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type "Step$step")).ExitCode | Should -Be 0
+        }
+        $script:appender | Stop-Process -Force
+
+        $record = Get-SinkRecord -SinkPath $script:sinkPath
+        Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 $record[0].recordSha256
 
         $validation = Invoke-Validate -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         $validation.ExitCode | Should -Be 2 -Because $validation.Output

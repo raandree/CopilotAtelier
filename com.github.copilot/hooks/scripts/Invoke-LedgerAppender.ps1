@@ -107,6 +107,7 @@ $ErrorActionPreference = 'Stop'
 $script:GenesisHash = '0' * 64
 $script:RequiredField = @('type', 'runId', 'utc', 'data')
 $script:StoredField = @('data', 'prevSha256', 'recordSha256', 'runId', 'sequence', 'type', 'utc')
+$script:HeadField = @('recordSha256', 'sealed', 'sequence', 'updatedUtc')
 $script:Utf8 = [System.Text.UTF8Encoding]::new($false)
 $script:StrictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
 $script:DigestPattern = '^[0-9a-f]{64}$'
@@ -585,8 +586,10 @@ function Read-SinkLine {
 function Read-ChainState {
     <#
         Rebuilds sequence, last digest, and sealed state by verifying the whole
-        chain. A service restart therefore cannot resume onto a chain that was
-        tampered with while it was down.
+        chain from genesis. It reads the sink only: whether that chain is the
+        one the protected head names is decided separately, by
+        Test-HeadAgreement, so that a restart cannot resume onto a chain that
+        was shortened or rewritten while the service was down.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -666,6 +669,197 @@ function Read-ChainState {
     $state.PreviousHash = $priorHash
 
     return $state
+}
+
+function Read-ChainHeadState {
+    <#
+        The head is evidence too, so it is read with the same strictness as a
+        record: exactly four members, canonical bytes, a lowercase digest and a
+        sequence that is a JSON integer. An unreadable head is a refusal, never
+        a reason to fall back on the sink.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    $head = @{
+        Present = $false
+        Sequence = 0
+        RecordSha256 = $script:GenesisHash
+        Sealed = $false
+        Error = ''
+    }
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return $head
+    }
+
+    $head.Present = $true
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+
+    if ($bytes.Length -eq 0) {
+        $head.Error = 'the chain head is empty'
+        return $head
+    }
+
+    try {
+        $text = $script:StrictUtf8.GetString($bytes)
+    } catch {
+        $head.Error = 'the chain head is not valid UTF-8'
+        return $head
+    }
+
+    try {
+        $document = ConvertFrom-JsonText -Text $text
+    } catch {
+        $head.Error = 'the chain head is not valid JSON'
+        return $head
+    }
+
+    try {
+        $root = $document.RootElement
+
+        if ($root.ValueKind -ne [System.Text.Json.JsonValueKind]::Object) {
+            $head.Error = 'the chain head is not a JSON object'
+            return $head
+        }
+
+        try {
+            $member = Get-CanonicalMember -Element $root
+        } catch {
+            $head.Error = "the chain head is not canonically representable: $($_.Exception.Message)"
+            return $head
+        }
+
+        foreach ($name in @($member.Keys)) {
+            if ($name -cnotin $script:HeadField) {
+                $head.Error = "the chain head carries the unknown field '$name'"
+                return $head
+            }
+        }
+
+        foreach ($required in $script:HeadField) {
+            if (-not $member.Contains($required)) {
+                $head.Error = "the chain head is missing '$required'"
+                return $head
+            }
+        }
+
+        if ((Join-CanonicalMember -Member $member) -cne $text) {
+            $head.Error = 'the chain head is not stored in canonical form'
+            return $head
+        }
+
+        $digest = $root.GetProperty('recordSha256')
+        if ($digest.ValueKind -ne [System.Text.Json.JsonValueKind]::String -or
+            $digest.GetString() -cnotmatch $script:DigestPattern) {
+            $head.Error = 'the chain head names a digest that is not a lowercase 64-character hexadecimal string'
+            return $head
+        }
+
+        $sealed = $root.GetProperty('sealed')
+        if ($sealed.ValueKind -ne [System.Text.Json.JsonValueKind]::True -and
+            $sealed.ValueKind -ne [System.Text.Json.JsonValueKind]::False) {
+            $head.Error = "the chain head's sealed flag is not a JSON boolean"
+            return $head
+        }
+
+        if ([string]$member['sequence'] -cnotmatch $script:IntegerPattern -or [long]$member['sequence'] -lt 1) {
+            $head.Error = 'the chain head names a sequence that is not a positive JSON integer'
+            return $head
+        }
+
+        if (($root.GetProperty('updatedUtc')).ValueKind -ne [System.Text.Json.JsonValueKind]::String -or
+            ($root.GetProperty('updatedUtc')).GetString() -cnotmatch $script:UtcPattern) {
+            $head.Error = 'the chain head names an updatedUtc that is not an ISO-8601 instant in UTC'
+            return $head
+        }
+
+        $head.Sequence = [long]$member['sequence']
+        $head.RecordSha256 = $digest.GetString()
+        $head.Sealed = $sealed.ValueKind -eq [System.Text.Json.JsonValueKind]::True
+    } finally {
+        $document.Dispose()
+    }
+
+    return $head
+}
+
+function Test-HeadAgreement {
+    <#
+        The head and the sink must agree before the service writes anything.
+        Exactly one disagreement is survivable: a head one record behind the
+        sink, which is what a crash between the sink flush and the head write
+        leaves. Everything else -- a shortened sink, a head naming a record the
+        sink does not end with, a missing head over a longer sink -- is a
+        refusal, because adopting the sink and rewriting the head is precisely
+        how a truncation would be laundered into a valid-looking ledger.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [hashtable]$State,
+
+        [Parameter(Mandatory)]
+        [hashtable]$Head
+    )
+
+    $agreement = @{ Error = ''; CatchUp = $false }
+
+    if (-not $Head.Present) {
+        if ($State.Sequence -eq 0) {
+            return $agreement
+        }
+
+        if ($State.Sequence -eq 1) {
+            $agreement.CatchUp = $true
+            return $agreement
+        }
+
+        $agreement.Error = "the chain head is missing while the sink holds $($State.Sequence) records"
+        return $agreement
+    }
+
+    if ($State.Sequence -eq 0) {
+        $agreement.Error = 'the chain head names a record but the ledger sink holds none'
+        return $agreement
+    }
+
+    if ($Head.Sequence -eq $State.Sequence) {
+        if ($Head.RecordSha256 -cne $State.LastHash) {
+            $agreement.Error = "the chain head names a different record at sequence $($State.Sequence)"
+            return $agreement
+        }
+
+        if ($Head.Sealed -ne $State.Sealed) {
+            $agreement.Error = "the chain head's sealed flag contradicts the chain"
+            return $agreement
+        }
+
+        return $agreement
+    }
+
+    if ($Head.Sequence -eq $State.Sequence - 1) {
+        if ($Head.RecordSha256 -cne $State.PreviousHash) {
+            $agreement.Error = "the chain head names a different record at sequence $($Head.Sequence)"
+            return $agreement
+        }
+
+        if ($Head.Sealed) {
+            $agreement.Error = 'the chain head is sealed while the sink holds a later record'
+            return $agreement
+        }
+
+        $agreement.CatchUp = $true
+        return $agreement
+    }
+
+    $agreement.Error = "the chain head names sequence $($Head.Sequence) but the ledger sink ends at $($State.Sequence)"
+    return $agreement
 }
 
 function Write-ChainHead {
@@ -839,6 +1033,27 @@ switch ($PSCmdlet.ParameterSetName) {
             exit 2
         }
 
+        $head = Read-ChainHeadState -Path $ChainHeadPath
+        if ($head.Error) {
+            Write-Refusal -Message $head.Error
+            exit 2
+        }
+
+        $agreement = Test-HeadAgreement -State $state -Head $head
+        if ($agreement.Error) {
+            Write-Refusal -Message "the ledger sink and the chain head disagree: $($agreement.Error)"
+            exit 2
+        }
+
+        if ($agreement.CatchUp) {
+            # The only interrupted step that can be completed: the record is
+            # already durable, so the head is finished, never the sink.
+            [Console]::Error.WriteLine(
+                "Ledger appender completed an interrupted head write up to sequence $($state.Sequence).")
+            Write-ChainHead -Path $ChainHeadPath -Sequence $state.Sequence `
+                -RecordHash $state.LastHash -Sealed $state.Sealed
+        }
+
         try {
             $probe = New-RestrictedPipeServer -Name $PipeName -Identity $AllowedIdentity
             $probe.Dispose()
@@ -1005,20 +1220,22 @@ switch ($PSCmdlet.ParameterSetName) {
             exit 2
         }
 
-        try {
-            $head = Get-Content -LiteralPath $ChainHeadPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        } catch {
-            Write-Refusal -Message 'chain head is not valid JSON'
+        $head = Read-ChainHeadState -Path $ChainHeadPath
+        if ($head.Error) {
+            Write-Refusal -Message $head.Error
             exit 2
         }
 
-        if ([int]$head.sequence -ne $state.Sequence) {
-            Write-Refusal -Message ("chain head names sequence {0} but the ledger ends at {1}" -f $head.sequence, $state.Sequence)
+        $agreement = Test-HeadAgreement -State $state -Head $head
+        if ($agreement.Error) {
+            Write-Refusal -Message $agreement.Error
             exit 2
         }
 
-        if ([string]$head.recordSha256 -ne $state.LastHash) {
-            Write-Refusal -Message 'chain head digest does not match the final record'
+        if ($agreement.CatchUp) {
+            # Validation proves a finished ledger. A head that still has to
+            # catch up is a chain the service has not finished writing.
+            Write-Refusal -Message ("the chain head names sequence {0} but the ledger ends at {1}" -f $head.Sequence, $state.Sequence)
             exit 2
         }
 
