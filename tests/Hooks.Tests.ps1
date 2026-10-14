@@ -163,12 +163,14 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
         $result.Output | Should -Match 'Blocked by Copilot Atelier'
     }
 
-    It 'sends an authorized command to the user''s own terminal instead of the unreachable override' {
+    It 'sends an authorized command to the Grant marker or the user''s own terminal, never to the removed override' {
         <#
             Each host starts the hook with its own environment, so a variable an
             agent sets in its terminal never reaches the guard (verified in a
-            Copilot SDK chat on 2026-10-02). The reason must not send the model
-            after an override it cannot set.
+            Copilot SDK chat on 2026-10-02), and the override was removed on
+            2026-10-12 because it could turn the guard off for a whole VS Code
+            instance. The reason names the Grant marker the user can type and the
+            terminal as the alternative.
         #>
         $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command 'git push origin main'
         $result = script:Invoke-Hook -ScriptPath $script:blockScript -Payload $payload
@@ -176,7 +178,8 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
         $result.ExitCode | Should -Be 2 -Because $result.Output
         $result.Output | Should -Match 'in their own terminal'
         $result.Output | Should -Match 'fenced code block in your reply' -Because 'a command in the question dialog is one joined paragraph without a copy button'
-        $result.Output | Should -Not -Match 'set COPILOT_ATELIER_ALLOW_REMOTE'
+        $result.Output | Should -Match ([regex]::Escape('[[allow-remote: git push]]'))
+        $result.Output | Should -Not -Match 'COPILOT_ATELIER_ALLOW_REMOTE'
     }
 
     It 'reports a block on standard output as one top-level deny object' {
@@ -272,7 +275,13 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             Should -Be 2 -Because 'gating on the tool name would let this executor through'
     }
 
-    It 'allows a blocked command when COPILOT_ATELIER_ALLOW_REMOTE is set' {
+    It 'ignores COPILOT_ATELIER_ALLOW_REMOTE in the hook environment' {
+        <#
+            The override was removed on 2026-10-12 (Decision 0016): set in the
+            environment a host starts the hook with, it allowed every blocked
+            command for every chat of that VS Code instance. The Remote grant
+            replaces it.
+        #>
         $originalValue = [Environment]::GetEnvironmentVariable('COPILOT_ATELIER_ALLOW_REMOTE', 'Process')
         try {
             [Environment]::SetEnvironmentVariable('COPILOT_ATELIER_ALLOW_REMOTE', '1', 'Process')
@@ -282,8 +291,8 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             [Environment]::SetEnvironmentVariable('COPILOT_ATELIER_ALLOW_REMOTE', $originalValue, 'Process')
         }
 
-        $result.ExitCode | Should -Be 0 -Because $result.Output
-        $result.Output | Should -Match 'COPILOT_ATELIER_ALLOW_REMOTE'
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Not -Match 'allowed by'
     }
 
     It 'allows the tool call with a warning when the payload is unreadable' {
@@ -480,6 +489,55 @@ Describe 'Block-RemoteMutation' -Tag 'Unit' {
             $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
             $result.ExitCode | Should -Be 2 -Because "it ran $($result.Seconds) s: $($result.Output)"
             $result.Output | Should -Match 'could not be inspected'
+        }
+
+        It 'blocks a command whose grantable rule runs out of time instead of skipping the rule' {
+            <#
+                A MatchCollection matches lazily, so a timeout in a rule that a Remote
+                grant can lift surfaced at its Count, outside the try. PowerShell ended
+                only that statement and the scan went on without the rule, so the call
+                passed. Only the gh api rule is quadratic on this text; the others
+                finish at once, so the time limit can only run out inside that rule.
+            #>
+            $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command ('gh api ' * 40000)
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15 -ArgumentList '-TimeLimitSecond', '2'
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because "it ran $($result.Seconds) s: $($result.Output)"
+            $result.Output | Should -Match 'could not be inspected'
+        }
+
+        It 'answers in time for a command text of <Reason>' -ForEach @(
+            @{ Reason = 'one path variable assigned and written to again and again'; Unit = '$p = "notes.txt"; Set-Content -Path $p -Value "x"; ' }
+            @{ Reason = 'one literal assigned and used again and again'; Unit = '$a = "x"; Write-Output $a; ' }
+            @{ Reason = 'a loop that binds the path of every write'; Unit = 'foreach ($p in 1..3) { Set-Content -Path $p -Value "x" }; ' }
+            @{ Reason = 'a path variable copied from another variable'; Unit = '$q = $p; $p = "notes.txt"; Set-Content -Path $q -Value "x"; ' }
+        ) {
+            <#
+                Review of 2026-10-13, third pass, H3: the write-target check walked every assignment of a
+                variable for every write, so 32 KB of one assignment and one write took 21 seconds and 64 KB
+                took 72, past the 20-second hook timeout, which the Copilot SDK host reads as an allow. The
+                push at the end of the text is the proof that the call was decided, not let through.
+            #>
+            $command = ($Unit * [Math]::Ceiling(48KB / $Unit.Length)) + 'git push origin main'
+            $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command $command
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15
+
+            $result.HasExited | Should -BeTrue -Because "the guard must decide well inside the 20-second hook timeout; it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
+            $result.Seconds | Should -BeLessThan 12 -Because 'the decision limit is 5 seconds and the hook timeout is 20'
+        }
+
+        It 'blocks the push in a command text it has to stop analyzing for lack of time' {
+            $unit = '$v = "x"; Write-Output $v; '
+            $payload = script:New-ToolPayload -ToolName 'run_in_terminal' -Command (($unit * 800) + 'git push origin main')
+
+            $result = script:Invoke-HookWithin -ScriptPath $script:blockScript -Payload $payload -TimeoutSecond 15 -ArgumentList '-TimeLimitSecond', '0.2'
+
+            $result.HasExited | Should -BeTrue -Because "it ran $($result.Seconds) s"
+            $result.ExitCode | Should -Be 2 -Because $result.Output
         }
 
         It 'blocks a push in a payload with too many values to walk before the hook timeout' {
@@ -2018,6 +2076,7 @@ Describe 'Hook configuration' -Tag 'Unit' {
         @{ Event = 'SessionStart' }
         @{ Event = 'Stop' }
         @{ Event = 'PreCompact' }
+        @{ Event = 'UserPromptSubmit' }
     ) {
         $script:hookConfig.hooks.PSObject.Properties.Name | Should -Contain $Event
     }
@@ -2100,7 +2159,7 @@ Describe 'Hook configuration' -Tag 'Unit' {
             $command | Should -Match 'exit 2'
         }
 
-        foreach ($eventName in @('SessionStart', 'Stop', 'PreCompact')) {
+        foreach ($eventName in @('SessionStart', 'Stop', 'PreCompact', 'UserPromptSubmit')) {
             foreach ($command in @(
                     $script:hookConfig.hooks.$eventName[0].command
                     $script:hookConfig.hooks.$eventName[0].windows

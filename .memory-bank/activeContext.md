@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-12
+last-verified: 2026-10-14
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,50 +9,57 @@ source: current task evidence
 
 ## Current focus
 
-**Decision 0028 is merged and released.** Pull request #32 (`807b572`, 2026-10-12)
-closed it out (Desktop prompt 07, Prox1), and #33 to #36 followed one at a time:
-`main` is `e393875` at `6.1.0-preview0009` (CI runs #139 to #142 green; GitHub
-Releases and the Gallery verified). Criteria 1 to 20 and 22 to 30 are met, with the
-evidence named in the record's *Close-out, 2026-10-11* matrix. **Criterion 21 is not
-met**, worded exactly as A39 fixes it: persistence 83.3 % at both Positions, the
-sentence still +30.6 points on the paired cases, `expert` terseness unreliable, the
-provider terms UNVERIFIED, and no further run. TBD-2 is the one question carried
-forward. The independent review of the hand-merged hook scripts approved with
-changes: `ddf5430` fixed M-01 and M-02, #33 tested M-03, M-05, and M-06 (M-06 was not
-a gap), and M-04 (a `.familiarity` name collision) stays open.
+**P2, per-command remote approval, is built, reviewed, deployed, and accepted live on
+`ai/hook-ask-remote-approval`, which is pull request #38 (opened by the owner on
+2026-10-14); the owner pushes and merges.** A Grant marker the user types in their own
+prompt (for example `[[allow-remote: git push, gh pr create]]`) makes the new
+`UserPromptSubmit` hook `Add-RemoteGrant.ps1` record a short-lived, session-bound grant
+that `Block-RemoteMutation.ps1` consumes: each named operation once (`x2` twice, a loop
+or function needs `x20`, `--all`, `--tags`, and force pushes need `git push --force`),
+until the next prompt or 15 minutes. The guard stays a hard block and never prints
+`allow` (a hook `ask` is auto-approved in the Agent Host); `COPILOT_ATELIER_ALLOW_REMOTE`
+is removed; `git reset --hard`, `git clean -f`, and `--no-verify` have no marker. The
+same change fixes the string-literal false positive: the guard reads PowerShell as a
+syntax tree and blanks a string only when everything it flows into treats it as data.
+Seven independent review passes (three rejections, an approval with changes, two more
+rejections the owner asked for, and a last bounded pass whose one finding was narrowed
+and approved in a delta check) left no Blocker or Major; each finding is a test that
+failed first. Decision 0016 and the Desktop `LEDGER.md` hold the evidence.
 
-The other merged branches: #34 corrects the `automatedlab-deployment` Skill
-(`Remove-LabVMSnapshot` also removes the newer checkpoints; P7); #35 hands a command
-the user runs over in its own fenced code block (P3); #36 adds the task ledger and
-the `/migrate-handoff-sequence` Prompt to `subagent-dispatch` (P8). P3 and P8 are
-not live until the owner redeploys, because `~/.copilot/skills` is a junction to
-the installed copy. P8 was decided under a no-questions delegation, so its base
-`origin/main`, the absence of a paid or external eval (the Skill description and
-the trigger sweep stay open), and its single independent review are assumptions
-flagged for the owner.
+State: the final gate passed on the final tree (4,295 passed, 0 failed, 145 skipped,
+90.84 % coverage) and `~/.copilot` is redeployed (257 files match the clone). **Live
+acceptance passed on 2026-10-13** on the earlier guard (`B6DFAD99…`; the shipped one is
+`E94968A0…`) in four new chats against a throwaway repository with a local bare remote
+(the Agent Host, VS Code Local, Copilot CLI 1.0.96 as usual and under `--yolo`): no marker
+meant a denial, a marker let one push run, auto-approval and `--yolo` did not lift the
+block, and the bare repository held only the three branches that the marked prompts
+pushed. The CLI's `COPILOT_ALLOW_ALL=1` does approve shell commands in the working folder.
+Accepted residuals (hooks README, Residual risks): a forged grant file, a script written
+and run in one command, a quote that PowerShell and a POSIX shell read differently, and a
+push beside a loop (asks for x20).
 
-Prompt 06c ran on 2026-10-12 (`docs/SECURITY-REVIEW.md`): four review rounds over
-the eval kit's egress code, 2 Blockers and 7 Majors fixed test-first in the kit;
-the Desktop `LEDGER.md` and `HANDOFF-2026-10-12.md` list what is open.
+**CI of #38 (run 38528625293, 2026-10-14):** Ubuntu and macOS passed; the Windows
+PowerShell 7 job failed one test of 4,251 through a runner stall (the guard blocked as
+designed but named the time limit). The two new suites now start the guard with
+`-TimeLimitSecond 10`, as `Hooks.Tests.ps1` does for slow runners; the guard did not
+change. One local commit, for the owner to push (CI then re-runs).
 
-Prompts 03 and 08 are on `main`: the detached Pester guards reject a result other
-than `Passed`, the Pester guides explain truthiness, `Wait-DetachedResult.ps1`
-waits a bounded time, and the Post-flight elapsed line is pinned to its own
-chat's clock (`Add-SessionContext.ps1` hands the agent `& '<reader>' -Path
-'<clock>'`). The shared Instruction wording was chosen under a no-questions
-delegation, so an expert review stays recommended. Decision 0024 holds the Prox1
-evidence and what stays open (a host that sends no `session_id`, a chat after a
-compaction on a host without the variable, VS Code Local and a new agent-host chat,
-not yet seen live). The longer reader line leaves the calibration sentence fewer
-characters under the session context budget, so one test in
-`tests/ContributorProfileHooks.Tests.ps1` squeezes at 1,400 characters.
+**Decision 0028 is merged and released** (#32 to #36; `main` is `e393875` at
+`6.1.0-preview0009`). Criteria 1 to 20 and 22 to 30 are met; **criterion 21 is not
+met**, worded as A39 fixes it, and TBD-2 is carried forward. M-04 (a `.familiarity`
+name collision) stays open. #34 to #36 (P7, P3, P8) are not live until the owner
+redeploys; P8's base, its missing external eval, and its single review are flagged
+assumptions. Prompt 06c (`docs/SECURITY-REVIEW.md`) fixed 2 Blockers and 7 Majors in
+the eval kit; the Desktop `LEDGER.md` lists what is open. Prompts 03 and 08 pin the
+Post-flight elapsed line to its own chat's clock (Decision 0024 lists the cases not
+yet seen live); the longer reader line leaves the calibration sentence fewer
+characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at 1,400.
 
 ## Previous focuses
 
-- **Prompts 04 to 06b and 05c (2026-10-09 to 2026-10-11).** The criterion 21 eval
-  chain: Amendments 5 to 7, one fresh run (83.3 % at both Positions), and the
-  record-only ruling that criterion 21 ships as not met (`progress.md`; the
-  Decision's Confirmation). Prompt 06c reviewed the egress code on 2026-10-12.
+- **Prompts 04 to 06b and 05c (2026-10-09 to 2026-10-11).** The criterion 21 eval chain:
+  Amendments 5 to 7, one fresh run (83.3 % at both Positions), and the record-only
+  ruling that criterion 21 ships as not met (`progress.md`; the Decision's Confirmation).
 - **Decision 0028, steps 7.1 to 7.5 (2026-10-06 to 2026-10-08).** The design
   (`b568c8c`, signed off after 26 questions), Amendments 1 to 4 (A1 to A19), the
   A12 backstop (`23a861a`), the hash-pinned frozen reference (`30fb3229…9c79`,
@@ -60,26 +67,17 @@ characters under the session context budget, so one test in
   `PostToolUse.CallLatency` Budget 0.75), and the VS Code Local backstop proved
   live (`b05efe3`). The RAANDREE3 `FailFast` is a .NET 10.0.6 runtime fault on
   PowerShell 7.6.1, not this repository's code. Evidence: the record's Confirmation.
-- **Hook deny reason and the resume clock (prompt 06, #28 to #30).** The bundled
-  Copilot SDK runtime drops a PascalCase deny that also carries
-  `hookSpecificOutput`, so the guard prints the top-level pair alone;
-  `tests/HookSdkRuntime.Tests.ps1` asserts the reason inside the real runtime
-  (Decision 0016). A resumed chat keeps its clock. Merged into `main`, deployed
-  2026-10-04; A2 and B2 then passed in new chats.
-- **Contributor calibration Phase 1 (#27, `7a48abe`).** On `main`, as is Phase 2
-  (Decision 0028). The private behavior eval scored 52.1% without the Instruction
-  and 100% with it, and arms are compared only when run concurrently.
-- **Hook guard follow-ups (prompts 02, 05, 06; `d8cc6f5` to `fea564f`).** Ten
-  reviews ended in an approval. The guard decides within about five seconds
-  (1 MB parse, 20,000-field walk, 4 MB block) and errs toward blocking; the
-  override cannot reach a hook from an agent terminal. Deployed 2026-10-02.
-- **Runtime tool names (`a592832`, on `main`).** Every Custom agent pairs its
-  VS Code tool names with runtime names, so agent-host sessions keep `web_fetch`,
-  `grep`, `glob`, `ask_user`, browser, and session tools (Decision 0026,
-  github/copilot-cli#4594). Red 28 then green; offline probe 16 of 16 agents.
-- **Plan-review findings PR-01 to PR-09.** Resolved in the integrated tree with
-  a mandatory heading verifier; the guide, threat model, and `assessment-log.md`
-  keep the contracts. Browser feedback never grants chat sign-off. The
+- **Hook guard and deny reason (prompts 02 to 06, #28 to #30; `d8cc6f5` to `fea564f`).**
+  Ten reviews ended in an approval. The guard decides within about five seconds and errs
+  toward blocking. The bundled SDK runtime drops a PascalCase deny that also carries
+  `hookSpecificOutput`, so the guard prints the top-level pair alone
+  (`tests/HookSdkRuntime.Tests.ps1`; Decision 0016). Deployed 2026-10-04.
+- **Contributor calibration Phases 1 and 2 (#27, `7a48abe`; Decision 0028).** On `main`.
+  The private behavior eval scored 52.1% without the Instruction and 100% with it.
+- **Runtime tool names (`a592832`, on `main`; Decision 0026).** Every Custom agent
+  pairs its VS Code tool names with runtime names (github/copilot-cli#4594).
+- **Plan-review findings PR-01 to PR-09.** Resolved in the integrated tree with a
+  mandatory heading verifier; browser feedback never grants chat sign-off, the
   cross-platform artifact transfer stayed unproven, and `review: on` remains
   recommended for the combined HTTP and persistence corrections.
 
@@ -153,16 +151,19 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. The owner redeploys for P3 and P8 (`git switch main`, `git pull --ff-only origin
+1. P2 is accepted live and committed locally. The owner pushes `ai/hook-ask-remote-approval`
+   and opens the pull request; the PR title needs `feat(hooks):` and a line on the
+   removed `COPILOT_ATELIER_ALLOW_REMOTE`. This machine's `~/.copilot` already carries the
+   branch's scripts, so after CI and the merge the owner only needs item 2's redeploy to
+   make it follow `main`.
+2. The owner redeploys for P3 and P8 (`git switch main`, `git pull --ff-only origin
    main`, `./Setup-CopilotSettings.ps1`) and checks in a new chat that a prepared
    `git push` ends with a code block and no dialog. Agents cannot push, and the
    deployed copy under `~/.copilot` is the owner's to refresh.
-2. The owner rules on the local queue (Desktop `LEDGER.md`): P5 stays unmerged until
+3. The owner rules on the local queue (Desktop `LEDGER.md`): P5 stays unmerged until
    the architect fixes the verifier's trust model (then a fix prompt with the
-   reviewer's tests and a second review); P1 and P2 need the owner; the 06c choices
+   reviewer's tests and a second review); P1 needs the owner; the 06c choices
    (E-08, E-09), the P6 labels, and the three P8 assumptions need a ruling.
-3. Confirm the clock pin live in a new VS Code chat (Decision 0024 lists the
-   cases).
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is

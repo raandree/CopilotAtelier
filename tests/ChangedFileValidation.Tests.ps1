@@ -756,9 +756,11 @@ Describe 'Changed-file validation boundaries' -Tag 'Unit' {
             ConvertFrom-Json
     }
 
-    It 'adds no hook event to the shipped configuration' {
+    It 'adds no hook event for changed-file validation to the shipped configuration' {
+        # UserPromptSubmit belongs to the Remote grant (Decision 0016, revision 2026-10-12), not to
+        # this feature: the next test keeps every hook command free of changed-file collection.
         @($script:hookConfig.hooks.PSObject.Properties.Name | Sort-Object) |
-            Should -Be @('PreCompact', 'PreToolUse', 'SessionStart', 'Stop')
+            Should -Be @('PreCompact', 'PreToolUse', 'SessionStart', 'Stop', 'UserPromptSubmit')
     }
 
     It 'wires no changed-file collection into any hook command' {

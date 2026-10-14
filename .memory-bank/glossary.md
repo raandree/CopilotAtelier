@@ -49,4 +49,6 @@ API fields, and quoted historical text retain their exact spelling.
 | Contributor profile | The private file that stores one or more contributors' Familiarity levels outside every repository: in the Canonical target's `contributor` folder, or under LocalApplicationData on a machine without one. | user profile, skill profile, installation profile |
 | Handoff sequence | A folder of Briefs that a user runs one per chat, with its README, Task ledger, and reports. | |
 | Brief | One `NN-<slug>.prompt.md` file of a Handoff sequence: a self-contained task for a fresh chat. | |
-| Task ledger | The `LEDGER.md` file of a Handoff sequence, or a controller session's equivalent: one row per Brief with its status, commits, and Rulings. Not the audit ledger of `spec-completion-controller`. | | 
+| Task ledger | The `LEDGER.md` file of a Handoff sequence, or a controller session's equivalent: one row per Brief with its status, commits, and Rulings. Not the audit ledger of `spec-completion-controller`. | |
+| Remote grant | A single-use, session-bound, short-lived authorization of named remote mutations that the `UserPromptSubmit` hook records from a Grant marker and the push guard consumes. It never lifts the destructive local blocks. | permit, pass, token, override |
+| Grant marker | The text `[[allow-remote: <operation>, ...]]` that a user types as plain text in a prompt to request a Remote grant. | magic string, approval tag, flag | 

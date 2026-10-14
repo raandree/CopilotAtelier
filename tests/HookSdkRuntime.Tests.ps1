@@ -106,7 +106,8 @@ Describe 'PreToolUse guard in the Copilot SDK runtime' -Tag 'Integration' -Skip:
             $utf8
         )
 
-        $script:blockedCommand = "Write-Output 'probe: git push origin main is only text here'"
+        # The session offers no tools, so even a push the guard let through would fail as an unknown tool.
+        $script:blockedCommand = 'git push origin main'
         $script:allowedCommand = 'git status --short'
 
         $startInfo = [Diagnostics.ProcessStartInfo]::new(
@@ -708,5 +709,161 @@ Describe 'Contributor levels in the reported delivery cells of <Runtime>' -Tag '
         $toolText | Should -Not -Match ([regex]::Escape($script:reportedLevels))
         $toolText | Should -Not -Match 'Re-sent after a compaction'
         @($script:pluginOnly.events | Where-Object -FilterScript { $_.type -eq 'hook.end' -and $_.hookType -eq 'postToolUse' }).Count | Should -Be 0
+    }
+}
+
+<#
+    Decision record 0016, revision 2026-10-12. The Copilot Agent Host approved a
+    hook ask itself, so the push guard stays a hard block and a Remote grant
+    carries the user's request: the UserPromptSubmit hook records it from a Grant
+    marker in the prompt, and the guard consumes it. These cases run the shipped
+    launchers, scripts, and the order of both events inside the runtimes, against
+    a fake model whose tool call carries a command. Each script sits behind a
+    wrapper that adds a Grant root in TestDrive, so nothing touches the profile.
+#>
+Describe 'Remote grant in <Runtime>' -Tag 'Integration' -Skip:(-not ($script:runtimeAvailable -and $script:pwshAvailable)) -ForEach $script:conversationRuntimes {
+    BeforeAll {
+        $repoRoot = Split-Path -Parent $PSScriptRoot
+        $utf8 = [Text.UTF8Encoding]::new($false)
+        $runRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
+        $copilotHome = Join-Path -Path $runRoot -ChildPath 'copilot-home'
+        $hookDirectory = Join-Path -Path $copilotHome -ChildPath 'hooks'
+        $pluginRoot = Join-Path -Path $runRoot -ChildPath 'plugin'
+        $scriptDirectory = Join-Path -Path $pluginRoot -ChildPath 'com.github.copilot\hooks\scripts'
+        $grantRoot = Join-Path -Path $runRoot -ChildPath 'grants'
+        $script:workspace = Join-Path -Path $runRoot -ChildPath 'workspace'
+        $null = New-Item -ItemType Directory -Path $hookDirectory, $scriptDirectory, $script:workspace -Force
+
+        $hookConfig = Get-Content -LiteralPath (Join-Path -Path $repoRoot -ChildPath 'com.github.copilot/hooks/hooks.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $suffix = [guid]::NewGuid().ToString('N')
+        $entryOf = @{ 'Block-RemoteMutation' = 'PreToolUse'; 'Add-RemoteGrant' = 'UserPromptSubmit' }
+        $hooks = [ordered]@{}
+        foreach ($name in 'Add-RemoteGrant', 'Block-RemoteMutation') {
+            $realName = "$name-real-$suffix.ps1"
+            $wrapperName = "$name-$suffix.ps1"
+            Copy-Item -LiteralPath (Join-Path -Path $repoRoot -ChildPath "com.github.copilot/hooks/scripts/$name.ps1") -Destination (Join-Path -Path $scriptDirectory -ChildPath $realName)
+            # The wrapper adds the test Grant root and passes standard input and the exit code through.
+            [IO.File]::WriteAllText(
+                (Join-Path -Path $scriptDirectory -ChildPath $wrapperName),
+                ("& '{0}' -GrantRoot '{1}'`nexit `$LASTEXITCODE`n" -f (Join-Path -Path $scriptDirectory -ChildPath $realName), $grantRoot),
+                $utf8
+            )
+
+            $entry = @($hookConfig.hooks.($entryOf[$name]))[0]
+            foreach ($launcher in 'command', 'windows', 'powershell') {
+                $entry.$launcher = $entry.$launcher.Replace("$name.ps1", $wrapperName)
+            }
+
+            $hooks[$entryOf[$name]] = @($entry)
+        }
+
+        [IO.File]::WriteAllText((Join-Path -Path $hookDirectory -ChildPath 'hooks.json'), (@{ hooks = $hooks } | ConvertTo-Json -Depth 6), $utf8)
+
+        $push = @{ command = 'git push origin main' }
+        $force = @{ command = 'git push --force origin main' }
+        $pullRequest = @{ command = 'gh pr create --dry-run --fill' }
+        $steps = @(
+            @{ op = 'newSession' }                                                                                      # 0
+            @{ op = 'send'; prompt = 'please push the branch [[allow-remote: git push]]'; toolArguments = $push }       # 1 allowed
+            @{ op = 'send'; prompt = 'push it again'; toolArguments = $push }                                           # 2 no marker this turn
+            @{ op = 'send'; prompt = 'force it [[allow-remote: git push]]'; toolArguments = $force }                    # 3 needs git push --force
+            @{ op = 'send'; prompt = 'open the PR [[allow-remote: gh pr create]]'; toolArguments = $pullRequest }       # 4 allowed
+            @{ op = 'send'; prompt = 'and one more PR'; toolArguments = $pullRequest }                                  # 5 the grant ended with the prompt
+            @{ op = 'disconnect' }                                                                                      # 6
+        )
+
+        $startInfo = [Diagnostics.ProcessStartInfo]::new((Get-Command -Name 'node' -CommandType Application | Select-Object -First 1 -ExpandProperty Source))
+        foreach ($argument in @((Join-Path -Path $PSScriptRoot -ChildPath 'Fixtures\Invoke-CopilotSdkConversation.mjs'), $PackageRoot, $copilotHome, $script:workspace, $RuntimePath)) {
+            $startInfo.Arguments += ' "' + $argument + '"'
+        }
+
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.WorkingDirectory = $script:workspace
+        $startInfo.RedirectStandardInput = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+        $startInfo.StandardOutputEncoding = $utf8
+        $startInfo.StandardErrorEncoding = $utf8
+        $startInfo.EnvironmentVariables['PLUGIN_ROOT'] = $pluginRoot
+        $startInfo.EnvironmentVariables.Remove('COPILOT_ATELIER_ALLOW_REMOTE')
+
+        $process = [Diagnostics.Process]::Start($startInfo)
+        try {
+            $outputTask = $process.StandardOutput.ReadToEndAsync()
+            $errorTask = $process.StandardError.ReadToEndAsync()
+            $inputBytes = $utf8.GetBytes((ConvertTo-Json -InputObject $steps -Depth 6 -Compress))
+            $process.StandardInput.BaseStream.Write($inputBytes, 0, $inputBytes.Length)
+            $process.StandardInput.Close()
+
+            # The fixture stops itself after 600 seconds; this only catches a stuck node.
+            if (-not $process.WaitForExit(660000)) {
+                $process.Kill()
+                throw 'Invoke-CopilotSdkConversation.mjs did not exit within 660 seconds.'
+            }
+
+            $process.WaitForExit()
+            if ($process.ExitCode -ne 0) {
+                throw ('Invoke-CopilotSdkConversation.mjs exited with {0}: {1}' -f $process.ExitCode, $errorTask.Result)
+            }
+
+            $script:grantConversation = $outputTask.Result | ConvertFrom-Json
+        } finally {
+            $process.Dispose()
+        }
+
+        # Every request carries the whole conversation so far, so the tool result a step
+        # produced is the last tool message of that step's last request.
+        function Get-GrantToolText ([int] $Step) {
+            $request = @($script:grantConversation.requests | Where-Object -Property step -EQ -Value $Step) | Select-Object -Last 1
+            $toolMessage = @($request.messages | Where-Object -Property role -EQ -Value 'tool') | Select-Object -Last 1
+            [string]$toolMessage.text
+        }
+    }
+
+    It 'runs the push a marker in the prompt authorizes' {
+        $text = Get-GrantToolText -Step 1
+
+        $text | Should -Match 'probe tool result'
+        $text | Should -Not -Match 'Denied by preToolUse hook'
+    }
+
+    It 'records the grant before the first tool call of the turn' {
+        $events = @($script:grantConversation.events | Where-Object -FilterScript { $_.step -eq 1 -and $_.type -like 'hook.*' })
+        $promptEnd = [array]::FindIndex($events, [Predicate[object]] { param($event) $event.type -eq 'hook.end' -and $event.hookType -eq 'userPromptSubmitted' })
+        $toolStart = [array]::FindIndex($events, [Predicate[object]] { param($event) $event.type -eq 'hook.start' -and $event.hookType -eq 'preToolUse' })
+
+        $promptEnd | Should -BeGreaterOrEqual 0
+        $toolStart | Should -BeGreaterThan $promptEnd -Because 'the guard reads the grant the prompt hook wrote'
+    }
+
+    It 'denies the same push in the next turn, which carries no marker, and tells the model what to ask for' {
+        $text = Get-GrantToolText -Step 2
+
+        $text | Should -Match '\ADenied by preToolUse hook: Blocked by Copilot Atelier: this command pushes to a git remote'
+        $text | Should -Match ([regex]::Escape('[[allow-remote: git push]]'))
+        $text | Should -Not -Match 'probe tool result'
+    }
+
+    It 'denies a force push under a marker for a plain push' {
+        $text = Get-GrantToolText -Step 3
+
+        $text | Should -Match 'Denied by preToolUse hook: Blocked by Copilot Atelier'
+        $text | Should -Match ([regex]::Escape('[[allow-remote: git push --force]]'))
+        $text | Should -Not -Match 'probe tool result'
+    }
+
+    It 'runs a pull request that a marker for gh pr create authorizes' {
+        $text = Get-GrantToolText -Step 4
+
+        $text | Should -Match 'probe tool result'
+        $text | Should -Not -Match 'Denied by preToolUse hook'
+    }
+
+    It 'ends the grant with the next prompt' {
+        $text = Get-GrantToolText -Step 5
+
+        $text | Should -Match 'Denied by preToolUse hook: Blocked by Copilot Atelier: this command mutates a GitHub remote resource'
+        $text | Should -Not -Match 'probe tool result'
     }
 }

@@ -170,7 +170,7 @@ function Test-CopilotAtelier
         }
     }
 
-    foreach ($scriptName in @('Block-RemoteMutation', 'Add-SessionContext', 'Write-SessionClose', 'Write-CompactionCheckpoint', 'Get-SessionElapsed'))
+    foreach ($scriptName in @('Block-RemoteMutation', 'Add-RemoteGrant', 'Add-SessionContext', 'Write-SessionClose', 'Write-CompactionCheckpoint', 'Get-SessionElapsed'))
     {
         $scriptPath = Join-Path -Path $path.TargetPath -ChildPath "hooks/scripts/$scriptName.ps1"
         if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf))
@@ -210,7 +210,7 @@ function Test-CopilotAtelier
         {
             throw 'Hook events differ from the loaded module.'
         }
-        foreach ($eventName in @('PreToolUse', 'SessionStart', 'Stop', 'PreCompact'))
+        foreach ($eventName in @('PreToolUse', 'UserPromptSubmit', 'SessionStart', 'Stop', 'PreCompact'))
         {
             $actualHooks = @($hookConfiguration.hooks.$eventName)
             $expectedHooks = @($expectedHookConfiguration.hooks.$eventName)
