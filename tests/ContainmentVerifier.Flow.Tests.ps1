@@ -221,6 +221,14 @@ Describe 'Containment check flow' -Tag 'Unit' {
             $ChainHeadPath -eq (Join-Path $script:base 'run.head.json')
         }
     }
+
+    It 'gives the credential check the writable roots, so a git inside one fails' {
+        $null = Invoke-Flow
+
+        Should -Invoke Test-CredentialAbsence -Times 1 -Exactly -ParameterFilter {
+            $WritableRoot -contains (Join-Path $script:base 'work')
+        }
+    }
 }
 
 Describe 'Containment escape set' -Tag 'Unit' {

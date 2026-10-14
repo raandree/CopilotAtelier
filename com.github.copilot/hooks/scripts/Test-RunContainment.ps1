@@ -1708,9 +1708,20 @@ function Test-RemoteUnreachable {
 }
 
 function Test-CredentialAbsence {
+    <#
+        Measures credential and proxy material in the environment and the credential helpers git
+        would use. The git that answers is evidence only if this identity cannot have replaced it,
+        so it is run only after it was shown to be closed to the run: a git the run can overwrite
+        could report any answer.
+    #>
     [CmdletBinding()]
     [OutputType([hashtable])]
-    param()
+    param(
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$WritableRoot = @()
+    )
 
     # The git steering variables are measured next to the credential ones,
     # because each of them can hide a helper from the child or add one to it.
@@ -1731,13 +1742,31 @@ function Test-CredentialAbsence {
 
     $gitEvidence = ''
     $gitProblem = ''
+    $gitBreach = ''
+    $gitTrusted = $false
     $gitPath = Resolve-GitExecutable
+
+    if (-not [string]::IsNullOrWhiteSpace($gitPath)) {
+        try {
+            $gitProtection = Test-PathProtection -Path $gitPath -WritableRoot $WritableRoot
+
+            if (@($gitProtection.Violation).Count -gt 0) {
+                $gitBreach = "git ($gitPath) can be replaced by this identity, so what it reports proves nothing and it was not run: " + (@($gitProtection.Violation | Select-Object -First 6) -join '; ')
+            } elseif (@($gitProtection.Unmeasured).Count -gt 0) {
+                $gitProblem = "git ($gitPath) could not be shown to be closed to this identity, so it was not run: " + (@($gitProtection.Unmeasured | Select-Object -First 6) -join '; ')
+            } else {
+                $gitTrusted = $true
+            }
+        } catch {
+            $gitProblem = "git ($gitPath) could not be measured, so it was not run: $($_.Exception.Message)"
+        }
+    }
 
     if ([string]::IsNullOrWhiteSpace($gitPath)) {
         # A git that cannot be resolved is an unmeasured check. "Not installed,
         # therefore clean" would let an empty PATH prove containment.
         $gitProblem = 'git could not be resolved to an absolute application path, so its credential helpers were not measured'
-    } else {
+    } elseif ($gitTrusted) {
         # The sentinel makes an empty credential result mean something: a child
         # that crashed or printed nothing must not read as "no helper set".
         $sentinel = Invoke-GitConfigProcess -GitPath $gitPath -Argument @('config', '--list', '--show-origin')
@@ -1783,14 +1812,22 @@ function Test-CredentialAbsence {
         }
     }
 
-    if ($found.Count -gt 0) {
-        $evidence = 'credential or proxy material present: ' + ($found -join ', ')
+    if ($found.Count -gt 0 -or -not [string]::IsNullOrWhiteSpace($gitBreach)) {
+        $part = [System.Collections.Generic.List[string]]::new()
 
-        if (-not [string]::IsNullOrWhiteSpace($gitProblem)) {
-            $evidence += "; $gitProblem"
+        if ($found.Count -gt 0) {
+            $part.Add('credential or proxy material present: ' + ($found -join ', '))
         }
 
-        return New-CheckResult -Name 'CredentialAbsence' -Status 'Fail' -Evidence $evidence
+        if (-not [string]::IsNullOrWhiteSpace($gitBreach)) {
+            $part.Add($gitBreach)
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($gitProblem)) {
+            $part.Add($gitProblem)
+        }
+
+        return New-CheckResult -Name 'CredentialAbsence' -Status 'Fail' -Evidence ($part -join '; ')
     }
 
     if (-not [string]::IsNullOrWhiteSpace($gitProblem)) {
@@ -2113,7 +2150,8 @@ function Test-RuleAppliesToIdentity {
         caller's identifiers does not apply to it; one that allows any of them
         does; one that names only other principals does not. A condition that
         cannot be parsed applies, because an unread condition never proves a
-        rule harmless.
+        rule harmless; so does one that names a well-known alias (WD, AU, BU),
+        which is not resolved against the caller's token here.
 
         What is not evaluated, and is therefore treated as applying: the
         RemoteUser and RemoteMachine conditions, the program, service, port,
@@ -2154,6 +2192,12 @@ function Test-RuleAppliesToIdentity {
 
     foreach ($entry in $ace) {
         $sid = $entry.Groups['sid'].Value.Trim()
+
+        # A well-known alias such as WD, AU or BU names a group that is not resolved against the
+        # caller's token here, and a principal that was not resolved never proves a rule harmless.
+        if ($sid -notmatch '^S-1-\d+(-\d+)*$') {
+            return $true
+        }
 
         if (-not $known.Contains($sid)) {
             continue
@@ -2715,7 +2759,7 @@ function Get-ContainmentCheck {
 
     $check.Add((Test-EgressPolicy -DeclaredAllow ([string[]]$declaredAllow)))
     $check.Add((Test-RemoteUnreachable))
-    $check.Add((Test-CredentialAbsence))
+    $check.Add((Test-CredentialAbsence -WritableRoot $writableRoot))
 
     $escapeSet = @(Get-EscapeSet -ProfilePath $ProfilePath -SinkPath ([string]$ContainmentProfile.ledgerSink) -ChainHeadPath ([string]$ContainmentProfile.chainHead))
     $check.Add((Test-WritableRoot -Declared $writableRoot -EscapeSet $escapeSet))

@@ -16,6 +16,7 @@ BeforeAll {
             'Test-EgressPolicy'
             'Test-RemoteUnreachable'
             'Test-CredentialAbsence'
+            'Test-PathProtection'
             'Get-ConfigKeyName'
             'Resolve-GitExecutable'
             'Get-ScrubbedGitEnvironment'
@@ -153,12 +154,26 @@ BeforeAll {
         return $path
     }
 
+    # What Test-PathProtection reports for a path that is closed to this identity, or that is not.
+    function script:New-GitProtection {
+        param(
+            [Parameter()]
+            [string[]]$Violation = @(),
+
+            [Parameter()]
+            [string[]]$Unmeasured = @()
+        )
+
+        return [pscustomobject]@{ Path = 'C:\pinned\git.exe'; Closed = ($Violation.Count -eq 0 -and $Unmeasured.Count -eq 0); Absent = $false; Violation = $Violation; Unmeasured = $Unmeasured }
+    }
+
     # A git child that found nothing, used wherever a case is about something
     # other than the git result itself.
     function script:Set-CleanGitMock {
         param()
 
         Mock -CommandName 'Resolve-GitExecutable' -MockWith { 'C:\pinned\git.exe' }
+        Mock -CommandName 'Test-PathProtection' -MockWith { New-GitProtection }
         Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
             @{ ExitCode = 0; Output = @("file:C:/profile/.gitconfig`tuser.name nobody"); TimedOut = $false; Failure = '' }
         } -ParameterFilter { $Argument -contains '--list' }
@@ -341,6 +356,38 @@ Describe 'Containment verifier egress policy' -Tag 'Unit' {
             $result = Test-EgressPolicy -DeclaredAllow @()
 
             $result.status | Should -Be 'Pass' -Because $result.evidence
+        }
+
+        It 'treats a user condition that names the alias <Alias> as applicable, because it cannot be resolved to the caller' -ForEach @(
+            @{ Alias = 'WD' }
+            @{ Alias = 'AU' }
+            @{ Alias = 'BU' }
+        ) {
+            Mock -CommandName 'Get-NetFirewallRule' -MockWith {
+                @(New-FirewallRuleStub -Name 'AliasRule' -DisplayName 'Alias user condition')
+            }
+            $script:aliasCondition = "D:(A;;CC;;;$Alias)"
+            Mock -CommandName 'Get-NetFirewallSecurityFilter' -MockWith {
+                @(New-SecurityFilterStub -InstanceID 'AliasRule' -LocalUser $script:aliasCondition)
+            }
+
+            $result = Test-EgressPolicy -DeclaredAllow @()
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match 'Alias user condition'
+        }
+
+        It 'treats a deny entry that names an alias as unresolved, so the rule still applies' {
+            Mock -CommandName 'Get-NetFirewallRule' -MockWith {
+                @(New-FirewallRuleStub -Name 'AliasDeny' -DisplayName 'Alias deny rule')
+            }
+            Mock -CommandName 'Get-NetFirewallSecurityFilter' -MockWith {
+                @(New-SecurityFilterStub -InstanceID 'AliasDeny' -LocalUser "D:(D;;CC;;;BU)(A;;CC;;;$($script:otherSid))")
+            }
+
+            $result = Test-EgressPolicy -DeclaredAllow @()
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
         }
 
         It 'treats a user condition it cannot parse as applicable' {
@@ -716,9 +763,114 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
         }
     }
 
+    Context 'the git binary the check runs' {
+        BeforeEach {
+            Mock -CommandName 'Resolve-GitExecutable' -MockWith { 'C:\pinned\git.exe' }
+            Mock -CommandName 'Invoke-GitConfigProcess' -MockWith { throw 'git must not be started' }
+        }
+
+        It 'does not run a git that this identity can replace, and fails naming how' {
+            Mock -CommandName 'Test-PathProtection' -MockWith { New-GitProtection -Violation @('C:\pinned\git.exe: this identity holds DELETE on the file C:\pinned\git.exe') }
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match ([regex]::Escape('C:\pinned\git.exe'))
+            $result.evidence | Should -Match 'DELETE'
+            Should -Invoke -CommandName 'Invoke-GitConfigProcess' -Times 0 -Exactly
+        }
+
+        It 'does not run a git whose protection could not be measured, and reports it as unmeasured' {
+            Mock -CommandName 'Test-PathProtection' -MockWith { New-GitProtection -Unmeasured @('C:\pinned\git.exe could not be measured') }
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+            Should -Invoke -CommandName 'Invoke-GitConfigProcess' -Times 0 -Exactly
+        }
+
+        It 'reports a protection test that throws as unmeasured, never as clean' {
+            Mock -CommandName 'Test-PathProtection' -MockWith { throw 'the probe broke' }
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+            $result.evidence | Should -Match 'the probe broke'
+            Should -Invoke -CommandName 'Invoke-GitConfigProcess' -Times 0 -Exactly
+        }
+
+        It 'measures the git it resolved, against the writable roots it was given' {
+            Mock -CommandName 'Test-PathProtection' -MockWith { New-GitProtection -Violation @('breach') }
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                $null = Test-CredentialAbsence -WritableRoot @('C:\work')
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            Should -Invoke -CommandName 'Test-PathProtection' -Times 1 -Exactly -ParameterFilter {
+                $Path -eq 'C:\pinned\git.exe' -and $WritableRoot -contains 'C:\work'
+            }
+        }
+
+        It 'still reports a credential variable when git is replaceable' {
+            Mock -CommandName 'Test-PathProtection' -MockWith { New-GitProtection -Violation @('breach') }
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                [Environment]::SetEnvironmentVariable('GH_TOKEN', 'hunter2-not-a-real-secret')
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'GH_TOKEN'
+            $result.evidence | Should -Match 'breach'
+            $result.evidence | Should -Not -Match 'hunter2-not-a-real-secret'
+        }
+
+        It 'runs a git that is closed to this identity' {
+            Mock -CommandName 'Test-PathProtection' -MockWith { New-GitProtection }
+            Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                @{ ExitCode = 0; Output = @("file:C:/profile/.gitconfig`tuser.name nobody"); TimedOut = $false; Failure = '' }
+            } -ParameterFilter { $Argument -contains '--list' }
+            Mock -CommandName 'Invoke-GitConfigProcess' -MockWith {
+                @{ ExitCode = 1; Output = @(); TimedOut = $false; Failure = '' }
+            } -ParameterFilter { $Argument -contains '--get-regexp' }
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                $result = Test-CredentialAbsence
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Pass' -Because $result.evidence
+            Should -Invoke -CommandName 'Invoke-GitConfigProcess' -Times 2 -Exactly
+        }
+    }
+
     Context 'the git child process' {
         BeforeEach {
             Mock -CommandName 'Resolve-GitExecutable' -MockWith { 'C:\pinned\git.exe' }
+            Mock -CommandName 'Test-PathProtection' -MockWith { New-GitProtection }
         }
 
         It 'reports a git child that was killed on its timeout as unmeasured' {
