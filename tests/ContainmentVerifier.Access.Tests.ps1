@@ -296,6 +296,24 @@ Describe 'Containment access rights of a real object' -Tag 'Unit' {
         $result.State | Should -Be 'Absent'
     }
 
+    It 'does not take a probe from a type that the session defined under the name the script once used' -Skip:(-not $script:onWindows) {
+        # In a child process, so the type is there before the script's own is defined whatever ran
+        # earlier in this one. The type answers 5, access denied, to every probe.
+        $path = Join-Path $script:room 'decoy-type.json'
+        [System.IO.File]::WriteAllText($path, '{}')
+        $command = @"
+Add-Type -TypeDefinition 'public static class ContainmentNative { public static int Probe(string path, uint access) { return 5; } }'
+`$script:OnWindows = `$true
+. '$($script:repoRoot)/tests/Helpers/ScriptFunction.ps1'
+. (Get-ScriptFunctionDefinition -Path '$($script:verifierScript)' -Name @('Initialize-NativeAccess', 'Get-ObjectRight'))
+(Get-ObjectRight -Path '$path').Right['WriteData']
+"@
+
+        $output = & (Get-Process -Id $PID).Path -NoProfile -NonInteractive -Command $command 2>&1
+
+        ($output | Out-String).Trim() | Should -Be 'Granted' -Because 'the owner of a file can write it, whatever a type of an old name answers'
+    }
+
     It 'grants the owner of a file every right it can use to replace the file' -Skip:(-not $script:onWindows) {
         $path = Join-Path $script:room 'owned.json'
         [System.IO.File]::WriteAllText($path, '{}')

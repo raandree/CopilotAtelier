@@ -38,7 +38,7 @@ BeforeAll {
             [string[]]$Remove = @()
         )
 
-        $profile = [ordered]@{
+        $document = [ordered]@{
             schemaVersion = 1
             verifier = [ordered]@{ path = $script:verifierScript; sha256 = (Get-Digest -Path $script:verifierScript) }
             hooksConfig = [ordered]@{ path = $script:hookConfig; sha256 = (Get-Digest -Path $script:hookConfig) }
@@ -55,11 +55,11 @@ BeforeAll {
         }
 
         foreach ($key in $Override.Keys) {
-            $profile[$key] = $Override[$key]
+            $document[$key] = $Override[$key]
         }
 
         foreach ($key in $Remove) {
-            $profile.Remove($key)
+            $document.Remove($key)
         }
 
         $directory = Split-Path -Parent $Path
@@ -67,19 +67,18 @@ BeforeAll {
             $null = New-Item -Path $directory -ItemType Directory -Force
         }
 
-        $json = $profile | ConvertTo-Json -Depth 8
+        $json = $document | ConvertTo-Json -Depth 8
         Set-Content -LiteralPath $Path -Value $json -Encoding UTF8 -NoNewline
 
         return $Path
     }
 
-    function script:Invoke-Verifier {
+    # Runs a PowerShell process with exactly the arguments given and keeps its exit code and output.
+    function script:Invoke-PowerShellProcess {
         param(
             [Parameter(Mandatory)]
             [string[]]$Argument
         )
-
-        $arguments = @('-NoProfile', '-NonInteractive', '-File', $script:verifierScript) + $Argument
 
         $previousErrorActionPreference = $ErrorActionPreference
         $previousNativeCommandPreference = $null
@@ -95,7 +94,7 @@ BeforeAll {
                 $PSNativeCommandUseErrorActionPreference = $false
             }
 
-            $output = & $script:powerShellPath @arguments 2>&1
+            $output = & $script:powerShellPath @Argument 2>&1
             $exitCode = $LASTEXITCODE
         } finally {
             $ErrorActionPreference = $previousErrorActionPreference
@@ -109,6 +108,15 @@ BeforeAll {
             ExitCode = $exitCode
             Output = ($output | Out-String)
         }
+    }
+
+    function script:Invoke-Verifier {
+        param(
+            [Parameter(Mandatory)]
+            [string[]]$Argument
+        )
+
+        return (Invoke-PowerShellProcess -Argument (@('-NoProfile', '-NonInteractive', '-File', $script:verifierScript) + $Argument))
     }
 
     function script:Invoke-VerifierWithReport {
@@ -289,6 +297,34 @@ Describe 'Containment verifier' -Tag 'Unit' {
 
         $result.ExitCode | Should -Be 2 -Because $result.Output
         $result.Output | Should -Match 'lowercase'
+    }
+
+    It 'refuses to run inside a session that has run other code, and measures nothing' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p29/profile.json')
+        $digest = Get-Digest -Path $profilePath
+        $reportPath = Join-Path $TestDrive 'p29/report.json'
+        $command = "& '$($script:verifierScript)' -Verify -ProfilePath '$profilePath' -ProfileSha256 '$digest' -Role Controller -ReportPath '$reportPath'; exit `$LASTEXITCODE"
+
+        $result = Invoke-PowerShellProcess -Argument @('-NoProfile', '-NonInteractive', '-Command', $command)
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'fresh process'
+        Test-Path -LiteralPath $reportPath | Should -BeFalse -Because 'a refused process measures and reports nothing'
+    }
+
+    It 'refuses a process that loaded the profile of the user, and measures nothing' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p29b/profile.json')
+        $digest = Get-Digest -Path $profilePath
+        $reportPath = Join-Path $TestDrive 'p29b/report.json'
+
+        $result = Invoke-PowerShellProcess -Argument @(
+            '-NonInteractive', '-File', $script:verifierScript, '-Verify', '-ProfilePath', $profilePath
+            '-ProfileSha256', $digest, '-Role', 'Controller', '-ReportPath', $reportPath
+        )
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'NoProfile'
+        Test-Path -LiteralPath $reportPath | Should -BeFalse -Because 'a refused process measures and reports nothing'
     }
 
     It 'reports every other check as not run when the profile fails its schema' {

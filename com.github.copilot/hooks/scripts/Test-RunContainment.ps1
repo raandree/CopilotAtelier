@@ -164,6 +164,69 @@ function New-CheckResult {
     }
 }
 
+function Get-FreshProcessProblem {
+    <#
+        Why this process cannot be trusted to run the functions and types this script means, or
+        nothing when it can. A name a script calls is looked up in the session before it is looked
+        up in a module, so a function a caller defined, or a type it declared, outranks the one this
+        script uses; code that ran earlier in the same session can make every measurement read as
+        it likes. The verifier therefore runs only as the entry script of a process of its own:
+        -File names it, so nothing ran before it that the person who started the process did not
+        choose, and -NoProfile keeps the profile of the user out of the session.
+
+        The arguments are the command line of the process, whose first element is the host. Option
+        names are matched by prefix, as the host matches them, and only what comes before -File
+        counts, since everything after it belongs to the script.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [string[]]$CommandLineArgument,
+
+        [Parameter(Mandatory)]
+        [string]$ScriptPath
+    )
+
+    $remedy = 'start it as: pwsh -NoProfile -NonInteractive -File <this script> ...'
+    $notFresh = "this is not a fresh process that was started with -File naming this script, and a function or type defined earlier in the session outranks the ones the script uses; $remedy"
+    $argument = @($CommandLineArgument | Select-Object -Skip 1)
+    $fileIndex = -1
+
+    for ($index = 0; $index -lt $argument.Count; $index++) {
+        if ($argument[$index] -match '^[-/]f(i(l(e)?)?)?$') {
+            $fileIndex = $index
+            break
+        }
+    }
+
+    if ($fileIndex -lt 0 -or $fileIndex + 1 -ge $argument.Count) {
+        return $notFresh
+    }
+
+    $comparison = if ($script:OnWindows) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
+
+    try {
+        $named = [System.IO.Path]::GetFullPath($argument[$fileIndex + 1])
+        $own = [System.IO.Path]::GetFullPath($ScriptPath)
+    } catch {
+        return $notFresh
+    }
+
+    if (-not $named.Equals($own, $comparison)) {
+        return $notFresh
+    }
+
+    for ($index = 0; $index -lt $fileIndex; $index++) {
+        if ($argument[$index] -match '^[-/]nop(r(o(f(i(l(e)?)?)?)?)?)?$') {
+            return $null
+        }
+    }
+
+    return "the process loaded the profile of the user, which can define functions that outrank the ones this script uses; $remedy"
+}
+
 function Resolve-WriteFailure {
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -232,21 +295,29 @@ function Initialize-NativeAccess {
         the access check grants the right, and closing the handle changes nothing on disk, so the
         right is measured and never exercised. Backup semantics let it open a directory, and the
         open does not follow a link.
+
+        The type is defined under a name made for this process alone and is held in
+        $script:NativeProbe, and it is never looked up by a fixed name: a type of a fixed name that
+        something declared earlier in the session would otherwise be the one that answers every probe.
     #>
     [CmdletBinding()]
     [OutputType([void])]
     param()
 
-    if ('ContainmentNative' -as [type]) {
+    $existing = Get-Variable -Name NativeProbe -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+
+    if ($null -ne $existing) {
         return
     }
 
-    Add-Type -TypeDefinition @'
+    $typeName = 'ContainmentNative' + [guid]::NewGuid().ToString('N')
+
+    Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 
-public static class ContainmentNative
+public static class $typeName
 {
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern SafeFileHandle CreateFileW(string fileName, uint desiredAccess, uint shareMode, IntPtr securityAttributes, uint creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
@@ -260,7 +331,9 @@ public static class ContainmentNative
         }
     }
 }
-'@
+"@
+
+    $script:NativeProbe = $typeName -as [type]
 }
 
 function Get-PathChain {
@@ -405,7 +478,7 @@ function Get-ObjectRight {
     $attributeCode = $null
 
     if ($result.ReadOnly -and -not $result.IsDirectory) {
-        $attributeCode = [ContainmentNative]::Probe($Path, [uint32]0x100)
+        $attributeCode = $script:NativeProbe::Probe($Path, [uint32]0x100)
     }
 
     foreach ($name in $mask.Keys) {
@@ -414,7 +487,7 @@ function Get-ObjectRight {
             continue
         }
 
-        $code = [ContainmentNative]::Probe($Path, [uint32]$mask[$name])
+        $code = $script:NativeProbe::Probe($Path, [uint32]$mask[$name])
 
         if ($code -eq 0) {
             $right[$name] = 'Granted'
@@ -2552,9 +2625,9 @@ function Test-PathInside {
 function Get-EscapeSet {
     <#
         The places a run could use to get out of its declared roots: the user profile, the temp
-        folder, the folder that holds the profile, and the folders that hold the ledger sink and the
-        chain head. The set is fixed and named so that what a Pass says is exact; it is not a search
-        of the filesystem.
+        folder, the temp folder of the operating system, the folder that holds the profile, and the
+        folders that hold the ledger sink and the chain head. The set is fixed and named so that what
+        a Pass says is exact; it is not a search of the filesystem.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]
@@ -2569,9 +2642,19 @@ function Get-EscapeSet {
         [string]$ChainHeadPath
     )
 
+    $osTemp = if ($script:OnWindows) {
+        [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData), 'Temp')
+    } else {
+        '/tmp'
+    }
+
+    # GetTempPath follows the temp variables, which the caller sets, so the temp folder of the
+    # operating system is named as well: a caller must not be able to move the temp folder out of
+    # the set by pointing TEMP somewhere harmless.
     $candidate = @(
         [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)
         [System.IO.Path]::GetTempPath()
+        $osTemp
         [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($ProfilePath))
         [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($SinkPath))
         [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($ChainHeadPath))
@@ -3459,6 +3542,15 @@ function Get-RevalidationCheck {
 }
 
 $mode = $PSCmdlet.ParameterSetName
+
+# Before anything is measured, because what is measured is only as good as the functions and types
+# that measure it.
+$processProblem = Get-FreshProcessProblem -CommandLineArgument ([string[]][System.Environment]::GetCommandLineArgs()) -ScriptPath $PSCommandPath
+
+if ($processProblem) {
+    [Console]::Error.WriteLine("Containment refused: $processProblem")
+    exit 2
+}
 
 if ($mode -eq 'Verify' -and -not $Verify) {
     [Console]::Error.WriteLine('Containment verification requires -Verify.')

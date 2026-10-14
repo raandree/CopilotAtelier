@@ -252,6 +252,35 @@ Describe 'Containment escape set' -Tag 'Unit' {
 
         @($set | Where-Object { $_ -eq $script:base }) | Should -HaveCount 1
     }
+
+    It 'names the temp folder of the operating system when the caller has pointed the temp variables elsewhere' {
+        $elsewhere = Join-Path $script:base 'caller-chosen-temp'
+        $names = if ($script:onWindows) { @('TEMP', 'TMP') } else { @('TMPDIR') }
+        $previous = @{}
+
+        foreach ($name in $names) {
+            $previous[$name] = [System.Environment]::GetEnvironmentVariable($name)
+            [System.Environment]::SetEnvironmentVariable($name, $elsewhere)
+        }
+
+        try {
+            $set = @(Get-EscapeSet -ProfilePath (Join-Path $script:base 'profile.json') -SinkPath (Join-Path $script:base 'run.jsonl') `
+                    -ChainHeadPath (Join-Path $script:base 'run.head.json'))
+        } finally {
+            foreach ($name in $names) {
+                [System.Environment]::SetEnvironmentVariable($name, $previous[$name])
+            }
+        }
+
+        $osTemp = if ($script:onWindows) {
+            [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData), 'Temp')
+        } else {
+            '/tmp'
+        }
+
+        $set | Should -Contain ([System.IO.Path]::TrimEndingDirectorySeparator($osTemp)) -Because 'the temp variables are the caller''s to set'
+        $set | Should -Contain ([System.IO.Path]::TrimEndingDirectorySeparator($elsewhere)) -Because 'the folder the caller chose is still a way out'
+    }
 }
 
 Describe 'Containment protected paths' -Tag 'Unit' {
