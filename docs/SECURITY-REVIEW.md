@@ -4,6 +4,100 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-10-14: containment verifier and ledger appender, after the fix round (prompt P5)
+
+The built-in `security-review` agent reviewed the containment verifier
+(`Test-RunContainment.ps1`) and the ledger appender (`Invoke-LedgerAppender.ps1`)
+twice, read-only and in a fresh context, with no network call. The first review
+(2026-10-12, change set `e42985b`) said **Block** with 13 findings, C-01 to C-13.
+The fix round rebuilt the branch on `main` after the Remote grant change (`#38`),
+fixed each finding test first with a mutation check per control, and the same
+agent then reviewed it again: pass 1 (the verifier at `7804e31`) said **Approve
+with changes** with 11 findings, R-01 to R-11, and pass 2 (the whole branch,
+including the appender, which pass 1 had not read) is recorded below. The Custom
+`security-reviewer` agent was not tried, because its first model was unavailable
+in this runtime in earlier reviews. Nothing was pushed.
+
+### Scope
+
+- Can a run read as contained when it is not; can ledger evidence be suppressed,
+  spoofed, or altered without `-Validate` failing; can the verifier itself be made
+  to run something other than what it measured; and does the documentation claim
+  more than the code measures?
+- Pass 2 added what the fixes introduced: the fresh-process requirement, the
+  absolute interpreter path, the plugin-root tie, the whole-document scan, the
+  report-path rules, the per-process native type, and the appender in full.
+
+### Verdict
+
+First review: **Block** (5 Blockers, 7 Majors, 1 Minor). Pass 1: **Approve with
+changes** (no Blocker, 3 Majors, 7 Minors, 1 Nit). Pass 2: see Findings.
+
+### Findings
+
+First review, resolved in the fix round:
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| C-01 | Blocker | Verifier | The role identities were required but never read. | Fixed. `IdentityBinding` resolves each role identity and fails unless it is the verifying identity and the two roles differ; tested with the real token (Controller Pass, Worker Fail). |
+| C-02 | Blocker | Verifier | "Immutable" meant only that the leaf could not be opened for write. | Fixed. Each right that replaces or loosens an object is asked of the kernel for the object, its parent and every ancestor, with reparse points and writable-root overlap; a sharing violation reads as granted, so the check works beside a live appender. |
+| C-03 | Blocker | Verifier | The hook probe ran a command from a configuration whose digest or immutability had failed, and never compared the resolved script. | Fixed. It runs only after the verifier, the digests, the immutability and the identity binding pass, on bytes it hashed itself, with `PLUGIN_ROOT` set to the pinned root and a decoy tree; see R-01 and R-06 for what pass 1 then required. |
+| C-04 | Blocker | Appender | The pipe could be taken in a gap, and the client authenticated nobody. | Fixed. A pending instance is always kept and a creation failure is fatal; the creator owns the pipe and the network identity is denied; the client checks the owner and access list before it sends and checks the acknowledgement against the ledger. The owner comparison replaces a process-id lookup. |
+| C-05 | Blocker | Appender | Validation did not close the stored line, so text could be planted in it. | Fixed. A stored line must be byte-for-byte the canonical form of what it parses to, with exactly seven fields. |
+| C-06 | Major | Appender | A restart adopted whatever the sink held. | Fixed. The start is refused unless the head names the last record or the one before it. |
+| C-07 | Major | Appender | A head failure left a persisted, unacknowledged record and a stale sequence. | Fixed. Persist, advance, publish; a head failure stops the service. |
+| C-08 | Major | Appender | The canonical form was not a function of the data. | Fixed. Ordinal keys, raw tokens, integers within ±(2^53−1); the vectors were cross-checked with an independent implementation. |
+| C-09 | Major | Verifier | The egress check passed a disabled firewall profile and read a timeout as closed. | Fixed. Profiles must be enabled and default to Block, allow rules are read (an alias principal fails closed), and a timeout is unmeasured. The premise that a filtering-platform block returns an access error is unverified and fails closed to unmeasured. |
+| C-10 | Major | Verifier | The caller's environment decided some results. | Fixed. git is resolved to an absolute path that must be closed to the run, the steering variables are reported and dropped, a sentinel and an exit code are required, and values are never printed. |
+| C-11 | Major | Verifier | Live artifacts were not in the immutability set, and the writable-roots check claimed more than it measured. | Fixed. They are measured; the check makes two proofs and no longer claims the set is exact. The P2 grant is reconciled by `GrantRecorderUnregistered` (an assumption on a delegated choice; see R-06). |
+| C-12 | Major | Both | The verifier could not revalidate the chain, and `-Validate` took any path. | Fixed. `-Validate` is bound to the profile and can require a seal; `-Revalidate` runs it, reads the sink before and after, and checks the `FinalReport` record. |
+| C-13 | Minor | Both | A set of smaller defects. | Fixed, apart from a signed chain. |
+
+Pass 1 (verifier at `7804e31`):
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| R-01 | Major | Verifier | The hook probe started a shell in the caller's working directory and PATH, and the shipped command begins with a bare `powershell`, so a program planted in the repository ran before any verdict. | Fixed. The probe runs in a folder of its own with the shell told not to search the working directory; the command must start with the absolute path of an interpreter the run cannot replace. |
+| R-02 | Major | Verifier | `IdentityBinding` did not gate the hook command or the appender, which run as the caller. | Fixed. It gates both. |
+| R-03 | Major | Verifier | Nothing required a fresh process, so a function or type defined earlier in a session outranked the verifier's own. | Fixed. It runs only as the entry script of a `-NoProfile -File` process; the native probe is a per-process type; the temp folder of the operating system joins the escape set. |
+| R-04 | Minor | Verifier | Token privileges and elevation are never read. | **Not fixed.** Documented as a residual: the run identity must be a standard account. The smallest honest measurement is a read of the token. |
+| R-05 | Minor | Verifier | The report path was compared as text. | Fixed. Stream, device and extended-length spellings and, on Windows, a link above the report are refused. |
+| R-06 | Minor | Verifier | The grant check passed a shape it could not read, and its name overstated it. | Fixed. Renamed `GrantRecorderUnregistered`; an unread shape is unmeasured; the pinned `hooks.json` must be the plugin's own file. Hook files a host finds elsewhere are not read. |
+| R-07 | Minor | Verifier | The hook contract read one string of one entry. | Partly. Type, matcher, timeout and equal text under every key are required and each probe is timed; keys are not probed one by one. |
+| R-08 | Minor | Verifier | A directory entry is one object, and other registered hooks are unpinned. | Partly. Only the guard may be registered and the directory-leaf right has a test; a directory entry is still one object, documented. |
+| R-09 | Minor | Tests | Cases that could not fail, and one that failed off Windows. | Fixed. Eight network cases repaired (half the finding was redaction of credential-shaped fixtures, which are now distinctive and not credential-shaped), a ledger contract suite built on the real appender, the link branch and the digest case tested. |
+| R-10 | Minor | Docs | Claims beyond measurement; a loose `schemaVersion`. | Fixed. |
+| R-11 | Nit | Both | Probe files on POSIX, an uncaught `Add-Type` failure, uncapped relayed text, no run id. | Partly. The failure is unmeasured, relayed text is cut and cleaned, the probe files are documented; a run id is not bound. |
+
+### Documentation
+
+The hooks README, the changelog entries, and the controller text were corrected
+to say what each check proves and what it does not: the check names, the
+one-identity-per-run rule, the privileges that are not read, the fresh-process
+requirement, and the ledger as the appender now behaves. Decision 0025 carries a
+revision that withdraws "exact writable roots".
+
+### Tests
+
+Every control a finding names has a test that fails when it is removed, shown by
+switching each off in turn; the verifier and the appender together have about
+five hundred and sixty tests, and the full `build,test` gate passed on the tree
+after the first round (4,673 passed, 0 failed). Nothing could run on Ubuntu or
+macOS here.
+
+### Remaining risks
+
+- A privilege that is held but disabled, and a filtered administrator token, are
+  not read (R-04).
+- A grant file a run writes itself is not stopped by the hook: egress and
+  credentials are the boundary. Hook files a host finds outside the pinned file
+  are not read.
+- `-Revalidate` does not bind the ledger to a run id, and the chain is not keyed,
+  so whoever can write the sink and the head can write a chain that validates.
+- No test used a second Windows account, and the firewall results depend on a
+  premise about the filtering platform that was not verified.
+- Package feeds, browsers, web tooling and MCP servers are not measured.
+
 ## 2026-10-12: hand-resolved merge of `main` into the calibration branch (hook scripts)
 
 The built-in `security-review` agent reviewed, read-only and in a fresh context,
