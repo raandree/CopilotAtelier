@@ -16,6 +16,7 @@ BeforeAll {
             'Get-NotRunCheck'
             'Test-ReportPath'
             'Test-PathOverlap'
+            'Get-PathChain'
             'Get-PathProblem'
             'Test-ProfileSchema'
         ))
@@ -28,7 +29,7 @@ BeforeAll {
 
         $base = if ($script:onWindows) { 'C:\containment' } else { '/containment' }
         $entry = { param($name) [pscustomobject]@{ path = (Join-Path $base $name); sha256 = ('a' * 64) } }
-        $profile = [ordered]@{
+        $document = [ordered]@{
             schemaVersion = 1
             verifier = & $entry 'verifier.ps1'
             hooksConfig = & $entry 'hooks.json'
@@ -45,11 +46,11 @@ BeforeAll {
         }
 
         foreach ($key in $Override.Keys) {
-            $profile[$key] = $Override[$key]
+            $document[$key] = $Override[$key]
         }
 
         # Round-trips through JSON as the verifier sees it: a custom object, not a hashtable.
-        return ($profile | ConvertTo-Json -Depth 6 | ConvertFrom-Json)
+        return ($document | ConvertTo-Json -Depth 6 | ConvertFrom-Json)
     }
 }
 
@@ -193,6 +194,61 @@ Describe 'Containment report path' -Tag 'Unit' {
 
         Test-ReportPath -ReportPath $directory -ProtectedPath @() | Should -Match 'directory'
     }
+
+    It 'refuses <Reason>, which names the protected file under another spelling' -ForEach @(
+        @{ Reason = 'a named stream of a protected file'; Suffix = ':stream'; Match = 'alternate data stream' }
+        @{ Reason = 'the default stream of a protected file'; Suffix = '::$DATA'; Match = 'alternate data stream' }
+    ) -Skip:(-not $script:onWindows) {
+        $protected = Join-Path $TestDrive 'stream-protected.jsonl'
+        [System.IO.File]::WriteAllText($protected, '')
+
+        Test-ReportPath -ReportPath ($protected + $Suffix) -ProtectedPath @($protected) | Should -Match $Match
+    }
+
+    It 'refuses the <Prefix> spelling of a protected file' -ForEach @(
+        @{ Prefix = '\\?\' }
+        @{ Prefix = '\\.\' }
+    ) -Skip:(-not $script:onWindows) {
+        $protected = Join-Path $TestDrive 'device-protected.jsonl'
+        [System.IO.File]::WriteAllText($protected, '')
+
+        Test-ReportPath -ReportPath ($Prefix + $protected) -ProtectedPath @($protected) | Should -Match 'device or extended-length'
+    }
+
+    It 'refuses a report path that reaches a protected file through a junction' -Skip:(-not $script:onWindows) {
+        $real = Join-Path $TestDrive 'junction-target'
+        $null = New-Item -Path $real -ItemType Directory -Force
+        $protected = Join-Path $real 'control.json'
+        [System.IO.File]::WriteAllText($protected, '{}')
+        $junction = Join-Path $TestDrive 'junction-entry'
+        $null = New-Item -Path $junction -ItemType Junction -Value $real
+
+        Test-ReportPath -ReportPath (Join-Path $junction 'control.json') -ProtectedPath @($protected) | Should -Match 'link'
+    }
+
+    It 'refuses a report path in a directory that is a junction, whatever it protects' -Skip:(-not $script:onWindows) {
+        $real = Join-Path $TestDrive 'junction-target-2'
+        $null = New-Item -Path $real -ItemType Directory -Force
+        $junction = Join-Path $TestDrive 'junction-entry-2'
+        $null = New-Item -Path $junction -ItemType Junction -Value $real
+
+        Test-ReportPath -ReportPath (Join-Path $junction 'report.json') -ProtectedPath @() | Should -Match 'link'
+    }
+
+    It 'refuses a report path whose last element is a symbolic link' {
+        $target = Join-Path $TestDrive 'link-target.json'
+        [System.IO.File]::WriteAllText($target, '{}')
+        $link = Join-Path $TestDrive 'link-entry.json'
+
+        try {
+            $null = New-Item -Path $link -ItemType SymbolicLink -Value $target
+        } catch {
+            Set-ItResult -Skipped -Because "a symbolic link cannot be created here: $($_.Exception.Message)"
+            return
+        }
+
+        Test-ReportPath -ReportPath $link -ProtectedPath @() | Should -Match 'link'
+    }
 }
 
 Describe 'Containment profile schema paths and digests' -Tag 'Unit' {
@@ -240,6 +296,35 @@ Describe 'Containment profile schema paths and digests' -Tag 'Unit' {
         $containmentProfile = New-SchemaProfile -Override @{ schemaVersion = 2 }
 
         (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match 'schemaVersion'
+    }
+
+    It 'refuses a schema version that only equals 1 after a conversion: <Reason>' -ForEach @(
+        @{ Reason = 'a string'; Version = '1' }
+        @{ Reason = 'a boolean'; Version = $true }
+        @{ Reason = 'a fraction'; Version = [double]1.0 }
+        @{ Reason = 'an array'; Version = @(1) }
+    ) {
+        # Review pass 1, R-10: each of these passed a loose comparison with 1.
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile.schemaVersion = $Version
+
+        (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match 'schemaVersion'
+    }
+
+    It 'accepts the integer 1 as a JSON document spells it' {
+        $containmentProfile = New-SchemaProfile
+
+        @(Test-ProfileSchema -ContainmentProfile $containmentProfile) | Should -HaveCount 0
+    }
+
+    It 'refuses <Reason>' -ForEach @(
+        @{ Reason = 'a stream of the ledger sink'; Field = 'ledgerSink'; Value = 'C:\containment\run.jsonl::$DATA'; Match = 'alternate data stream' }
+        @{ Reason = 'an extended-length spelling of the chain head'; Field = 'chainHead'; Value = '\\?\C:\containment\run.head.json'; Match = 'device or extended-length' }
+    ) -Skip:(-not $script:onWindows) {
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile.$Field = $Value
+
+        (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match $Match
     }
 
     It 'refuses an empty <Field>' -ForEach @(

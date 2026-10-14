@@ -943,7 +943,10 @@ function Get-PathProblem {
     <#
         Why a path in the profile does not name one object. A relative path names whatever the
         working directory makes it, a dot segment hides where it leads, and a Windows short name is
-        another spelling of a file whose real name the text does not show.
+        another spelling of a file whose real name the text does not show. On Windows a device or
+        extended-length prefix is not normalized, so it is another spelling of the file it names, and
+        a colon after the drive names a stream of a file instead of the file: a file reads the same
+        under either spelling, and a comparison of the text sees two paths.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]
@@ -967,6 +970,14 @@ function Get-PathProblem {
 
     if ($script:OnWindows -and $Path -match '~\d') {
         $problem.Add('contains a Windows short name')
+    }
+
+    if ($script:OnWindows -and $Path -match '^[\\/]{2}[?.][\\/]') {
+        $problem.Add('is a device or extended-length path')
+    }
+
+    if ($script:OnWindows -and ($Path -replace '^[A-Za-z]:', '').Contains(':')) {
+        $problem.Add('names an alternate data stream')
     }
 
     return $problem.ToArray()
@@ -1062,6 +1073,13 @@ function Test-ReportPath {
         link, and it creates no directory: a report path is operator input and must not become a way
         to overwrite the evidence the report is about. Returns the reason for a refusal, nothing when
         the path is acceptable.
+
+        The path is judged by the spelling rules of a profile path first, so a stream of a protected
+        file, a device or extended-length spelling of it, a dot segment and a short name are refused
+        rather than compared as text. On Windows a directory above the report that is a junction or a
+        symbolic link is refused as well, because the path then reaches a file that its text does not
+        name; on a POSIX system a link in the middle of a path is ordinary and only the last element
+        is checked.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -1078,6 +1096,12 @@ function Test-ReportPath {
         return 'the report path must be an absolute path'
     }
 
+    $spelling = @(Get-PathProblem -Path $ReportPath)
+
+    if ($spelling.Count -gt 0) {
+        return "the report path $($spelling -join ' and ')"
+    }
+
     $full = [System.IO.Path]::GetFullPath($ReportPath)
     $directory = [System.IO.Path]::GetDirectoryName($full)
 
@@ -1087,6 +1111,14 @@ function Test-ReportPath {
 
     if ([System.IO.Directory]::Exists($full)) {
         return "the report path names a directory: $full"
+    }
+
+    if ($script:OnWindows) {
+        foreach ($ancestor in @(Get-PathChain -Path $directory)) {
+            if ([System.IO.Directory]::Exists($ancestor) -and ([System.IO.File]::GetAttributes($ancestor) -band [System.IO.FileAttributes]::ReparsePoint)) {
+                return "the directory of the report path goes through a link, so the path does not name the file it seems to: $ancestor"
+            }
+        }
     }
 
     foreach ($protected in @($ProtectedPath | Where-Object -FilterScript { -not [string]::IsNullOrWhiteSpace($_) })) {
@@ -1131,8 +1163,14 @@ function Test-ProfileSchema {
         }
     }
 
-    if ('schemaVersion' -in $present -and $ContainmentProfile.schemaVersion -ne 1) {
-        $problem.Add("'schemaVersion' must be 1")
+    if ('schemaVersion' -in $present) {
+        # A loose comparison with 1 also accepts "1", $true, 1.0 and [1], none of which is the
+        # integer the schema names.
+        $version = $ContainmentProfile.schemaVersion
+
+        if (($version -isnot [int] -and $version -isnot [long]) -or [long]$version -ne 1) {
+            $problem.Add("'schemaVersion' must be the integer 1")
+        }
     }
 
     foreach ($name in @('controllerIdentity', 'workerIdentity')) {
