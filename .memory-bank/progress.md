@@ -12,8 +12,8 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
 `6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0009` (`e393875`, 2026-10-12) to GitHub Releases and the
-PowerShell Gallery (verified 2026-10-12). Incremental work is tracked under
+`6.1.0-preview0011` (`1c1327e`, 2026-10-14) to GitHub Releases and the
+PowerShell Gallery (verified 2026-10-14). Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
@@ -38,10 +38,11 @@ PowerShell Gallery (verified 2026-10-12). Incremental work is tracked under
   that failed first. Live acceptance on 2026-10-13 passed in the Agent Host, VS Code
   Local, and Copilot CLI 1.0.96 started as usual and under `--yolo` (no marker: denied;
   marker: pushed once; auto-approval and `--yolo` did not lift the block). Decision 0016
-  holds the evidence; `activeContext.md` holds the state. The owner opened pull request #38
-  on 2026-10-14; its Windows job failed one test through a runner stall (the guard blocked
-  as designed but named the time limit), so the two new suites now run the guard with the
-  longest limit it accepts.
+  holds the evidence; `activeContext.md` holds the state. Merged as #38 (squash `1c1327e`,
+  2026-10-14 09:29 UTC; `6.1.0-preview0011`): the first CI run failed one Windows test through
+  a runner stall (the guard blocked as designed but named the time limit), so the two new
+  suites run the guard with the longest limit it accepts, and the rerun passed on all three
+  systems.
 - **2026-10-12**: Merged #32 to #36 into `main` one at a time (CI runs #130, #139 to
   #142; `6.1.0-preview0005` to `0009` on GitHub Releases and the Gallery; `main` is
   `e393875`). The review of the hand-merged hook scripts approved with changes

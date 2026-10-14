@@ -640,7 +640,9 @@ and the guard did not change. Forcing the limit to 0.1 s in both suites made
 186 blocked cases and 52 grant cases fail with the time-limit message, so the
 argument reaches the guard, and with the limit restored both suites passed
 (621 tests). A stall longer than 10 s would still fail a test; the cure then is a
-re-run, not a longer limit.
+re-run, not a longer limit. The rerun passed on Ubuntu, macOS, and Windows, the pull
+request was merged as #38 (squash `1c1327e`, 2026-10-14 09:29 UTC), and
+`6.1.0-preview0011` followed on GitHub Releases and the Gallery.
 
 Live acceptance ran on 2026-10-13, from 14:50 to 15:17 UTC, in four new chats
 against a throwaway repository whose `origin` is a local bare repository, so a
