@@ -272,10 +272,10 @@ Describe 'Containment gate' -Tag 'Unit' {
 
 Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
     It 'reads an unquoted absolute path' {
-        $result = Get-HookInterpreter -CommandLine 'C:\Windows\System32\cmd.exe /c exit 3'
+        $result = Get-HookInterpreter -CommandLine 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command exit'
 
         $result.Problem | Should -BeNullOrEmpty
-        $result.Path | Should -Be 'C:\Windows\System32\cmd.exe'
+        $result.Path | Should -Be 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
     }
 
     It 'reads a quoted absolute path that holds spaces' {
@@ -286,9 +286,9 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
     }
 
     It 'normalizes forward slashes and leading whitespace' {
-        $result = Get-HookInterpreter -CommandLine '   C:/Windows/System32/cmd.exe /c exit 3'
+        $result = Get-HookInterpreter -CommandLine '   C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command exit'
 
-        $result.Path | Should -Be 'C:\Windows\System32\cmd.exe'
+        $result.Path | Should -Be 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
     }
 
     It 'refuses <Why>' -ForEach @(
@@ -326,6 +326,12 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Why = 'PowerShell given a session configuration'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -ConfigurationFile x.pssc -File y.ps1'; Match = 'ConfigurationFile' }
         @{ Why = 'PowerShell given a settings file'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -SettingsFile x.json -File y.ps1'; Match = 'SettingsFile' }
         @{ Why = 'a working directory that swallows what looks like -NoProfile'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -WorkingDirectory -nop -File y.ps1'; Match = 'NoProfile' }
+        @{ Why = 'a renamed copy of an interpreter'; Line = 'C:\Tools\runner.exe -NoProfile -File x.ps1'; Match = 'not PowerShell' }
+        @{ Why = 'a preview build of PowerShell'; Line = '"C:\Program Files\PowerShell\7-preview\pwsh-preview.exe" -NoProfile -File x.ps1'; Match = 'not PowerShell' }
+        @{ Why = 'the PowerShell ISE'; Line = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell_ise.exe -NoProfile -File x.ps1'; Match = 'not PowerShell' }
+        @{ Why = 'a name that only ends in powershell'; Line = 'C:\Tools\notpowershell.exe -NoProfile -File x.ps1'; Match = 'not PowerShell' }
+        @{ Why = 'cmd.exe, whose registry AutoRun commands this check does not read'; Line = 'C:\Windows\System32\cmd.exe /d /c exit'; Match = 'not PowerShell' }
+        @{ Why = 'a script host'; Line = 'C:\Windows\System32\wscript.exe //B x.vbs'; Match = 'not PowerShell' }
     ) {
         $result = Get-HookInterpreter -CommandLine $Line
 
@@ -337,10 +343,10 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
     # a second program that nobody measured, and PowerShell without -NoProfile ran the profile of the
     # identity under test first.
     It 'reads a command whose shell characters are inside quotes' {
-        $result = Get-HookInterpreter -CommandLine '"C:\Windows\System32\cmd.exe" /c "echo a & echo b | more > nul < nul ^ x"'
+        $result = Get-HookInterpreter -CommandLine '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "echo a & echo b | more > nul < nul ^ x"'
 
         $result.Problem | Should -BeNullOrEmpty
-        $result.Path | Should -Be 'C:\Windows\System32\cmd.exe'
+        $result.Path | Should -Be 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
     }
 
     It 'reads the statement the shipped Windows command ends with, which only an outer PowerShell understands' {
@@ -354,7 +360,7 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
         $text = [string]@($shipped.hooks.PreToolUse)[0].$_
         $bare = if ($text.StartsWith('powershell ')) { 'powershell' } else { 'pwsh' }
-        $interpreter = if ($bare -eq 'powershell') { $script:systemPowerShell } else { (Get-Process -Id $PID).Path }
+        $interpreter = if ($bare -eq 'powershell') { $script:systemPowerShell } else { 'C:\Program Files\PowerShell\7\pwsh.exe' }
 
         $result = Get-HookInterpreter -CommandLine ('"' + $interpreter + '"' + $text.Substring($bare.Length))
 
@@ -412,6 +418,17 @@ Describe 'Hook command runner' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
         Test-Path -LiteralPath $marker | Should -BeFalse -Because 'the program in the working directory of the caller must not be the one that runs'
         $script:decoyExit | Should -Be 3
+    }
+
+    # cmd.exe runs the AutoRun commands of the registry of the identity that starts it unless it is given /D,
+    # and they run before the probe does: a hostile identity could answer for the guard from there. The
+    # shell reports its own command line, so this is read without writing anything to the registry.
+    It 'starts the shell with /D before /C, so that no AutoRun command of the identity runs ahead of the probe' {
+        $seenPath = Join-Path $TestDrive 'shell-command-line.txt'
+
+        Invoke-HookPayload -CommandLine "echo %CMDCMDLINE%> `"$seenPath`"" -Payload '{}' -EnvironmentVariable @{} | Should -Be 0
+
+        (Get-Content -LiteralPath $seenPath -Raw) | Should -Match '(?i)cmd(\.exe)?"?\s+/d\s+/c\s'
     }
 
     It 'passes the payload on standard input' {
@@ -485,7 +502,8 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
     Context 'the interpreter the command starts' {
         BeforeEach {
             $script:marker = Join-Path $TestDrive "interpreter-marker-$([guid]::NewGuid().ToString('N')).txt"
-            $script:cmdExe = [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System), 'cmd.exe')
+            # A command that leaves a file behind if it is ever run, so that "runs nothing" can be read off the disk.
+            $script:markerRun = "`"$script:systemPowerShell`" -NoProfile -NonInteractive -Command `"Set-Content -LiteralPath '$script:marker' -Value ran`""
         }
 
         It 'fails a command that names powershell without a path, and runs nothing' {
@@ -541,14 +559,14 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             Mock -CommandName Test-PathProtection -MockWith {
                 [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @("${Path}: this identity holds the right to delete it"); Unmeasured = @() }
             }
-            $tree = New-PluginTree -Name 'replaceable-interpreter' -Command "`"$script:cmdExe`" /c copy nul `"$script:marker`""
+            $tree = New-PluginTree -Name 'replaceable-interpreter' -Command $script:markerRun
 
             $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
                 -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
 
             $result.status | Should -Be 'Fail'
             $result.evidence | Should -Match 'can be replaced'
-            $result.evidence | Should -Match ([regex]::Escape($script:cmdExe))
+            $result.evidence | Should -Match ([regex]::Escape($script:systemPowerShell))
             Test-Path -LiteralPath $script:marker | Should -BeFalse
         }
 
@@ -556,7 +574,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             Mock -CommandName Test-PathProtection -MockWith {
                 [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @(); Unmeasured = @("${Path}: a right could not be measured") }
             }
-            $tree = New-PluginTree -Name 'unmeasured-interpreter' -Command "`"$script:cmdExe`" /c copy nul `"$script:marker`""
+            $tree = New-PluginTree -Name 'unmeasured-interpreter' -Command $script:markerRun
 
             $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
                 -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
@@ -568,7 +586,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
         It 'reports an interpreter that cannot be measured at all as unmeasured, and runs nothing' {
             Mock -CommandName Test-PathProtection -MockWith { throw 'access check unavailable' }
-            $tree = New-PluginTree -Name 'throwing-interpreter' -Command "`"$script:cmdExe`" /c copy nul `"$script:marker`""
+            $tree = New-PluginTree -Name 'throwing-interpreter' -Command $script:markerRun
 
             $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
                 -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
@@ -582,7 +600,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             Mock -CommandName Test-PathProtection -MockWith {
                 [pscustomobject]@{ Path = $Path; Closed = $true; Absent = $true; Violation = @(); Unmeasured = @() }
             }
-            $tree = New-PluginTree -Name 'absent-interpreter' -Command "`"$script:cmdExe`" /c copy nul `"$script:marker`""
+            $tree = New-PluginTree -Name 'absent-interpreter' -Command $script:markerRun
 
             $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
                 -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
@@ -854,7 +872,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         }
 
         It 'fails a command that takes as long as the timeout the host would enforce' {
-            $slow = ('"' + $script:cmdExe + '" /c ping -n 3 127.0.0.1').Replace('\', '\\').Replace('"', '\"')
+            $slow = ('"' + $script:systemPowerShell + '" -NoProfile -NonInteractive -Command "Start-Sleep -Seconds 3"').Replace('\', '\\').Replace('"', '\"')
             $tree = New-PluginTree -Name 'entry-slow'
             $json = '{"hooks":{"PreToolUse":[{"type":"command","timeout":1,"command":"' + $slow + '","windows":"' + $slow + '"}]}}'
             $digest = Set-PluginConfig -Tree $tree -Json $json

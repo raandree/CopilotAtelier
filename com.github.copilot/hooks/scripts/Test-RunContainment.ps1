@@ -1528,11 +1528,20 @@ function Get-HookInterpreter {
         A word the shell expands is refused as well, because the program it names is then not the
         text that was read.
 
-        Only the first word names the program, but the rest of the line is read by the same shell: an
-        unquoted separator, redirection or caret after it starts or changes a program that nobody
-        measured, and so does a line break. Those are refused. A PowerShell interpreter must also be
-        started with -NoProfile before its script or command, because the profile of the identity
-        under test would otherwise run first and can change what the guard does.
+        Only the first word names the program, but the rest of the line is read by the same shell, so
+        it is read here the way a shell reads it and refused where that could start a program nobody
+        measured: a line break; a '%' or a '!' anywhere, because a shell expands them before it reads
+        the line, even inside quotes; and, outside quotes, '&', '|', '<', '>', '^', '(' and ')'.
+        After the first unquoted ';' only the statement the shipped command ends with is accepted,
+        for the PowerShell that a host wraps the line in.
+
+        The program must be PowerShell, a program named powershell or pwsh. What PowerShell loads
+        before its command is known and read here: it must be given -NoProfile, because the profile
+        of the identity under test would otherwise run first and can change what the guard does, and
+        the options before its script or command are read by Get-PowerShellLaunchOption, which allows
+        only those that cannot change what runs first. What any other program loads cannot be read, so
+        any other program is refused: cmd.exe, for one, runs the AutoRun commands of the registry of
+        the identity that starts it unless it is given /d.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -1619,18 +1628,21 @@ function Get-HookInterpreter {
     }
 
     $program = [System.IO.Path]::GetFullPath($word)
+    $name = [System.IO.Path]::GetFileName($program)
 
-    if ([System.IO.Path]::GetFileName($program) -imatch '^(pwsh|powershell)(\.exe)?$') {
-        $token = @([regex]::Matches($head, '"[^"]*"|\S+') | ForEach-Object { $_.Value.Trim('"') })
-        $scan = Get-PowerShellLaunchOption -Argument $token
+    if ($name -inotmatch '\A(pwsh|powershell)(\.exe)?\z') {
+        return [pscustomobject]@{ Path = $null; Problem = "the program '$name' is not PowerShell (a program named powershell or pwsh): this check reads what PowerShell loads before its command and cannot read what any other program loads, so a command that starts anything else is not shown to run the guard and nothing else" }
+    }
 
-        if ($null -ne $scan.Problem) {
-            return [pscustomobject]@{ Path = $null; Problem = "the PowerShell command line cannot be trusted: $($scan.Problem)" }
-        }
+    $token = @([regex]::Matches($head, '"[^"]*"|\S+') | ForEach-Object { $_.Value.Trim('"') })
+    $scan = Get-PowerShellLaunchOption -Argument $token
 
-        if (-not $scan.NoProfile) {
-            return [pscustomobject]@{ Path = $null; Problem = 'the interpreter is PowerShell and the command does not pass -NoProfile before its script or command, so the profile of the identity that runs it is loaded first and can change what the guard does' }
-        }
+    if ($null -ne $scan.Problem) {
+        return [pscustomobject]@{ Path = $null; Problem = "the PowerShell command line cannot be trusted: $($scan.Problem)" }
+    }
+
+    if (-not $scan.NoProfile) {
+        return [pscustomobject]@{ Path = $null; Problem = 'the interpreter is PowerShell and the command does not pass -NoProfile before its script or command, so the profile of the identity that runs it is loaded first and can change what the guard does' }
     }
 
     return [pscustomobject]@{ Path = $program; Problem = $null }
@@ -1643,10 +1655,13 @@ function Invoke-HookPayload {
         re-quoting it here is exactly how a probe stops matching the command the
         agent loop actually executes.
 
-        The shell is the system one, not whatever ComSpec names, and the command sees the environment
-        it is given: a probe that inherits the caller's variables measures the caller's choices. The
-        command starts in a folder of its own that holds nothing but the script, and the shell is
-        told not to look for a command in the working directory, so a program a repository planted in
+        The shell is the system one, not whatever ComSpec names, and it is started with /d: cmd.exe
+        runs the AutoRun commands of the registry of the identity that starts it unless it is given
+        /d, and they would run before the probe does and could answer for the guard. The command sees
+        the environment it is given: a probe that inherits the caller's variables measures the caller's
+        choices. The command starts in a folder of its own that holds nothing but the script, and the
+        shell is told not to look for a command in the working directory, so a program a repository
+        planted in
         the directory the verifier was started from is never the one that runs. That instruction is
         applied after the caller's variables and cannot be removed by them.
         A command that does not finish is stopped and refused, never waited for.
@@ -1680,6 +1695,7 @@ function Invoke-HookPayload {
             $scriptPath = Join-Path $workRoot 'probe.cmd'
             [System.IO.File]::WriteAllText($scriptPath, "@echo off`r`n$CommandLine`r`n", [System.Text.ASCIIEncoding]::new())
             $startInfo.FileName = [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System), 'cmd.exe')
+            $startInfo.ArgumentList.Add('/d')
             $startInfo.ArgumentList.Add('/c')
             $startInfo.ArgumentList.Add($scriptPath)
         } else {
