@@ -2795,9 +2795,12 @@ function Get-ContainmentCheckName {
 function Get-ContainmentCheck {
     <#
         Runs the measurements against a profile that already satisfies the schema. The order is part
-        of the contract: the hook probe executes the pinned hook command, so it runs only after the
-        verifier, the digests and the immutability of the controls it executes were measured and
-        passed. Every other check is independent and always runs.
+        of the contract: the hook probe executes the pinned hook command as the identity that
+        verifies, so it runs only after the verifier, the digests and the immutability of the
+        controls it executes were measured and passed and that identity was bound to the role, since
+        the immutability is measured for the identity that verifies and only the binding says
+        whether that is the identity the profile names. Every other check is independent and always
+        runs.
     #>
     [CmdletBinding()]
     [OutputType([object[]])]
@@ -2828,10 +2831,10 @@ function Get-ContainmentCheck {
     $check.Add((Test-ControlImmutability -ProfilePath $ProfilePath -ContainmentProfile $ContainmentProfile -WritableRoot $writableRoot))
     $check.Add((Test-IdentityBinding -Role $Role -ControllerIdentity ([string]$ContainmentProfile.controllerIdentity) -WorkerIdentity ([string]$ContainmentProfile.workerIdentity)))
 
-    $unmet = @(Get-GateFailure -Check @($check) -Require @('VerifierBinding', 'ControlDigest', 'ControlImmutability'))
+    $unmet = @(Get-GateFailure -Check @($check) -Require @('VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding'))
 
     if ($unmet.Count -gt 0) {
-        foreach ($notRun in @(Get-NotRunCheck -Name 'HookContract' -Reason "it executes the pinned hook command, which is trusted only after $($unmet -join ', ') passed")) {
+        foreach ($notRun in @(Get-NotRunCheck -Name 'HookContract' -Reason "it executes the pinned hook command as this identity, which is trusted only after $($unmet -join ', ') passed")) {
             $check.Add($notRun)
         }
     } else {
@@ -3250,8 +3253,9 @@ function Test-FinalReport {
 function Get-RevalidationCheck {
     <#
         Runs the revalidation against a profile that already satisfies the schema. The pinned
-        appender is executed, so it runs only after the verifier, the control digests and the
-        immutability of the controls were measured and passed, exactly like the hook probe. The sink
+        appender is executed as the identity that verifies, so it runs only after the verifier, the
+        control digests, the immutability of the controls and the binding of that identity to the
+        role were measured and passed, exactly like the hook probe. The sink
         is snapshotted before and after the appender validates it: a sink that changed in between
         was not the one that was validated, and fails the chain. The report is looked for only in a
         chain that validated, in the bytes of the second snapshot. The protection of the ledger is
@@ -3289,10 +3293,10 @@ function Get-RevalidationCheck {
     $check.Add((Test-ControlImmutability -ProfilePath $ProfilePath -ContainmentProfile $ContainmentProfile -WritableRoot $writableRoot))
     $check.Add((Test-IdentityBinding -Role $Role -ControllerIdentity ([string]$ContainmentProfile.controllerIdentity) -WorkerIdentity ([string]$ContainmentProfile.workerIdentity)))
 
-    $unmet = @(Get-GateFailure -Check @($check) -Require @('VerifierBinding', 'ControlDigest', 'ControlImmutability'))
+    $unmet = @(Get-GateFailure -Check @($check) -Require @('VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding'))
 
     if ($unmet.Count -gt 0) {
-        foreach ($notRun in @(Get-NotRunCheck -Name @('LedgerChain', 'FinalReport') -Reason "the pinned appender is executed, and is trusted only after $($unmet -join ', ') passed")) {
+        foreach ($notRun in @(Get-NotRunCheck -Name @('LedgerChain', 'FinalReport') -Reason "the pinned appender is executed as this identity, and is trusted only after $($unmet -join ', ') passed")) {
             $check.Add($notRun)
         }
     } else {

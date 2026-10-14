@@ -164,6 +164,8 @@ Describe 'Containment check flow' -Tag 'Unit' {
         @{ Gate = 'ControlDigest'; Status = 'Fail' }
         @{ Gate = 'ControlImmutability'; Status = 'Fail' }
         @{ Gate = 'ControlImmutability'; Status = 'Unavailable' }
+        @{ Gate = 'IdentityBinding'; Status = 'Fail' }
+        @{ Gate = 'IdentityBinding'; Status = 'Unavailable' }
     ) {
         $script:gateName = $Gate
         $script:gateStatus = $Status
@@ -178,12 +180,12 @@ Describe 'Containment check flow' -Tag 'Unit' {
         $hook.evidence | Should -Match $Gate
     }
 
-    It 'does not let an identity that cannot be bound stop the hook probe' {
+    It 'still measures the grant channel when the identity cannot be bound' {
         Mock Test-IdentityBinding { New-CheckResult -Name 'IdentityBinding' -Status 'Fail' -Evidence 'mock' }
 
-        $null = Invoke-Flow
+        $result = Invoke-Flow
 
-        Should -Invoke Test-HookContract -Times 1 -Exactly
+        ($result | Where-Object { $_.name -ceq 'GrantChannelClosed' }).evidence | Should -Be 'mock'
     }
 
     It 'still runs every other check when one fails' {

@@ -433,6 +433,8 @@ Describe 'Revalidation flow' -Tag 'Unit' {
         @{ Gate = 'ControlDigest'; Status = 'Fail' }
         @{ Gate = 'ControlImmutability'; Status = 'Fail' }
         @{ Gate = 'ControlImmutability'; Status = 'Unavailable' }
+        @{ Gate = 'IdentityBinding'; Status = 'Fail' }
+        @{ Gate = 'IdentityBinding'; Status = 'Unavailable' }
     ) {
         $script:gateName = $Gate
         $script:gateStatus = $Status
