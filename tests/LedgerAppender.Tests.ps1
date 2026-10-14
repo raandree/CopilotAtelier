@@ -1620,6 +1620,25 @@ Describe 'Ledger appender bound validation' -Tag 'Unit' {
         $result.StandardOutput | Should -Match '"sealed":true'
     }
 
+    It 'keeps the contract exit code when the sink cannot be read at all' -Skip:(-not $script:onWindows) {
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+
+        $lock = [System.IO.FileStream]::new($script:sinkPath, [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read, [System.IO.FileShare]::None)
+        try {
+            $result = Invoke-AppenderSplit -Argument @('-Validate', '-SinkPath', $script:sinkPath, '-ChainHeadPath', $script:headPath)
+
+            $result.ExitCode | Should -Be 2 -Because 'an unreadable ledger is a refusal, not an unhandled error'
+            $result.StandardOutput.Trim() | Should -BeExactly ''
+            @($result.StandardError -split "`n" | Where-Object { $_.Trim().Length -gt 0 }).Count |
+                Should -BeLessOrEqual 2 -Because 'a refusal is a line of reason, not a stack trace'
+        } finally {
+            $lock.Dispose()
+        }
+    }
+
     It 'marks the free-path form as unbound and warns about it' -Skip:(-not $script:onWindows) {
         $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
         (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0

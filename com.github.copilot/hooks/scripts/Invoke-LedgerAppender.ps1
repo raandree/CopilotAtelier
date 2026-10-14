@@ -154,6 +154,18 @@ param(
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 
+trap {
+    <#
+        Every mode reports a refusal the same way: one line on standard error
+        and exit 2. An unexpected failure must not become an exit code of its
+        own or a stack trace on the stream a caller parses, so anything that
+        escapes a local handler lands here. Explicit exits are flow control,
+        not errors, and pass through untouched.
+    #>
+    Write-Refusal -Message $_.Exception.GetBaseException().Message
+    exit 2
+}
+
 $script:GenesisHash = '0' * 64
 $script:RequiredField = @('type', 'runId', 'utc', 'data')
 $script:RequestField = @('operation', 'record')
