@@ -462,6 +462,14 @@ Describe 'Containment verifier remote reachability' -Tag 'Unit' {
 
             $control.Validated | Should -BeTrue -Because $control.Detail
         }
+
+        It 'releases every listener it opens, so the control can run repeatedly' {
+            $result = 1..25 | ForEach-Object { Invoke-ProbeSelfTest }
+
+            @($result | Where-Object { -not $_.Validated }) | Should -BeNullOrEmpty -Because (
+                ($result | Where-Object { -not $_.Validated } | ForEach-Object { $_.Detail }) -join '; '
+            )
+        }
     }
 
     Context 'the canary endpoints' {

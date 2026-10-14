@@ -1131,14 +1131,16 @@ function Invoke-ProbeSelfTest {
     $listener = $null
 
     try {
-        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
-        $listener.Start()
-        $port = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
-    } catch {
-        return @{ Validated = $false; Detail = "no loopback listener could be opened: $($_.Exception.Message)" }
-    }
+        try {
+            $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+            $listener.Start()
+            $port = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+        } catch {
+            # Inside the outer try, so a listener that was constructed but could
+            # not start is still released by the one finally below.
+            return @{ Validated = $false; Detail = "no loopback listener could be opened: $($_.Exception.Message)" }
+        }
 
-    try {
         $outcome = Test-TcpEndpoint -Address '127.0.0.1' -Port $port -TimeoutMilliseconds $TimeoutMilliseconds
 
         if ($outcome.Outcome -eq 'Connected') {
@@ -1149,10 +1151,12 @@ function Invoke-ProbeSelfTest {
     } catch {
         return @{ Validated = $false; Detail = "the loopback probe failed: $($_.Exception.Message)" }
     } finally {
-        $listener.Stop()
+        if ($null -ne $listener) {
+            $listener.Stop()
 
-        if ($listener -is [System.IDisposable]) {
-            $listener.Dispose()
+            if ($listener -is [System.IDisposable]) {
+                $listener.Dispose()
+            }
         }
     }
 }
