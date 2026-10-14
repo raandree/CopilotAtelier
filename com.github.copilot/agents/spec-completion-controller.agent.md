@@ -115,7 +115,8 @@ commands and record each raw result and exit code in the controller ledger:
   anywhere but `PLUGIN_ROOT`.
 2. Run only the hash-pinned verifier with its fixed `Verify` parameter set, as
   the entry script of a process of its own, `pwsh -NoProfile -NonInteractive
-  -File <verifier> ...`; it refuses to run in any other way, because a session
+  -File <verifier> ...`, from a launcher that builds its own environment; it
+  refuses a launch that does not look like one, because a session
   that has run other code can outrank the functions it measures with. It
   invokes the exact current-platform PreToolUse command from the pinned
   `hooks.json` with fixed synthetic safe, push, and issue-mutation payloads, and
@@ -130,7 +131,7 @@ commands and record each raw result and exit code in the controller ledger:
   profile matches.
 3. Require verifier evidence that the pinned `hooks.json` records no Remote
   grant (`GrantRecorderUnregistered`): it registers no `UserPromptSubmit` hook,
-  names no Remote grant recorder anywhere in the file, and the grants folder of the
+  does not contain the name of the Remote grant recorder anywhere in the file, and the grants folder of the
   running identity holds none. The check does not say that no grant can
   exist: a grant file the run writes itself is not measured, so egress and
   credentials, not the hook, are the boundary against a remote mutation.
@@ -158,6 +159,10 @@ commands and record each raw result and exit code in the controller ledger:
   replaceable, deletable, or truncatable by any run identity or terminal child.
   Only the pinned appender identity may write them through fixed-schema
   authenticated local IPC. Any measured breach of these is `BlockedContainment`.
+  The verifier reads access control, not the token of the identity it runs as,
+  so a privilege that is held but disabled and a filtered administrator group
+  are not measured: the run identity must be a standard account, and an identity
+  that cannot be shown to be one is reported as unverified, never as passed.
   A self-description or profile assertion is not evidence.
 
 Any command outside this allow-list before every probe passes is

@@ -23,9 +23,15 @@
     ledger, again only on controls already measured, and checks that the ledger
     records the digest of the final report.
 
-    It runs only as the entry script of a process of its own, started with
-    -NoProfile and -File, and refuses any other way: a function or a type
-    defined earlier in a session outranks the ones it measures with.
+    It runs only as the entry script of a process of its own, and refuses a
+    launch that does not look like one: the command line must name this script
+    after -File with -NoProfile before it, and the script must be the only
+    frame of the call stack, because a function or a type defined earlier in a
+    session outranks the ones it measures with. That reads the launch. Code that
+    already runs inside the process, such as a .NET startup hook named by
+    DOTNET_STARTUP_HOOKS, cannot be seen from inside, and the firewall cmdlets
+    are resolved by name, so the module search path is inherited: the
+    environment belongs to whatever starts the verifier.
 
     Three rules make the result meaningful.
 
@@ -754,7 +760,7 @@ function Test-ControlImmutability {
         return New-CheckResult -Name 'ControlImmutability' -Status 'Unavailable' -Evidence ('not measurable: ' + ($unmeasured -join '; '))
     }
 
-    return New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'the profile, every pinned control, every declared immutable path, and the directories above them are closed to this identity'
+    return New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'the profile, every pinned control, every declared immutable path, and the directories above them are closed to this identity; its token is not read, so a disabled privilege or a filtered administrator group is not measured and the run identity must be a standard account'
 }
 
 function Get-IdentitySid {
@@ -865,7 +871,7 @@ function Test-IdentityBinding {
         return New-CheckResult -Name 'IdentityBinding' -Status 'Fail' -Evidence "this verifier runs as $($caller.Name) ($($caller.Sid)), but the profile declares the $Role as $declared; a probe run as another account measures that account, not the $Role"
     }
 
-    return New-CheckResult -Name 'IdentityBinding' -Status 'Pass' -Evidence "this verifier runs as $($caller.Name) ($($caller.Sid)), the identity the profile declares for the $Role; the other role is $other"
+    return New-CheckResult -Name 'IdentityBinding' -Status 'Pass' -Evidence "this verifier runs as $($caller.Name) ($($caller.Sid)), the identity the profile declares for the $Role; the other role is $other; its token is not read, so the account must be a standard one"
 }
 
 function Get-BytesDigest {
@@ -1954,19 +1960,20 @@ function Test-GrantRecorderUnregistered {
         hook that records grants may be registered there.
 
         What a Pass says, and no more. The pinned hooks.json is of a shape this check reads, an object
-        whose hooks object holds only lists; it registers no hook on the prompt event and names the
-        recorder nowhere; and the grants folder of the identity that runs holds nothing, so no grant
-        recorded earlier is waiting. Both reads of the file cover every property and string at any
-        depth, so a nested matcher group or a field the host reads under another name is covered: a
-        prompt event is a property named for it that holds anything, and the recorder is named by
-        any string or property name that contains it, whatever the casing. A shape that is not read
-        is unmeasured, never a pass.
+        whose hooks object holds only lists; it registers no hook on the prompt event and does not
+        contain the name of the recorder; and the grants folder of the identity that runs holds
+        nothing, so no grant recorded earlier is waiting. Both reads of the file cover every property
+        and string at any depth, so a nested matcher group or a field the host reads under another
+        name is covered: a prompt event is a property named for it that holds anything, and the
+        recorder is named by any string or property name that contains it, whatever the casing. A
+        shape that is not read is unmeasured, never a pass.
 
         What it does not say. It does not say that no grant can exist: the guard honors any
         well-formed grant file in a folder the run owns, so a run that writes one itself is not
-        stopped here, and egress and credentials are the boundary against a remote mutation. It does
-        not read a hook file the host finds outside the pinned file, such as a user-level or
-        workspace hooks folder or an installed copy of the plugin.
+        stopped here, and egress and credentials are the boundary against a remote mutation. It
+        matches a name, not a behavior: a recorder under another name, a wildcard, or a name built
+        by an expansion is not seen. It does not read a hook file the host finds outside the pinned
+        file, such as a user-level or workspace hooks folder or an installed copy of the plugin.
     #>
     [CmdletBinding()]
     [OutputType([System.Collections.Specialized.OrderedDictionary])]
@@ -2081,7 +2088,7 @@ function Test-GrantRecorderUnregistered {
         return New-CheckResult -Name 'GrantRecorderUnregistered' -Status 'Unavailable' -Evidence $unmeasured
     }
 
-    return New-CheckResult -Name 'GrantRecorderUnregistered' -Status 'Pass' -Evidence "the pinned hooks.json registers no prompt hook and names no Remote grant recorder, and $root holds no Remote grant; a grant file a run writes itself is not measured"
+    return New-CheckResult -Name 'GrantRecorderUnregistered' -Status 'Pass' -Evidence "the pinned hooks.json registers no prompt hook and does not contain the name Add-RemoteGrant, and $root holds no Remote grant; a recorder under another name and a grant file a run writes itself are not measured"
 }
 
 function Test-EgressPolicy {

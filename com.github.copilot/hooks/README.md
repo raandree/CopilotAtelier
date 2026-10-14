@@ -121,7 +121,9 @@ segment and no Windows short name, and on Windows no device or extended-length
 prefix and no stream name, because each of those is another spelling of a file
 that a comparison of text cannot see. Every digest is lowercase 64-hex. Unknown
 fields, wildcards, a `schemaVersion` other than the integer `1`, and non-empty
-egress lists are refused. Credential material is not a profile field: it is
+egress lists are refused. Field names are compared exactly, so a name spelled in
+another case, or with an invisible character in it, is an unknown field and does
+not stand in for the field it imitates. Credential material is not a profile field: it is
 measured on the machine, and any that is reachable fails the run.
 
 | Field | Meaning |
@@ -164,7 +166,8 @@ or was unreachable, a probe that could not be validated, a git that cannot be
 resolved to a file the run cannot replace, and a git child that crashed or
 printed nothing are all reported as unmeasured, never as protected or clean.
 
-A check that executes a pinned control runs only after the controls it executes
+A check that runs a program as this identity, which is the hook command, git and,
+in `-Revalidate`, the pinned appender, runs only after the controls it executes
 were measured and passed, so a writable or swapped control is never run. Every
 other check always runs, and a run that stops at the profile reports each check
 as not run instead of leaving it out.
@@ -174,13 +177,13 @@ as not run instead of leaving it out.
 | `ProfileDigest`, `ProfileSchema` | The profile hashes to the digest argument, compared as typed, and satisfies the closed schema | |
 | `VerifierBinding` | The verifier that runs is the file the profile pins, by path and digest | |
 | `ControlDigest` | Each pinned control hashes to its pinned digest | |
-| `ControlImmutability` | This identity cannot replace or loosen the profile, a pinned control, a live artifact, or an immutable path: not by writing it, deleting it, changing its access list or owner, creating it, or through a directory above it or a reparse point, and none lies in or holds a writable root | What an identity other than the one that runs can do. A directory entry is judged as one object, its own rights and those above it, not the rights of what it holds. Off Windows only write access is measured |
-| `IdentityBinding` | The verifier runs as the account the profile declares for the role, and the two roles differ. The pinned hook command and, in `-Revalidate`, the pinned appender run only when this passes, because the immutability above is measured for the identity that verifies | |
-| `HookContract` | The pinned `hooks.json` is the plugin's own at the root of the pinned script and registers only the guard: one `PreToolUse` entry of type `command`, with no matcher, an integer `timeout`, and the same command under every key. That command starts with the absolute path of an interpreter this identity cannot replace. Run from a folder of its own, with `PLUGIN_ROOT` set to the pinned root and the other places it looks emptied, within the timeout, it runs the pinned script, which exits 0, 2 and 2 for a safe, a push and an issue-mutation payload | What a host passes the hook in a real run, and how a host spawns the command: the absolute interpreter path in the pinned command is what stops a host looking its interpreter up in its own working directory |
-| `GrantRecorderUnregistered` | The pinned `hooks.json` is of a shape the check reads, registers no prompt hook, and names no Remote grant recorder anywhere in the file, at any depth, and the grants folder of this identity is empty | That no grant can exist: the guard honors any well-formed grant file in a folder the run owns, so a run that writes one is not stopped here, and egress and credentials are the boundary against a remote mutation. A hook file the host finds outside the pinned file, such as a user-level or workspace hooks folder or an installed copy of the plugin |
+| `ControlImmutability` | This identity cannot replace or loosen the profile, a pinned control, a live artifact, or an immutable path: not by writing it, deleting it, changing its access list or owner, creating it, or through a directory above it or a reparse point, and none lies in or holds a writable root | What an identity other than the one that runs can do. A directory entry is judged as one object, its own rights and those above it, not the rights of what it holds. What the token of this identity holds beyond what the probes show: a disabled privilege and a filtered administrator group are not read (see below). Off Windows only write access is measured |
+| `IdentityBinding` | The verifier runs as the account the profile declares for the role, and the two roles differ. The pinned hook command, git and, in `-Revalidate`, the pinned appender run only when this passes, because the immutability above is measured for the identity that verifies | That the account is a standard one: its token is not read (see below) |
+| `HookContract` | The pinned `hooks.json` is the plugin's own at the root of the pinned script and registers only the guard. Its one `PreToolUse` entry carries no key but `type`, an integer `timeout` and the command keys (`timeoutSec`, `env`, `cwd` and any other key fail the check, because a host may act on a key the check does not read), is of type `command` with no matcher, and holds the same command text under every command key. That command starts with the absolute path of an interpreter this identity cannot replace, has no line break and no unquoted `&`, `\|`, `<`, `>` or `^` after it, and for PowerShell passes `-NoProfile` before its script or command. Run from a folder of its own, with `PLUGIN_ROOT` set to the pinned root and the other places it looks emptied, within the timeout, it runs the pinned script, which exits 0, 2 and 2 for a safe, a push and an issue-mutation payload | What a host passes the hook in a real run, and how a host spawns the command: the absolute interpreter path in the pinned command is what stops a host looking its interpreter up in its own working directory. The rest of the command line is read only for those characters; a host that runs it through a shell of its own reads it by that shell's rules |
+| `GrantRecorderUnregistered` | The pinned `hooks.json` is of a shape the check reads, registers no prompt hook, and does not contain the name `Add-RemoteGrant` anywhere in the file, at any depth, and the grants folder of this identity is empty | That no grant can exist: the guard honors any well-formed grant file in a folder the run owns, so a run that writes one is not stopped here, and egress and credentials are the boundary against a remote mutation. A recorder under another name (a renamed copy, a wildcard, a name built by an expansion) is not seen. A hook file the host finds outside the pinned file, such as a user-level or workspace hooks folder or an installed copy of the plugin |
 | `EgressPolicy` | Every firewall profile of the active store is enabled and defaults outbound to Block, and no enabled outbound allow rule could apply to this identity by its user condition | A system-wide proxy, and the program, service, port and address scoping of a rule |
 | `RemoteUnreachable` | The probe works against a loopback listener, and local policy denied the connection to both canary addresses | A network that is silent or down: a timeout is unmeasured, not closed |
-| `CredentialAbsence` | None of the credential and git steering variables is set, `XDG_CONFIG_HOME` among them, and a git that is closed to the run reports no credential helper. The git child gets the caller's environment without the `GIT_` variables, `SSH_ASKPASS` and `XDG_CONFIG_HOME`, with `HOME` and `USERPROFILE`, and on Windows `PROGRAMDATA`, pinned to the operating system's own folders. Evidence names variables and configuration keys, never their values | The files git itself loads from its own installation, and package feeds, browsers, web and GitHub tooling, and MCP servers, none of which this verifier measures |
+| `CredentialAbsence` | None of the credential and git steering variables is set, `XDG_CONFIG_HOME` among them, and a git that is closed to the run reports no credential helper. git runs only after the checks that gate the hook command passed; otherwise it is not run, and the check is unmeasured. The git child gets the caller's environment without the `GIT_` variables, `SSH_ASKPASS` and `XDG_CONFIG_HOME`, with `HOME` and `USERPROFILE`, and on Windows `PROGRAMDATA`, pinned to the operating system's own folders. Evidence names variables and configuration keys, never their values | The files git itself loads from its own installation, and package feeds, browsers, web and GitHub tooling, and MCP servers, none of which this verifier measures |
 | `WritableRoots` | Every declared root accepts new files and folders, and none of the escape set is writable outside them: the user profile, the temp folder, the temp folder of the operating system, the folder of the profile, and the folders of the ledger sink and chain head | The rest of the filesystem, which is not enumerated. Off Windows the write measurement creates and removes a short-lived probe file in each place it measures |
 | `LedgerProtection` | This identity cannot replace or loosen the sink or the chain head, or a directory above them | The chain is not signed: whoever can write both files can write a chain that validates |
 | `LiveArtifacts` | Live mode only: the live artifacts are pinned and match | |
@@ -198,11 +201,24 @@ A verifier measures one identity and one network namespace: the one it runs in.
 The controller therefore runs it once per role, `-Role Controller` and
 `-Role Worker`, each as the account it measures.
 
-It runs only as the entry script of a process of its own, and refuses any other
-way: a function or a type defined earlier in a session outranks the ones it
-measures with, so a call from inside another command, from an interactive
-session, or from a script that was started for another purpose could make every
-measurement read as it likes.
+It runs only as the entry script of a process of its own, and refuses a launch
+that does not look like one: a function or a type defined earlier in a session
+outranks the ones it measures with, so a call from inside another command, from
+an interactive session, or from a script that was started for another purpose
+could make every measurement read as it likes. It reads the command line
+(`-NoProfile` and `-File` naming this script) and the call stack, where the
+script must be the only frame: a `-Command` text that merely carries `-File` and
+the script after it lists them on the command line while its own code runs
+first, and has a deeper stack.
+
+That reads the launch. It cannot see code that already runs inside the process
+before its first line, such as a .NET startup hook named by `DOTNET_STARTUP_HOOKS`,
+and it resolves the firewall cmdlets by name, so it inherits the module search
+path. The environment belongs to whatever starts the verifier, and only a
+launcher that builds it can close those two: start the verifier from a launcher
+that sets its own environment, with no `PSModulePath` entry the run can write and
+no `DOTNET_` startup variable (`Start-Process -UseNewEnvironment` does that for
+the worker role).
 
 ```powershell
 $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $profilePath).Hash.ToLowerInvariant()
@@ -241,14 +257,16 @@ pwsh -NoProfile -NonInteractive -File $verifierPath -Revalidate -ProfilePath $pr
 | Check | A Pass says | It does not say |
 |---|---|---|
 | `VerifierBinding`, `ControlDigest`, `ControlImmutability`, `IdentityBinding` | As above | |
-| `LedgerChain` | The pinned appender, run bound to the pinned profile, says the sink and the chain head form a valid chain from genesis and that the chain is sealed. The sink is read before and after the appender validates it, and the two reads must hash alike, so what was validated is what was read | That the ledger belongs to this run: the verifier does not know a run id, so a sink that holds an earlier sealed run and its report revalidates, and the controller gives each run a sink of its own |
+| `LedgerChain` | The pinned appender, run bound to the pinned profile, says the sink and the chain head form a valid chain from genesis and that the chain is sealed. The sink is read before and after the appender validates it, and the two reads must hash alike | That what was validated is what was read, against a writer that restores the same bytes between the two reads: `LedgerProtection` for this identity is what excludes a writer. And that the ledger belongs to this run: the verifier does not know a run id, so a sink that holds an earlier sealed run and its report revalidates, and the controller gives each run a sink of its own |
 | `FinalReport` | The record directly before the `Seal` is a `FinalReport` record whose `data.sha256` is the digest of the report file, compared as written and in lowercase, the seal chains to it, and the seal is the head the appender validated | That the report says anything true |
 | `LedgerProtection` | As above, measured again | |
 
 What the pinned appender says, and the text of the ledger records the verifier
-names, reach evidence that a model reads. They are cut to a short length and
-their control characters are replaced, so a record cannot add lines to the
-report or fill it.
+names, reach evidence that a model reads. They are cut to a short length, and
+every character a person cannot see (control and format characters, separators,
+private-use and unassigned code points, among them the Unicode tag block) is
+replaced by a question mark, so a record cannot add lines to the report, hide an
+instruction in invisible text, or fill it.
 
 ### Ledger
 
