@@ -122,6 +122,21 @@ BeforeAll {
         }
     }
 
+    # Writes a hooks.json into a plugin tree and returns the digest of what it wrote.
+    function script:Set-PluginConfig {
+        param(
+            [Parameter(Mandatory)]
+            $Tree,
+
+            [Parameter(Mandatory)]
+            [string]$Json
+        )
+
+        [System.IO.File]::WriteAllText($Tree.Config, $Json, [System.Text.UTF8Encoding]::new($false))
+
+        return (Get-FileDigest -Path $Tree.Config)
+    }
+
     # Runs a script block with both the PowerShell location and the process working directory set, then restores them.
     function script:Invoke-InDirectory {
         param(
@@ -412,13 +427,26 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $script:cmdExe = [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System), 'cmd.exe')
         }
 
-        It 'fails the shipped command, which names powershell without a path, and runs nothing' {
-            $result = Test-HookContract -HookConfigPath $script:realConfig -HookConfigSha256 $script:realConfigDigest `
-                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+        It 'fails a command that names powershell without a path, and runs nothing' {
+            $tree = New-PluginTree -Name 'bare-name' -Command "powershell -NoProfile -NonInteractive -Command `"echo ran> '$script:marker'`""
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
 
             $result.status | Should -Be 'Fail'
             $result.evidence | Should -Match 'bare name'
             $result.evidence | Should -Match 'not run'
+            Should -Invoke Test-PathProtection -Times 0 -Exactly
+            Test-Path -LiteralPath $script:marker | Should -BeFalse
+        }
+
+        It 'fails the shipped hooks.json, which registers hooks besides the guard and names no interpreter by path' {
+            $result = Test-HookContract -HookConfigPath $script:realConfig -HookConfigSha256 $script:realConfigDigest `
+                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'besides the guard'
+            $result.evidence | Should -Match 'UserPromptSubmit'
             Should -Invoke Test-PathProtection -Times 0 -Exactly
         }
 
@@ -641,6 +669,105 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
                 -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
 
             $result.status | Should -Be 'Pass' -Because $result.evidence
+        }
+    }
+
+    Context 'the entry the command comes from' {
+        BeforeEach {
+            $script:marker = Join-Path $TestDrive "entry-marker-$([guid]::NewGuid().ToString('N')).txt"
+            $script:cmdExe = [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System), 'cmd.exe')
+            $script:markerCommand = ('"' + $script:cmdExe + '" /c echo ran> "' + $script:marker + '"').Replace('\', '\\').Replace('"', '\"')
+        }
+
+        # A hooks.json whose PreToolUse entry is the one given as JSON text, in a plugin tree of its own.
+        It 'fails an entry that is <Reason>, and runs nothing' -ForEach @(
+            @{ Reason = 'not a command hook'; Match = 'not command'; Entry = '"type":"http","timeout":20,"command":"{0}","windows":"{0}"' }
+            @{ Reason = 'a hook with no type'; Match = 'not command'; Entry = '"timeout":20,"command":"{0}","windows":"{0}"' }
+            @{ Reason = 'narrowed by a matcher'; Match = 'matcher'; Entry = '"type":"command","matcher":"Bash","timeout":20,"command":"{0}","windows":"{0}"' }
+            @{ Reason = 'without a timeout'; Match = 'timeout'; Entry = '"type":"command","command":"{0}","windows":"{0}"' }
+            @{ Reason = 'given a timeout of zero'; Match = 'timeout'; Entry = '"type":"command","timeout":0,"command":"{0}","windows":"{0}"' }
+            @{ Reason = 'given a timeout that is text'; Match = 'timeout'; Entry = '"type":"command","timeout":"20","command":"{0}","windows":"{0}"' }
+            @{ Reason = 'given a timeout beyond any a host allows'; Match = 'timeout'; Entry = '"type":"command","timeout":601,"command":"{0}","windows":"{0}"' }
+        ) {
+            $tree = New-PluginTree -Name 'entry-shape'
+            $json = '{"hooks":{"PreToolUse":[{' + ($Entry -f $script:markerCommand) + '}]}}'
+            $digest = Set-PluginConfig -Tree $tree -Json $json
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $digest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match $Match
+            Test-Path -LiteralPath $script:marker | Should -BeFalse
+        }
+
+        It 'fails an entry whose command keys hold different commands, and runs nothing' {
+            $tree = New-PluginTree -Name 'entry-keys'
+            $other = ('"' + $script:cmdExe + '" /c exit 0').Replace('\', '\\').Replace('"', '\"')
+            $json = '{"hooks":{"PreToolUse":[{"type":"command","timeout":20,"command":"' + $script:markerCommand + '","windows":"' + $script:markerCommand + '","powershell":"' + $other + '"}]}}'
+            $digest = Set-PluginConfig -Tree $tree -Json $json
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $digest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'differ'
+            $result.evidence | Should -Match 'powershell'
+            Test-Path -LiteralPath $script:marker | Should -BeFalse
+        }
+
+        It 'accepts the same command under every key a host reads' {
+            $tree = New-PluginTree -Name 'entry-same'
+            $command = (Get-Content -LiteralPath $tree.Config -Raw | ConvertFrom-Json).hooks.PreToolUse[0].windows
+            $escaped = $command.Replace('\', '\\').Replace('"', '\"')
+            $json = '{"hooks":{"PreToolUse":[{"type":"command","timeout":20,"command":"' + $escaped + '","windows":"' + $escaped + '","powershell":"' + $escaped + '"}]}}'
+            $digest = Set-PluginConfig -Tree $tree -Json $json
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $digest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Pass' -Because $result.evidence
+        }
+
+        It 'fails a hooks.json that registers a hook besides the guard, and runs nothing' {
+            $tree = New-PluginTree -Name 'entry-other-event'
+            $json = '{"hooks":{"PreToolUse":[{"type":"command","timeout":20,"command":"' + $script:markerCommand + '","windows":"' + $script:markerCommand + '"}],"SessionStart":[{"type":"command","command":"x"}],"Stop":[{"type":"command","command":"y"}]}}'
+            $digest = Set-PluginConfig -Tree $tree -Json $json
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $digest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'SessionStart'
+            $result.evidence | Should -Match 'Stop'
+            $result.evidence | Should -Match 'neither pinned nor measured'
+            Test-Path -LiteralPath $script:marker | Should -BeFalse
+        }
+
+        It 'accepts an event that is declared and registers nothing' {
+            $tree = New-PluginTree -Name 'entry-empty-event'
+            $command = (Get-Content -LiteralPath $tree.Config -Raw | ConvertFrom-Json).hooks.PreToolUse[0].windows
+            $escaped = $command.Replace('\', '\\').Replace('"', '\"')
+            $json = '{"hooks":{"PreToolUse":[{"type":"command","timeout":20,"command":"' + $escaped + '","windows":"' + $escaped + '"}],"Stop":[]}}'
+            $digest = Set-PluginConfig -Tree $tree -Json $json
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $digest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Pass' -Because $result.evidence
+        }
+
+        It 'fails a command that takes as long as the timeout the host would enforce' {
+            $slow = ('"' + $script:cmdExe + '" /c ping -n 3 127.0.0.1 >nul').Replace('\', '\\').Replace('"', '\"')
+            $tree = New-PluginTree -Name 'entry-slow'
+            $json = '{"hooks":{"PreToolUse":[{"type":"command","timeout":1,"command":"' + $slow + '","windows":"' + $slow + '"}]}}'
+            $digest = Set-PluginConfig -Tree $tree -Json $json
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $digest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'timeout of 1'
         }
     }
 

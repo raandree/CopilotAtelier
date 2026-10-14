@@ -13,6 +13,7 @@ BeforeAll {
     . (Join-Path -Path $script:repoRoot -ChildPath 'tests/Helpers/ScriptFunction.ps1')
     . (Get-ScriptFunctionDefinition -Path $script:verifierScript -Name @(
             'New-CheckResult'
+            'Format-RelayedText'
             'Test-EgressPolicy'
             'Test-RemoteUnreachable'
             'Test-CredentialAbsence'

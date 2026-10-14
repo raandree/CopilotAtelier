@@ -12,6 +12,7 @@ BeforeAll {
     . (Get-ScriptFunctionDefinition -Path $script:verifierScript -Name @(
             'New-CheckResult'
             'Get-BytesDigest'
+            'Format-RelayedText'
             'Get-SinkSnapshot'
             'Invoke-ChainValidation'
             'Get-LedgerChainResult'

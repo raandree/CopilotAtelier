@@ -471,7 +471,12 @@ function Get-ObjectRight {
         return $result
     }
 
-    Initialize-NativeAccess
+    try {
+        Initialize-NativeAccess
+    } catch {
+        $result.Reason = "the native access probe could not be defined, so no right was measured: $($_.Exception.Message)"
+        return $result
+    }
 
     $mask = [ordered]@{ WriteData = 0x2; AppendData = 0x4; DeleteChild = 0x40; Delete = 0x10000; WriteDac = 0x40000; WriteOwner = 0x80000 }
     $problem = [System.Collections.Generic.List[string]]::new()
@@ -937,6 +942,39 @@ function Format-LimitedList {
     }
 
     return $shown
+}
+
+function Format-RelayedText {
+    <#
+        Text that came from outside this script, in a form that is safe to put into evidence a model
+        reads: control and format characters and line and paragraph separators become a question
+        mark, so a line a hostile source wrote cannot add lines or hide behind an escape sequence,
+        and the length is capped, so it cannot fill the report.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string]$Text,
+
+        [Parameter()]
+        [ValidateRange(1, 1000)]
+        [int]$Limit = 200
+    )
+
+    if ([string]::IsNullOrEmpty($Text)) {
+        return ''
+    }
+
+    $clean = [regex]::Replace($Text, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]', '?')
+
+    if ($clean.Length -gt $Limit) {
+        $clean = $clean.Substring(0, $Limit) + '...'
+    }
+
+    return $clean
 }
 
 function Get-PathProblem {
@@ -1567,25 +1605,79 @@ function Test-HookContract {
         return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence 'hooks.json is not valid JSON'
     }
 
+    if ($configuration -isnot [System.Management.Automation.PSCustomObject]) {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence 'hooks.json is not a JSON object, so it registers no PreToolUse hook'
+    }
+
     $preToolUse = @()
+    $otherEvent = @()
     $hooksProperty = $configuration.PSObject.Properties['hooks']
 
-    if ($null -ne $hooksProperty -and $null -ne $hooksProperty.Value -and $null -ne $hooksProperty.Value.PSObject.Properties['PreToolUse']) {
-        $preToolUse = @($hooksProperty.Value.PreToolUse)
+    if ($null -ne $hooksProperty -and $hooksProperty.Value -is [System.Management.Automation.PSCustomObject]) {
+        $eventProperty = $hooksProperty.Value.PSObject.Properties
+
+        if ($null -ne $eventProperty['PreToolUse']) {
+            $preToolUse = @($eventProperty['PreToolUse'].Value)
+        }
+
+        $otherEvent = @($eventProperty | Where-Object { $_.Name -cne 'PreToolUse' -and @($_.Value).Count -gt 0 } | ForEach-Object { $_.Name })
     }
 
     if ($preToolUse.Count -ne 1) {
         return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "expected exactly one PreToolUse hook, measured $($preToolUse.Count)"
     }
 
-    $entry = $preToolUse[0]
-    $commandProperty = if ($script:OnWindows) { $entry.PSObject.Properties['windows'] } else { $null }
-
-    if ($null -eq $commandProperty) {
-        $commandProperty = $entry.PSObject.Properties['command']
+    if ($otherEvent.Count -gt 0) {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "hooks.json registers hooks besides the guard ($($otherEvent -join ', ')), whose scripts are neither pinned nor measured, so a contained deployment pins a hooks.json that registers only the guard. It was not run"
     }
 
-    $commandLine = if ($null -ne $commandProperty) { [string]$commandProperty.Value } else { '' }
+    $entry = $preToolUse[0]
+
+    if ($entry -isnot [System.Management.Automation.PSCustomObject]) {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence 'the PreToolUse hook is not an object. It was not run'
+    }
+
+    $typeProperty = $entry.PSObject.Properties['type']
+    $hookType = if ($null -ne $typeProperty) { $typeProperty.Value } else { $null }
+
+    if ($hookType -isnot [string] -or $hookType -cne 'command') {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the PreToolUse hook is of type '$hookType', not command, so the command line that was read is not what a host runs. It was not run"
+    }
+
+    if ($null -ne $entry.PSObject.Properties['matcher']) {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence 'the PreToolUse hook has a matcher, which narrows the tools it runs for, so the guard would not see every tool call. It was not run'
+    }
+
+    $timeoutProperty = $entry.PSObject.Properties['timeout']
+    $timeoutSeconds = if ($null -ne $timeoutProperty) { $timeoutProperty.Value } else { $null }
+
+    if (($timeoutSeconds -isnot [int] -and $timeoutSeconds -isnot [long]) -or [long]$timeoutSeconds -lt 1 -or [long]$timeoutSeconds -gt 600) {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence 'the PreToolUse hook declares no timeout of 1 to 600 seconds as an integer, so the time a host allows it is not known. It was not run'
+    }
+
+    # A host reads one of several keys for the command, and which one is its choice, so every key
+    # that holds a command must hold the same one: then the command that is probed is the one that runs.
+    $commandText = [ordered]@{}
+
+    foreach ($key in @('command', 'windows', 'powershell', 'bash', 'linux', 'osx')) {
+        $keyProperty = $entry.PSObject.Properties[$key]
+
+        if ($null -ne $keyProperty -and $keyProperty.Value -is [string] -and -not [string]::IsNullOrWhiteSpace($keyProperty.Value)) {
+            $commandText[$key] = $keyProperty.Value
+        }
+    }
+
+    if (@($commandText.Values | Select-Object -Unique).Count -gt 1) {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the PreToolUse hook carries different commands under $($commandText.Keys -join ', '), and a host chooses which one it runs, so only one of them can be shown to be the one probed; pin the same command under every key. It was not run"
+    }
+
+    $commandLine = if ($script:OnWindows -and $commandText.Contains('windows')) {
+        [string]$commandText['windows']
+    } elseif ($commandText.Contains('command')) {
+        [string]$commandText['command']
+    } else {
+        ''
+    }
 
     if ([string]::IsNullOrWhiteSpace($commandLine)) {
         return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence 'PreToolUse hook declares no command for this platform'
@@ -1644,8 +1736,10 @@ function Test-HookContract {
         }
 
         $safePayload = '{"tool_name":"read_file","tool_input":{"filePath":"README.md"}}'
+        $clock = [System.Diagnostics.Stopwatch]::new()
 
         try {
+            $clock.Restart()
             $canaryExit = Invoke-HookPayload -CommandLine $commandLine -Payload $safePayload -EnvironmentVariable @{
                 PLUGIN_ROOT = $pluginDecoyRoot
                 USERPROFILE = $profileDecoyHome
@@ -1653,6 +1747,10 @@ function Test-HookContract {
             }
         } catch {
             return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not run the resolution probe: $($_.Exception.Message)"
+        }
+
+        if ($clock.Elapsed.TotalSeconds -ge $timeoutSeconds) {
+            return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the hook command took $([int][Math]::Ceiling($clock.Elapsed.TotalSeconds)) seconds, which is not under the timeout of $timeoutSeconds seconds the PreToolUse hook declares, so a host would stop it before it could answer"
         }
 
         $pluginDecoyRan = Test-Path -LiteralPath (Join-Path $pluginDecoyDirectory 'ran.txt')
@@ -1675,6 +1773,7 @@ function Test-HookContract {
 
         foreach ($name in $case.Keys) {
             try {
+                $clock.Restart()
                 $exitCode = Invoke-HookPayload -CommandLine $commandLine -Payload $case[$name].payload -EnvironmentVariable @{
                     PLUGIN_ROOT = $binding.Root
                     USERPROFILE = $emptyHome
@@ -1682,6 +1781,10 @@ function Test-HookContract {
                 }
             } catch {
                 return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not run the $name payload: $($_.Exception.Message)"
+            }
+
+            if ($clock.Elapsed.TotalSeconds -ge $timeoutSeconds) {
+                return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the hook command took $([int][Math]::Ceiling($clock.Elapsed.TotalSeconds)) seconds for the $name payload, which is not under the timeout of $timeoutSeconds seconds the PreToolUse hook declares, so a host would stop it before it could answer"
             }
 
             $measured.Add("$name=$exitCode")
@@ -2143,7 +2246,7 @@ function Test-CredentialAbsence {
                     $gitProblem = 'git config --get-regexp printed no line carrying an origin and a key, so its credential helpers were not read'
                 } else {
                     foreach ($name in $key) {
-                        $found.Add("git $name")
+                        $found.Add("git $(Format-RelayedText -Text $name)")
                     }
                 }
             } elseif ($probe.ExitCode -eq 1) {
@@ -3362,7 +3465,7 @@ function Get-LedgerChainResult {
     }
 
     if ($run.ExitCode -ne 0) {
-        $reason = if ([string]::IsNullOrWhiteSpace($run.Error)) { 'it gave no reason' } else { ($run.Error -split "\r?\n")[0] }
+        $reason = if ([string]::IsNullOrWhiteSpace($run.Error)) { 'it gave no reason' } else { Format-RelayedText -Text ($run.Error -split "\r?\n")[0] }
 
         return [pscustomobject]@{
             Check = (New-CheckResult -Name 'LedgerChain' -Status 'Fail' -Evidence "the pinned appender refused the ledger (exit $($run.ExitCode)): $reason")
@@ -3499,7 +3602,7 @@ function Test-FinalReport {
     $recorded = & $read (& $read $previous 'data') 'sha256'
 
     if ($lastType -cne 'Seal') {
-        $problem.Add("the last record is of type '$lastType', not Seal")
+        $problem.Add("the last record is of type '$(Format-RelayedText -Text ([string]$lastType))', not Seal")
     }
 
     if ((& $read $last 'recordSha256') -cne [string]$ChainSummary.headRecordSha256) {
@@ -3511,9 +3614,9 @@ function Test-FinalReport {
     }
 
     if ($previousType -cne 'FinalReport') {
-        $problem.Add("the record before the seal is of type '$previousType', not FinalReport")
+        $problem.Add("the record before the seal is of type '$(Format-RelayedText -Text ([string]$previousType))', not FinalReport")
     } elseif ($recorded -cne $reportDigest) {
-        $problem.Add("the ledger records the final report as $recorded, but $FinalReportPath hashes to $reportDigest")
+        $problem.Add("the ledger records the final report as $(Format-RelayedText -Text ([string]$recorded)), but $FinalReportPath hashes to $reportDigest")
     }
 
     if ($problem.Count -gt 0) {

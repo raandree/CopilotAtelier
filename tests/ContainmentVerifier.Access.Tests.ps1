@@ -281,6 +281,16 @@ Describe 'Containment path protection' -Tag 'Unit' {
         $result.Closed | Should -BeFalse
         ($result.Violation -join '; ') | Should -Match 'FILE_ADD_FILE'
     }
+
+    It 'checks a directory for deleting its children even when it grants nothing else' {
+        # Review pass 1, R-08: removing the directory-leaf DeleteChild check changed no test.
+        $script:object[$script:parent].Right['DeleteChild'] = 'Granted'
+
+        $result = Test-PathProtection -Path $script:parent
+
+        $result.Closed | Should -BeFalse
+        ($result.Violation -join '; ') | Should -Match 'FILE_DELETE_CHILD'
+    }
 }
 
 Describe 'Containment access rights of a real object' -Tag 'Unit' {
@@ -294,6 +304,23 @@ Describe 'Containment access rights of a real object' -Tag 'Unit' {
         $result = Get-ObjectRight -Path (Join-Path $script:room 'missing.json')
 
         $result.State | Should -Be 'Absent'
+    }
+
+    It 'reports a right as unmeasured, and does not throw, when the native probe cannot be defined' -Skip:(-not $script:onWindows) {
+        # Review pass 1, R-11: a host that refuses Add-Type (constrained language, application control)
+        # ended the verifier with a stack trace and no report instead of an unmeasured check.
+        $path = Join-Path $script:room 'probe-refused.json'
+        [System.IO.File]::WriteAllText($path, '{}')
+        Mock -CommandName Initialize-NativeAccess -MockWith { throw 'Cannot add type: language mode refuses it' }
+
+        $result = Get-ObjectRight -Path $path
+
+        $result.State | Should -Be 'Unknown'
+        $result.Reason | Should -Match 'native access probe'
+        $result.Reason | Should -Match 'language mode'
+        foreach ($name in 'WriteData', 'AppendData', 'Delete', 'WriteDac') {
+            $result.Right[$name] | Should -Be 'Unknown' -Because $name
+        }
     }
 
     It 'does not take a probe from a type that the session defined under the name the script once used' -Skip:(-not $script:onWindows) {

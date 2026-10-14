@@ -15,6 +15,7 @@ BeforeAll {
             'Get-RevalidationCheckName'
             'Get-RevalidationCheck'
             'Invoke-ChainValidation'
+            'Format-RelayedText'
             'Get-SinkSnapshot'
             'Get-LedgerChainResult'
             'Test-FinalReport'
@@ -226,6 +227,46 @@ Describe 'Ledger chain result' -Tag 'Unit' {
         $result.Check.status | Should -Be 'Unavailable'
         $result.Check.evidence | Should -Match 'did not finish'
     }
+
+    It 'relays only the first line of a refusal, without control characters and no longer than a short cap' {
+        # Review pass 1, R-11: what the appender writes reaches evidence that a model reads.
+        $script:hostile = "reason one`e[31m" + ('x' * 600) + "`nsecond line that must not appear"
+        Mock -CommandName Invoke-ChainValidation -MockWith { New-Run -ExitCode 2 -ErrorText $script:hostile }
+
+        $evidence = (Get-LedgerChainResult -AppenderPath 'a' -ProfilePath 'p' -ProfileSha256 $script:good).Check.evidence
+
+        $evidence | Should -Match 'reason one'
+        $evidence | Should -Not -Match '\p{Cc}'
+        $evidence | Should -Not -Match 'second line'
+        $evidence.Length | Should -BeLessThan 400
+    }
+}
+
+Describe 'Relayed text' -Tag 'Unit' {
+    It 'leaves plain text as it is' {
+        Format-RelayedText -Text 'record at sequence 2 fails its own digest' | Should -Be 'record at sequence 2 fails its own digest'
+    }
+
+    It 'turns control and format characters, and line and paragraph separators, into question marks' {
+        $text = "a`nb`rc`td`0e`e[0mf$([char]0x200B)g$([char]0x2028)h"
+
+        Format-RelayedText -Text $text | Should -Be 'a?b?c?d?e?[0mf?g?h'
+    }
+
+    It 'caps the length and says that it did' {
+        $result = Format-RelayedText -Text ('z' * 500) -Limit 50
+
+        $result | Should -Be (('z' * 50) + '...')
+    }
+
+    It 'does not cap text that is exactly at the limit' {
+        Format-RelayedText -Text ('z' * 50) -Limit 50 | Should -Be ('z' * 50)
+    }
+
+    It 'turns nothing into an empty string' {
+        Format-RelayedText -Text $null | Should -Be ''
+        Format-RelayedText -Text '' | Should -Be ''
+    }
 }
 
 Describe 'Final report' -Tag 'Unit' {
@@ -370,6 +411,28 @@ Describe 'Final report' -Tag 'Unit' {
         [System.IO.File]::WriteAllText($path, (($lines -join "`n") + "`n"))
 
         (Invoke-FinalReport -SinkPath $path -FinalReportPath $script:report -ChainSummary (New-Summary)).status | Should -Be 'Fail'
+    }
+
+    It 'does not carry control characters or an unbounded record type into the evidence' {
+        # Review pass 1, R-11: the type of a record is chosen by whoever appended it.
+        $type = "Evil`e[2J" + ('y' * 500)
+
+        $result = Invoke-FinalReport -SinkPath (Write-Ledger -Name 'hostile-type' -FinalType $type) -FinalReportPath $script:report -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match 'Evil'
+        $result.evidence | Should -Not -Match '\p{Cc}'
+        $result.evidence.Length | Should -BeLessThan 600
+    }
+
+    It 'does not carry control characters or an unbounded digest into the evidence' {
+        $recorded = "9`e[2J" + ('9' * 500)
+
+        $result = Invoke-FinalReport -SinkPath (Write-Ledger -Name 'hostile-digest' -ReportDigestInLedger $recorded) -FinalReportPath $script:report -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Not -Match '\p{Cc}'
+        $result.evidence.Length | Should -BeLessThan 600
     }
 }
 
