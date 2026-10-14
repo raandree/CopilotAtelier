@@ -10,8 +10,8 @@ source: current task evidence
 ## Current focus
 
 **P5, the containment verifier and the ledger appender, is rebuilt and has been reviewed
-nine times; the branch `ai/containment-fix-round` (on `origin/main` `1c1327e`, nothing
-pushed) waits for the owner's push, pull request, and merge.** `Test-RunContainment.ps1`
+nine times; the branch `ai/containment-fix-round` (on `origin/main` `1c1327e`) is pushed
+as PR #40 and waits for green CI and the owner's merge.** `Test-RunContainment.ps1`
 measures, for the one identity it runs as, what the run can write, reach, and read;
 `Invoke-LedgerAppender.ps1` is the pinned, append-only, hash-chained ledger service the
 profile names, and `-Revalidate` reads the ledger back after the run. The first review
@@ -159,12 +159,12 @@ unproven — train reached 100 % while validation fell.
    no dialog (P3 and P8 are deployed with P2; `./Setup-CopilotSettings.ps1` after a
    `git pull --ff-only origin main` only refreshes the record). Agents cannot push; the
    deployed copy under `~/.copilot` is the owner's to refresh.
-3. The owner pushes `ai/containment-fix-round`, opens its pull request, and merges it
-   (it contains PR #39, the open docs-only P2 record: close #39 unmerged, because
-   squash-merging #39 first would make this branch conflict), then rules on the P5
-   follow-ups, R-04 first and then the pinned line run under the PowerShell hosts; P1
-   needs the owner; the 06c choices (E-08, E-09), the P6 labels, and the three P8
-   assumptions need a ruling (Desktop `LEDGER.md`).
+3. PR #40 (`ai/containment-fix-round`) is open; #39 is closed unmerged. Its first CI run
+   failed three ways: a transient PSGallery 403 in the pull-request run's Package job; 23
+   fixture tests on Ubuntu and macOS (`Split-Path` returns an empty parent off Windows;
+   `d919d94` writes the chain out); one guard test on Windows (`RemoteMutationGrant` from
+   #38, a runner stall). The owner pushes the fix, merges on green, then rules on the P5
+   follow-ups (R-04 first), P1, the 06c choices, the P6 labels and the P8 assumptions.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.

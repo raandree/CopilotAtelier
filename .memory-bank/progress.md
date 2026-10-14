@@ -28,9 +28,10 @@ PowerShell Gallery (verified 2026-10-14). Incremental work is tracked under
   the last, part F, said Approve. The claims shrank where a reviewer showed them too large
   (decision 0025). Final gate on `d8eddb4`: 5,063 passed, 0 failed, 146 skipped, 90.84 %
   coverage. Written down as not done: R-04 (token privileges), the pinned line run under
-  the PowerShell hosts, S-33, a two-account test, Ubuntu and macOS CI. The owner pushes,
-  opens the pull request and merges; `docs/SECURITY-REVIEW.md` holds every finding and
-  `activeContext.md` the state.
+  the PowerShell hosts, S-33, a two-account test. Pushed as PR #40 on 2026-10-14: the first
+  CI run found a transient PSGallery 403, 23 POSIX fixture failures (fixed in `d919d94`;
+  `systemPatterns.md` has the pattern) and one runner-stall flake in the #38 guard suite;
+  `docs/SECURITY-REVIEW.md` holds every finding and `activeContext.md` the state.
 - **2026-10-13 to 2026-10-14**: P2 (`software-engineer`, `review: on`) built the Remote grant
   on `ai/hook-ask-remote-approval`: a Grant marker the user types in their own prompt, such
   as `[[allow-remote: git push, gh pr create]]`, makes the new `UserPromptSubmit` hook
