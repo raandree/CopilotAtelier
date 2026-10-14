@@ -490,3 +490,32 @@ Describe 'Containment verifier' -Tag 'Unit' {
         $check.evidence | Should -Not -Match 'no token'
     }
 }
+
+Describe 'Containment verifier function loading' -Tag 'Unit' {
+    BeforeAll {
+        . (Join-Path -Path $script:repoRoot -ChildPath 'tests/Helpers/ScriptFunction.ps1')
+    }
+
+    It 'loads a verifier function and the constants it reads without running the script' {
+        . (Get-ScriptFunctionDefinition -Path $script:verifierScript -Name 'New-CheckResult')
+
+        $result = New-CheckResult -Name 'Example' -Status 'Pass' -Evidence 'measured'
+
+        $result.name | Should -Be 'Example'
+        $result.status | Should -Be 'Pass'
+        (Get-Variable -Name 'PinnedControl' -Scope Script -ValueOnly) | Should -Contain 'hooksConfig'
+    }
+
+    It 'lets Pester mock the cmdlets a loaded function calls' {
+        . (Get-ScriptFunctionDefinition -Path $script:verifierScript -Name 'Get-Digest')
+        Mock -CommandName 'Get-FileHash' -MockWith { [pscustomobject]@{ Hash = 'ABCDEF' } }
+
+        Get-Digest -Path 'anything' | Should -Be 'abcdef'
+        Should -Invoke -CommandName 'Get-FileHash' -Times 1 -Exactly
+    }
+
+    It 'refuses a function name the script does not define' {
+        { Get-ScriptFunctionDefinition -Path $script:verifierScript -Name 'Not-APresentFunction' } |
+            Should -Throw -ExpectedMessage '*Not-APresentFunction*'
+    }
+}
