@@ -84,6 +84,17 @@ $script:OnWindows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
 $script:OverrideName = 'COPILOT_ATELIER_ALLOW_REMOTE'
 $script:PinnedControl = @('verifier', 'hooksConfig', 'hookScript', 'ledgerAppender')
 $script:LiveControl = @('liveProfile', 'liveRunner', 'liveCommandTemplates')
+$script:RightName = @('WriteData', 'AppendData', 'DeleteChild', 'Delete', 'WriteDac', 'WriteOwner')
+# One access mask means a different right on a file and on a directory: the first label applies to
+# a file, the second to a directory.
+$script:RightLabel = @{
+    WriteData = @('FILE_WRITE_DATA', 'FILE_ADD_FILE')
+    AppendData = @('FILE_APPEND_DATA', 'FILE_ADD_SUBDIRECTORY')
+    DeleteChild = @('FILE_DELETE_CHILD', 'FILE_DELETE_CHILD')
+    Delete = @('DELETE', 'DELETE')
+    WriteDac = @('WRITE_DAC', 'WRITE_DAC')
+    WriteOwner = @('WRITE_OWNER', 'WRITE_OWNER')
+}
 $script:AllowedKey = @(
     'schemaVersion'
     'verifier'
@@ -193,6 +204,423 @@ function Get-WriteAccess {
 
     $stream.Dispose()
     return @{ State = 'Writable'; Reason = 'opened for write' }
+}
+
+function Initialize-NativeAccess {
+    <#
+        Windows only. Defines a one-call wrapper over CreateFileW that asks for exactly one access
+        right and nothing else: no read, no write, no truncation. The call succeeds precisely when
+        the access check grants the right, and closing the handle changes nothing on disk, so the
+        right is measured and never exercised. Backup semantics let it open a directory, and the
+        open does not follow a link.
+    #>
+    [CmdletBinding()]
+    [OutputType([void])]
+    param()
+
+    if ('ContainmentNative' -as [type]) {
+        return
+    }
+
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+
+public static class ContainmentNative
+{
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern SafeFileHandle CreateFileW(string fileName, uint desiredAccess, uint shareMode, IntPtr securityAttributes, uint creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
+
+    // 0 when the access check grants the right, otherwise the Win32 error code.
+    public static int Probe(string path, uint access)
+    {
+        using (SafeFileHandle handle = CreateFileW(path, access, 7u, IntPtr.Zero, 3u, 0x02200000u, IntPtr.Zero))
+        {
+            return handle.IsInvalid ? Marshal.GetLastWin32Error() : 0;
+        }
+    }
+}
+'@
+}
+
+function Get-PathChain {
+    <#
+        The canonical absolute path, then each of its ancestors up to the root. A path is judged
+        together with every directory above it, because a directory that lets the caller delete or
+        rewrite its children lets the caller replace the path whatever the file itself says.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    $current = [System.IO.Path]::TrimEndingDirectorySeparator([System.IO.Path]::GetFullPath($Path))
+    $chain = [System.Collections.Generic.List[string]]::new()
+    $chain.Add($current)
+
+    while ($true) {
+        $parent = [System.IO.Path]::GetDirectoryName($current)
+
+        if ([string]::IsNullOrEmpty($parent) -or $parent -ceq $current) {
+            break
+        }
+
+        $chain.Add($parent)
+        $current = $parent
+    }
+
+    return $chain.ToArray()
+}
+
+function Test-PathOverlap {
+    <#
+        True when the path equals a writable root, lies inside one, or contains one. A protected path
+        inside a root the run may write is not protected, and a protected directory that holds a
+        writable root is not closed.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$WritableRoot
+    )
+
+    $comparison = if ($script:OnWindows) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
+    $separator = [string][System.IO.Path]::DirectorySeparatorChar
+    $subject = [System.IO.Path]::TrimEndingDirectorySeparator([System.IO.Path]::GetFullPath($Path))
+    $subjectPrefix = if ($subject.EndsWith($separator, $comparison)) { $subject } else { $subject + $separator }
+
+    foreach ($root in @($WritableRoot | Where-Object -FilterScript { -not [string]::IsNullOrWhiteSpace($_) })) {
+        $candidate = [System.IO.Path]::TrimEndingDirectorySeparator([System.IO.Path]::GetFullPath($root))
+        $candidatePrefix = if ($candidate.EndsWith($separator, $comparison)) { $candidate } else { $candidate + $separator }
+
+        if ($subject.Equals($candidate, $comparison) -or
+            $subject.StartsWith($candidatePrefix, $comparison) -or
+            $candidate.StartsWith($subjectPrefix, $comparison)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-ObjectRight {
+    <#
+        What this identity can do to one object, measured without changing it: for each right that
+        lets a run replace or loosen a protected path, Granted, Denied, or Unknown. Only an access
+        denial proves a right closed. Any other failure leaves it Unknown, and an unknown right never
+        reads as protected.
+
+        On Windows each right is asked of the kernel with its own open (Initialize-NativeAccess), so
+        group membership, deny entries, inheritance, and ownership are all resolved by the operating
+        system and not by this script: the owner of an object always holds WRITE_DAC, whatever a deny
+        entry says. A read-only attribute refuses every write open whatever the access list says, so
+        a refused write on a read-only file is Denied only when the attribute itself cannot be
+        cleared, and Unknown otherwise. Elsewhere only write access is measured.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    $right = @{}
+    foreach ($name in $script:RightName) {
+        $right[$name] = 'Unknown'
+    }
+
+    $result = [pscustomobject]@{
+        Path = $Path
+        State = 'Unknown'
+        IsDirectory = $false
+        IsReparsePoint = $false
+        ReadOnly = $false
+        Right = $right
+        Reason = ''
+    }
+
+    try {
+        $attribute = [System.IO.File]::GetAttributes($Path)
+    } catch [System.IO.FileNotFoundException], [System.IO.DirectoryNotFoundException] {
+        $result.State = 'Absent'
+        $result.Reason = 'does not exist'
+        return $result
+    } catch {
+        $result.Reason = $_.Exception.GetBaseException().Message
+        return $result
+    }
+
+    $result.IsDirectory = [bool]($attribute -band [System.IO.FileAttributes]::Directory)
+    $result.IsReparsePoint = [bool]($attribute -band [System.IO.FileAttributes]::ReparsePoint)
+    $result.ReadOnly = [bool]($attribute -band [System.IO.FileAttributes]::ReadOnly)
+
+    if (-not $script:OnWindows) {
+        $access = Get-WriteAccess -Path $Path
+        $state = switch ($access.State) {
+            'Writable' { 'Granted' }
+            'Denied' { 'Denied' }
+            default { 'Unknown' }
+        }
+
+        $right['WriteData'] = $state
+        $right['AppendData'] = $state
+        $right['DeleteChild'] = if ($result.IsDirectory) { $state } else { 'Denied' }
+        $result.Reason = 'only write access is measured on this platform; deletion, ownership, and permission changes are not'
+        $result.State = 'Measured'
+        return $result
+    }
+
+    Initialize-NativeAccess
+
+    $mask = [ordered]@{ WriteData = 0x2; AppendData = 0x4; DeleteChild = 0x40; Delete = 0x10000; WriteDac = 0x40000; WriteOwner = 0x80000 }
+    $problem = [System.Collections.Generic.List[string]]::new()
+    $attributeCode = $null
+
+    if ($result.ReadOnly -and -not $result.IsDirectory) {
+        $attributeCode = [ContainmentNative]::Probe($Path, [uint32]0x100)
+    }
+
+    foreach ($name in $mask.Keys) {
+        if ($name -eq 'DeleteChild' -and -not $result.IsDirectory) {
+            $right[$name] = 'Denied'
+            continue
+        }
+
+        $code = [ContainmentNative]::Probe($Path, [uint32]$mask[$name])
+
+        if ($code -eq 0) {
+            $right[$name] = 'Granted'
+        } elseif ($code -eq 5) {
+            if ($result.ReadOnly -and $name -in @('WriteData', 'AppendData')) {
+                $right[$name] = if ($attributeCode -eq 5) { 'Denied' } else { 'Unknown' }
+            } else {
+                $right[$name] = 'Denied'
+            }
+        } else {
+            $problem.Add("$name (Win32 error $code)")
+        }
+    }
+
+    $result.Reason = $problem -join '; '
+    $result.State = 'Measured'
+    return $result
+}
+
+function Test-PathProtection {
+    <#
+        Whether a path is closed to this identity: the object itself, the directory that holds it, and
+        every directory above it. A file is replaceable by whoever can delete it, whoever can delete
+        children of its directory, and whoever can rewrite an access list or the owner on the way, so
+        a file that is merely not writable is not protected. A path that does not exist yet is closed
+        only if nothing on the way lets this identity create it. A reparse point on the way means the
+        path does not name the object it protects. A right that could not be measured is reported
+        apart from a measured breach and never counts as closed.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$WritableRoot = @()
+    )
+
+    $violation = [System.Collections.Generic.List[string]]::new()
+    $unmeasured = [System.Collections.Generic.List[string]]::new()
+    $chain = @(Get-PathChain -Path $Path)
+    $object = @($chain | ForEach-Object -Process { Get-ObjectRight -Path $_ })
+    $leafAbsent = $object[0].State -eq 'Absent'
+    $firstExisting = -1
+
+    for ($index = 0; $index -lt $object.Count; $index++) {
+        if ($object[$index].State -ne 'Absent') {
+            $firstExisting = $index
+            break
+        }
+    }
+
+    if ($firstExisting -lt 0) {
+        $unmeasured.Add("${Path}: no part of the path exists, so nothing on it could be measured")
+    }
+
+    for ($index = [Math]::Max($firstExisting, 0); $firstExisting -ge 0 -and $index -lt $object.Count; $index++) {
+        $item = $object[$index]
+        $element = $chain[$index]
+
+        if ($item.State -eq 'Absent') {
+            continue
+        }
+
+        if ($item.State -eq 'Unknown') {
+            $unmeasured.Add("${Path}: $element could not be measured ($($item.Reason))")
+            continue
+        }
+
+        if ($item.IsReparsePoint) {
+            $violation.Add("${Path}: $element is a reparse point, so the path does not name the object it protects")
+        }
+
+        if ($index -eq 0) {
+            $role = if ($item.IsDirectory) { 'directory' } else { 'file' }
+            $name = @('WriteData', 'AppendData')
+            if ($item.IsDirectory) {
+                $name += 'DeleteChild'
+            }
+
+            $name += @('Delete', 'WriteDac', 'WriteOwner')
+        } else {
+            $role = if ($index -eq 1) { 'parent directory' } else { 'ancestor directory' }
+            $name = @('DeleteChild', 'Delete', 'WriteDac', 'WriteOwner')
+
+            # The nearest directory that exists is where a missing file or directory would be created.
+            if ($index -eq $firstExisting) {
+                $name += $(if ($index -eq 1) { 'WriteData' } else { 'AppendData' })
+            }
+        }
+
+        foreach ($rightName in $name) {
+            $state = $item.Right[$rightName]
+            $label = $script:RightLabel[$rightName][[int]$item.IsDirectory]
+
+            if ($state -eq 'Granted') {
+                $violation.Add("${Path}: this identity holds $label on the $role $element")
+            } elseif ($state -ne 'Denied') {
+                $unmeasured.Add("${Path}: $label on the $role $element could not be measured")
+            }
+        }
+    }
+
+    foreach ($root in @($WritableRoot | Where-Object -FilterScript { -not [string]::IsNullOrWhiteSpace($_) })) {
+        if (Test-PathOverlap -Path $Path -WritableRoot $root) {
+            $violation.Add("${Path}: overlaps the writable root $root")
+        }
+    }
+
+    return [pscustomobject]@{
+        Path = $Path
+        Closed = ($violation.Count -eq 0 -and $unmeasured.Count -eq 0)
+        Absent = $leafAbsent
+        Violation = $violation.ToArray()
+        Unmeasured = $unmeasured.ToArray()
+    }
+}
+
+function Test-ControlImmutability {
+    <#
+        The controller needs evidence that the profile and the controls it pins are closed to every run
+        identity, so they are measured whether or not the profile lists them as immutable: the profile
+        itself, the four pinned controls, the live artifacts the profile declares, and every path in
+        immutableControlPaths. Each is judged together with its whole chain of directories
+        (Test-PathProtection) and against the roots the run may write. A missing control is a breach.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ProfilePath,
+
+        [Parameter(Mandatory)]
+        $ContainmentProfile,
+
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$WritableRoot = @()
+    )
+
+    $property = @($ContainmentProfile.PSObject.Properties.Name)
+    $candidate = [System.Collections.Generic.List[string]]::new()
+    $candidate.Add($ProfilePath)
+
+    foreach ($name in @($script:PinnedControl) + @($script:LiveControl)) {
+        if ($name -notin $property) {
+            continue
+        }
+
+        $entry = $ContainmentProfile.$name
+
+        if ($entry -is [System.Management.Automation.PSCustomObject] -and 'path' -in @($entry.PSObject.Properties.Name)) {
+            $candidate.Add([string]$entry.path)
+        }
+    }
+
+    if ('immutableControlPaths' -in $property) {
+        foreach ($path in @($ContainmentProfile.immutableControlPaths)) {
+            $candidate.Add([string]$path)
+        }
+    }
+
+    $comparer = if ($script:OnWindows) { [System.StringComparer]::OrdinalIgnoreCase } else { [System.StringComparer]::Ordinal }
+    $seen = [System.Collections.Generic.HashSet[string]]::new($comparer)
+    $breach = [System.Collections.Generic.List[string]]::new()
+    $unmeasured = [System.Collections.Generic.List[string]]::new()
+    $perPathLimit = 6
+
+    foreach ($path in $candidate) {
+        if ([string]::IsNullOrWhiteSpace($path)) {
+            continue
+        }
+
+        try {
+            $key = [System.IO.Path]::GetFullPath($path)
+        } catch {
+            $key = $path
+        }
+
+        if (-not $seen.Add($key)) {
+            continue
+        }
+
+        try {
+            $protection = Test-PathProtection -Path $path -WritableRoot $WritableRoot
+        } catch {
+            $unmeasured.Add("${path}: $($_.Exception.Message)")
+            continue
+        }
+
+        if ($protection.Absent) {
+            $breach.Add("$path (does not exist)")
+        }
+
+        foreach ($line in @($protection.Violation | Select-Object -First $perPathLimit)) {
+            $breach.Add($line)
+        }
+
+        if (@($protection.Violation).Count -gt $perPathLimit) {
+            $breach.Add("${path}: and $(@($protection.Violation).Count - $perPathLimit) more breaches")
+        }
+
+        foreach ($line in @($protection.Unmeasured)) {
+            $unmeasured.Add($line)
+        }
+    }
+
+    if ($breach.Count -gt 0) {
+        $evidence = 'this identity can replace or loosen: ' + ($breach -join '; ')
+        if ($unmeasured.Count -gt 0) {
+            $evidence += '; not measurable: ' + ($unmeasured -join '; ')
+        }
+
+        return New-CheckResult -Name 'ControlImmutability' -Status 'Fail' -Evidence $evidence
+    }
+
+    if ($unmeasured.Count -gt 0) {
+        return New-CheckResult -Name 'ControlImmutability' -Status 'Unavailable' -Evidence ('not measurable: ' + ($unmeasured -join '; '))
+    }
+
+    return New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'the profile, every pinned control, every declared immutable path, and the directories above them are closed to this identity'
 }
 
 function Test-ProfileSchema {
@@ -754,73 +1182,7 @@ if ($digestProblem.Count -gt 0) {
     $check.Add((New-CheckResult -Name 'ControlDigest' -Status 'Pass' -Evidence "every pinned control matches its declared digest"))
 }
 
-# The controller needs evidence that the profile and the controls it pins are
-# closed to every run identity, so they are measured whether or not the profile
-# lists them as immutable.
-$immutableCandidate = [System.Collections.Generic.List[string]]::new()
-$immutableCandidate.Add($canonicalProfilePath)
-
-foreach ($name in $script:PinnedControl) {
-    if ($name -notin $profileKey) {
-        continue
-    }
-
-    $entry = $containmentProfile.$name
-
-    if ($entry -is [System.Management.Automation.PSCustomObject] -and 'path' -in @($entry.PSObject.Properties.Name)) {
-        $immutableCandidate.Add([string]$entry.path)
-    }
-}
-
-if ('immutableControlPaths' -in $profileKey) {
-    foreach ($path in @($containmentProfile.immutableControlPaths)) {
-        $immutableCandidate.Add([string]$path)
-    }
-}
-
-$pathComparer = if ($script:OnWindows) { [System.StringComparer]::OrdinalIgnoreCase } else { [System.StringComparer]::Ordinal }
-$measuredPath = [System.Collections.Generic.HashSet[string]]::new($pathComparer)
-$mutable = [System.Collections.Generic.List[string]]::new()
-$unmeasured = [System.Collections.Generic.List[string]]::new()
-
-foreach ($path in $immutableCandidate) {
-    if ([string]::IsNullOrWhiteSpace($path)) {
-        continue
-    }
-
-    try {
-        $pathKey = [System.IO.Path]::GetFullPath($path)
-    } catch {
-        $pathKey = $path
-    }
-
-    if (-not $measuredPath.Add($pathKey)) {
-        continue
-    }
-
-    $access = Get-WriteAccess -Path $path
-
-    if ($access.State -eq 'Writable') {
-        $mutable.Add($path)
-    } elseif ($access.State -eq 'Absent') {
-        $mutable.Add("$path (does not exist)")
-    } elseif ($access.State -eq 'Unknown') {
-        $unmeasured.Add("$path ($($access.Reason))")
-    }
-}
-
-if ($mutable.Count -gt 0) {
-    $evidence = 'writable by this identity or missing: ' + ($mutable -join '; ')
-    if ($unmeasured.Count -gt 0) {
-        $evidence += '; not measurable: ' + ($unmeasured -join '; ')
-    }
-
-    $check.Add((New-CheckResult -Name 'ControlImmutability' -Status 'Fail' -Evidence $evidence))
-} elseif ($unmeasured.Count -gt 0) {
-    $check.Add((New-CheckResult -Name 'ControlImmutability' -Status 'Unavailable' -Evidence ('not measurable: ' + ($unmeasured -join '; '))))
-} else {
-    $check.Add((New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'the profile, every pinned control, and every declared immutable path are closed to this identity'))
-}
+$check.Add((Test-ControlImmutability -ProfilePath $canonicalProfilePath -ContainmentProfile $containmentProfile -WritableRoot ([string[]]@($containmentProfile.writableRoots))))
 
 if ('hooksConfig' -in $profileKey -and (Test-Path -LiteralPath ([string]$containmentProfile.hooksConfig.path) -PathType Leaf)) {
     $check.Add((Test-HookContract -HookConfigPath ([string]$containmentProfile.hooksConfig.path)))

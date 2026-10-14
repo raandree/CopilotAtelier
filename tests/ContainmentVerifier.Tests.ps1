@@ -425,6 +425,50 @@ Describe 'Containment verifier' -Tag 'Unit' {
         $check.evidence | Should -Match ([regex]::Escape($flagged))
     }
 
+    It 'fails a read-only control in a directory the run can delete from' -Skip:(-not $script:onWindows) {
+        # Review of 2026-10-12, C-02: a file that cannot be written is still replaceable
+        # when the directory that holds it lets the caller delete its children.
+        $directory = Join-Path $TestDrive 'p22'
+        $null = New-Item -Path $directory -ItemType Directory -Force
+        $flagged = Join-Path $directory 'control.json'
+        [System.IO.File]::WriteAllText($flagged, '{}')
+        $profilePath = New-TestProfile -Path (Join-Path $directory 'profile.json') -Override @{
+            immutableControlPaths = @($flagged)
+        }
+
+        (Get-Item -LiteralPath $flagged).IsReadOnly = $true
+        try {
+            $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
+        } finally {
+            (Get-Item -LiteralPath $flagged).IsReadOnly = $false
+        }
+
+        $check = Get-Check -Result $result -Name 'ControlImmutability'
+        $check.status | Should -Be 'Fail' -Because $check.evidence
+        $check.evidence | Should -Match 'FILE_DELETE_CHILD'
+        $check.evidence | Should -Match ([regex]::Escape($directory))
+    }
+
+    It 'fails a control that denies writing but belongs to the run identity' -Skip:(-not $script:onWindows) {
+        # Review of 2026-10-12, C-02: a deny entry does not protect a file from its owner.
+        $directory = Join-Path $TestDrive 'p23'
+        $null = New-Item -Path $directory -ItemType Directory -Force
+        $flagged = Join-Path $directory 'control.json'
+        [System.IO.File]::WriteAllText($flagged, '{}')
+        $acl = Get-Acl -LiteralPath $flagged
+        $acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new([System.Security.Principal.WindowsIdentity]::GetCurrent().Name, 'Write', 'Deny'))
+        Set-Acl -LiteralPath $flagged -AclObject $acl
+        $profilePath = New-TestProfile -Path (Join-Path $directory 'profile.json') -Override @{
+            immutableControlPaths = @($flagged)
+        }
+
+        $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
+
+        $check = Get-Check -Result $result -Name 'ControlImmutability'
+        $check.status | Should -Be 'Fail' -Because $check.evidence
+        $check.evidence | Should -Match ([regex]::Escape("this identity holds WRITE_DAC on the file $flagged"))
+    }
+
     It 'reports a locked ledger as unmeasured rather than protected' -Skip:(-not $script:onWindows) {
         $ledgerRoot = Join-Path $TestDrive 'p17/ledger'
         $null = New-Item -Path $ledgerRoot -ItemType Directory -Force
