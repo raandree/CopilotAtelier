@@ -149,6 +149,12 @@ $script:AllowedKey = @(
     'immutableControlPaths'
     'writableRoots'
 ) + $script:LiveControl
+# Names read from a document are compared exactly. -in and -notin compare by culture, and a culture
+# ignores characters such as a zero-width space, so a name that only looks like a known one would pass.
+$script:AllowedKeySet = [System.Collections.Generic.HashSet[string]]::new([string[]]$script:AllowedKey, [System.StringComparer]::Ordinal)
+# The keys a host reads a command from, and the whole set of keys the guard's hook entry may carry.
+$script:CommandKey = @('command', 'windows', 'powershell', 'bash', 'linux', 'osx')
+$script:EntryKeySet = [System.Collections.Generic.HashSet[string]]::new([string[]](@('type', 'timeout') + $script:CommandKey), [System.StringComparer]::Ordinal)
 
 function New-CheckResult {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory result object and changes no system state.')]
@@ -187,6 +193,13 @@ function Get-FreshProcessProblem {
         The arguments are the command line of the process, whose first element is the host. Option
         names are matched by prefix, as the host matches them, and only what comes before -File
         counts, since everything after it belongs to the script.
+
+        A command line is not enough on its own: -Command takes every argument after it as command
+        text, yet the host still lists them, so "-Command <code> -File <script>" reads exactly like
+        "-File <script>" and the code runs first. What tells them apart is the call stack where the
+        script starts. Under -File the script is its one frame; code that ran around it adds another.
+        What this cannot see is code that already runs inside this process before its first line,
+        such as a .NET startup hook named by the environment: only the launcher can stop that.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -196,7 +209,10 @@ function Get-FreshProcessProblem {
         [string[]]$CommandLineArgument,
 
         [Parameter(Mandatory)]
-        [string]$ScriptPath
+        [string]$ScriptPath,
+
+        [Parameter(Mandatory)]
+        [int]$CallStackDepth
     )
 
     $remedy = 'start it as: pwsh -NoProfile -NonInteractive -File <this script> ...'
@@ -226,6 +242,10 @@ function Get-FreshProcessProblem {
 
     if (-not $named.Equals($own, $comparison)) {
         return $notFresh
+    }
+
+    if ($CallStackDepth -ne 1) {
+        return "other code ran around this script (its call stack holds $CallStackDepth frames, not one), so this is not a fresh process whose first act is this script, and a function or type defined by that code outranks the ones this script uses; $remedy"
     }
 
     for ($index = 0; $index -lt $fileIndex; $index++) {
@@ -957,9 +977,15 @@ function Format-LimitedList {
 function Format-RelayedText {
     <#
         Text that came from outside this script, in a form that is safe to put into evidence a model
-        reads: control and format characters and line and paragraph separators become a question
-        mark, so a line a hostile source wrote cannot add lines or hide behind an escape sequence,
-        and the length is capped, so it cannot fill the report.
+        reads: control and format characters, line and paragraph separators, and private-use and
+        unassigned code points become a question mark, so a line a hostile source wrote cannot add
+        lines or hide behind an escape sequence, and the length is capped, so it cannot fill the
+        report.
+
+        The text is read by rune, not by UTF-16 unit: a character outside the basic plane, such as
+        the Unicode tag block, is two units, and a pattern over units does not see it as the format
+        character it is. Characters invisible to a person and readable by a model are exactly what
+        this function exists to remove. The cap never cuts a pair of units in half.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -978,13 +1004,28 @@ function Format-RelayedText {
         return ''
     }
 
-    $clean = [regex]::Replace($Text, '[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]', '?')
+    $unsafe = [System.Collections.Generic.HashSet[string]]::new(
+        [string[]]@('Control', 'Format', 'LineSeparator', 'ParagraphSeparator', 'Surrogate', 'OtherNotAssigned', 'PrivateUse'),
+        [System.StringComparer]::Ordinal)
+    $clean = [System.Text.StringBuilder]::new()
+    $cut = $false
 
-    if ($clean.Length -gt $Limit) {
-        $clean = $clean.Substring(0, $Limit) + '...'
+    foreach ($rune in $Text.EnumerateRunes()) {
+        $piece = if ($unsafe.Contains([System.Text.Rune]::GetUnicodeCategory($rune).ToString())) { '?' } else { $rune.ToString() }
+
+        if ($clean.Length + $piece.Length -gt $Limit) {
+            $cut = $true
+            break
+        }
+
+        $null = $clean.Append($piece)
     }
 
-    return $clean
+    if ($cut) {
+        $null = $clean.Append('...')
+    }
+
+    return $clean.ToString()
 }
 
 function Get-PathProblem {
@@ -1191,10 +1232,11 @@ function Test-ProfileSchema {
     )
 
     $problem = [System.Collections.Generic.List[string]]::new()
-    $present = @($ContainmentProfile.PSObject.Properties.Name)
+    $propertyName = @($ContainmentProfile.PSObject.Properties.Name)
+    $present = [System.Collections.Generic.HashSet[string]]::new([string[]]$propertyName, [System.StringComparer]::Ordinal)
 
-    foreach ($name in $present) {
-        if ($name -notin $script:AllowedKey) {
+    foreach ($name in $propertyName) {
+        if (-not $script:AllowedKeySet.Contains($name)) {
             $problem.Add("unknown field '$name'")
         }
     }
@@ -1206,12 +1248,12 @@ function Test-ProfileSchema {
     )
 
     foreach ($name in $required) {
-        if ($name -notin $present) {
+        if (-not $present.Contains($name)) {
             $problem.Add("missing required field '$name'")
         }
     }
 
-    if ('schemaVersion' -in $present) {
+    if ($present.Contains('schemaVersion')) {
         # A loose comparison with 1 also accepts "1", $true, 1.0 and [1], none of which is the
         # integer the schema names.
         $version = $ContainmentProfile.schemaVersion
@@ -1222,13 +1264,13 @@ function Test-ProfileSchema {
     }
 
     foreach ($name in @('controllerIdentity', 'workerIdentity')) {
-        if ($name -in $present -and [string]::IsNullOrWhiteSpace([string]$ContainmentProfile.$name)) {
+        if ($present.Contains($name) -and [string]::IsNullOrWhiteSpace([string]$ContainmentProfile.$name)) {
             $problem.Add("'$name' must name an identity")
         }
     }
 
     foreach ($name in @('controllerEgressAllow', 'workerEgressAllow')) {
-        if ($name -in $present) {
+        if ($present.Contains($name)) {
             $value = @($ContainmentProfile.$name)
             if ($value.Count -gt 0) {
                 $problem.Add("'$name' must be empty; the controller and workers never reach a network")
@@ -1237,14 +1279,14 @@ function Test-ProfileSchema {
     }
 
     foreach ($name in @($script:PinnedControl) + @($script:LiveControl)) {
-        if ($name -notin $present) {
+        if (-not $present.Contains($name)) {
             continue
         }
 
         $entry = $ContainmentProfile.$name
-        $entryKey = @($entry.PSObject.Properties.Name)
+        $entryKey = [System.Collections.Generic.HashSet[string]]::new([string[]]@($entry.PSObject.Properties.Name), [System.StringComparer]::Ordinal)
 
-        if ('path' -notin $entryKey -or 'sha256' -notin $entryKey) {
+        if (-not $entryKey.Contains('path') -or -not $entryKey.Contains('sha256')) {
             $problem.Add("'$name' must declare a path and a sha256")
             continue
         }
@@ -1263,7 +1305,7 @@ function Test-ProfileSchema {
     }
 
     foreach ($name in @('ledgerSink', 'chainHead')) {
-        if ($name -notin $present) {
+        if (-not $present.Contains($name)) {
             continue
         }
 
@@ -1273,7 +1315,7 @@ function Test-ProfileSchema {
     }
 
     foreach ($name in @('immutableControlPaths', 'writableRoots')) {
-        if ($name -notin $present) {
+        if (-not $present.Contains($name)) {
             continue
         }
 
@@ -1369,6 +1411,12 @@ function Get-HookInterpreter {
         was measured. Any other first word is refused with the reason, and no path is guessed for it.
         A word the shell expands is refused as well, because the program it names is then not the
         text that was read.
+
+        Only the first word names the program, but the rest of the line is read by the same shell: an
+        unquoted separator, redirection or caret after it starts or changes a program that nobody
+        measured, and so does a line break. Those are refused. A PowerShell interpreter must also be
+        started with -NoProfile before its script or command, because the profile of the identity
+        under test would otherwise run first and can change what the guard does.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -1380,8 +1428,14 @@ function Get-HookInterpreter {
 
     $text = $CommandLine.TrimStart()
     $word = $null
+    $rest = ''
+    $quoted = $text.StartsWith('"')
 
-    if ($text.StartsWith('"')) {
+    if ($text -match '[\r\n]') {
+        return [pscustomobject]@{ Path = $null; Problem = 'the command spans more than one line, and a shell runs each line as a command of its own' }
+    }
+
+    if ($quoted) {
         $close = $text.IndexOf('"', 1)
 
         if ($close -lt 0) {
@@ -1389,9 +1443,11 @@ function Get-HookInterpreter {
         }
 
         $word = $text.Substring(1, $close - 1)
+        $rest = $text.Substring($close + 1)
     } else {
         $end = $text.IndexOfAny([char[]]@(' ', "`t"))
         $word = if ($end -lt 0) { $text } else { $text.Substring(0, $end) }
+        $rest = if ($end -lt 0) { '' } else { $text.Substring($end) }
     }
 
     if ([string]::IsNullOrWhiteSpace($word)) {
@@ -1400,6 +1456,10 @@ function Get-HookInterpreter {
 
     if ($word -match '[%^!]') {
         return [pscustomobject]@{ Path = $null; Problem = "the program '$word' contains a character the shell expands, so it is not the program the text names" }
+    }
+
+    if (-not $quoted -and $word -match '[&|<>]') {
+        return [pscustomobject]@{ Path = $null; Problem = "the program word '$word' holds an unquoted shell character, which a shell reads as the start of another command or a redirection" }
     }
 
     if ($word.StartsWith('\\') -or $word.StartsWith('//')) {
@@ -1414,7 +1474,46 @@ function Get-HookInterpreter {
         return [pscustomobject]@{ Path = $null; Problem = "the program '$word' is a bare name, which the host looks up in its working directory and then in PATH" }
     }
 
-    return [pscustomobject]@{ Path = [System.IO.Path]::GetFullPath($word); Problem = $null }
+    $inQuote = $false
+
+    foreach ($character in $rest.ToCharArray()) {
+        if ($character -eq [char]34) {
+            $inQuote = -not $inQuote
+        } elseif (-not $inQuote -and '&|<>^'.IndexOf($character) -ge 0) {
+            return [pscustomobject]@{ Path = $null; Problem = "the command line has an unquoted '$character' after its program, which a shell reads as another command, a redirection or an escape, so the program that runs is not only the one named" }
+        }
+    }
+
+    $program = [System.IO.Path]::GetFullPath($word)
+
+    if ([System.IO.Path]::GetFileName($program) -imatch '^(pwsh|powershell)(\.exe)?$') {
+        $noProfile = $false
+
+        foreach ($token in @([regex]::Matches($rest, '"[^"]*"|\S+') | ForEach-Object { $_.Value })) {
+            if ($token -notmatch '^[-/](?<name>[A-Za-z]+)$') {
+                continue
+            }
+
+            $name = $Matches['name'].ToLowerInvariant()
+
+            if ($name.Length -ge 3 -and 'noprofile'.StartsWith($name, [System.StringComparison]::Ordinal)) {
+                $noProfile = $true
+                break
+            }
+
+            # What follows these options belongs to the command or the script, not to PowerShell.
+            if ('command'.StartsWith($name, [System.StringComparison]::Ordinal) -or 'file'.StartsWith($name, [System.StringComparison]::Ordinal) -or
+                'encodedcommand'.StartsWith($name, [System.StringComparison]::Ordinal) -or $name -ceq 'ec') {
+                break
+            }
+        }
+
+        if (-not $noProfile) {
+            return [pscustomobject]@{ Path = $null; Problem = 'the interpreter is PowerShell and the command does not pass -NoProfile before its script or command, so the profile of the identity that runs it is loaded first and can change what the guard does' }
+        }
+    }
+
+    return [pscustomobject]@{ Path = $program; Problem = $null }
 }
 
 function Invoke-HookPayload {
@@ -1630,7 +1729,7 @@ function Test-HookContract {
             $preToolUse = @($eventProperty['PreToolUse'].Value)
         }
 
-        $otherEvent = @($eventProperty | Where-Object { $_.Name -cne 'PreToolUse' -and @($_.Value).Count -gt 0 } | ForEach-Object { $_.Name })
+        $otherEvent = @($eventProperty | Where-Object { -not [string]::Equals($_.Name, 'PreToolUse', [System.StringComparison]::Ordinal) -and @($_.Value).Count -gt 0 } | ForEach-Object { $_.Name })
     }
 
     if ($preToolUse.Count -ne 1) {
@@ -1650,8 +1749,8 @@ function Test-HookContract {
     $typeProperty = $entry.PSObject.Properties['type']
     $hookType = if ($null -ne $typeProperty) { $typeProperty.Value } else { $null }
 
-    if ($hookType -isnot [string] -or $hookType -cne 'command') {
-        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the PreToolUse hook is of type '$hookType', not command, so the command line that was read is not what a host runs. It was not run"
+    if ($hookType -isnot [string] -or -not [string]::Equals($hookType, 'command', [System.StringComparison]::Ordinal)) {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the PreToolUse hook is of type '$(Format-RelayedText -Text ([string]$hookType))', not command, so the command line that was read is not what a host runs. It was not run"
     }
 
     if ($null -ne $entry.PSObject.Properties['matcher']) {
@@ -1665,11 +1764,22 @@ function Test-HookContract {
         return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence 'the PreToolUse hook declares no timeout of 1 to 600 seconds as an integer, so the time a host allows it is not known. It was not run'
     }
 
+    # The entry is a closed set of keys. Any other key is one this check does not read, and a host may
+    # act on it: its own name for the timeout, an environment, a working directory. The entry that was
+    # measured would then not be the one that runs.
+    $unread = @($entry.PSObject.Properties.Name | Where-Object { -not $script:EntryKeySet.Contains($_) })
+
+    if ($unread.Count -gt 0) {
+        $named = @($unread | Select-Object -First 6 | ForEach-Object { "'$(Format-RelayedText -Text $_ -Limit 40)'" }) -join ', '
+
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the PreToolUse hook carries keys this check does not read ($named), and a host may act on them, so the entry that was measured is not shown to be the one that runs; only type, timeout and the command keys ($($script:CommandKey -join ', ')) are allowed. It was not run"
+    }
+
     # A host reads one of several keys for the command, and which one is its choice, so every key
     # that holds a command must hold the same one: then the command that is probed is the one that runs.
     $commandText = [ordered]@{}
 
-    foreach ($key in @('command', 'windows', 'powershell', 'bash', 'linux', 'osx')) {
+    foreach ($key in $script:CommandKey) {
         $keyProperty = $entry.PSObject.Properties[$key]
 
         if ($null -ne $keyProperty -and $keyProperty.Value -is [string] -and -not [string]::IsNullOrWhiteSpace($keyProperty.Value)) {
@@ -1677,7 +1787,9 @@ function Test-HookContract {
         }
     }
 
-    if (@($commandText.Values | Select-Object -Unique).Count -gt 1) {
+    $commandValue = @($commandText.Values)
+
+    if (@($commandValue | Where-Object { -not [string]::Equals($_, $commandValue[0], [System.StringComparison]::Ordinal) }).Count -gt 0) {
         return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the PreToolUse hook carries different commands under $($commandText.Keys -join ', '), and a host chooses which one it runs, so only one of them can be shown to be the one probed; pin the same command under every key. It was not run"
     }
 
@@ -2167,7 +2279,9 @@ function Test-CredentialAbsence {
         Measures credential and proxy material in the environment and the credential helpers git
         would use. The git that answers is evidence only if this identity cannot have replaced it,
         so it is run only after it was shown to be closed to the run: a git the run can overwrite
-        could report any answer.
+        could report any answer. It is also an executable run as the identity that verifies, so it is
+        run only when the controls that identity is trusted on have passed (GitGateReason names what
+        has not, and is empty when nothing is missing); the variables are measured either way.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -2175,7 +2289,11 @@ function Test-CredentialAbsence {
         [Parameter()]
         [AllowNull()]
         [AllowEmptyCollection()]
-        [string[]]$WritableRoot = @()
+        [string[]]$WritableRoot = @(),
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string]$GitGateReason = ''
     )
 
     # The git steering variables are measured next to the credential ones,
@@ -2200,7 +2318,8 @@ function Test-CredentialAbsence {
     $gitProblem = ''
     $gitBreach = ''
     $gitTrusted = $false
-    $gitPath = Resolve-GitExecutable
+    $gitSkipped = -not [string]::IsNullOrWhiteSpace($GitGateReason)
+    $gitPath = if ($gitSkipped) { '' } else { Resolve-GitExecutable }
 
     if (-not [string]::IsNullOrWhiteSpace($gitPath)) {
         try {
@@ -2218,7 +2337,9 @@ function Test-CredentialAbsence {
         }
     }
 
-    if ([string]::IsNullOrWhiteSpace($gitPath)) {
+    if ($gitSkipped) {
+        $gitProblem = "git was not run: it executes as this identity, which is trusted only after $GitGateReason, so its credential helpers were not read"
+    } elseif ([string]::IsNullOrWhiteSpace($gitPath)) {
         # A git that cannot be resolved is an unmeasured check. "Not installed,
         # therefore clean" would let an empty PATH prove containment.
         $gitProblem = 'git could not be resolved to an absolute application path, so its credential helpers were not measured'
@@ -3240,7 +3361,11 @@ function Get-ContainmentCheck {
 
     $check.Add((Test-EgressPolicy -DeclaredAllow ([string[]]$declaredAllow)))
     $check.Add((Test-RemoteUnreachable))
-    $check.Add((Test-CredentialAbsence -WritableRoot $writableRoot))
+
+    # git is the third program the verifier runs as the identity it measures, and it is trusted on the
+    # same four checks as the hook command: the variables are measured either way, git only after them.
+    $gitGate = if ($unmet.Count -gt 0) { "$($unmet -join ', ') passed" } else { '' }
+    $check.Add((Test-CredentialAbsence -WritableRoot $writableRoot -GitGateReason $gitGate))
 
     $escapeSet = @(Get-EscapeSet -ProfilePath $ProfilePath -SinkPath ([string]$ContainmentProfile.ledgerSink) -ChainHeadPath ([string]$ContainmentProfile.chainHead))
     $check.Add((Test-WritableRoot -Declared $writableRoot -EscapeSet $escapeSet))
@@ -3612,21 +3737,23 @@ function Test-FinalReport {
     $previousType = & $read $previous 'type'
     $recorded = & $read (& $read $previous 'data') 'sha256'
 
-    if ($lastType -cne 'Seal') {
+    $ordinal = [System.StringComparison]::Ordinal
+
+    if (-not [string]::Equals([string]$lastType, 'Seal', $ordinal)) {
         $problem.Add("the last record is of type '$(Format-RelayedText -Text ([string]$lastType))', not Seal")
     }
 
-    if ((& $read $last 'recordSha256') -cne [string]$ChainSummary.headRecordSha256) {
+    if (-not [string]::Equals([string](& $read $last 'recordSha256'), [string]$ChainSummary.headRecordSha256, $ordinal)) {
         $problem.Add("the last record's digest is not the head digest $($ChainSummary.headRecordSha256) the pinned appender validated")
     }
 
-    if ((& $read $last 'prevSha256') -cne (& $read $previous 'recordSha256')) {
+    if (-not [string]::Equals([string](& $read $last 'prevSha256'), [string](& $read $previous 'recordSha256'), $ordinal)) {
         $problem.Add('the seal does not chain to the record before it')
     }
 
-    if ($previousType -cne 'FinalReport') {
+    if (-not [string]::Equals([string]$previousType, 'FinalReport', $ordinal)) {
         $problem.Add("the record before the seal is of type '$(Format-RelayedText -Text ([string]$previousType))', not FinalReport")
-    } elseif ($recorded -cne $reportDigest) {
+    } elseif (-not [string]::Equals([string]$recorded, $reportDigest, $ordinal)) {
         $problem.Add("the ledger records the final report as $(Format-RelayedText -Text ([string]$recorded)), but $FinalReportPath hashes to $reportDigest")
     }
 
@@ -3741,8 +3868,9 @@ function Get-RevalidationCheck {
 $mode = $PSCmdlet.ParameterSetName
 
 # Before anything is measured, because what is measured is only as good as the functions and types
-# that measure it.
-$processProblem = Get-FreshProcessProblem -CommandLineArgument ([string[]][System.Environment]::GetCommandLineArgs()) -ScriptPath $PSCommandPath
+# that measure it. The call stack is read here, at script scope: inside a function it would be deeper.
+$callStackDepth = @([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.Debugger.GetCallStack()).Count
+$processProblem = Get-FreshProcessProblem -CommandLineArgument ([string[]][System.Environment]::GetCommandLineArgs()) -ScriptPath $PSCommandPath -CallStackDepth $callStackDepth
 
 if ($processProblem) {
     [Console]::Error.WriteLine("Containment refused: $processProblem")

@@ -253,6 +253,33 @@ Describe 'Relayed text' -Tag 'Unit' {
         Format-RelayedText -Text $text | Should -Be 'a?b?c?d?e?[0mf?g?h'
     }
 
+    It 'turns the characters of the Unicode tag block into question marks' {
+        # Review pass 2, S-06: U+E0000 to U+E007F are format characters outside the basic plane. A
+        # pattern that reads UTF-16 units does not see them as one character, and they are invisible
+        # to a person and readable by a model, so an instruction written in them passed unchanged.
+        $text = 'a' + [char]::ConvertFromUtf32(0xE0041) + [char]::ConvertFromUtf32(0xE0042) + 'b'
+
+        Format-RelayedText -Text $text | Should -Be 'a??b'
+    }
+
+    It 'turns private-use characters into question marks' {
+        Format-RelayedText -Text ('a' + [char]0xE000 + [char]::ConvertFromUtf32(0xF0000) + 'b') | Should -Be 'a??b'
+    }
+
+    It 'keeps accented letters, emoji, and other text a person can read' {
+        # Built from code points, so that this file stays ASCII: a letter with a diaeresis, a symbol, three
+        # letters of another script and a character outside the basic plane.
+        $text = 'na' + [char]0x00EF + 've ' + [char]0x2615 + ' ' + [char]0x65E5 + [char]0x672C + [char]0x8A9E + ' ' + [char]::ConvertFromUtf32(0x1F600)
+
+        Format-RelayedText -Text $text | Should -Be $text
+    }
+
+    It 'does not cut a surrogate pair in half when it caps the length' {
+        $pair = [char]::ConvertFromUtf32(0x1F600)
+
+        Format-RelayedText -Text (('z' * 49) + $pair + 'tail') -Limit 50 | Should -Be (('z' * 49) + '...')
+    }
+
     It 'caps the length and says that it did' {
         $result = Format-RelayedText -Text ('z' * 500) -Limit 50
 
@@ -363,6 +390,25 @@ Describe 'Final report' -Tag 'Unit' {
 
     It 'fails a seal that does not chain to the final report' {
         (Invoke-FinalReport -SinkPath (Write-Ledger -Name 'unchained' -SealPrevious ('8' * 64)) -FinalReportPath $script:report -ChainSummary (New-Summary)).status | Should -Be 'Fail'
+    }
+
+    # Review pass 2, S-04: -cne compares by culture, and a culture ignores a zero-width space.
+    It 'does not take a type that only looks like Seal for the seal' {
+        $result = Invoke-FinalReport -SinkPath (Write-Ledger -Name 'lookalike-seal' -SealType ('Seal' + [char]0x200B)) -FinalReportPath $script:report -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+    }
+
+    It 'does not take a type that only looks like FinalReport for the final report' {
+        $result = Invoke-FinalReport -SinkPath (Write-Ledger -Name 'lookalike-final' -FinalType ('FinalReport' + [char]0x200B)) -FinalReportPath $script:report -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+    }
+
+    It 'does not take a digest that only looks like the digest of the report for it' {
+        $result = Invoke-FinalReport -SinkPath (Write-Ledger -Name 'lookalike-digest' -ReportDigestInLedger ($script:reportDigest + [char]0x200B)) -FinalReportPath $script:report -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
     }
 
     It 'fails a last record that is not the head the appender validated' {

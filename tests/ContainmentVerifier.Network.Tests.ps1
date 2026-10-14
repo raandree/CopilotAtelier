@@ -815,6 +815,50 @@ Describe 'Containment verifier credential absence' -Tag 'Unit' {
         }
     }
 
+    Context 'when the controls git executes as were not verified' {
+        # Review pass 2, S-07: git runs as the verifying identity. That is the identity of the role only if
+        # IdentityBinding passed; otherwise a git the role can replace and the verifier cannot would run
+        # before the report said so, the same reasoning as the hook probe.
+        It 'does not resolve, measure or run git, and says why' {
+            Mock -CommandName 'Resolve-GitExecutable' -MockWith { throw 'git must not be resolved' }
+            Mock -CommandName 'Test-PathProtection' -MockWith { throw 'git must not be measured' }
+            Mock -CommandName 'Invoke-GitConfigProcess' -MockWith { throw 'git must not be started' }
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                $result = Test-CredentialAbsence -GitGateReason 'IdentityBinding passed'
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+            $result.evidence | Should -Match 'git was not run'
+            $result.evidence | Should -Match 'IdentityBinding passed'
+            Should -Invoke -CommandName 'Resolve-GitExecutable' -Times 0 -Exactly
+            Should -Invoke -CommandName 'Test-PathProtection' -Times 0 -Exactly
+            Should -Invoke -CommandName 'Invoke-GitConfigProcess' -Times 0 -Exactly
+        }
+
+        It 'still fails a credential variable that is set, and names git as not run' {
+            Mock -CommandName 'Resolve-GitExecutable' -MockWith { throw 'git must not be resolved' }
+            Mock -CommandName 'Invoke-GitConfigProcess' -MockWith { throw 'git must not be started' }
+            $saved = Clear-MeasuredEnvironment
+
+            try {
+                [Environment]::SetEnvironmentVariable('GH_TOKEN', 'ghp-looks-like-a-token-0123456789')
+
+                $result = Test-CredentialAbsence -GitGateReason 'IdentityBinding passed'
+            } finally {
+                Restore-MeasuredEnvironment -Saved $saved
+            }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match 'GH_TOKEN'
+            $result.evidence | Should -Match 'git was not run'
+            $result.evidence | Should -Not -Match 'ghp-looks-like-a-token'
+        }
+    }
+
     Context 'the git binary the check runs' {
         BeforeEach {
             Mock -CommandName 'Resolve-GitExecutable' -MockWith { 'C:\pinned\git.exe' }

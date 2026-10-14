@@ -350,4 +350,40 @@ Describe 'Containment profile schema paths and digests' -Tag 'Unit' {
         $problem | Should -Match 'liveRunner.*absolute'
         $problem | Should -Match 'liveRunner.*lowercase 64-hex'
     }
+
+    It 'refuses a field whose name only looks like a known one' {
+        # Review pass 2, S-04: -notin compares by culture, and a culture ignores a zero-width space, so
+        # an unknown field passed as the field it imitates.
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile | Add-Member -NotePropertyName ('ledger' + [char]0x200B + 'Sink') -NotePropertyValue $containmentProfile.ledgerSink
+
+        (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match 'unknown field'
+    }
+
+    It 'does not let a field that only looks like a required one stand in for it' {
+        $containmentProfile = New-SchemaProfile
+        $verifier = $containmentProfile.verifier
+        $containmentProfile.PSObject.Properties.Remove('verifier')
+        $containmentProfile | Add-Member -NotePropertyName ('verifier' + [char]0x200B) -NotePropertyValue $verifier
+
+        (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match "missing required field 'verifier'"
+    }
+
+    It 'does not let a key that only looks like the digest of a pinned control stand in for it' {
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile.hookScript = [pscustomobject]@{ path = $containmentProfile.hookScript.path; ('sha256' + [char]0x200B) = ('a' * 64) }
+
+        (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match "'hookScript' must declare a path and a sha256"
+    }
+
+    It 'refuses a field spelled in another case, because every other part of the profile is read by its exact name' {
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile.PSObject.Properties.Remove('ledgerSink')
+        $containmentProfile | Add-Member -NotePropertyName 'LedgerSink' -NotePropertyValue 'run.jsonl'
+
+        $problem = (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; '
+
+        $problem | Should -Match "unknown field 'LedgerSink'"
+        $problem | Should -Match "missing required field 'ledgerSink'"
+    }
 }

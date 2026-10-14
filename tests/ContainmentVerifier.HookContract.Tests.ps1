@@ -15,6 +15,7 @@ BeforeAll {
             'ConvertFrom-JsonByteArray'
             'Get-HookRootBinding'
             'Get-HookInterpreter'
+            'Format-RelayedText'
             'Get-GateFailure'
             'Test-PathProtection'
             'Invoke-HookPayload'
@@ -303,11 +304,48 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Why = 'a device path'; Line = '\\?\C:\Windows\System32\cmd.exe /c exit'; Match = 'network or device' }
         @{ Why = 'a quote that is never closed'; Line = '"C:\Windows\System32\cmd.exe /c exit'; Match = 'never closed' }
         @{ Why = 'a blank line'; Line = '   '; Match = 'no program' }
+        @{ Why = 'a command separator right after the program'; Line = '"C:\Windows\System32\cmd.exe"&calc.exe'; Match = 'unquoted' }
+        @{ Why = 'a command separator between words'; Line = 'C:\Windows\System32\cmd.exe /c exit & calc.exe'; Match = 'unquoted' }
+        @{ Why = 'a command separator inside an unquoted program word'; Line = 'C:\Windows\System32\cmd.exe&calc.exe /c exit'; Match = 'unquoted' }
+        @{ Why = 'a pipe'; Line = 'C:\Windows\System32\cmd.exe /c dir | more'; Match = 'unquoted' }
+        @{ Why = 'an output redirection'; Line = 'C:\Windows\System32\cmd.exe /c dir > out.txt'; Match = 'unquoted' }
+        @{ Why = 'an input redirection'; Line = 'C:\Windows\System32\cmd.exe /c more < in.txt'; Match = 'unquoted' }
+        @{ Why = 'a caret outside quotes'; Line = 'C:\Windows\System32\cmd.exe /c ec^ho x'; Match = 'unquoted' }
+        @{ Why = 'a line break'; Line = "C:\Windows\System32\cmd.exe /c exit`r`ncalc.exe"; Match = 'line' }
+        @{ Why = 'PowerShell started without -NoProfile'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -File x.ps1'; Match = 'NoProfile' }
+        @{ Why = 'Windows PowerShell started without -NoProfile'; Line = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NonInteractive -Command exit'; Match = 'NoProfile' }
+        @{ Why = 'a -NoProfile that only belongs to the script'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -File x.ps1 -NoProfile'; Match = 'NoProfile' }
+        @{ Why = 'a different option that begins with -NoProfile'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfileLoadTime -File x.ps1'; Match = 'NoProfile' }
     ) {
         $result = Get-HookInterpreter -CommandLine $Line
 
         $result.Path | Should -BeNullOrEmpty
         $result.Problem | Should -Match $Match
+    }
+
+    # Review pass 2, S-11: only the first word was judged, so a shell that read a separator after it ran
+    # a second program that nobody measured, and PowerShell without -NoProfile ran the profile of the
+    # identity under test first.
+    It 'reads a command whose shell characters are inside quotes' {
+        $result = Get-HookInterpreter -CommandLine '"C:\Windows\System32\cmd.exe" /c "echo a & echo b | more > nul < nul ^ x"'
+
+        $result.Problem | Should -BeNullOrEmpty
+        $result.Path | Should -Be 'C:\Windows\System32\cmd.exe'
+    }
+
+    It 'reads the statement the shipped Windows command ends with, which only an outer PowerShell understands' {
+        $line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'
+
+        (Get-HookInterpreter -CommandLine $line).Problem | Should -BeNullOrEmpty
+    }
+
+    It 'reads -NoProfile as PowerShell does: by prefix, and after other options' -ForEach @(
+        @{ Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -nop -File x.ps1' }
+        @{ Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -NoPro -File x.ps1' }
+        @{ Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -ExecutionPolicy Bypass -NoProfile -File x.ps1' }
+        @{ Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -Command exit' }
+    ) {
+        (Get-HookInterpreter -CommandLine $Line).Problem | Should -BeNullOrEmpty
     }
 }
 
@@ -480,7 +518,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             Mock -CommandName Test-PathProtection -MockWith {
                 [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @("${Path}: this identity holds the right to delete it"); Unmeasured = @() }
             }
-            $tree = New-PluginTree -Name 'replaceable-interpreter' -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+            $tree = New-PluginTree -Name 'replaceable-interpreter' -Command "`"$script:cmdExe`" /c copy nul `"$script:marker`""
 
             $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
                 -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
@@ -495,7 +533,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             Mock -CommandName Test-PathProtection -MockWith {
                 [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @(); Unmeasured = @("${Path}: a right could not be measured") }
             }
-            $tree = New-PluginTree -Name 'unmeasured-interpreter' -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+            $tree = New-PluginTree -Name 'unmeasured-interpreter' -Command "`"$script:cmdExe`" /c copy nul `"$script:marker`""
 
             $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
                 -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
@@ -507,7 +545,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
         It 'reports an interpreter that cannot be measured at all as unmeasured, and runs nothing' {
             Mock -CommandName Test-PathProtection -MockWith { throw 'access check unavailable' }
-            $tree = New-PluginTree -Name 'throwing-interpreter' -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+            $tree = New-PluginTree -Name 'throwing-interpreter' -Command "`"$script:cmdExe`" /c copy nul `"$script:marker`""
 
             $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
                 -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
@@ -521,7 +559,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             Mock -CommandName Test-PathProtection -MockWith {
                 [pscustomobject]@{ Path = $Path; Closed = $true; Absent = $true; Violation = @(); Unmeasured = @() }
             }
-            $tree = New-PluginTree -Name 'absent-interpreter' -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+            $tree = New-PluginTree -Name 'absent-interpreter' -Command "`"$script:cmdExe`" /c copy nul `"$script:marker`""
 
             $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
                 -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
@@ -676,18 +714,23 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         BeforeEach {
             $script:marker = Join-Path $TestDrive "entry-marker-$([guid]::NewGuid().ToString('N')).txt"
             $script:cmdExe = [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System), 'cmd.exe')
-            $script:markerCommand = ('"' + $script:cmdExe + '" /c echo ran> "' + $script:marker + '"').Replace('\', '\\').Replace('"', '\"')
+            $script:markerCommand = ('"' + $script:cmdExe + '" /c copy nul "' + $script:marker + '"').Replace('\', '\\').Replace('"', '\"')
         }
 
         # A hooks.json whose PreToolUse entry is the one given as JSON text, in a plugin tree of its own.
         It 'fails an entry that is <Reason>, and runs nothing' -ForEach @(
             @{ Reason = 'not a command hook'; Match = 'not command'; Entry = '"type":"http","timeout":20,"command":"{0}","windows":"{0}"' }
             @{ Reason = 'a hook with no type'; Match = 'not command'; Entry = '"timeout":20,"command":"{0}","windows":"{0}"' }
+            @{ Reason = 'typed with an invisible character after command'; Match = 'not command'; Entry = '"type":"command\u200b","timeout":20,"command":"{0}","windows":"{0}"' }
             @{ Reason = 'narrowed by a matcher'; Match = 'matcher'; Entry = '"type":"command","matcher":"Bash","timeout":20,"command":"{0}","windows":"{0}"' }
             @{ Reason = 'without a timeout'; Match = 'timeout'; Entry = '"type":"command","command":"{0}","windows":"{0}"' }
             @{ Reason = 'given a timeout of zero'; Match = 'timeout'; Entry = '"type":"command","timeout":0,"command":"{0}","windows":"{0}"' }
             @{ Reason = 'given a timeout that is text'; Match = 'timeout'; Entry = '"type":"command","timeout":"20","command":"{0}","windows":"{0}"' }
             @{ Reason = 'given a timeout beyond any a host allows'; Match = 'timeout'; Entry = '"type":"command","timeout":601,"command":"{0}","windows":"{0}"' }
+            @{ Reason = 'given a second timeout under the name the SDK host reads'; Match = "'timeoutSec'"; Entry = '"type":"command","timeout":20,"timeoutSec":1,"command":"{0}","windows":"{0}"' }
+            @{ Reason = 'given an environment of its own'; Match = "'env'"; Entry = '"type":"command","timeout":20,"env":{{"PLUGIN_ROOT":"x"}},"command":"{0}","windows":"{0}"' }
+            @{ Reason = 'given a working directory of its own'; Match = "'cwd'"; Entry = '"type":"command","timeout":20,"cwd":"x","command":"{0}","windows":"{0}"' }
+            @{ Reason = 'given a key whose name only looks like timeout'; Match = 'timeout'; Entry = '"type":"command","timeout":20,"timeout\u200b":1,"command":"{0}","windows":"{0}"' }
         ) {
             $tree = New-PluginTree -Name 'entry-shape'
             $json = '{"hooks":{"PreToolUse":[{' + ($Entry -f $script:markerCommand) + '}]}}'
@@ -713,6 +756,36 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $result.status | Should -Be 'Fail'
             $result.evidence | Should -Match 'differ'
             $result.evidence | Should -Match 'powershell'
+            Test-Path -LiteralPath $script:marker | Should -BeFalse
+        }
+
+        It 'fails command keys that differ only in case, and runs nothing' {
+            # A host on a case-sensitive system runs two commands that differ only in case apart, so they
+            # are two commands. This holds today; the test keeps it from being lost when the comparison changes.
+            $tree = New-PluginTree -Name 'entry-keys-case'
+            $json = '{"hooks":{"PreToolUse":[{"type":"command","timeout":20,"command":"' + $script:markerCommand + '","windows":"' + $script:markerCommand + '","powershell":"' + $script:markerCommand.ToUpperInvariant() + '"}]}}'
+            $digest = Set-PluginConfig -Tree $tree -Json $json
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $digest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'differ'
+            Test-Path -LiteralPath $script:marker | Should -BeFalse
+        }
+
+        It 'fails an event whose name only looks like PreToolUse, and runs nothing' {
+            # Review pass 2, S-04: -cne compares by culture, so a second event named PreToolUse followed by a
+            # zero-width space was counted as the guard's own event and its hooks were never listed.
+            $tree = New-PluginTree -Name 'entry-lookalike-event'
+            $json = '{"hooks":{"PreToolUse":[{"type":"command","timeout":20,"command":"' + $script:markerCommand + '","windows":"' + $script:markerCommand + '"}],"PreToolUse\u200b":[{"type":"command","command":"x"}]}}'
+            $digest = Set-PluginConfig -Tree $tree -Json $json
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $digest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'besides the guard'
             Test-Path -LiteralPath $script:marker | Should -BeFalse
         }
 
@@ -758,7 +831,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         }
 
         It 'fails a command that takes as long as the timeout the host would enforce' {
-            $slow = ('"' + $script:cmdExe + '" /c ping -n 3 127.0.0.1 >nul').Replace('\', '\\').Replace('"', '\"')
+            $slow = ('"' + $script:cmdExe + '" /c ping -n 3 127.0.0.1').Replace('\', '\\').Replace('"', '\"')
             $tree = New-PluginTree -Name 'entry-slow'
             $json = '{"hooks":{"PreToolUse":[{"type":"command","timeout":1,"command":"' + $slow + '","windows":"' + $slow + '"}]}}'
             $digest = Set-PluginConfig -Tree $tree -Json $json

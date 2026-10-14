@@ -16,14 +16,18 @@ BeforeAll {
     $script:hostModule = if ($script:onWindows) { 'C:\Program Files\PowerShell\7\pwsh.dll' } else { '/usr/share/powershell/pwsh.dll' }
 
     # The first element of a process command line is the host itself; the rest is what it was given.
+    # The depth is the number of frames of the call stack where the script starts: one under -File.
     function script:Get-Problem {
         param(
             [Parameter(Mandatory)]
             [AllowEmptyCollection()]
-            [string[]]$Argument
+            [string[]]$Argument,
+
+            [Parameter()]
+            [int]$Depth = 1
         )
 
-        return (Get-FreshProcessProblem -CommandLineArgument (@($script:hostModule) + $Argument) -ScriptPath $script:entryScript)
+        return (Get-FreshProcessProblem -CommandLineArgument (@($script:hostModule) + $Argument) -ScriptPath $script:entryScript -CallStackDepth $Depth)
     }
 }
 
@@ -75,6 +79,25 @@ Describe 'Containment fresh process' -Tag 'Unit' {
 
         It 'refuses -File with nothing after it' {
             Get-Problem -Argument @('-NoProfile', '-File') | Should -Match 'fresh process'
+        }
+    }
+
+    Context 'a command line that names this script but runs other code around it' {
+        # Review pass 2, S-01: -Command takes every later argument as command text, yet the host still lists
+        # them, so "-Command <code> -File <script>" read exactly like "-File <script>" and the code ran first.
+        It 'refuses a call stack deeper than the one frame the script has under -File' {
+            $problem = Get-Problem -Argument @('-NoProfile', '-Command', "function Get-Date { 'x' }; & '$($script:entryScript)' #", '-File', $script:entryScript) -Depth 2
+
+            $problem | Should -Match 'fresh process'
+            $problem | Should -Match '2 frames'
+        }
+
+        It 'refuses a call stack of no frame, which is not the shape of a script that was started by -File' {
+            Get-Problem -Argument @('-NoProfile', '-File', $script:entryScript) -Depth 0 | Should -Match 'fresh process'
+        }
+
+        It 'accepts the one frame that -File gives' {
+            Get-Problem -Argument @('-NoProfile', '-File', $script:entryScript) -Depth 1 | Should -BeNullOrEmpty
         }
     }
 

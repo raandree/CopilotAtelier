@@ -312,6 +312,21 @@ Describe 'Containment verifier' -Tag 'Unit' {
         Test-Path -LiteralPath $reportPath | Should -BeFalse -Because 'a refused process measures and reports nothing'
     }
 
+    It 'refuses a -Command launch that only carries -File and the script after its command text, and measures nothing' {
+        # Review pass 2, S-01: -Command takes every later argument as command text, yet the host still lists
+        # them, so the command line named the script after -File while other code ran first.
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p29c/profile.json')
+        $digest = Get-Digest -Path $profilePath
+        $reportPath = Join-Path $TestDrive 'p29c/report.json'
+        $command = "function Get-Date { 'shadowed' }; & '$($script:verifierScript)' -Verify -ProfilePath '$profilePath' -ProfileSha256 '$digest' -Role Controller -ReportPath '$reportPath'; exit `$LASTEXITCODE #"
+
+        $result = Invoke-PowerShellProcess -Argument @('-NoProfile', '-NonInteractive', '-Command', $command, '-File', $script:verifierScript)
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'fresh process'
+        Test-Path -LiteralPath $reportPath | Should -BeFalse -Because 'a refused process measures and reports nothing'
+    }
+
     It 'refuses a process that loaded the profile of the user, and measures nothing' {
         $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p29b/profile.json')
         $digest = Get-Digest -Path $profilePath

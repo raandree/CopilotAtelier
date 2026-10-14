@@ -189,6 +189,31 @@ Describe 'Containment check flow' -Tag 'Unit' {
         ($result | Where-Object { $_.name -ceq 'GrantRecorderUnregistered' }).evidence | Should -Be 'mock'
     }
 
+    # Review pass 2, S-07: git is the third program the verifier runs as the identity it measures, after the
+    # hook command and the appender, and it is trusted on the same four checks.
+    It 'does not let the credential check run git when <Gate> is <Status>' -ForEach @(
+        @{ Gate = 'VerifierBinding'; Status = 'Fail' }
+        @{ Gate = 'ControlDigest'; Status = 'Fail' }
+        @{ Gate = 'ControlImmutability'; Status = 'Fail' }
+        @{ Gate = 'ControlImmutability'; Status = 'Unavailable' }
+        @{ Gate = 'IdentityBinding'; Status = 'Fail' }
+        @{ Gate = 'IdentityBinding'; Status = 'Unavailable' }
+    ) {
+        $script:gateName = $Gate
+        $script:gateStatus = $Status
+        Mock -CommandName "Test-$Gate" -MockWith { New-CheckResult -Name $script:gateName -Status $script:gateStatus -Evidence 'mock breach' }
+
+        $null = Invoke-Flow
+
+        Should -Invoke Test-CredentialAbsence -Times 1 -Exactly -ParameterFilter { $GitGateReason -match $script:gateName }
+    }
+
+    It 'lets the credential check run git when every control it executes is verified' {
+        $null = Invoke-Flow
+
+        Should -Invoke Test-CredentialAbsence -Times 1 -Exactly -ParameterFilter { [string]::IsNullOrEmpty($GitGateReason) }
+    }
+
     It 'still runs every other check when one fails' {
         Mock Test-WritableRoot { New-CheckResult -Name 'WritableRoots' -Status 'Fail' -Evidence 'mock' }
 
