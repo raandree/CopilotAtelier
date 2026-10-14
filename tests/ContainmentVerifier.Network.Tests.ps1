@@ -6,6 +6,11 @@ $script:onWindows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
 # The few cases that drive a real git child process; the rest never start one.
 $script:hasGit = $null -ne (Get-Command -Name 'git' -CommandType Application -ErrorAction SilentlyContinue)
 
+# The origin of the firewall cmdlets can only be measured where they come from a module of the system
+# itself; on a host that reaches NetSecurity through the Windows PowerShell compatibility layer the check
+# is expected to say so and not to pass.
+$script:netSecurityNative = $script:onWindows -and ($null -ne (Get-Module -ListAvailable -Name 'NetSecurity' -ErrorAction SilentlyContinue | Where-Object -FilterScript { $_.CompatiblePSEditions -contains 'Core' }))
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
     $script:verifierScript = Join-Path $script:repoRoot 'com.github.copilot/hooks/scripts/Test-RunContainment.ps1'
@@ -24,6 +29,7 @@ BeforeAll {
             'Invoke-GitConfigProcess'
             'Get-PropertyText'
             'Get-FirewallProfileState'
+            'Get-FirewallModuleProblem'
             'Get-OutboundAllowRule'
             'Get-CallerSecurityIdentifier'
             'Test-RuleAppliesToIdentity'
@@ -186,6 +192,12 @@ BeforeAll {
 }
 
 Describe 'Containment verifier egress policy' -Tag 'Unit' {
+    BeforeEach {
+        # Where the cmdlets come from has a Describe of its own below. Here the cmdlets are mocked by name,
+        # which a measurement of their origin would rightly refuse.
+        Mock -CommandName 'Get-FirewallModuleProblem' -MockWith { $null }
+    }
+
     Context 'the declared allow list' {
         It 'fails a role that declares any allowed destination' {
             $result = Test-EgressPolicy -DeclaredAllow @('https://api.github.com')
@@ -620,6 +632,73 @@ Describe 'Containment verifier remote reachability' -Tag 'Unit' {
 
             $outcome.Outcome | Should -Be 'Connected' -Because $outcome.Detail
         }
+    }
+}
+
+Describe 'Containment verifier firewall module origin' -Tag 'Unit' {
+    # Review pass 3, S-02: the firewall cmdlets are resolved by name, so a module of that name earlier on
+    # PSModulePath, or a function or an alias, answers for the system's, and EgressPolicy would read what
+    # whoever started the process arranged. Each cmdlet must come from a module under the system folder.
+    BeforeAll {
+        function script:Get-OriginProblemInChildProcess {
+            param(
+                [Parameter(Mandatory)]
+                [string]$Prelude
+            )
+
+            $command = @"
+$Prelude
+. '$($script:repoRoot)/tests/Helpers/ScriptFunction.ps1'
+. (Get-ScriptFunctionDefinition -Path '$($script:verifierScript)' -Name @('Format-RelayedText', 'Get-FirewallModuleProblem'))
+Get-FirewallModuleProblem
+"@
+            $output = & (Get-Process -Id $PID).Path -NoProfile -NonInteractive -Command $command 2>&1
+
+            return (($output | Out-String).Trim())
+        }
+    }
+
+    It 'reports the firewall as unmeasured, and does not read it, when its cmdlets do not come from the system module' -Skip:(-not $script:onWindows) {
+        Mock -CommandName 'Get-FirewallModuleProblem' -MockWith { 'Get-NetFirewallProfile comes from a planted module' }
+        Mock -CommandName 'Get-NetFirewallProfile' -MockWith { throw 'the firewall must not be read' }
+
+        $result = Test-EgressPolicy -DeclaredAllow @()
+
+        $result.status | Should -Be 'Unavailable' -Because $result.evidence
+        $result.evidence | Should -Match 'planted module'
+        Should -Invoke -CommandName 'Get-NetFirewallProfile' -Times 0 -Exactly
+    }
+
+    It 'finds nothing to say about the cmdlets of this machine when they come from the system module' -Skip:(-not $script:netSecurityNative) {
+        Get-FirewallModuleProblem | Should -BeNullOrEmpty
+    }
+
+    It 'names a module of the same name that comes first on the module path' -Skip:(-not $script:onWindows) {
+        $stub = Join-Path $TestDrive 'planted-modules'
+        $directory = Join-Path $stub 'NetSecurity'
+        $null = New-Item -Path $directory -ItemType Directory -Force
+        [System.IO.File]::WriteAllText((Join-Path $directory 'NetSecurity.psm1'), "function Get-NetFirewallProfile { 'planted' }`nfunction Get-NetFirewallRule { 'planted' }`nfunction Get-NetFirewallSecurityFilter { 'planted' }`nExport-ModuleMember -Function *`n")
+        [System.IO.File]::WriteAllText((Join-Path $directory 'NetSecurity.psd1'), "@{ RootModule = 'NetSecurity.psm1'; ModuleVersion = '99.0.0'; GUID = '$([guid]::NewGuid())'; FunctionsToExport = @('Get-NetFirewallProfile', 'Get-NetFirewallRule', 'Get-NetFirewallSecurityFilter') }`n")
+
+        $text = Get-OriginProblemInChildProcess -Prelude "`$env:PSModulePath = '$stub' + [System.IO.Path]::PathSeparator + `$env:PSModulePath"
+
+        $text | Should -Match 'Get-NetFirewall'
+        $text | Should -Match 'planted-modules'
+        $text | Should -Match 'not from a module under the system folder'
+    }
+
+    It 'names a function that stands in for a cmdlet' -Skip:(-not $script:onWindows) {
+        $text = Get-OriginProblemInChildProcess -Prelude "function global:Get-NetFirewallProfile { 'planted' }"
+
+        $text | Should -Match 'Get-NetFirewallProfile'
+        $text | Should -Match 'did not come from a module'
+    }
+
+    It 'names an alias that stands in for a cmdlet' -Skip:(-not $script:onWindows) {
+        $text = Get-OriginProblemInChildProcess -Prelude "Set-Alias -Name Get-NetFirewallRule -Value Out-Null -Scope Global"
+
+        $text | Should -Match 'Get-NetFirewallRule'
+        $text | Should -Match 'did not come from a module'
     }
 }
 

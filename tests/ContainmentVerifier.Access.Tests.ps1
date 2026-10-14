@@ -97,6 +97,15 @@ Describe 'Containment path chain' -Tag 'Unit' {
 
         $chain | Should -Be @('C:\alpha\gamma.json', 'C:\alpha', 'C:\')
     }
+
+    It 'lists the root for a first component made only of a character a culture ignores' -Skip:(-not $script:onWindows) {
+        # Review pass 3: -ceq compares by culture, and a root equals the root plus a zero-width space, so the
+        # walk ended at once and the root, which decides whether the path can be replaced, was never listed.
+        $chain = @(Get-PathChain -Path ('C:\' + [char]0x200B))
+
+        $chain | Should -HaveCount 2
+        $chain[1] | Should -Be 'C:\'
+    }
 }
 
 Describe 'Containment path overlap' -Tag 'Unit' {

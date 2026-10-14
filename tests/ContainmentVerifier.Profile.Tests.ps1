@@ -351,6 +351,20 @@ Describe 'Containment profile schema paths and digests' -Tag 'Unit' {
         $problem | Should -Match 'liveRunner.*lowercase 64-hex'
     }
 
+    # Review pass 3: a pinned control given as null made the schema check throw, so the run ended with exit
+    # code 1 and no report instead of a ProfileSchema failure. No Pass was possible, but the refusal should say why.
+    It 'refuses a pinned control that is <Reason>, and does not throw' -ForEach @(
+        @{ Reason = 'null'; Value = $null }
+        @{ Reason = 'text'; Value = 'verifier.ps1' }
+        @{ Reason = 'a number'; Value = 5 }
+    ) {
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile.verifier = $Value
+
+        { Test-ProfileSchema -ContainmentProfile $containmentProfile } | Should -Not -Throw
+        (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match "'verifier' must be an object"
+    }
+
     It 'refuses a field whose name only looks like a known one' {
         # Review pass 2, S-04: -notin compares by culture, and a culture ignores a zero-width space, so
         # an unknown field passed as the field it imitates.

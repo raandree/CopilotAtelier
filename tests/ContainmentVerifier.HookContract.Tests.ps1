@@ -15,6 +15,7 @@ BeforeAll {
             'ConvertFrom-JsonByteArray'
             'Get-HookRootBinding'
             'Get-HookInterpreter'
+            'Get-PowerShellLaunchOption'
             'Format-RelayedText'
             'Get-GateFailure'
             'Test-PathProtection'
@@ -316,6 +317,15 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Why = 'Windows PowerShell started without -NoProfile'; Line = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NonInteractive -Command exit'; Match = 'NoProfile' }
         @{ Why = 'a -NoProfile that only belongs to the script'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -File x.ps1 -NoProfile'; Match = 'NoProfile' }
         @{ Why = 'a different option that begins with -NoProfile'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfileLoadTime -File x.ps1'; Match = 'NoProfile' }
+        @{ Why = 'a percent expansion'; Line = '"C:\Windows\System32\cmd.exe" /c %X%'; Match = 'expands' }
+        @{ Why = 'a percent expansion inside quotes'; Line = '"C:\Windows\System32\cmd.exe" /c "%X%"'; Match = 'expands' }
+        @{ Why = 'an exclamation mark'; Line = '"C:\Windows\System32\cmd.exe" /c echo !X!'; Match = 'expands' }
+        @{ Why = 'parentheses outside quotes'; Line = '"C:\Windows\System32\cmd.exe" /c (echo a)'; Match = 'unquoted' }
+        @{ Why = 'a semicolon followed by anything but the closing statement of the shipped command'; Line = '"C:\Windows\System32\cmd.exe" /c exit ; calc.exe'; Match = 'semicolon' }
+        @{ Why = 'a second statement after the closing statement of the shipped command'; Line = '"C:\Windows\System32\cmd.exe" /c exit ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0] ; calc.exe'; Match = 'semicolon' }
+        @{ Why = 'PowerShell given a session configuration'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -ConfigurationFile x.pssc -File y.ps1'; Match = 'ConfigurationFile' }
+        @{ Why = 'PowerShell given a settings file'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -SettingsFile x.json -File y.ps1'; Match = 'SettingsFile' }
+        @{ Why = 'a working directory that swallows what looks like -NoProfile'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -WorkingDirectory -nop -File y.ps1'; Match = 'NoProfile' }
     ) {
         $result = Get-HookInterpreter -CommandLine $Line
 
@@ -337,6 +347,19 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         $line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'
 
         (Get-HookInterpreter -CommandLine $line).Problem | Should -BeNullOrEmpty
+    }
+
+    # Review pass 3: the check on a toy -Command string would not catch a regression on the real, long one.
+    It 'reads the <_> command the shipped hooks.json carries, with its interpreter named by absolute path' -ForEach @('windows', 'command', 'powershell') {
+        $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
+        $text = [string]@($shipped.hooks.PreToolUse)[0].$_
+        $bare = if ($text.StartsWith('powershell ')) { 'powershell' } else { 'pwsh' }
+        $interpreter = if ($bare -eq 'powershell') { $script:systemPowerShell } else { (Get-Process -Id $PID).Path }
+
+        $result = Get-HookInterpreter -CommandLine ('"' + $interpreter + '"' + $text.Substring($bare.Length))
+
+        $result.Problem | Should -BeNullOrEmpty
+        $result.Path | Should -Be ([System.IO.Path]::GetFullPath($interpreter))
     }
 
     It 'reads -NoProfile as PowerShell does: by prefix, and after other options' -ForEach @(

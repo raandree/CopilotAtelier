@@ -161,6 +161,9 @@ $script:AllowedKeySet = [System.Collections.Generic.HashSet[string]]::new([strin
 # The keys a host reads a command from, and the whole set of keys the guard's hook entry may carry.
 $script:CommandKey = @('command', 'windows', 'powershell', 'bash', 'linux', 'osx')
 $script:EntryKeySet = [System.Collections.Generic.HashSet[string]]::new([string[]](@('type', 'timeout') + $script:CommandKey), [System.StringComparer]::Ordinal)
+# The one statement the shipped Windows hook command ends with, after a semicolon, for the PowerShell a host
+# wraps it in: it makes that wrapper exit with the code of the command. Nothing else may follow a semicolon.
+$script:HookExitTail = 'exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'
 
 function New-CheckResult {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory result object and changes no system state.')]
@@ -186,6 +189,102 @@ function New-CheckResult {
     }
 }
 
+function Get-PowerShellLaunchOption {
+    <#
+        Reads the options of a PowerShell command line, in order, up to the script or the command, and
+        says whether they can be trusted. Only options that cannot change what runs before the script
+        are allowed: -NoProfile, -NonInteractive, -NoLogo, -ExecutionPolicy, -WindowStyle,
+        -WorkingDirectory, -MTA and -STA. Anything else is refused, because an option such as
+        -ConfigurationFile or -SettingsFile applies code or a module path before the first line of the
+        script, and so is an argument that is not an option at all.
+
+        An option that takes a value takes the next argument whatever it looks like, as PowerShell does:
+        "-WorkingDirectory -nop" is a directory named -nop and no -NoProfile. -File, -Command and
+        -EncodedCommand end the scan, since everything after them belongs to the script or the command.
+
+        The result is a hashtable with Problem (text, or nothing), StopKind (File, Command,
+        EncodedCommand, or empty when the line ended first), StopIndex and NoProfile (whether -NoProfile
+        came before the stop).
+
+        This runs inside the check that decides whether the process can be trusted at all, so it uses
+        operators and .NET members only: a command a session redefined, such as an alias that outranks
+        a function, must not be on its path.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [string[]]$Argument
+    )
+
+    $ordinal = [System.StringComparison]::Ordinal
+    $flag = [System.Collections.Generic.HashSet[string]]::new([string[]]@('noni', 'noninteractive', 'nol', 'nologo', 'mta', 'sta'), [System.StringComparer]::Ordinal)
+    $valued = [System.Collections.Generic.HashSet[string]]::new([string[]]@('ex', 'ep', 'executionpolicy', 'w', 'windowstyle', 'wd', 'workingdirectory'), [System.StringComparer]::Ordinal)
+    $result = @{ Problem = $null; StopKind = ''; StopIndex = -1; NoProfile = $false }
+    $index = 0
+
+    while ($index -lt $Argument.Count) {
+        $token = $Argument[$index]
+        $shown = [regex]::Replace($token, '[^\x20-\x7E]', '?')
+
+        if ($shown.Length -gt 40) {
+            $shown = $shown.Substring(0, 40) + '...'
+        }
+
+        if ($token -notmatch '^[-/](?<name>[A-Za-z]+)$') {
+            $result.Problem = "the argument '$shown' comes before the script or command and is not an option"
+            return $result
+        }
+
+        $name = $Matches['name'].ToLowerInvariant()
+
+        if ('file'.StartsWith($name, $ordinal)) {
+            $result.StopKind = 'File'
+            $result.StopIndex = $index
+            return $result
+        }
+
+        if ('command'.StartsWith($name, $ordinal)) {
+            $result.StopKind = 'Command'
+            $result.StopIndex = $index
+            return $result
+        }
+
+        if ('encodedcommand'.StartsWith($name, $ordinal) -or [string]::Equals($name, 'ec', $ordinal)) {
+            $result.StopKind = 'EncodedCommand'
+            $result.StopIndex = $index
+            return $result
+        }
+
+        if ($name.Length -ge 3 -and 'noprofile'.StartsWith($name, $ordinal)) {
+            $result.NoProfile = $true
+            $index++
+            continue
+        }
+
+        if ($flag.Contains($name)) {
+            $index++
+            continue
+        }
+
+        if ($valued.Contains($name)) {
+            if ($index + 1 -ge $Argument.Count) {
+                $result.Problem = "the option '$shown' takes a value and has none"
+                return $result
+            }
+
+            $index += 2
+            continue
+        }
+
+        $result.Problem = "the option '$shown' is not one this check allows before the script or command; only -NoProfile, -NonInteractive, -NoLogo, -ExecutionPolicy, -WindowStyle, -WorkingDirectory, -MTA and -STA are"
+        return $result
+    }
+
+    return $result
+}
+
 function Get-FreshProcessProblem {
     <#
         Why this process cannot be trusted to run the functions and types this script means, or
@@ -196,9 +295,10 @@ function Get-FreshProcessProblem {
         -File names it, so nothing ran before it that the person who started the process did not
         choose, and -NoProfile keeps the profile of the user out of the session.
 
-        The arguments are the command line of the process, whose first element is the host. Option
-        names are matched by prefix, as the host matches them, and only what comes before -File
-        counts, since everything after it belongs to the script.
+        The arguments are the command line of the process, whose first element is the host. The
+        options before -File are read by Get-PowerShellLaunchOption: only options that cannot change
+        what runs first are allowed, so -ConfigurationFile and -SettingsFile, which do, are refused.
+        Everything after -File belongs to the script and does not count.
 
         A command line is not enough on its own: -Command takes every argument after it as command
         text, yet the host still lists them, so "-Command <code> -File <script>" reads exactly like
@@ -206,6 +306,11 @@ function Get-FreshProcessProblem {
         script starts. Under -File the script is its one frame; code that ran around it adds another.
         What this cannot see is code that already runs inside this process before its first line,
         such as a .NET startup hook named by the environment: only the launcher can stop that.
+
+        This is the check that decides whether anything else in the script can be believed, so it
+        and the option reader use operators and .NET members only and are called through the function
+        table, never by name. Command lookup tries an alias before a function, so a session that
+        aliased the name of this check made the call do nothing and the launch skip it.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -223,24 +328,26 @@ function Get-FreshProcessProblem {
 
     $remedy = 'start it as: pwsh -NoProfile -NonInteractive -File <this script> ...'
     $notFresh = "this is not a fresh process that was started with -File naming this script, and a function or type defined earlier in the session outranks the ones the script uses; $remedy"
-    $argument = @($CommandLineArgument | Select-Object -Skip 1)
-    $fileIndex = -1
+    $argument = [string[]]::new([Math]::Max($CommandLineArgument.Count - 1, 0))
 
-    for ($index = 0; $index -lt $argument.Count; $index++) {
-        if ($argument[$index] -match '^[-/]f(i(l(e)?)?)?$') {
-            $fileIndex = $index
-            break
-        }
+    for ($index = 1; $index -lt $CommandLineArgument.Count; $index++) {
+        $argument[$index - 1] = $CommandLineArgument[$index]
     }
 
-    if ($fileIndex -lt 0 -or $fileIndex + 1 -ge $argument.Count) {
+    $scan = & ${function:Get-PowerShellLaunchOption} -Argument $argument
+
+    if ($null -ne $scan.Problem) {
+        return "this is not a fresh process: $($scan.Problem), and a function or type defined by what that option loads outranks the ones the script uses; $remedy"
+    }
+
+    if (-not [string]::Equals([string]$scan.StopKind, 'File', [System.StringComparison]::Ordinal) -or $scan.StopIndex + 1 -ge $argument.Count) {
         return $notFresh
     }
 
-    $comparison = if ($script:OnWindows) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
+    $comparison = if ([System.IO.Path]::DirectorySeparatorChar -eq [char]92) { [System.StringComparison]::OrdinalIgnoreCase } else { [System.StringComparison]::Ordinal }
 
     try {
-        $named = [System.IO.Path]::GetFullPath($argument[$fileIndex + 1])
+        $named = [System.IO.Path]::GetFullPath($argument[$scan.StopIndex + 1])
         $own = [System.IO.Path]::GetFullPath($ScriptPath)
     } catch {
         return $notFresh
@@ -254,13 +361,11 @@ function Get-FreshProcessProblem {
         return "other code ran around this script (its call stack holds $CallStackDepth frames, not one), so this is not a fresh process whose first act is this script, and a function or type defined by that code outranks the ones this script uses; $remedy"
     }
 
-    for ($index = 0; $index -lt $fileIndex; $index++) {
-        if ($argument[$index] -match '^[-/]nop(r(o(f(i(l(e)?)?)?)?)?)?$') {
-            return $null
-        }
+    if (-not $scan.NoProfile) {
+        return "the process loaded the profile of the user, which can define functions that outrank the ones this script uses; $remedy"
     }
 
-    return "the process loaded the profile of the user, which can define functions that outrank the ones this script uses; $remedy"
+    return $null
 }
 
 function Resolve-WriteFailure {
@@ -392,7 +497,7 @@ function Get-PathChain {
     while ($true) {
         $parent = [System.IO.Path]::GetDirectoryName($current)
 
-        if ([string]::IsNullOrEmpty($parent) -or $parent -ceq $current) {
+        if ([string]::IsNullOrEmpty($parent) -or [string]::Equals($parent, $current, [System.StringComparison]::Ordinal)) {
             break
         }
 
@@ -983,15 +1088,19 @@ function Format-LimitedList {
 function Format-RelayedText {
     <#
         Text that came from outside this script, in a form that is safe to put into evidence a model
-        reads: control and format characters, line and paragraph separators, and private-use and
-        unassigned code points become a question mark, so a line a hostile source wrote cannot add
-        lines or hide behind an escape sequence, and the length is capped, so it cannot fill the
-        report.
+        reads. Only printable ASCII is relayed. Every other character becomes one question mark, so a
+        line a hostile source wrote cannot add lines, hide behind an escape sequence, or carry an
+        instruction in characters a person cannot see: control and format characters, the Unicode tag
+        block, variation selectors, fillers, blanks and spaces of other widths are all outside it. The
+        length is capped, so the text cannot fill the report.
 
-        The text is read by rune, not by UTF-16 unit: a character outside the basic plane, such as
-        the Unicode tag block, is two units, and a pattern over units does not see it as the format
-        character it is. Characters invisible to a person and readable by a model are exactly what
-        this function exists to remove. The cap never cuts a pair of units in half.
+        The first version of this function replaced characters by category, and a deny-list is always
+        one class short: the next review found variation selectors, Hangul fillers and the Braille blank
+        passing it. A person can read printable ASCII, so that is what is let through. A letter with an
+        accent in a path becomes a question mark, which costs a little readability and nothing else.
+
+        The text is read by rune, not by UTF-16 unit, so a character outside the basic plane is one
+        question mark and the cap never cuts a pair of units in half.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -1010,21 +1119,16 @@ function Format-RelayedText {
         return ''
     }
 
-    $unsafe = [System.Collections.Generic.HashSet[string]]::new(
-        [string[]]@('Control', 'Format', 'LineSeparator', 'ParagraphSeparator', 'Surrogate', 'OtherNotAssigned', 'PrivateUse'),
-        [System.StringComparer]::Ordinal)
     $clean = [System.Text.StringBuilder]::new()
     $cut = $false
 
     foreach ($rune in $Text.EnumerateRunes()) {
-        $piece = if ($unsafe.Contains([System.Text.Rune]::GetUnicodeCategory($rune).ToString())) { '?' } else { $rune.ToString() }
-
-        if ($clean.Length + $piece.Length -gt $Limit) {
+        if ($clean.Length -ge $Limit) {
             $cut = $true
             break
         }
 
-        $null = $clean.Append($piece)
+        $null = $clean.Append($(if ($rune.Value -ge 0x20 -and $rune.Value -le 0x7E) { [char]$rune.Value } else { '?' }))
     }
 
     if ($cut) {
@@ -1290,6 +1394,12 @@ function Test-ProfileSchema {
         }
 
         $entry = $ContainmentProfile.$name
+
+        if ($entry -isnot [System.Management.Automation.PSCustomObject]) {
+            $problem.Add("'$name' must be an object that declares a path and a sha256")
+            continue
+        }
+
         $entryKey = [System.Collections.Generic.HashSet[string]]::new([string[]]@($entry.PSObject.Properties.Name), [System.StringComparer]::Ordinal)
 
         if (-not $entryKey.Contains('path') -or -not $entryKey.Contains('sha256')) {
@@ -1441,6 +1551,10 @@ function Get-HookInterpreter {
         return [pscustomobject]@{ Path = $null; Problem = 'the command spans more than one line, and a shell runs each line as a command of its own' }
     }
 
+    if ($text -match '[%!]') {
+        return [pscustomobject]@{ Path = $null; Problem = "the command line holds a '%' or a '!', which a shell expands before it reads the line, even inside quotes, so the program that runs is not the one the text names" }
+    }
+
     if ($quoted) {
         $close = $text.IndexOf('"', 1)
 
@@ -1481,40 +1595,40 @@ function Get-HookInterpreter {
     }
 
     $inQuote = $false
+    $head = $rest
 
-    foreach ($character in $rest.ToCharArray()) {
+    for ($position = 0; $position -lt $rest.Length; $position++) {
+        $character = $rest[$position]
+
         if ($character -eq [char]34) {
             $inQuote = -not $inQuote
-        } elseif (-not $inQuote -and '&|<>^'.IndexOf($character) -ge 0) {
-            return [pscustomobject]@{ Path = $null; Problem = "the command line has an unquoted '$character' after its program, which a shell reads as another command, a redirection or an escape, so the program that runs is not only the one named" }
+        } elseif (-not $inQuote -and $character -eq [char]59) {
+            # The shipped Windows command ends with one statement after a semicolon, for the PowerShell
+            # a host wraps it in. Any other text after a semicolon would run a second program.
+            $tail = $rest.Substring($position + 1).Trim()
+
+            if (-not [string]::Equals($tail, $script:HookExitTail, [System.StringComparison]::Ordinal)) {
+                return [pscustomobject]@{ Path = $null; Problem = 'the command line has an unquoted semicolon followed by text other than the one statement the shipped command ends with, which a host that wraps the line in PowerShell would run as a second command' }
+            }
+
+            $head = $rest.Substring(0, $position)
+            break
+        } elseif (-not $inQuote -and '&|<>^()'.IndexOf($character) -ge 0) {
+            return [pscustomobject]@{ Path = $null; Problem = "the command line has an unquoted '$character' after its program, which a shell reads as another command, a redirection, an escape or a group, so the program that runs is not only the one named" }
         }
     }
 
     $program = [System.IO.Path]::GetFullPath($word)
 
     if ([System.IO.Path]::GetFileName($program) -imatch '^(pwsh|powershell)(\.exe)?$') {
-        $noProfile = $false
+        $token = @([regex]::Matches($head, '"[^"]*"|\S+') | ForEach-Object { $_.Value.Trim('"') })
+        $scan = Get-PowerShellLaunchOption -Argument $token
 
-        foreach ($token in @([regex]::Matches($rest, '"[^"]*"|\S+') | ForEach-Object { $_.Value })) {
-            if ($token -notmatch '^[-/](?<name>[A-Za-z]+)$') {
-                continue
-            }
-
-            $name = $Matches['name'].ToLowerInvariant()
-
-            if ($name.Length -ge 3 -and 'noprofile'.StartsWith($name, [System.StringComparison]::Ordinal)) {
-                $noProfile = $true
-                break
-            }
-
-            # What follows these options belongs to the command or the script, not to PowerShell.
-            if ('command'.StartsWith($name, [System.StringComparison]::Ordinal) -or 'file'.StartsWith($name, [System.StringComparison]::Ordinal) -or
-                'encodedcommand'.StartsWith($name, [System.StringComparison]::Ordinal) -or $name -ceq 'ec') {
-                break
-            }
+        if ($null -ne $scan.Problem) {
+            return [pscustomobject]@{ Path = $null; Problem = "the PowerShell command line cannot be trusted: $($scan.Problem)" }
         }
 
-        if (-not $noProfile) {
+        if (-not $scan.NoProfile) {
             return [pscustomobject]@{ Path = $null; Problem = 'the interpreter is PowerShell and the command does not pass -NoProfile before its script or command, so the profile of the identity that runs it is loaded first and can change what the guard does' }
         }
     }
@@ -2112,6 +2226,12 @@ function Test-EgressPolicy {
         return New-CheckResult -Name 'EgressPolicy' -Status 'Unavailable' -Evidence 'outbound policy enumeration is implemented for Windows Defender Firewall only'
     }
 
+    $moduleProblem = Get-FirewallModuleProblem
+
+    if (-not [string]::IsNullOrEmpty($moduleProblem)) {
+        return New-CheckResult -Name 'EgressPolicy' -Status 'Unavailable' -Evidence $moduleProblem
+    }
+
     try {
         $firewallProfile = @(Get-FirewallProfileState)
     } catch {
@@ -2648,6 +2768,51 @@ function Get-PropertyText {
     }
 
     return [string]$property.Value
+}
+
+function Get-FirewallModuleProblem {
+    <#
+        Where the firewall cmdlets come from. They are resolved by name, so a module of the same name
+        earlier on the module search path, a function, or an alias answers for the system's, and the
+        outbound policy would be whatever whoever started this process arranged it to be. Each cmdlet
+        must come from a module that lives under the system folder; anything else is unmeasured. The
+        result is the reason, or nothing when all three do.
+
+        A host that reaches NetSecurity through the Windows PowerShell compatibility layer resolves it
+        to a proxy module outside the system folder and is reported the same way: the check does not
+        pass until the module loads natively.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param()
+
+    $system = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System)
+
+    if ([string]::IsNullOrWhiteSpace($system)) {
+        return 'the system folder is not known, so the origin of the firewall cmdlets cannot be measured'
+    }
+
+    $prefix = [System.IO.Path]::TrimEndingDirectorySeparator($system) + [System.IO.Path]::DirectorySeparatorChar
+
+    foreach ($name in @('Get-NetFirewallProfile', 'Get-NetFirewallRule', 'Get-NetFirewallSecurityFilter')) {
+        $command = @(Get-Command -Name $name -ErrorAction SilentlyContinue)
+
+        if ($command.Count -eq 0) {
+            return "$name is unavailable, so the outbound policy cannot be measured"
+        }
+
+        $path = if ($null -ne $command[0].Module) { [string]$command[0].Module.Path } else { '' }
+
+        if ([string]::IsNullOrEmpty($path)) {
+            return "$name did not come from a module (it is a $($command[0].CommandType)), so something in this session outranks the one of the system"
+        }
+
+        if (-not $path.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return "$name comes from $(Format-RelayedText -Text $path), not from a module under the system folder $system, so the firewall it reads is not shown to be the one of this machine"
+        }
+    }
+
+    return $null
 }
 
 function Get-FirewallProfileState {
@@ -3877,7 +4042,7 @@ $mode = $PSCmdlet.ParameterSetName
 # Before anything is measured, because what is measured is only as good as the functions and types
 # that measure it. The call stack is read here, at script scope: inside a function it would be deeper.
 $callStackDepth = @([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.Debugger.GetCallStack()).Count
-$processProblem = Get-FreshProcessProblem -CommandLineArgument ([string[]][System.Environment]::GetCommandLineArgs()) -ScriptPath $PSCommandPath -CallStackDepth $callStackDepth
+$processProblem = & ${function:Get-FreshProcessProblem} -CommandLineArgument ([string[]][System.Environment]::GetCommandLineArgs()) -ScriptPath $PSCommandPath -CallStackDepth $callStackDepth
 
 if ($processProblem) {
     [Console]::Error.WriteLine("Containment refused: $processProblem")

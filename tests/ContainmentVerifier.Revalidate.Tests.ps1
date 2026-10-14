@@ -266,18 +266,43 @@ Describe 'Relayed text' -Tag 'Unit' {
         Format-RelayedText -Text ('a' + [char]0xE000 + [char]::ConvertFromUtf32(0xF0000) + 'b') | Should -Be 'a??b'
     }
 
-    It 'keeps accented letters, emoji, and other text a person can read' {
+    # Review pass 3, S-15: a deny-list by category let through characters that are invisible, or nearly, and
+    # that a model reads: variation selectors, Hangul fillers, the Braille blank, and spaces of other widths.
+    # What a person can read is printable ASCII, so that is all that is relayed; everything else is a question
+    # mark, one for each character.
+    It 'turns <Name> into a question mark' -ForEach @(
+        @{ Name = 'a variation selector'; Character = [string][char]0xFE0F }
+        @{ Name = 'a variation selector outside the basic plane'; Character = [char]::ConvertFromUtf32(0xE0100) }
+        @{ Name = 'a combining grapheme joiner'; Character = [string][char]0x034F }
+        @{ Name = 'a Hangul filler'; Character = [string][char]0x3164 }
+        @{ Name = 'a half-width Hangul filler'; Character = [string][char]0xFFA0 }
+        @{ Name = 'the Braille blank'; Character = [string][char]0x2800 }
+        @{ Name = 'a no-break space'; Character = [string][char]0x00A0 }
+        @{ Name = 'an ideographic space'; Character = [string][char]0x3000 }
+        @{ Name = 'an em space'; Character = [string][char]0x2003 }
+        @{ Name = 'a delete character'; Character = [string][char]0x7F }
+    ) {
+        Format-RelayedText -Text ('a' + $Character + 'b') | Should -Be 'a?b'
+    }
+
+    It 'shows every character outside printable ASCII as one question mark, letters with accents and emoji included' {
         # Built from code points, so that this file stays ASCII: a letter with a diaeresis, a symbol, three
         # letters of another script and a character outside the basic plane.
         $text = 'na' + [char]0x00EF + 've ' + [char]0x2615 + ' ' + [char]0x65E5 + [char]0x672C + [char]0x8A9E + ' ' + [char]::ConvertFromUtf32(0x1F600)
 
-        Format-RelayedText -Text $text | Should -Be $text
+        Format-RelayedText -Text $text | Should -Be 'na?ve ? ??? ?'
     }
 
-    It 'does not cut a surrogate pair in half when it caps the length' {
+    It 'leaves every printable ASCII character as it is' {
+        $text = -join (0x20..0x7E | ForEach-Object { [char]$_ })
+
+        Format-RelayedText -Text $text -Limit 1000 | Should -Be $text
+    }
+
+    It 'counts a character outside the basic plane once when it caps the length' {
         $pair = [char]::ConvertFromUtf32(0x1F600)
 
-        Format-RelayedText -Text (('z' * 49) + $pair + 'tail') -Limit 50 | Should -Be (('z' * 49) + '...')
+        Format-RelayedText -Text (('z' * 49) + $pair + 'tail') -Limit 50 | Should -Be (('z' * 49) + '?...')
     }
 
     It 'caps the length and says that it did' {

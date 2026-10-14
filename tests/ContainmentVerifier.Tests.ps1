@@ -327,6 +327,43 @@ Describe 'Containment verifier' -Tag 'Unit' {
         Test-Path -LiteralPath $reportPath | Should -BeFalse -Because 'a refused process measures and reports nothing'
     }
 
+    It 'refuses a session whose prelude put an alias over the name of the process check, and measures nothing' {
+        # Review pass 3, S-12: command lookup tries an alias before a function, so an alias named like the
+        # check made the call do nothing and the launch skip it, with no -File on the command line at all.
+        # A function of that name had lost to the script's own, which is why the first fix looked complete.
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p29d/profile.json')
+        $digest = Get-Digest -Path $profilePath
+        $reportPath = Join-Path $TestDrive 'p29d/report.json'
+        $command = "Set-Alias -Name Get-FreshProcessProblem -Value Out-Null; & '$($script:verifierScript)' -Verify -ProfilePath '$profilePath' -ProfileSha256 '$digest' -Role Controller -ReportPath '$reportPath'; exit `$LASTEXITCODE"
+
+        $result = Invoke-PowerShellProcess -Argument @('-NoProfile', '-NonInteractive', '-Command', $command)
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'fresh process'
+        Test-Path -LiteralPath $reportPath | Should -BeFalse -Because 'a refused process measures and reports nothing'
+    }
+
+    It 'refuses a -File launch that first applies a session configuration, and measures nothing' -Skip:(-not $script:onWindows) {
+        # Review pass 3, S-13: -ConfigurationFile runs before the script at a call stack of one, and the
+        # configuration here defined Get-Date, which the verifier then called.
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p29e/profile.json')
+        $digest = Get-Digest -Path $profilePath
+        $reportPath = Join-Path $TestDrive 'p29e/report.json'
+        $configuration = Join-Path $TestDrive 'p29e/shadow.pssc'
+        $text = "@{ SchemaVersion = '2.0.0.0'; SessionType = 'Default'; FunctionDefinitions = @(@{ Name = 'Get-Date'; ScriptBlock = { 'shadowed' } }) }"
+        [System.IO.File]::WriteAllText($configuration, $text, [System.Text.UTF8Encoding]::new($false))
+
+        $result = Invoke-PowerShellProcess -Argument @(
+            '-NoProfile', '-NonInteractive', '-ConfigurationFile', $configuration
+            '-File', $script:verifierScript, '-Verify', '-ProfilePath', $profilePath
+            '-ProfileSha256', $digest, '-Role', 'Controller', '-ReportPath', $reportPath
+        )
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'fresh process'
+        Test-Path -LiteralPath $reportPath | Should -BeFalse -Because 'a refused process measures and reports nothing'
+    }
+
     It 'refuses a process that loaded the profile of the user, and measures nothing' {
         $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p29b/profile.json')
         $digest = Get-Digest -Path $profilePath

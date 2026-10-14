@@ -9,6 +9,7 @@ BeforeAll {
     . (Join-Path $script:repoRoot 'tests/Helpers/ScriptFunction.ps1')
     . (Get-ScriptFunctionDefinition -Path $script:verifierScript -Name @(
             'Get-FreshProcessProblem'
+            'Get-PowerShellLaunchOption'
         ))
 
     $script:entryScript = if ($script:onWindows) { 'C:\containment\Test-RunContainment.ps1' } else { '/containment/Test-RunContainment.ps1' }
@@ -86,10 +87,18 @@ Describe 'Containment fresh process' -Tag 'Unit' {
         # Review pass 2, S-01: -Command takes every later argument as command text, yet the host still lists
         # them, so "-Command <code> -File <script>" read exactly like "-File <script>" and the code ran first.
         It 'refuses a call stack deeper than the one frame the script has under -File' {
-            $problem = Get-Problem -Argument @('-NoProfile', '-Command', "function Get-Date { 'x' }; & '$($script:entryScript)' #", '-File', $script:entryScript) -Depth 2
+            $problem = Get-Problem -Argument @('-NoProfile', '-File', $script:entryScript) -Depth 2
 
             $problem | Should -Match 'fresh process'
             $problem | Should -Match '2 frames'
+        }
+
+        # Since the options before -File are read in order, -Command ends the scan, so this shape is refused by
+        # the command line itself, at either depth; the stack is what catches a launch whose line is clean.
+        It 'refuses -Command text that carries -File and the script after it, at a stack of <_>' -ForEach @(1, 2) {
+            $problem = Get-Problem -Argument @('-NoProfile', '-Command', "function Get-Date { 'x' }; & '$($script:entryScript)' #", '-File', $script:entryScript) -Depth $_
+
+            $problem | Should -Match 'fresh process'
         }
 
         It 'refuses a call stack of no frame, which is not the shape of a script that was started by -File' {
@@ -98,6 +107,95 @@ Describe 'Containment fresh process' -Tag 'Unit' {
 
         It 'accepts the one frame that -File gives' {
             Get-Problem -Argument @('-NoProfile', '-File', $script:entryScript) -Depth 1 | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'options before -File that decide what runs first, or that swallow what looks like an option' {
+        # Review pass 3, S-13: the options before -File were scanned for -NoProfile, not allow-listed.
+        # -ConfigurationFile runs a session configuration, which can define functions, before the
+        # script, and -WorkingDirectory takes the next argument as its value, so "-WorkingDirectory
+        # -nop" is a directory named -nop and no -NoProfile at all.
+        It 'refuses <Option>, which the verifier does not allow before -File' -ForEach @(
+            @{ Option = @('-ConfigurationFile', 'shadow.pssc') }
+            @{ Option = @('-SettingsFile', 'settings.json') }
+            @{ Option = @('-ConfigurationName', 'endpoint') }
+            @{ Option = @('-CustomPipeName', 'pipe') }
+            @{ Option = @('-InputFormat', 'Text') }
+            @{ Option = @('-Interactive') }
+            @{ Option = @('-NoExit') }
+            @{ Option = @('stray') }
+        ) {
+            $problem = Get-Problem -Argument (@('-NoProfile') + $Option + @('-File', $script:entryScript))
+
+            $problem | Should -Match 'fresh process'
+            $problem | Should -Match ([regex]::Escape($Option[0]))
+        }
+
+        It 'does not take a value for the option that follows it, and so does not count it' {
+            $problem = Get-Problem -Argument @('-WorkingDirectory', '-nop', '-File', $script:entryScript)
+
+            $problem | Should -Match 'NoProfile'
+        }
+
+        It 'refuses an option that takes a value and is given none' {
+            Get-Problem -Argument @('-NoProfile', '-ExecutionPolicy') | Should -Match 'fresh process'
+        }
+
+        It 'accepts <Spelling>' -ForEach @(
+            @{ Spelling = 'the options a launcher uses'; Option = @('-NoProfile', '-NonInteractive', '-NoLogo', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-MTA') }
+            @{ Spelling = 'their short forms'; Option = @('-nop', '-noni', '-nol', '-ep', 'Bypass', '-w', 'Hidden', '-sta') }
+            @{ Spelling = 'a working directory'; Option = @('-WorkingDirectory', 'C:\work', '-NoProfile') }
+            @{ Spelling = 'a working directory in its short form'; Option = @('-wd', 'C:\work', '-nop') }
+        ) {
+            Get-Problem -Argument ($Option + @('-File', $script:entryScript, '-Verify')) | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'what the launch check itself calls' {
+        # Review pass 3, S-12: command lookup tries an alias before a function, so any command the check
+        # resolves by name can be put out of the way by a session that ran before it. The check and the
+        # option reader therefore use operators and .NET members only, and the main flow reaches the check
+        # through the function table, which an alias cannot shadow.
+        BeforeAll {
+            $script:tree = [System.Management.Automation.Language.Parser]::ParseFile($script:verifierScript, [ref]$null, [ref]$null)
+
+            function script:Get-FunctionCommand {
+                param(
+                    [Parameter(Mandatory)]
+                    [string]$Name
+                )
+
+                $function = $script:tree.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) |
+                    Where-Object -FilterScript { $_.Name -ceq $Name } |
+                    Select-Object -First 1
+
+                return @($function.Body.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true))
+            }
+        }
+
+        It 'reads the options without invoking any command' {
+            @(Get-FunctionCommand -Name 'Get-PowerShellLaunchOption') | Should -HaveCount 0
+        }
+
+        It 'invokes only the option reader, through the function table, and nothing else' {
+            $command = @(Get-FunctionCommand -Name 'Get-FreshProcessProblem')
+
+            $command | Should -HaveCount 1
+            $command[0].CommandElements[0] | Should -BeOfType ([System.Management.Automation.Language.VariableExpressionAst])
+            $command[0].CommandElements[0].VariablePath.UserPath | Should -BeExactly 'function:Get-PowerShellLaunchOption'
+        }
+
+        It 'is reached from the main flow through the function table, and never by name' {
+            $byName = @($script:tree.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'Get-FreshProcessProblem' }, $true))
+            $viaTable = @($script:tree.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.CommandAst] -and
+                        $node.CommandElements[0] -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                        $node.CommandElements[0].VariablePath.UserPath -ceq 'function:Get-FreshProcessProblem'
+                    }, $true))
+
+            $byName | Should -HaveCount 0
+            $viaTable | Should -HaveCount 1
         }
     }
 
