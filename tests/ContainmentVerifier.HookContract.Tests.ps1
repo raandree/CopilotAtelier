@@ -14,10 +14,15 @@ BeforeAll {
             'Get-BytesDigest'
             'ConvertFrom-JsonByteArray'
             'Get-HookRootBinding'
+            'Get-HookInterpreter'
             'Get-GateFailure'
+            'Test-PathProtection'
             'Invoke-HookPayload'
             'Test-HookContract'
         ))
+
+    # The interpreter a contained deployment names by absolute path in place of the bare name the shipped file uses.
+    $script:systemPowerShell = [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System), 'WindowsPowerShell', 'v1.0', 'powershell.exe')
 
     function script:Get-FileDigest {
         param(
@@ -64,6 +69,45 @@ BeforeAll {
         [System.IO.File]::WriteAllText($Path, ($configuration | ConvertTo-Json -Depth 6), [System.Text.UTF8Encoding]::new($false))
 
         return $Path
+    }
+
+    # The shipped PreToolUse command with its interpreter named by absolute path, as a contained deployment must pin it.
+    function script:New-ContainedConfig {
+        param(
+            [Parameter(Mandatory)]
+            [string]$Path
+        )
+
+        $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
+        $command = [string]@($shipped.hooks.PreToolUse)[0].windows
+
+        if (-not $command.StartsWith('powershell ')) {
+            throw 'the shipped Windows command no longer starts with the bare name powershell'
+        }
+
+        return New-HookConfig -Path $Path -Command ('"' + $script:systemPowerShell + '"' + $command.Substring('powershell'.Length))
+    }
+
+    # Runs a script block with both the PowerShell location and the process working directory set, then restores them.
+    function script:Invoke-InDirectory {
+        param(
+            [Parameter(Mandatory)]
+            [string]$Path,
+
+            [Parameter(Mandatory)]
+            [scriptblock]$Action
+        )
+
+        $previous = [System.IO.Directory]::GetCurrentDirectory()
+
+        try {
+            Push-Location -LiteralPath $Path
+            [System.IO.Directory]::SetCurrentDirectory($Path)
+            & $Action
+        } finally {
+            [System.IO.Directory]::SetCurrentDirectory($previous)
+            Pop-Location
+        }
     }
 
     # Runs a script block with one environment variable set, and restores it afterwards.
@@ -175,9 +219,89 @@ Describe 'Containment gate' -Tag 'Unit' {
     }
 }
 
+Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
+    It 'reads an unquoted absolute path' {
+        $result = Get-HookInterpreter -CommandLine 'C:\Windows\System32\cmd.exe /c exit 3'
+
+        $result.Problem | Should -BeNullOrEmpty
+        $result.Path | Should -Be 'C:\Windows\System32\cmd.exe'
+    }
+
+    It 'reads a quoted absolute path that holds spaces' {
+        $result = Get-HookInterpreter -CommandLine '"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -File x.ps1'
+
+        $result.Problem | Should -BeNullOrEmpty
+        $result.Path | Should -Be 'C:\Program Files\PowerShell\7\pwsh.exe'
+    }
+
+    It 'normalizes forward slashes and leading whitespace' {
+        $result = Get-HookInterpreter -CommandLine '   C:/Windows/System32/cmd.exe /c exit 3'
+
+        $result.Path | Should -Be 'C:\Windows\System32\cmd.exe'
+    }
+
+    It 'refuses <Why>' -ForEach @(
+        @{ Why = 'a bare name'; Line = 'powershell -NoProfile -Command exit'; Match = 'bare name' }
+        @{ Why = 'a bare name with an extension'; Line = 'pwsh.exe -NoProfile'; Match = 'bare name' }
+        @{ Why = 'a quoted bare name'; Line = '"powershell" -NoProfile'; Match = 'bare name' }
+        @{ Why = 'a relative path'; Line = '.\powershell.exe -NoProfile'; Match = 'relative' }
+        @{ Why = 'a relative path in a folder'; Line = 'tools\run.exe -x'; Match = 'relative' }
+        @{ Why = 'a path relative to a drive'; Line = 'C:run.exe -x'; Match = 'relative' }
+        @{ Why = 'a path rooted on the current drive'; Line = '\Windows\System32\cmd.exe /c exit'; Match = 'relative' }
+        @{ Why = 'an environment variable'; Line = '%SystemRoot%\System32\cmd.exe /c exit'; Match = 'expands' }
+        @{ Why = 'a caret escape'; Line = 'C:\Windows\Sys^tem32\cmd.exe /c exit'; Match = 'expands' }
+        @{ Why = 'a network path'; Line = '\\server\share\run.exe -x'; Match = 'network or device' }
+        @{ Why = 'a device path'; Line = '\\?\C:\Windows\System32\cmd.exe /c exit'; Match = 'network or device' }
+        @{ Why = 'a quote that is never closed'; Line = '"C:\Windows\System32\cmd.exe /c exit'; Match = 'never closed' }
+        @{ Why = 'a blank line'; Line = '   '; Match = 'no program' }
+    ) {
+        $result = Get-HookInterpreter -CommandLine $Line
+
+        $result.Path | Should -BeNullOrEmpty
+        $result.Problem | Should -Match $Match
+    }
+}
+
 Describe 'Hook command runner' -Tag 'Unit' -Skip:(-not $script:onWindows) {
     It 'returns the exit code of the command' {
         Invoke-HookPayload -CommandLine 'exit 3' -Payload '{}' -EnvironmentVariable @{} | Should -Be 3
+    }
+
+    It 'starts the command in a folder of its own, not in the working directory of the caller' {
+        $callerDirectory = Join-Path $TestDrive 'caller-directory'
+        $null = New-Item -Path $callerDirectory -ItemType Directory -Force
+        $seenPath = Join-Path $TestDrive 'seen-directory.txt'
+
+        Invoke-InDirectory -Path $callerDirectory -Action {
+            Invoke-HookPayload -CommandLine "cd > `"$seenPath`"" -Payload '{}' -EnvironmentVariable @{} | Should -Be 0
+        }
+
+        $seen = (Get-Content -LiteralPath $seenPath -Raw).Trim()
+        $seen | Should -Not -Be $callerDirectory
+        $seen | Should -BeLike '*containment-hook-*'
+    }
+
+    It 'tells the shell not to look for a command in the working directory' {
+        Invoke-HookPayload -CommandLine 'if defined NoDefaultCurrentDirectoryInExePath (exit 5) else (exit 6)' -Payload '{}' -EnvironmentVariable @{} | Should -Be 5
+    }
+
+    It 'keeps that instruction when the caller tries to remove it' {
+        Invoke-HookPayload -CommandLine 'if defined NoDefaultCurrentDirectoryInExePath (exit 5) else (exit 6)' -Payload '{}' -EnvironmentVariable @{ NoDefaultCurrentDirectoryInExePath = $null } | Should -Be 5
+    }
+
+    It 'does not run a program of the same name that the working directory of the caller holds' {
+        $callerDirectory = Join-Path $TestDrive 'decoy-directory'
+        $null = New-Item -Path $callerDirectory -ItemType Directory -Force
+        $marker = Join-Path $TestDrive 'decoy-ran.txt'
+        [System.IO.File]::WriteAllText((Join-Path $callerDirectory 'powershell.cmd'), "@echo off`r`necho ran> `"$marker`"`r`nexit /b 9`r`n")
+        $script:decoyExit = $null
+
+        Invoke-InDirectory -Path $callerDirectory -Action {
+            $script:decoyExit = Invoke-HookPayload -CommandLine 'powershell -NoProfile -NonInteractive -Command "exit 3"' -Payload '{}' -EnvironmentVariable @{}
+        }
+
+        Test-Path -LiteralPath $marker | Should -BeFalse -Because 'the program in the working directory of the caller must not be the one that runs'
+        $script:decoyExit | Should -Be 3
     }
 
     It 'passes the payload on standard input' {
@@ -221,11 +345,17 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
     BeforeAll {
         $script:realConfigDigest = Get-FileDigest -Path $script:realConfig
         $script:realScriptDigest = Get-FileDigest -Path $script:realScript
+        $script:containedConfig = New-ContainedConfig -Path (Join-Path $TestDrive 'contained-hooks.json')
+        $script:containedConfigDigest = Get-FileDigest -Path $script:containedConfig
+
+        # The access check is the subject of its own suites; here the interpreter is closed to the run unless a case says otherwise.
+        $script:closed = [pscustomobject]@{ Path = ''; Closed = $true; Absent = $false; Violation = @(); Unmeasured = @() }
+        Mock -CommandName Test-PathProtection -MockWith { $script:closed }
     }
 
-    Context 'on the shipped hook' {
+    Context 'on the shipped hook with its interpreter named by absolute path' {
         BeforeAll {
-            $script:shippedRun = Test-HookContract -HookConfigPath $script:realConfig -HookConfigSha256 $script:realConfigDigest `
+            $script:shippedRun = Test-HookContract -HookConfigPath $script:containedConfig -HookConfigSha256 $script:containedConfigDigest `
                 -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
         }
 
@@ -237,6 +367,119 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         It 'names the pinned script that it ran' {
             $script:shippedRun.evidence | Should -Match ([regex]::Escape([System.IO.Path]::GetFullPath($script:realScript)))
         }
+
+        It 'names the interpreter that it ran' {
+            $script:shippedRun.evidence | Should -Match ([regex]::Escape([System.IO.Path]::GetFullPath($script:systemPowerShell)))
+        }
+    }
+
+    Context 'the interpreter the command starts' {
+        BeforeEach {
+            $script:marker = Join-Path $TestDrive "interpreter-marker-$([guid]::NewGuid().ToString('N')).txt"
+            $script:cmdExe = [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System), 'cmd.exe')
+        }
+
+        It 'fails the shipped command, which names powershell without a path, and runs nothing' {
+            $result = Test-HookContract -HookConfigPath $script:realConfig -HookConfigSha256 $script:realConfigDigest `
+                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'bare name'
+            $result.evidence | Should -Match 'not run'
+            Should -Invoke Test-PathProtection -Times 0 -Exactly
+        }
+
+        It 'does not run a program that the working directory of the caller holds under the name the shipped command uses' {
+            $callerDirectory = Join-Path $TestDrive 'contract-decoy'
+            $null = New-Item -Path $callerDirectory -ItemType Directory -Force
+            [System.IO.File]::WriteAllText((Join-Path $callerDirectory 'powershell.cmd'), "@echo off`r`necho ran> `"$script:marker`"`r`nexit /b 7`r`n")
+            $script:contractResult = $null
+
+            Invoke-InDirectory -Path $callerDirectory -Action {
+                $script:contractResult = Test-HookContract -HookConfigPath $script:realConfig -HookConfigSha256 $script:realConfigDigest `
+                    -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+            }
+
+            Test-Path -LiteralPath $script:marker | Should -BeFalse -Because 'a program planted in the working directory must not run before any verdict'
+            $script:contractResult.status | Should -Not -Be 'Pass'
+        }
+
+        It 'fails a command that names its interpreter by a relative path, and runs nothing' {
+            $config = New-HookConfig -Path (Join-Path $TestDrive 'relative-interpreter.json') -Command ".\cmd.exe /c echo ran> `"$script:marker`""
+
+            $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `
+                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'relative'
+            Test-Path -LiteralPath $script:marker | Should -BeFalse
+        }
+
+        It 'fails an interpreter this identity can replace, and runs nothing' {
+            Mock -CommandName Test-PathProtection -MockWith {
+                [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @("${Path}: this identity holds the right to delete it"); Unmeasured = @() }
+            }
+            $config = New-HookConfig -Path (Join-Path $TestDrive 'replaceable-interpreter.json') -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+
+            $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `
+                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'can be replaced'
+            $result.evidence | Should -Match ([regex]::Escape($script:cmdExe))
+            Test-Path -LiteralPath $script:marker | Should -BeFalse
+        }
+
+        It 'reports an interpreter whose protection could not be measured as unmeasured, and runs nothing' {
+            Mock -CommandName Test-PathProtection -MockWith {
+                [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @(); Unmeasured = @("${Path}: a right could not be measured") }
+            }
+            $config = New-HookConfig -Path (Join-Path $TestDrive 'unmeasured-interpreter.json') -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+
+            $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `
+                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+
+            $result.status | Should -Be 'Unavailable'
+            $result.evidence | Should -Match 'not be shown to be closed'
+            Test-Path -LiteralPath $script:marker | Should -BeFalse
+        }
+
+        It 'reports an interpreter that cannot be measured at all as unmeasured, and runs nothing' {
+            Mock -CommandName Test-PathProtection -MockWith { throw 'access check unavailable' }
+            $config = New-HookConfig -Path (Join-Path $TestDrive 'throwing-interpreter.json') -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+
+            $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `
+                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+
+            $result.status | Should -Be 'Unavailable'
+            $result.evidence | Should -Match 'access check unavailable'
+            Test-Path -LiteralPath $script:marker | Should -BeFalse
+        }
+
+        It 'fails an interpreter that does not exist, and runs nothing' {
+            Mock -CommandName Test-PathProtection -MockWith {
+                [pscustomobject]@{ Path = $Path; Closed = $true; Absent = $true; Violation = @(); Unmeasured = @() }
+            }
+            $config = New-HookConfig -Path (Join-Path $TestDrive 'absent-interpreter.json') -Command "`"$script:cmdExe`" /c echo ran> `"$script:marker`""
+
+            $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `
+                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'does not exist'
+            Test-Path -LiteralPath $script:marker | Should -BeFalse
+        }
+
+        It 'measures the interpreter against the writable roots it is given' {
+            $root = Join-Path $TestDrive 'a-writable-root'
+
+            $null = Test-HookContract -HookConfigPath $script:containedConfig -HookConfigSha256 $script:containedConfigDigest `
+                -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest -WritableRoot @($root)
+
+            Should -Invoke Test-PathProtection -Times 1 -Exactly -ParameterFilter {
+                $Path -eq [System.IO.Path]::GetFullPath($script:systemPowerShell) -and $WritableRoot -contains $root
+            }
+        }
     }
 
     Context 'when the caller has a PLUGIN_ROOT or ComSpec of its own' {
@@ -245,7 +488,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $null = New-HookTree -Root $decoyRoot -Body 'exit 0'
 
             $result = Invoke-WithEnvironment -Name 'PLUGIN_ROOT' -Value $decoyRoot -Action {
-                Test-HookContract -HookConfigPath $script:realConfig -HookConfigSha256 $script:realConfigDigest `
+                Test-HookContract -HookConfigPath $script:containedConfig -HookConfigSha256 $script:containedConfigDigest `
                     -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
             }
 
@@ -257,7 +500,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $broken = New-HookTree -Root $brokenRoot -Body 'exit 0'
 
             $result = Invoke-WithEnvironment -Name 'PLUGIN_ROOT' -Value $script:repoRoot -Action {
-                Test-HookContract -HookConfigPath $script:realConfig -HookConfigSha256 $script:realConfigDigest `
+                Test-HookContract -HookConfigPath $script:containedConfig -HookConfigSha256 $script:containedConfigDigest `
                     -HookScriptPath $broken -HookScriptSha256 (Get-FileDigest -Path $broken)
             }
 
@@ -267,7 +510,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
         It 'does not take the shell from the ComSpec variable' {
             $result = Invoke-WithEnvironment -Name 'ComSpec' -Value (Join-Path $TestDrive 'absent\cmd.exe') -Action {
-                Test-HookContract -HookConfigPath $script:realConfig -HookConfigSha256 $script:realConfigDigest `
+                Test-HookContract -HookConfigPath $script:containedConfig -HookConfigSha256 $script:containedConfigDigest `
                     -HookScriptPath $script:realScript -HookScriptSha256 $script:realScriptDigest
             }
 
@@ -277,7 +520,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
     Context 'when the command does not resolve its script from PLUGIN_ROOT' {
         It 'fails, because the pinned script cannot be shown to be the one that runs' {
-            $command = 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $script:realScript + '"'
+            $command = '"' + $script:systemPowerShell + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $script:realScript + '"'
             $config = New-HookConfig -Path (Join-Path $TestDrive 'fixed-path-hooks.json') -Command $command
 
             $result = Test-HookContract -HookConfigPath $config -HookConfigSha256 (Get-FileDigest -Path $config) `

@@ -1201,6 +1201,63 @@ function Get-GateFailure {
     return [string[]]@($unmet)
 }
 
+function Get-HookInterpreter {
+    <#
+        The program a hook command line starts, as an absolute path. The line is run by a shell, and
+        a host runs it from a working directory it does not choose: a shell looks a bare name up in
+        that directory and then in PATH, and a relative path leads wherever that directory does, so
+        only a command that names its program by absolute path can be shown to run the program that
+        was measured. Any other first word is refused with the reason, and no path is guessed for it.
+        A word the shell expands is refused as well, because the program it names is then not the
+        text that was read.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$CommandLine
+    )
+
+    $text = $CommandLine.TrimStart()
+    $word = $null
+
+    if ($text.StartsWith('"')) {
+        $close = $text.IndexOf('"', 1)
+
+        if ($close -lt 0) {
+            return [pscustomobject]@{ Path = $null; Problem = 'the command starts with a quote that is never closed' }
+        }
+
+        $word = $text.Substring(1, $close - 1)
+    } else {
+        $end = $text.IndexOfAny([char[]]@(' ', "`t"))
+        $word = if ($end -lt 0) { $text } else { $text.Substring(0, $end) }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($word)) {
+        return [pscustomobject]@{ Path = $null; Problem = 'the command names no program' }
+    }
+
+    if ($word -match '[%^!]') {
+        return [pscustomobject]@{ Path = $null; Problem = "the program '$word' contains a character the shell expands, so it is not the program the text names" }
+    }
+
+    if ($word.StartsWith('\\') -or $word.StartsWith('//')) {
+        return [pscustomobject]@{ Path = $null; Problem = "the program '$word' is named through a network or device path" }
+    }
+
+    if (-not [System.IO.Path]::IsPathFullyQualified($word)) {
+        if ($word -match '[\\/:]') {
+            return [pscustomobject]@{ Path = $null; Problem = "the program '$word' is a relative path, which leads wherever the working directory of the host is" }
+        }
+
+        return [pscustomobject]@{ Path = $null; Problem = "the program '$word' is a bare name, which the host looks up in its working directory and then in PATH" }
+    }
+
+    return [pscustomobject]@{ Path = [System.IO.Path]::GetFullPath($word); Problem = $null }
+}
+
 function Invoke-HookPayload {
     <#
         The hook command is a full command line, so it runs through a throwaway
@@ -1209,7 +1266,11 @@ function Invoke-HookPayload {
         agent loop actually executes.
 
         The shell is the system one, not whatever ComSpec names, and the command sees the environment
-        it is given: a probe that inherits the caller's variables measures the caller's choices.
+        it is given: a probe that inherits the caller's variables measures the caller's choices. The
+        command starts in a folder of its own that holds nothing but the script, and the shell is
+        told not to look for a command in the working directory, so a program a repository planted in
+        the directory the verifier was started from is never the one that runs. That instruction is
+        applied after the caller's variables and cannot be removed by them.
         A command that does not finish is stopped and refused, never waited for.
     #>
     [CmdletBinding()]
@@ -1252,6 +1313,7 @@ function Invoke-HookPayload {
 
         $startInfo.UseShellExecute = $false
         $startInfo.CreateNoWindow = $true
+        $startInfo.WorkingDirectory = $workRoot
         $startInfo.RedirectStandardInput = $true
         $startInfo.RedirectStandardOutput = $true
         $startInfo.RedirectStandardError = $true
@@ -1263,6 +1325,10 @@ function Invoke-HookPayload {
             } else {
                 $startInfo.Environment[[string]$name] = [string]$EnvironmentVariable[$name]
             }
+        }
+
+        if ($script:OnWindows) {
+            $startInfo.Environment['NoDefaultCurrentDirectoryInExePath'] = '1'
         }
 
         $process = [System.Diagnostics.Process]::Start($startInfo)
@@ -1314,6 +1380,13 @@ function Test-HookContract {
         an empty directory. A decoy tree proves the command honours that: a decoy script under
         PLUGIN_ROOT must run ahead of a decoy in the user profile. A command that resolves its script
         any other way cannot be shown to run the pinned one, and fails.
+
+        Which program runs the script is decided by the command as well, and a program found by a
+        search is not one that was measured: a bare name is looked up in the working directory of
+        the host and then in PATH. The command must therefore start with the absolute path of its
+        interpreter, and that interpreter, with its folder and every folder above it, must be closed
+        to this identity before anything is run. A command that does not, fails; an interpreter that
+        cannot be measured is unmeasured, and the command is not run in either case.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -1328,7 +1401,12 @@ function Test-HookContract {
         [string]$HookScriptPath,
 
         [Parameter(Mandatory)]
-        [string]$HookScriptSha256
+        [string]$HookScriptSha256,
+
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$WritableRoot = @()
     )
 
     $binding = Get-HookRootBinding -ScriptPath $HookScriptPath
@@ -1384,6 +1462,34 @@ function Test-HookContract {
 
     if ([string]::IsNullOrWhiteSpace($commandLine)) {
         return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence 'PreToolUse hook declares no command for this platform'
+    }
+
+    $interpreter = Get-HookInterpreter -CommandLine $commandLine
+
+    if ($null -ne $interpreter.Problem) {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the hook command does not start with the absolute path of its interpreter ($($interpreter.Problem)), so the program that runs it cannot be shown to be one that was measured; pin a command that starts with an absolute interpreter path. It was not run"
+    }
+
+    try {
+        $protection = Test-PathProtection -Path $interpreter.Path -WritableRoot $WritableRoot
+    } catch {
+        return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "the interpreter $($interpreter.Path) could not be measured, so the hook command was not run: $($_.Exception.Message)"
+    }
+
+    if ($protection.Absent) {
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the interpreter $($interpreter.Path) does not exist, so the hook command was not run"
+    }
+
+    if (@($protection.Violation).Count -gt 0) {
+        $detail = @($protection.Violation | Select-Object -First 6) -join '; '
+
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the interpreter $($interpreter.Path) can be replaced by this identity, so what the probe reports proves nothing and the hook command was not run: $detail"
+    }
+
+    if (@($protection.Unmeasured).Count -gt 0) {
+        $detail = @($protection.Unmeasured | Select-Object -First 6) -join '; '
+
+        return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "the interpreter $($interpreter.Path) could not be shown to be closed to this identity, so the hook command was not run: $detail"
     }
 
     $resolvedScript = [System.IO.Path]::GetFullPath($HookScriptPath)
@@ -1461,7 +1567,7 @@ function Test-HookContract {
         Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    $evidence = 'expected 0,2,2 and measured ' + ($measured -join ' ') + " from the pinned script $resolvedScript"
+    $evidence = 'expected 0,2,2 and measured ' + ($measured -join ' ') + " from the pinned script $resolvedScript through the interpreter $($interpreter.Path)"
 
     if ($failed) {
         return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence $evidence
@@ -2840,7 +2946,8 @@ function Get-ContainmentCheck {
     } else {
         $check.Add((Test-HookContract `
                     -HookConfigPath ([string]$ContainmentProfile.hooksConfig.path) -HookConfigSha256 ([string]$ContainmentProfile.hooksConfig.sha256) `
-                    -HookScriptPath ([string]$ContainmentProfile.hookScript.path) -HookScriptSha256 ([string]$ContainmentProfile.hookScript.sha256)))
+                    -HookScriptPath ([string]$ContainmentProfile.hookScript.path) -HookScriptSha256 ([string]$ContainmentProfile.hookScript.sha256) `
+                    -WritableRoot $writableRoot))
     }
 
     $check.Add((Test-GrantChannelClosed -HookConfigPath ([string]$ContainmentProfile.hooksConfig.path) -HookConfigSha256 ([string]$ContainmentProfile.hooksConfig.sha256)))

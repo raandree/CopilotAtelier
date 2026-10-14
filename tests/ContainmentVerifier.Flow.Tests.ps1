@@ -127,12 +127,13 @@ Describe 'Containment check flow' -Tag 'Unit' {
         Should -Invoke Test-LiveArtifact -Times 1 -Exactly
     }
 
-    It 'gives the hook contract the pinned paths and digests the profile declares' {
+    It 'gives the hook contract the pinned paths and digests the profile declares, and the roots the run may write' {
         $null = Invoke-Flow
 
         Should -Invoke Test-HookContract -Times 1 -Exactly -ParameterFilter {
             $HookConfigPath -eq (Join-Path $script:base 'hooks.json') -and $HookConfigSha256 -ceq ('b' * 64) -and
-            $HookScriptPath -eq (Join-Path $script:base 'hook.ps1') -and $HookScriptSha256 -ceq ('c' * 64)
+            $HookScriptPath -eq (Join-Path $script:base 'hook.ps1') -and $HookScriptSha256 -ceq ('c' * 64) -and
+            $WritableRoot -contains (Join-Path $script:base 'work')
         }
     }
 
