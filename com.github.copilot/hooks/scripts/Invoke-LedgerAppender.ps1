@@ -1738,9 +1738,13 @@ function Read-AppenderResponse {
 
 function Test-Acknowledgement {
     <#
-        The acknowledgement is a claim by whoever answered the pipe. It is
-        believed only after the ledger itself shows that record at that
-        sequence with that digest.
+        The acknowledgement is a claim by whoever answered the pipe, and the
+        ledger alone cannot settle it: a server that answers a new record with
+        the sequence and digest of a record that is already stored says only
+        true things about the ledger while storing nothing. So the client
+        recomputes the digest of the record it sent, at the acknowledged
+        sequence and on top of the record before it, and requires that digest
+        to be both what was acknowledged and what is stored.
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -1750,6 +1754,9 @@ function Test-Acknowledgement {
 
         [Parameter(Mandatory)]
         [string]$RecordSha256,
+
+        [Parameter(Mandatory)]
+        [System.Text.Json.JsonElement]$Record,
 
         [Parameter(Mandatory)]
         [string]$Path,
@@ -1776,12 +1783,38 @@ function Test-Acknowledgement {
         return "the acknowledged record cannot be read back: $($sink.Error)"
     }
 
-    $record = Read-StoredRecord -Text $sink.Line[$Sequence - 1]
-    if ($record.Error) {
-        return "the acknowledged record cannot be read back: it $($record.Error)"
+    # Not $record: PowerShell variable names are case-insensitive, so that name
+    # would overwrite the record this function was given.
+    $stored = Read-StoredRecord -Text $sink.Line[$Sequence - 1]
+    if ($stored.Error) {
+        return "the acknowledged record cannot be read back: it $($stored.Error)"
     }
 
-    if (-not (Test-OrdinalEqual -Left $record.RecordSha256 -Right $RecordSha256)) {
+    $previous = $script:GenesisHash
+    if ($Sequence -gt 1) {
+        $earlier = Read-StoredRecord -Text $sink.Line[$Sequence - 2]
+        if ($earlier.Error) {
+            return "the record before the acknowledged one cannot be read back: it $($earlier.Error)"
+        }
+
+        $previous = $earlier.RecordSha256
+    }
+
+    try {
+        $expected = New-StoredRecord -Record $Record -Sequence $Sequence -PreviousHash $previous
+    } catch {
+        return "the record that was sent cannot be rebuilt: $($_.Exception.Message)"
+    }
+
+    if (-not (Test-OrdinalEqual -Left $expected.RecordSha256 -Right $stored.RecordSha256)) {
+        return "the ledger does not hold the record that was sent at sequence $Sequence"
+    }
+
+    if (-not (Test-OrdinalEqual -Left $expected.RecordSha256 -Right $RecordSha256)) {
+        return "the acknowledgement names a digest that is not the record that was sent"
+    }
+
+    if (-not (Test-OrdinalEqual -Left $stored.RecordSha256 -Right $RecordSha256)) {
         return "the ledger holds a different record at sequence $Sequence than the acknowledgement names"
     }
 
@@ -2015,95 +2048,100 @@ switch ($PSCmdlet.ParameterSetName) {
             exit 2
         }
 
-        if ($Seal) {
-            # -Seal must not be a quiet alias for -Append: sealing is
-            # irreversible, so the intent has to be visible in the record too.
-            try {
-                $intended = ConvertFrom-JsonText -Text $RecordJson
-            } catch {
-                Write-Refusal -Message 'record is not valid JSON'
-                exit 2
-            }
+        # Parsed once, and kept until the acknowledgement has been checked: the
+        # client has to rebuild the digest of this exact record to know whether
+        # the ledger holds what it sent.
+        try {
+            $sent = ConvertFrom-JsonText -Text $RecordJson
+        } catch {
+            Write-Refusal -Message 'record is not valid JSON'
+            exit 2
+        }
 
-            try {
+        try {
+            if ($Seal) {
+                # -Seal must not be a quiet alias for -Append: sealing is
+                # irreversible, so the intent has to be visible in the record too.
                 $intendedType = ''
-                if ($intended.RootElement.ValueKind -eq [System.Text.Json.JsonValueKind]::Object) {
+                if ($sent.RootElement.ValueKind -eq [System.Text.Json.JsonValueKind]::Object) {
                     $typeElement = [System.Text.Json.JsonElement]::new()
-                    if ($intended.RootElement.TryGetProperty('type', [ref]$typeElement) -and
+                    if ($sent.RootElement.TryGetProperty('type', [ref]$typeElement) -and
                         $typeElement.ValueKind -eq [System.Text.Json.JsonValueKind]::String) {
                         $intendedType = $typeElement.GetString()
                     }
                 }
-            } finally {
-                $intended.Dispose()
+
+                if (-not (Test-OrdinalEqual -Left $intendedType -Right 'Seal')) {
+                    Write-Refusal -Message "-Seal requires a record of type 'Seal'"
+                    exit 2
+                }
             }
 
-            if (-not (Test-OrdinalEqual -Left $intendedType -Right 'Seal')) {
-                Write-Refusal -Message "-Seal requires a record of type 'Seal'"
+            try {
+                $expected = Get-ExpectedServerIdentity -Identity $ExpectedServerIdentity
+            } catch {
+                Write-Refusal -Message "could not resolve the expected appender identity: $($_.Exception.Message)"
                 exit 2
             }
-        }
 
-        try {
-            $expected = Get-ExpectedServerIdentity -Identity $ExpectedServerIdentity
-        } catch {
-            Write-Refusal -Message "could not resolve the expected appender identity: $($_.Exception.Message)"
-            exit 2
-        }
+            # The record is forwarded byte for byte inside an envelope that states
+            # the operation. Re-serializing it here would change the bytes the
+            # server hashes; a record crafted to close the envelope early produces
+            # a repeated field, which the server refuses.
+            $operation = if ($Seal) { 'Seal' } else { 'Append' }
+            $payload = '{"operation":"' + $operation + '","record":' + $RecordJson + '}'
 
-        # The record is forwarded byte for byte inside an envelope that states
-        # the operation. Re-serializing it here would change the bytes the
-        # server hashes; a record crafted to close the envelope early produces
-        # a repeated field, which the server refuses.
-        $operation = if ($Seal) { 'Seal' } else { 'Append' }
-        $payload = '{"operation":"' + $operation + '","record":' + $RecordJson + '}'
+            try {
+                $responseText = Invoke-AppenderRequest -Name $PipeName -Payload $payload -Expected $expected
+            } catch {
+                Write-Refusal -Message "could not reach a trusted appender on pipe '$PipeName': $($_.Exception.Message)"
+                exit 2
+            }
 
-        try {
-            $responseText = Invoke-AppenderRequest -Name $PipeName -Payload $payload -Expected $expected
-        } catch {
-            Write-Refusal -Message "could not reach a trusted appender on pipe '$PipeName': $($_.Exception.Message)"
-            exit 2
-        }
+            if ([string]::IsNullOrWhiteSpace($responseText)) {
+                Write-Refusal -Message 'appender returned no response'
+                exit 2
+            }
 
-        if ([string]::IsNullOrWhiteSpace($responseText)) {
-            Write-Refusal -Message 'appender returned no response'
-            exit 2
-        }
+            try {
+                $document = ConvertFrom-JsonText -Text $responseText
+            } catch {
+                Write-Refusal -Message 'appender returned a response that is not valid JSON'
+                exit 2
+            }
 
-        try {
-            $document = ConvertFrom-JsonText -Text $responseText
-        } catch {
-            Write-Refusal -Message 'appender returned a response that is not valid JSON'
-            exit 2
-        }
+            try {
+                $response = Read-AppenderResponse -Element $document.RootElement
+            } finally {
+                $document.Dispose()
+            }
 
-        try {
-            $response = Read-AppenderResponse -Element $document.RootElement
+            if ($response.Error) {
+                Write-Refusal -Message $response.Error
+                exit 2
+            }
+
+            if (-not (Test-OrdinalEqual -Left $response.Status -Right 'Ok')) {
+                Write-Refusal -Message $response.Message
+                exit 2
+            }
+
+            # The answer came from the pipe, so it is a claim, not evidence. Only
+            # the ledger itself can show that the record the client sent was
+            # stored and published.
+            $acknowledgementError = Test-Acknowledgement -Sequence $response.Sequence `
+                -RecordSha256 $response.RecordSha256 -Record $sent.RootElement `
+                -Path $SinkPath -HeadPath $ChainHeadPath
+            if ($acknowledgementError) {
+                Write-Refusal -Message "the acknowledgement is not backed by the ledger: $acknowledgementError"
+                exit 2
+            }
+
+            Write-Output ('Appended sequence {0} as {1}' -f $response.Sequence, $response.RecordSha256)
+            exit 0
         } finally {
-            $document.Dispose()
+            $sent.Dispose()
         }
-
-        if ($response.Error) {
-            Write-Refusal -Message $response.Error
-            exit 2
-        }
-
-        if (-not (Test-OrdinalEqual -Left $response.Status -Right 'Ok')) {
-            Write-Refusal -Message $response.Message
-            exit 2
-        }
-
-        # The answer came from the pipe, so it is a claim, not evidence. Only
-        # the ledger itself can show that the record was stored and published.
-        $acknowledgementError = Test-Acknowledgement -Sequence $response.Sequence `
-            -RecordSha256 $response.RecordSha256 -Path $SinkPath -HeadPath $ChainHeadPath
-        if ($acknowledgementError) {
-            Write-Refusal -Message "the acknowledgement is not backed by the ledger: $acknowledgementError"
-            exit 2
-        }
-
-        Write-Output ('Appended sequence {0} as {1}' -f $response.Sequence, $response.RecordSha256)
-        exit 0
     }
 
     { $_ -in @('Validate', 'ValidateBound') } {

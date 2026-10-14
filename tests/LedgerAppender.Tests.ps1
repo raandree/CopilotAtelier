@@ -492,7 +492,9 @@ exit `$LASTEXITCODE
         <#
             A squatter on the appender's pipe name, running as the test identity.
             It captures whatever a client sends and answers with a well-formed
-            acknowledgement it made up.
+            acknowledgement it made up. -ResponseBase64 lets a case choose the
+            exact answer line; it travels encoded so that a response holding
+            control characters survives the command line unchanged.
         #>
         param(
             [Parameter(Mandatory)]
@@ -502,12 +504,15 @@ exit `$LASTEXITCODE
             [string]$CapturePath,
 
             [Parameter()]
-            [switch]$GrantEveryone
+            [switch]$GrantEveryone,
+
+            [Parameter()]
+            [string]$ResponseBase64 = ''
         )
 
         $scriptPath = Join-Path $TestDrive "hostile-$([guid]::NewGuid().ToString('N')).ps1"
         @'
-param([string]$PipeName, [string]$CapturePath, [string]$GrantEveryone)
+param([string]$PipeName, [string]$CapturePath, [string]$GrantEveryone, [string]$ResponseBase64)
 
 $security = [System.IO.Pipes.PipeSecurity]::new()
 $me = [System.Security.Principal.WindowsIdentity]::GetCurrent()
@@ -527,6 +532,12 @@ $server = [System.IO.Pipes.NamedPipeServerStreamAcl]::Create($PipeName,
     [System.IO.Pipes.PipeOptions]::Asynchronous, 0, 0, $security)
 
 $utf8 = [System.Text.UTF8Encoding]::new($false)
+$response = '{"status":"Ok","message":"","sequence":1,"recordSha256":"' + ('f' * 64) + '"}'
+
+if (-not [string]::IsNullOrEmpty($ResponseBase64)) {
+    $response = $utf8.GetString([System.Convert]::FromBase64String($ResponseBase64))
+}
+
 try {
     if (-not $server.WaitForConnectionAsync().Wait(30000)) { return }
 
@@ -537,17 +548,26 @@ try {
     $request = $reader.ReadLine()
     [System.IO.File]::WriteAllText($CapturePath, [string]$request)
 
-    $writer.WriteLine('{"status":"Ok","message":"","sequence":1,"recordSha256":"' + ('f' * 64) + '"}')
+    $writer.WriteLine($response)
     $server.WaitForPipeDrain()
 } finally {
     $server.Dispose()
 }
 '@ | Set-Content -LiteralPath $scriptPath -Encoding UTF8
 
-        $process = Start-Process -FilePath $script:powerShellPath -PassThru -WindowStyle Hidden -ArgumentList @(
+        $argument = @(
             '-NoProfile', '-NonInteractive', '-File', $scriptPath, '-PipeName', $PipeName,
             '-CapturePath', $CapturePath, '-GrantEveryone', $(if ($GrantEveryone) { 'yes' } else { 'no' })
         )
+
+        # An empty element would reach the child as a switch without a value and
+        # the squatter would never start, so the response is only named when
+        # there is one.
+        if (-not [string]::IsNullOrEmpty($ResponseBase64)) {
+            $argument += @('-ResponseBase64', $ResponseBase64)
+        }
+
+        $process = Start-Process -FilePath $script:powerShellPath -PassThru -WindowStyle Hidden -ArgumentList $argument
 
         $deadline = (Get-Date).AddSeconds(20)
         while ((Get-Date) -lt $deadline) {
@@ -559,6 +579,18 @@ try {
         }
 
         throw "Hostile server did not take $PipeName."
+    }
+
+    function script:ConvertTo-HostileResponse {
+        <#
+            Encodes one response line for Start-HostileServer.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [string]$Response
+        )
+
+        return [System.Convert]::ToBase64String([System.Text.UTF8Encoding]::new($false).GetBytes($Response))
     }
 
     function script:Get-SinkRecord {
@@ -1384,6 +1416,31 @@ Describe 'Ledger appender channel' -Tag 'Unit' {
         $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')
         $result.ExitCode | Should -Be 2 -Because $result.Output
         $result.Output | Should -Match 'acknowledg'
+    }
+
+    It 'refuses an acknowledgement that replays a record the client did not send' -Skip:(-not $script:onWindows) {
+        # One real record first, so the ledger holds something to point at.
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+        $script:appender = $null
+
+        $stored = Get-SinkRecord -SinkPath $script:sinkPath
+        $stored.Count | Should -Be 1
+
+        # The squatter answers a new record with the sequence and the digest of
+        # the record that is already there: every field of the answer is true of
+        # the ledger, and nothing of what the client sent was stored.
+        $replay = '{"status":"Ok","message":"","sequence":1,"recordSha256":"' + $stored[0].recordSha256 + '"}'
+        $script:hostile = Start-HostileServer -PipeName $script:pipeName -CapturePath $script:capturePath `
+            -ResponseBase64 (ConvertTo-HostileResponse -Response $replay)
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Second')
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'does not hold the record that was sent'
+
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count |
+            Should -Be 1 -Because 'the record the client sent was never stored'
     }
 
     It 'refuses a pipe that is open to another identity' -Skip:(-not $script:onWindows) {
