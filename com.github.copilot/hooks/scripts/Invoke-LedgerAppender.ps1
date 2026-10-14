@@ -203,6 +203,25 @@ $script:LongFractionPattern = '\A(?<kept>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-
 
 $script:SafeInteger = 9007199254740991
 $script:MaxRequestLength = 262144
+
+# A refusal line is read by the controller, which is a model, and its text can
+# come from whoever answered the pipe. Runes in these categories are replaced:
+# a carriage return or line feed would forge a second line, an escape would
+# drive a terminal, a bidirectional override would reorder what is shown, and a
+# Unicode tag character would ride along invisibly. The enumeration is by rune,
+# not by UTF-16 unit, because \p{Cf} on UTF-16 misses the tag block entirely.
+$script:RefusalCategory = [System.Collections.Generic.HashSet[System.Globalization.UnicodeCategory]]::new(
+    [System.Globalization.UnicodeCategory[]]@(
+        [System.Globalization.UnicodeCategory]::Control
+        [System.Globalization.UnicodeCategory]::Format
+        [System.Globalization.UnicodeCategory]::LineSeparator
+        [System.Globalization.UnicodeCategory]::ParagraphSeparator
+        [System.Globalization.UnicodeCategory]::Surrogate
+        [System.Globalization.UnicodeCategory]::OtherNotAssigned
+        [System.Globalization.UnicodeCategory]::PrivateUse
+    ))
+$script:RefusalLength = 200
+
 $script:OnWindows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
 $script:FatalError = ''
 $script:JsonOption = [System.Text.Json.JsonDocumentOptions]::new()
@@ -263,14 +282,61 @@ function Test-UtcInstant {
         [System.Globalization.CultureInfo]::InvariantCulture, $script:UtcStyle, [ref]$parsed)
 }
 
+function Format-RefusalText {
+    <#
+        Makes any text safe to put on one line of standard error: every rune
+        whose category can break a line, drive a terminal, reorder what is
+        shown or hide itself becomes a question mark, everything else stays,
+        and the result is cut at a fixed length. The cut counts UTF-16 units
+        but moves whole runes, so a surrogate pair is never split in half.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string]$Text
+    )
+
+    if ([string]::IsNullOrEmpty($Text)) {
+        return ''
+    }
+
+    $builder = [System.Text.StringBuilder]::new()
+    $cut = $false
+
+    foreach ($rune in $Text.EnumerateRunes()) {
+        $piece = if ($script:RefusalCategory.Contains([System.Text.Rune]::GetUnicodeCategory($rune))) {
+            '?'
+        } else {
+            $rune.ToString()
+        }
+
+        if ($builder.Length + $piece.Length -gt $script:RefusalLength) {
+            $cut = $true
+            break
+        }
+
+        $null = $builder.Append($piece)
+    }
+
+    if ($cut) {
+        $null = $builder.Append('...')
+    }
+
+    return $builder.ToString()
+}
+
 function Write-Refusal {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
+        [AllowEmptyString()]
         [string]$Message
     )
 
-    [Console]::Error.WriteLine("Ledger appender refused: $Message")
+    [Console]::Error.WriteLine("Ledger appender refused: $(Format-RefusalText -Text $Message)")
 }
 
 function ConvertFrom-JsonText {

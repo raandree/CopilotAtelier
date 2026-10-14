@@ -155,11 +155,31 @@ exit `$LASTEXITCODE
         )
     }
 
+    function script:ConvertTo-ProcessArgument {
+        <#
+            Quotes one argument the way CommandLineToArgvW reads it back:
+            Start-Process joins an array with spaces and escapes nothing, so a
+            record's double quotes would reach the child as word boundaries.
+            Backslashes only matter in front of a quote or at the end.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            [AllowEmptyString()]
+            [string]$Value
+        )
+
+        $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
+        $escaped = [regex]::Replace($escaped, '(\\+)$', '$1$1')
+
+        return '"' + $escaped + '"'
+    }
+
     function script:Invoke-AppenderSplit {
         <#
             Keeps standard output and standard error apart, because the
             -Validate contract is about what reaches standard output: on a
-            refusal it must stay empty.
+            refusal it must stay empty, and a refusal is one line. The streams
+            go to files, so nothing wraps them to a console width.
         #>
         param(
             [Parameter(Mandatory)]
@@ -169,9 +189,13 @@ exit `$LASTEXITCODE
         $outPath = Join-Path $TestDrive "out-$([guid]::NewGuid().ToString('N')).txt"
         $errPath = Join-Path $TestDrive "err-$([guid]::NewGuid().ToString('N')).txt"
 
+        $commandLine = (
+            @('-NoProfile', '-NonInteractive', '-File', $script:appenderScript) + $Argument |
+                ForEach-Object { ConvertTo-ProcessArgument -Value $_ }
+        ) -join ' '
+
         $process = Start-Process -FilePath $script:powerShellPath -PassThru -Wait -WindowStyle Hidden `
-            -RedirectStandardOutput $outPath -RedirectStandardError $errPath -ArgumentList (
-            @('-NoProfile', '-NonInteractive', '-File', $script:appenderScript) + $Argument)
+            -RedirectStandardOutput $outPath -RedirectStandardError $errPath -ArgumentList $commandLine
 
         $standardOutput = ''
         if (Test-Path -LiteralPath $outPath -PathType Leaf) {
@@ -1938,5 +1962,103 @@ Describe 'Ledger appender ordinal grammar' -Tag 'Unit' {
         $result.ExitCode | Should -Be 2
         $result.StandardOutput.Trim() | Should -BeExactly ''
         $result.StandardError | Should -Match 'hexadecimal' -Because 'a digest that is not 64 hexadecimal characters is a format refusal, not a mismatch'
+    }
+}
+
+Describe 'Ledger appender refusal text' -Tag 'Unit' {
+    Context 'when a hostile server supplies the text' {
+        BeforeEach {
+            $script:pipeName = "ca-ledger-test-$([guid]::NewGuid().ToString('N'))"
+            $script:sinkPath = Join-Path $TestDrive "ledger-$([guid]::NewGuid().ToString('N')).jsonl"
+            $script:headPath = Join-Path $TestDrive "head-$([guid]::NewGuid().ToString('N')).json"
+            $script:capturePath = Join-Path $TestDrive "capture-$([guid]::NewGuid().ToString('N')).txt"
+            $script:hostile = $null
+        }
+
+        AfterEach {
+            Stop-TestAppender -Process $script:hostile
+        }
+
+        It 'leaves one line on standard error with every control and format character replaced' -Skip:(-not $script:onWindows) {
+            # The controller is a model reading this line, and the speaker is the
+            # squatter the pipe design exists for: a carriage return, an escape,
+            # a right-to-left override and a Unicode tag character would let it
+            # forge a second line or hide what it wrote.
+            $hostileMessage = 'alpha' + [string][char]0x000D + [string][char]0x000A +
+                'beta' + [string][char]0x001B + '[31mred' + [string][char]0x202E +
+                'reversed' + [char]::ConvertFromUtf32(0xE0041) + 'tagged'
+
+            $response = [ordered]@{
+                status = 'Error'
+                message = $hostileMessage
+                sequence = 0
+                recordSha256 = ''
+            } | ConvertTo-Json -Compress
+
+            $script:hostile = Start-HostileServer -PipeName $script:pipeName -CapturePath $script:capturePath `
+                -ResponseBase64 (ConvertTo-HostileResponse -Response $response)
+
+            $result = Invoke-AppenderSplit -Argument @(
+                '-Append', '-PipeName', $script:pipeName, '-RecordJson', (New-TestRecordJson -Type 'Baseline'),
+                '-SinkPath', $script:sinkPath, '-ChainHeadPath', $script:headPath)
+
+            $result.ExitCode | Should -Be 2
+            $standardError = $result.StandardError
+
+            @($standardError -split "`r?`n" | Where-Object { $_.Length -gt 0 }).Count |
+                Should -Be 1 -Because 'a refusal is one line, whoever wrote the text'
+
+            $standardError | Should -Match 'alpha'
+            $standardError | Should -Match 'tagged'
+            $standardError | Should -Match '\?'
+            $standardError.Contains([string][char]0x001B) | Should -BeFalse -Because 'an escape sequence must not reach a terminal'
+            $standardError.Contains([string][char]0x202E) | Should -BeFalse -Because 'a bidirectional override must not reorder the line'
+            $standardError.Contains([char]::ConvertFromUtf32(0xE0041)) | Should -BeFalse -Because 'a Unicode tag character must not ride along invisibly'
+        }
+    }
+
+    Context 'as a function' {
+        BeforeAll {
+            . (Join-Path $script:repoRoot 'tests/Helpers/ScriptFunction.ps1')
+            . (Get-ScriptFunctionDefinition -Path $script:appenderScript -Name @(
+                    'Write-Refusal'
+                    'Format-RefusalText'
+                ))
+        }
+
+        It 'replaces a Unicode tag character that is invisible to \p{Cf} on UTF-16' {
+            Format-RefusalText -Text ('a' + [char]::ConvertFromUtf32(0xE0041) + 'b') |
+                Should -BeExactly 'a?b'
+        }
+
+        It 'replaces a carriage return, a line feed and an escape with one question mark each' {
+            Format-RefusalText -Text ('a' + [string][char]0x000D + [string][char]0x000A + [string][char]0x001B + 'b') |
+                Should -BeExactly 'a???b'
+        }
+
+        It 'cuts a long message at two hundred characters and marks the cut' {
+            $long = 'x' * 500
+            $formatted = Format-RefusalText -Text $long
+
+            $formatted.Length | Should -Be 203
+            $formatted | Should -BeExactly (('x' * 200) + '...')
+        }
+
+        It 'keeps an accented letter and an emoji unchanged' {
+            $text = 'na' + [string][char]0x00EF + 've ' + [char]::ConvertFromUtf32(0x2615)
+            Format-RefusalText -Text $text | Should -BeExactly $text
+        }
+
+        It 'keeps an astral emoji whole when it would straddle the cut' {
+            $text = ('x' * 199) + [char]::ConvertFromUtf32(0x1F600) + 'tail'
+            $formatted = Format-RefusalText -Text $text
+
+            $formatted | Should -BeExactly (('x' * 199) + '...')
+            $formatted.Length | Should -Be 202 -Because 'a surrogate pair is never split to reach the cap'
+        }
+
+        It 'returns an empty string for an empty message' {
+            Format-RefusalText -Text '' | Should -BeExactly ''
+        }
     }
 }
