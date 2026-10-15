@@ -515,6 +515,151 @@ Describe 'Containment token facts' -Tag 'Unit' {
 
         Get-TokenFactProblem -Fact $fact | Should -BeNullOrEmpty
     }
+
+    It 'accepts only an object of the shape the reader returns, so <Case> is not interpreted' -ForEach @(
+        @{ Case = 'nothing' }
+        @{ Case = 'a string' }
+        @{ Case = 'a number' }
+        @{ Case = 'a hashtable with the right keys' }
+        @{ Case = 'an object of another type with the right properties' }
+    ) {
+        $fact = switch ($Case) {
+            'nothing' { $null }
+            'a string' { 'a token' }
+            'a number' { 5 }
+            'a hashtable with the right keys' { @{ Elevated = $false; ElevationType = 1; IntegrityRid = 8192; Group = @(); Privilege = @() } }
+            'an object of another type with the right properties' {
+                $typeName = 'TokenFactLike' + [guid]::NewGuid().ToString('N')
+                Add-Type -TypeDefinition "public class $typeName { public bool Elevated = false; public int ElevationType = 1; public int IntegrityRid = 8192; public object[] Group = new object[0]; public object[] Privilege = new object[0]; }"
+                New-Object -TypeName $typeName
+            }
+        }
+
+        Get-TokenFactProblem -Fact $fact | Should -Be 'the facts are not an object'
+    }
+}
+
+Describe 'Containment token reader bounds' -Tag 'Unit' {
+    # The SIDs of a token structure lie in the buffer that holds it, after the array. A pointer that does not
+    # is a structure that was misread, and following it could read memory that is not the token's, so it must
+    # stop the read with an exception, which the reader turns into an unmeasured check. The method that reads
+    # one SID is public so that a test can give it a buffer of its own.
+    BeforeAll {
+        if ($script:onWindows) {
+            Initialize-NativeToken
+        }
+
+        # A buffer of the length given with the SID bytes written at the offset, zero elsewhere, and the pointer
+        # to the SID handed to the script block with the buffer and its length.
+        function script:Use-SidBuffer {
+            param(
+                [Parameter(Mandatory)]
+                [byte[]]$SidByte,
+
+                [Parameter(Mandatory)]
+                [int]$Offset,
+
+                [Parameter(Mandatory)]
+                [int]$Length,
+
+                [Parameter(Mandatory)]
+                [scriptblock]$Action
+            )
+
+            $buffer = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($Length)
+
+            try {
+                for ($index = 0; $index -lt $Length; $index++) {
+                    [System.Runtime.InteropServices.Marshal]::WriteByte($buffer, $index, 0)
+                }
+
+                for ($index = 0; $index -lt $SidByte.Length -and ($Offset + $index) -lt $Length; $index++) {
+                    [System.Runtime.InteropServices.Marshal]::WriteByte($buffer, $Offset + $index, $SidByte[$index])
+                }
+
+                & $Action $buffer $Length ([System.IntPtr]::Add($buffer, $Offset))
+            } finally {
+                [System.Runtime.InteropServices.Marshal]::FreeHGlobal($buffer)
+            }
+        }
+
+        # S-1-5-32-544: revision 1, two sub-authorities, authority 5, then 32 and 544 in little-endian. The name
+        # must differ from $script:AdministratorsSid, the constant of the verifier that the check reads:
+        # variable names are case-insensitive, so a byte array under that name would replace the constant.
+        $script:administratorsSidBytes = [byte[]]@(1, 2, 0, 0, 0, 0, 0, 5, 32, 0, 0, 0, 32, 2, 0, 0)
+    }
+
+    It 'reads a SID that lies inside the buffer' -Skip:(-not $script:onWindows) {
+        $text = Use-SidBuffer -SidByte $script:administratorsSidBytes -Offset 24 -Length 64 -Action {
+            param($Buffer, $Length, $Pointer)
+
+            $script:NativeToken::SidText($Buffer, $Length, $Pointer)
+        }
+
+        $text | Should -Be 'S-1-5-32-544'
+    }
+
+    It 'reads a SID that ends exactly at the end of the buffer' -Skip:(-not $script:onWindows) {
+        $text = Use-SidBuffer -SidByte $script:administratorsSidBytes -Offset 48 -Length 64 -Action {
+            param($Buffer, $Length, $Pointer)
+
+            $script:NativeToken::SidText($Buffer, $Length, $Pointer)
+        }
+
+        $text | Should -Be 'S-1-5-32-544'
+    }
+
+    It 'refuses a pointer before the buffer' -Skip:(-not $script:onWindows) {
+        {
+            Use-SidBuffer -SidByte $script:administratorsSidBytes -Offset 24 -Length 64 -Action {
+                param($Buffer, $Length, $Pointer)
+
+                $script:NativeToken::SidText($Buffer, $Length, [System.IntPtr]::Subtract($Buffer, 8))
+            }
+        } | Should -Throw -ExpectedMessage '*outside the buffer*'
+    }
+
+    It 'refuses a pointer past the end of the buffer' -Skip:(-not $script:onWindows) {
+        {
+            Use-SidBuffer -SidByte $script:administratorsSidBytes -Offset 24 -Length 64 -Action {
+                param($Buffer, $Length, $Pointer)
+
+                $script:NativeToken::SidText($Buffer, $Length, [System.IntPtr]::Add($Buffer, 64))
+            }
+        } | Should -Throw -ExpectedMessage '*outside the buffer*'
+    }
+
+    It 'refuses a SID whose header does not fit before the end of the buffer' -Skip:(-not $script:onWindows) {
+        {
+            Use-SidBuffer -SidByte $script:administratorsSidBytes -Offset 24 -Length 64 -Action {
+                param($Buffer, $Length, $Pointer)
+
+                $script:NativeToken::SidText($Buffer, $Length, [System.IntPtr]::Add($Buffer, 57))
+            }
+        } | Should -Throw -ExpectedMessage '*outside the buffer*'
+    }
+
+    It 'refuses a SID whose sub-authorities run past the end of the buffer' -Skip:(-not $script:onWindows) {
+        {
+            Use-SidBuffer -SidByte $script:administratorsSidBytes -Offset 52 -Length 64 -Action {
+                param($Buffer, $Length, $Pointer)
+
+                $script:NativeToken::SidText($Buffer, $Length, $Pointer)
+            }
+        } | Should -Throw -ExpectedMessage '*does not fit*'
+    }
+
+    It 'refuses a SID that claims more sub-authorities than a SID can have' -Skip:(-not $script:onWindows) {
+        $claims = [byte[]]@(1, 16, 0, 0, 0, 0, 0, 5)
+
+        {
+            Use-SidBuffer -SidByte $claims -Offset 8 -Length 256 -Action {
+                param($Buffer, $Length, $Pointer)
+
+                $script:NativeToken::SidText($Buffer, $Length, $Pointer)
+            }
+        } | Should -Throw -ExpectedMessage '*does not fit*'
+    }
 }
 
 Describe 'Containment token reader on real filtered tokens' -Tag 'Unit' {

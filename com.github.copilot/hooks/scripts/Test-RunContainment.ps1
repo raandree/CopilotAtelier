@@ -1166,6 +1166,31 @@ public static class $typeName
         throw new Win32Exception(122);
     }
 
+    // The SIDs of a token structure lie in the buffer that holds it, after the array. A pointer that does not is a
+    // structure that was misread, and following it could read memory that is not the token's, so it ends the read
+    // with an exception. Public so that a test can give it a buffer of its own.
+    public static string SidText(IntPtr buffer, int length, IntPtr sid)
+    {
+        long start = buffer.ToInt64();
+        long at = sid.ToInt64();
+
+        // A SID is eight bytes of header (revision, number of sub-authorities, identifier authority) and then
+        // four bytes for each sub-authority, of which there are at most 15.
+        if (at < start || at + 8 > start + length)
+        {
+            throw new InvalidOperationException("A SID points outside the buffer that holds it.");
+        }
+
+        int subAuthorities = Marshal.ReadByte(sid, 1);
+
+        if (subAuthorities > 15 || at + 8 + 4L * subAuthorities > start + length)
+        {
+            throw new InvalidOperationException("A SID does not fit the buffer that holds it.");
+        }
+
+        return new SecurityIdentifier(sid).Value;
+    }
+
     private static void ReadGroups(IntPtr token, Fact fact)
     {
         int length;
@@ -1190,7 +1215,7 @@ public static class $typeName
             {
                 SidAndAttributes item = (SidAndAttributes)Marshal.PtrToStructure(IntPtr.Add(buffer, first + index * stride), typeof(SidAndAttributes));
 
-                fact.GroupSid[index] = new SecurityIdentifier(item.Sid).Value;
+                fact.GroupSid[index] = SidText(buffer, length, item.Sid);
                 fact.GroupAttribute[index] = item.Attributes;
             }
         }
@@ -1242,7 +1267,7 @@ public static class $typeName
         try
         {
             // TOKEN_MANDATORY_LABEL is one SID and its attributes, and the SID is S-1-16-<level>.
-            string sid = new SecurityIdentifier(Marshal.ReadIntPtr(buffer, 0)).Value;
+            string sid = SidText(buffer, length, Marshal.ReadIntPtr(buffer, 0));
             string prefix = "S-1-16-";
 
             if (!sid.StartsWith(prefix, StringComparison.Ordinal))
