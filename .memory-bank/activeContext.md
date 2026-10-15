@@ -159,12 +159,12 @@ unproven — train reached 100 % while validation fell.
    no dialog (P3 and P8 are deployed with P2; `./Setup-CopilotSettings.ps1` after a
    `git pull --ff-only origin main` only refreshes the record). Agents cannot push; the
    deployed copy under `~/.copilot` is the owner's to refresh.
-3. PR #40 (`ai/containment-fix-round`) is open; #39 is closed unmerged. Its first CI run
-   failed three ways: a transient PSGallery 403 in the pull-request run's Package job; 23
-   fixture tests on Ubuntu and macOS (`Split-Path` returns an empty parent off Windows;
-   `d919d94` writes the chain out); one guard test on Windows (`RemoteMutationGrant` from
-   #38, a runner stall). The owner pushes the fix, merges on green, then rules on the P5
-   follow-ups (R-04 first), P1, the 06c choices, the P6 labels and the P8 assumptions.
+3. PR #40 (`ai/containment-fix-round`) is open; #39 is closed unmerged. CI found a transient
+   PSGallery 403, 23 POSIX fixture failures (`d919d94`), a runner-stall flake in #38's guard
+   suite, and a form feed in a skipped test's data that broke Pester's NUnit report on Ubuntu
+   and macOS (`941c378`; the pattern is in `systemPatterns.md`). The owner pushes `941c378`
+   and merges on green, then rules on the P5 follow-ups (R-04 first), P1, the 06c choices,
+   the P6 labels and the P8 assumptions.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.
