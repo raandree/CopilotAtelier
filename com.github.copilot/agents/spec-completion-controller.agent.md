@@ -121,8 +121,9 @@ commands and record each raw result and exit code in the controller ledger:
   invokes the exact current-platform PreToolUse command from the pinned
   `hooks.json` with fixed synthetic safe, push, and issue-mutation payloads, and
   only after the verifier binding, the control digests, the immutability of
-  the pinned controls, and the binding of the running identity to its role have
-  passed; require exit codes 0, 2, and 2. The verifier runs that command through
+  the pinned controls, the binding of the running identity to its role, and the
+  standard-account check of its token (`IdentityPrivilege`) have passed; require
+  exit codes 0, 2, and 2. The verifier runs that command through
   `cmd.exe /d /c` on Windows, while the documented hosts wrap it in PowerShell,
   so that is not a measurement under a host: the verifier accepts only command
   text of one plain shape that `cmd.exe`, PowerShell and a POSIX shell are
@@ -174,12 +175,14 @@ commands and record each raw result and exit code in the controller ledger:
   The verifier also reads the access token of the identity it runs as
   (`IdentityPrivilege`): an elevated token, a split administrator token, an
   Administrators group in any state, an integrity level above Medium, or a
-  privilege outside the five of a standard account, held or not, fails the run,
-  and a token it cannot read is unmeasured. The run identity must be a standard
-  account, and an identity that is not shown to be one is `BlockedContainment`,
-  never passed. The token read does not show a group that confers power without
-  a privilege, or what the account stores or can reach over the network. A
-  self-description or profile assertion is not evidence.
+  privilege outside the five it accepts, held or not, fails the run, and a token
+  it cannot read, or a thread that impersonates, is unmeasured. The run identity
+  must be a standard account, and an identity that is not shown to be one is
+  `BlockedContainment`, never passed. The token read does not show a group that
+  confers power without a privilege (a disabled group a process can enable among
+  them), what the account stores or can reach over the network, or whether the
+  launcher gives the run the token it gave the verifier. A self-description or
+  profile assertion is not evidence.
 
 Any command outside this allow-list before every probe passes is
 `BlockedContainment`. A missing, unknown, or failed result also stops the run.

@@ -22,6 +22,21 @@ BeforeDiscovery {
         @{ Name = $name; State = 'disabled'; Attributes = 0 }
         @{ Name = $name; State = 'enabled'; Attributes = 2 }
     }
+
+    # Every other privilege that winnt.h names, so that a name added to the five by mistake is caught
+    # whichever one it is. The five themselves are SeChangeNotify, SeShutdown, SeUndock, SeIncreaseWorkingSet and SeTimeZone.
+    $otherPrivilege = foreach ($name in @(
+            'SeCreateTokenPrivilege', 'SeAssignPrimaryTokenPrivilege', 'SeLockMemoryPrivilege', 'SeIncreaseQuotaPrivilege'
+            'SeUnsolicitedInputPrivilege', 'SeMachineAccountPrivilege', 'SeTcbPrivilege', 'SeSecurityPrivilege'
+            'SeTakeOwnershipPrivilege', 'SeLoadDriverPrivilege', 'SeSystemProfilePrivilege', 'SeSystemtimePrivilege'
+            'SeProfileSingleProcessPrivilege', 'SeIncreaseBasePriorityPrivilege', 'SeCreatePagefilePrivilege'
+            'SeCreatePermanentPrivilege', 'SeBackupPrivilege', 'SeRestorePrivilege', 'SeDebugPrivilege', 'SeAuditPrivilege'
+            'SeSystemEnvironmentPrivilege', 'SeRemoteShutdownPrivilege', 'SeSyncAgentPrivilege', 'SeEnableDelegationPrivilege'
+            'SeManageVolumePrivilege', 'SeImpersonatePrivilege', 'SeCreateGlobalPrivilege', 'SeTrustedCredManAccessPrivilege'
+            'SeRelabelPrivilege', 'SeCreateSymbolicLinkPrivilege', 'SeDelegateSessionUserImpersonatePrivilege'
+        )) {
+        @{ Name = $name }
+    }
 }
 
 BeforeAll {
@@ -126,10 +141,21 @@ BeforeAll {
 }
 
 Describe 'Containment identity privilege' -Tag 'Unit' {
+    BeforeAll {
+        # The cases below say they run on Windows, on every platform, and that must not outlast this block:
+        # the blocks after it read the constant at run time and decide from it what to define.
+        $script:savedOnWindows = $script:OnWindows
+    }
+
+    AfterAll {
+        $script:OnWindows = $script:savedOnWindows
+    }
+
     BeforeEach {
         # The verifier runs in strict mode, and a fact that is missing must not be read as false here.
         Set-StrictMode -Version 3.0
         $script:OnWindows = $true
+        $script:TokenReadProblem = ''
         Use-TokenFact -Fact (New-TokenFact)
     }
 
@@ -155,6 +181,16 @@ Describe 'Containment identity privilege' -Tag 'Unit' {
             Use-TokenFact -Fact (New-TokenFact -Privilege @())
 
             (Test-IdentityPrivilege).status | Should -Be 'Pass'
+        }
+
+        It 'allows exactly the five privileges of a standard account, and no other' {
+            @($script:StandardPrivilege | Sort-Object) | Should -Be @(
+                'SeChangeNotifyPrivilege'
+                'SeIncreaseWorkingSetPrivilege'
+                'SeShutdownPrivilege'
+                'SeTimeZonePrivilege'
+                'SeUndockPrivilege'
+            )
         }
 
         It 'passes integrity level <Name>, which is not above Medium' -ForEach @(
@@ -244,6 +280,25 @@ Describe 'Containment identity privilege' -Tag 'Unit' {
             $result.evidence | Should -Match ([regex]::Escape("outside the five of a standard account: $Name ($State)"))
         }
 
+        It 'refuses <Name>, which no standard account holds' -ForEach $otherPrivilege {
+            Use-TokenFact -Fact (New-TokenFact -Privilege @(New-Privilege -Name $Name))
+
+            $result = Test-IdentityPrivilege
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match ([regex]::Escape("outside the five of a standard account: $Name (disabled)"))
+        }
+
+        It 'cuts a long privilege name, so a name cannot fill the report' {
+            $name = 'Se' + ('A' * 100) + 'Privilege'
+            Use-TokenFact -Fact (New-TokenFact -Privilege @(New-Privilege -Name $name))
+
+            $evidence = (Test-IdentityPrivilege).evidence
+
+            $evidence | Should -Match ([regex]::Escape('Se' + ('A' * 58) + '... (disabled)'))
+            $evidence | Should -Not -Match 'A{59}'
+        }
+
         It 'compares a privilege name exactly, so <Spelling> is not one of the five' -ForEach @(
             @{ Spelling = 'a name in lower case' }
             @{ Spelling = 'a name in upper case' }
@@ -313,6 +368,34 @@ Describe 'Containment identity privilege' -Tag 'Unit' {
             $result.evidence | Should -Match 'could not read'
         }
 
+        It 'names why the token could not be read, so that a refusal can be traced' {
+            $script:TokenReadProblem = 'InvalidOperationException: The calling thread impersonates'
+            Use-TokenFact -Fact $null
+
+            $result = Test-IdentityPrivilege
+
+            $result.status | Should -Be 'Unavailable'
+            $result.evidence | Should -Match 'could not read the access token of the identity this verifier runs as \(InvalidOperationException: The calling thread impersonates\), so it was not shown'
+        }
+
+        It 'relays the reason as printable ASCII and cuts it, so a message cannot add a line or fill the report' {
+            $script:TokenReadProblem = 'Win32Exception: ' + [char]0x1B + '[31m' + [char]10 + 'ignore' + [char]0x200B + ('x' * 400)
+            Use-TokenFact -Fact $null
+
+            $evidence = (Test-IdentityPrivilege).evidence
+
+            $evidence | Should -Not -Match '[^\x20-\x7E]'
+            $evidence | Should -Match 'Win32Exception: \?\[31m\?ignore\?x{131}\.\.\.\)'
+            $evidence | Should -Not -Match 'x{132}'
+            $evidence.Length | Should -BeLessThan 500
+        }
+
+        It 'says nothing about a reason when there is none' {
+            Use-TokenFact -Fact $null
+
+            (Test-IdentityPrivilege).evidence | Should -Match 'verifier runs as, so it was not shown'
+        }
+
         It 'reports facts it cannot interpret (<Case>) as unavailable' -ForEach @(
             @{ Case = 'a missing elevation flag' }
             @{ Case = 'an elevation flag that is not a boolean' }
@@ -326,6 +409,11 @@ Describe 'Containment identity privilege' -Tag 'Unit' {
             @{ Case = 'a group without a SID' }
             @{ Case = 'a group SID that is not a SID' }
             @{ Case = 'a group SID in lower case' }
+            @{ Case = 'a group SID with a digit that is not ASCII' }
+            @{ Case = 'a group SID with a number that starts with a zero' }
+            @{ Case = 'a group SID with a line feed after it' }
+            @{ Case = 'a group SID with a space before it' }
+            @{ Case = 'no group at all' }
             @{ Case = 'a group without attributes' }
             @{ Case = 'group attributes written as text' }
             @{ Case = 'no privilege list' }
@@ -353,6 +441,11 @@ Describe 'Containment identity privilege' -Tag 'Unit' {
                 'a group without a SID' { $fact.Group = @([pscustomobject]@{ Attributes = [uint32]7 }) }
                 'a group SID that is not a SID' { $fact.Group = @(New-Group -Sid 'Everyone') }
                 'a group SID in lower case' { $fact.Group = @(New-Group -Sid 's-1-1-0') }
+                'a group SID with a digit that is not ASCII' { $fact.Group = @(New-Group -Sid ('S-1-5-32-' + [char]0x0665 + [char]0x0664 + [char]0x0664)) }
+                'a group SID with a number that starts with a zero' { $fact.Group = @(New-Group -Sid 'S-1-5-32-0544') }
+                'a group SID with a line feed after it' { $fact.Group = @(New-Group -Sid ('S-1-5-32-544' + [char]10)) }
+                'a group SID with a space before it' { $fact.Group = @(New-Group -Sid ' S-1-5-32-544') }
+                'no group at all' { $fact.Group = @() }
                 'a group without attributes' { $fact.Group = @([pscustomobject]@{ Sid = 'S-1-1-0' }) }
                 'group attributes written as text' { $fact.Group = @([pscustomobject]@{ Sid = 'S-1-1-0'; Attributes = '7' }) }
                 'no privilege list' { $fact.Privilege = $null }
@@ -612,7 +705,7 @@ Describe 'Containment token reader bounds' -Tag 'Unit' {
     It 'refuses a pointer before the buffer' -Skip:(-not $script:onWindows) {
         {
             Use-SidBuffer -SidByte $script:administratorsSidBytes -Offset 24 -Length 64 -Action {
-                param($Buffer, $Length, $Pointer)
+                param($Buffer, $Length)
 
                 $script:NativeToken::SidText($Buffer, $Length, [System.IntPtr]::Subtract($Buffer, 8))
             }
@@ -622,7 +715,7 @@ Describe 'Containment token reader bounds' -Tag 'Unit' {
     It 'refuses a pointer past the end of the buffer' -Skip:(-not $script:onWindows) {
         {
             Use-SidBuffer -SidByte $script:administratorsSidBytes -Offset 24 -Length 64 -Action {
-                param($Buffer, $Length, $Pointer)
+                param($Buffer, $Length)
 
                 $script:NativeToken::SidText($Buffer, $Length, [System.IntPtr]::Add($Buffer, 64))
             }
@@ -632,7 +725,7 @@ Describe 'Containment token reader bounds' -Tag 'Unit' {
     It 'refuses a SID whose header does not fit before the end of the buffer' -Skip:(-not $script:onWindows) {
         {
             Use-SidBuffer -SidByte $script:administratorsSidBytes -Offset 24 -Length 64 -Action {
-                param($Buffer, $Length, $Pointer)
+                param($Buffer, $Length)
 
                 $script:NativeToken::SidText($Buffer, $Length, [System.IntPtr]::Add($Buffer, 57))
             }
@@ -662,21 +755,532 @@ Describe 'Containment token reader bounds' -Tag 'Unit' {
     }
 }
 
+Describe 'Containment token structures read from crafted buffers' -Tag 'Unit' {
+    # The lists of a token are read from a buffer the operating system fills: a count, an array whose entries
+    # point at SIDs, and the SIDs after the array. The parsers are public so that a test can give one a buffer of
+    # its own, with a count, a length or a pointer that no real token has, and see that it stops with an
+    # exception, which the reader turns into an unmeasured check, and does not read what is not the token's.
+    BeforeAll {
+        if ($script:onWindows) {
+            Initialize-NativeToken
+        }
+
+        # The array of a TOKEN_GROUPS starts on the alignment of a pointer, and an entry is a pointer and a DWORD
+        # rounded up to the alignment of a pointer.
+        $script:craftedFirst = [System.IntPtr]::Size
+        $script:craftedStride = 2 * [System.IntPtr]::Size
+
+        # S-1-1-0, S-1-5-32-544 and S-1-16-8192 as the operating system writes them.
+        $script:craftedEveryoneSid = [byte[]]@(1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0)
+        $script:craftedAdministratorsSid = [byte[]]@(1, 2, 0, 0, 0, 0, 0, 5, 32, 0, 0, 0, 32, 2, 0, 0)
+        $script:craftedMediumLabel = [byte[]]@(1, 1, 0, 0, 0, 0, 0, 16, 0, 32, 0, 0)
+
+        # A zeroed buffer of the length given, handed to the script block with the length, and freed afterwards.
+        function script:Use-CraftedBuffer {
+            param(
+                [Parameter(Mandatory)]
+                [int]$Length,
+
+                [Parameter(Mandatory)]
+                [scriptblock]$Action
+            )
+
+            $buffer = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($Length)
+
+            try {
+                for ($index = 0; $index -lt $Length; $index++) {
+                    [System.Runtime.InteropServices.Marshal]::WriteByte($buffer, $index, 0)
+                }
+
+                & $Action $buffer $Length
+            } finally {
+                [System.Runtime.InteropServices.Marshal]::FreeHGlobal($buffer)
+            }
+        }
+
+        function script:Write-CraftedByte {
+            param(
+                [Parameter(Mandatory)]
+                [System.IntPtr]$Buffer,
+
+                [Parameter(Mandatory)]
+                [int]$Offset,
+
+                [Parameter(Mandatory)]
+                [byte[]]$Byte
+            )
+
+            [System.Runtime.InteropServices.Marshal]::Copy($Byte, 0, [System.IntPtr]::Add($Buffer, $Offset), $Byte.Length)
+        }
+
+        # One entry of the array of a TOKEN_GROUPS: a pointer to a SID, and a DWORD of attributes.
+        function script:Write-CraftedGroup {
+            param(
+                [Parameter(Mandatory)]
+                [System.IntPtr]$Buffer,
+
+                [Parameter(Mandatory)]
+                [int]$Index,
+
+                [Parameter(Mandatory)]
+                [int]$SidOffset,
+
+                [Parameter(Mandatory)]
+                [int]$Attributes
+            )
+
+            $at = $script:craftedFirst + $Index * $script:craftedStride
+
+            [System.Runtime.InteropServices.Marshal]::WriteIntPtr($Buffer, $at, [System.IntPtr]::Add($Buffer, $SidOffset))
+            [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, $at + [System.IntPtr]::Size, $Attributes)
+        }
+
+        # One entry of the array of a TOKEN_PRIVILEGES: the two parts of a LUID and a DWORD of attributes, 12 bytes.
+        function script:Write-CraftedPrivilege {
+            param(
+                [Parameter(Mandatory)]
+                [System.IntPtr]$Buffer,
+
+                [Parameter(Mandatory)]
+                [int]$Index,
+
+                [Parameter(Mandatory)]
+                [int]$Luid,
+
+                [Parameter(Mandatory)]
+                [int]$Attributes
+            )
+
+            $at = 4 + $Index * 12
+
+            [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, $at, $Luid)
+            [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, $at + 4, 0)
+            [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, $at + 8, $Attributes)
+        }
+
+        function script:New-NativeFact {
+            return [System.Activator]::CreateInstance($script:NativeToken.GetNestedType('Fact'))
+        }
+    }
+
+    Context 'the groups' {
+        It 'reads each group with its own SID and attributes' -Skip:(-not $script:onWindows) {
+            $fact = Use-CraftedBuffer -Length 128 -Action {
+                param($Buffer, $Length)
+
+                $sidOffset = $script:craftedFirst + 2 * $script:craftedStride
+
+                [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, 0, 2)
+                Write-CraftedGroup -Buffer $Buffer -Index 0 -SidOffset $sidOffset -Attributes 7
+                Write-CraftedGroup -Buffer $Buffer -Index 1 -SidOffset ($sidOffset + 12) -Attributes 16
+                Write-CraftedByte -Buffer $Buffer -Offset $sidOffset -Byte $script:craftedEveryoneSid
+                Write-CraftedByte -Buffer $Buffer -Offset ($sidOffset + 12) -Byte $script:craftedAdministratorsSid
+
+                $read = New-NativeFact
+                $script:NativeToken::ParseGroups($Buffer, $Length, $read)
+                $read
+            }
+
+            @($fact.GroupSid) | Should -Be @('S-1-1-0', 'S-1-5-32-544')
+            @($fact.GroupAttribute) | Should -Be @(7, 16)
+        }
+
+        It 'reads a list of no group, whose array is empty and ends at the end of the buffer' -Skip:(-not $script:onWindows) {
+            $fact = Use-CraftedBuffer -Length $script:craftedFirst -Action {
+                param($Buffer, $Length)
+
+                $read = New-NativeFact
+                $script:NativeToken::ParseGroups($Buffer, $Length, $read)
+                $read
+            }
+
+            $fact.GroupSid.Length | Should -Be 0
+            $fact.GroupAttribute.Length | Should -Be 0
+        }
+
+        It 'refuses a count of <Count>, which no array of the buffer can hold' -Skip:(-not $script:onWindows) -ForEach @(
+            @{ Count = 1000 }
+            @{ Count = -1 }
+            @{ Count = 2147483647 }
+        ) {
+            {
+                Use-CraftedBuffer -Length 64 -Action {
+                    param($Buffer, $Length)
+
+                    [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, 0, $Count)
+                    $script:NativeToken::ParseGroups($Buffer, $Length, (New-NativeFact))
+                }
+            } | Should -Throw -ExpectedMessage '*does not fit*'
+        }
+
+        It 'refuses an array that ends one byte past the end of the buffer' -Skip:(-not $script:onWindows) {
+            {
+                Use-CraftedBuffer -Length ($script:craftedFirst + $script:craftedStride - 1) -Action {
+                    param($Buffer, $Length)
+
+                    [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, 0, 1)
+                    $script:NativeToken::ParseGroups($Buffer, $Length, (New-NativeFact))
+                }
+            } | Should -Throw -ExpectedMessage '*does not fit*'
+        }
+
+        It 'refuses a buffer too short to hold the count' -Skip:(-not $script:onWindows) {
+            {
+                Use-CraftedBuffer -Length 3 -Action {
+                    param($Buffer, $Length)
+
+                    $script:NativeToken::ParseGroups($Buffer, $Length, (New-NativeFact))
+                }
+            } | Should -Throw -ExpectedMessage '*too short*'
+        }
+
+        It 'refuses a SID that lies in the array and not after it' -Skip:(-not $script:onWindows) {
+            {
+                Use-CraftedBuffer -Length 128 -Action {
+                    param($Buffer, $Length)
+
+                    # A well-formed SID that starts inside the entry, after the pointer that names it.
+                    $inside = $script:craftedFirst + [System.IntPtr]::Size
+
+                    [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, 0, 1)
+                    Write-CraftedGroup -Buffer $Buffer -Index 0 -SidOffset $inside -Attributes 7
+                    Write-CraftedByte -Buffer $Buffer -Offset $inside -Byte $script:craftedEveryoneSid
+                    $script:NativeToken::ParseGroups($Buffer, $Length, (New-NativeFact))
+                }
+            } | Should -Throw -ExpectedMessage '*after the structure*'
+        }
+    }
+
+    Context 'the privileges' {
+        It 'reads each privilege with its own name and attributes' -Skip:(-not $script:onWindows) {
+            # 23, 20 and 19 are the numbers the system gives SeChangeNotifyPrivilege, SeDebugPrivilege and SeShutdownPrivilege.
+            $fact = Use-CraftedBuffer -Length 64 -Action {
+                param($Buffer, $Length)
+
+                [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, 0, 3)
+                Write-CraftedPrivilege -Buffer $Buffer -Index 0 -Luid 23 -Attributes 3
+                Write-CraftedPrivilege -Buffer $Buffer -Index 1 -Luid 20 -Attributes 2
+                Write-CraftedPrivilege -Buffer $Buffer -Index 2 -Luid 19 -Attributes 0
+
+                $read = New-NativeFact
+                $script:NativeToken::ParsePrivileges($Buffer, $Length, $read)
+                $read
+            }
+
+            @($fact.PrivilegeName) | Should -Be @('SeChangeNotifyPrivilege', 'SeDebugPrivilege', 'SeShutdownPrivilege')
+            @($fact.PrivilegeAttribute) | Should -Be @(3, 2, 0)
+        }
+
+        It 'reads a list of no privilege, whose array is empty and ends at the end of the buffer' -Skip:(-not $script:onWindows) {
+            $fact = Use-CraftedBuffer -Length 4 -Action {
+                param($Buffer, $Length)
+
+                $read = New-NativeFact
+                $script:NativeToken::ParsePrivileges($Buffer, $Length, $read)
+                $read
+            }
+
+            $fact.PrivilegeName.Length | Should -Be 0
+        }
+
+        It 'reads an array that ends exactly at the end of the buffer' -Skip:(-not $script:onWindows) {
+            $fact = Use-CraftedBuffer -Length 16 -Action {
+                param($Buffer, $Length)
+
+                [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, 0, 1)
+                Write-CraftedPrivilege -Buffer $Buffer -Index 0 -Luid 23 -Attributes 3
+
+                $read = New-NativeFact
+                $script:NativeToken::ParsePrivileges($Buffer, $Length, $read)
+                $read
+            }
+
+            @($fact.PrivilegeName) | Should -Be @('SeChangeNotifyPrivilege')
+        }
+
+        It 'refuses a count of <Count>, which no array of the buffer can hold' -Skip:(-not $script:onWindows) -ForEach @(
+            @{ Count = 100 }
+            @{ Count = -1 }
+            @{ Count = 2147483647 }
+        ) {
+            {
+                Use-CraftedBuffer -Length 40 -Action {
+                    param($Buffer, $Length)
+
+                    [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, 0, $Count)
+                    $script:NativeToken::ParsePrivileges($Buffer, $Length, (New-NativeFact))
+                }
+            } | Should -Throw -ExpectedMessage '*does not fit*'
+        }
+
+        It 'refuses an array that ends one byte past the end of the buffer' -Skip:(-not $script:onWindows) {
+            {
+                Use-CraftedBuffer -Length 15 -Action {
+                    param($Buffer, $Length)
+
+                    [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, 0, 1)
+                    Write-CraftedPrivilege -Buffer $Buffer -Index 0 -Luid 23 -Attributes 3
+                    $script:NativeToken::ParsePrivileges($Buffer, $Length, (New-NativeFact))
+                }
+            } | Should -Throw -ExpectedMessage '*does not fit*'
+        }
+
+        It 'refuses a buffer too short to hold the count' -Skip:(-not $script:onWindows) {
+            {
+                Use-CraftedBuffer -Length 3 -Action {
+                    param($Buffer, $Length)
+
+                    $script:NativeToken::ParsePrivileges($Buffer, $Length, (New-NativeFact))
+                }
+            } | Should -Throw -ExpectedMessage '*too short*'
+        }
+
+        It 'refuses a privilege that has no name, and does not read it as an empty one' -Skip:(-not $script:onWindows) {
+            {
+                Use-CraftedBuffer -Length 32 -Action {
+                    param($Buffer, $Length)
+
+                    [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, 0, 1)
+                    Write-CraftedPrivilege -Buffer $Buffer -Index 0 -Luid 99999 -Attributes 0
+                    $script:NativeToken::ParsePrivileges($Buffer, $Length, (New-NativeFact))
+                }
+            } | Should -Throw
+        }
+    }
+
+    Context 'the integrity label' {
+        It 'reads the level of a label whose SID follows it' -Skip:(-not $script:onWindows) {
+            $rid = Use-CraftedBuffer -Length 64 -Action {
+                param($Buffer, $Length)
+
+                $sidOffset = $script:craftedStride
+
+                [System.Runtime.InteropServices.Marshal]::WriteIntPtr($Buffer, 0, [System.IntPtr]::Add($Buffer, $sidOffset))
+                [System.Runtime.InteropServices.Marshal]::WriteInt32($Buffer, [System.IntPtr]::Size, 96)
+                Write-CraftedByte -Buffer $Buffer -Offset $sidOffset -Byte $script:craftedMediumLabel
+
+                $script:NativeToken::ParseIntegrityRid($Buffer, $Length)
+            }
+
+            $rid | Should -Be 8192
+        }
+
+        It 'refuses a SID that is not an integrity level' -Skip:(-not $script:onWindows) {
+            {
+                Use-CraftedBuffer -Length 64 -Action {
+                    param($Buffer, $Length)
+
+                    [System.Runtime.InteropServices.Marshal]::WriteIntPtr($Buffer, 0, [System.IntPtr]::Add($Buffer, $script:craftedStride))
+                    Write-CraftedByte -Buffer $Buffer -Offset $script:craftedStride -Byte $script:craftedEveryoneSid
+                    $script:NativeToken::ParseIntegrityRid($Buffer, $Length)
+                }
+            } | Should -Throw -ExpectedMessage '*not an integrity SID*'
+        }
+
+        It 'refuses an integrity level of more than one sub-authority' -Skip:(-not $script:onWindows) {
+            {
+                Use-CraftedBuffer -Length 64 -Action {
+                    param($Buffer, $Length)
+
+                    $label = [byte[]]@(1, 2, 0, 0, 0, 0, 0, 16, 0, 32, 0, 0, 5, 0, 0, 0)
+
+                    [System.Runtime.InteropServices.Marshal]::WriteIntPtr($Buffer, 0, [System.IntPtr]::Add($Buffer, $script:craftedStride))
+                    Write-CraftedByte -Buffer $Buffer -Offset $script:craftedStride -Byte $label
+                    $script:NativeToken::ParseIntegrityRid($Buffer, $Length)
+                }
+            } | Should -Throw
+        }
+
+        It 'refuses a SID that lies in the label and not after it' -Skip:(-not $script:onWindows) {
+            {
+                Use-CraftedBuffer -Length 64 -Action {
+                    param($Buffer, $Length)
+
+                    [System.Runtime.InteropServices.Marshal]::WriteIntPtr($Buffer, 0, $Buffer)
+                    $script:NativeToken::ParseIntegrityRid($Buffer, $Length)
+                }
+            } | Should -Throw -ExpectedMessage '*after the structure*'
+        }
+
+        It 'refuses a buffer too short to hold the label' -Skip:(-not $script:onWindows) {
+            {
+                Use-CraftedBuffer -Length ($script:craftedStride - 1) -Action {
+                    param($Buffer, $Length)
+
+                    $script:NativeToken::ParseIntegrityRid($Buffer, $Length)
+                }
+            } | Should -Throw -ExpectedMessage '*too short*'
+        }
+    }
+
+    Context 'the SID that follows a structure' {
+        It 'reads a SID that starts exactly where the structure before it ends' -Skip:(-not $script:onWindows) {
+            $text = Use-CraftedBuffer -Length 64 -Action {
+                param($Buffer, $Length)
+
+                Write-CraftedByte -Buffer $Buffer -Offset 40 -Byte $script:craftedAdministratorsSid
+                $script:NativeToken::SidText($Buffer, $Length, [System.IntPtr]::Add($Buffer, 40), 40)
+            }
+
+            $text | Should -Be 'S-1-5-32-544'
+        }
+
+        It 'refuses a SID that starts one byte before the end of the structure before it' -Skip:(-not $script:onWindows) {
+            {
+                Use-CraftedBuffer -Length 64 -Action {
+                    param($Buffer, $Length)
+
+                    Write-CraftedByte -Buffer $Buffer -Offset 39 -Byte $script:craftedAdministratorsSid
+                    $script:NativeToken::SidText($Buffer, $Length, [System.IntPtr]::Add($Buffer, 39), 40)
+                }
+            } | Should -Throw -ExpectedMessage '*after the structure*'
+        }
+    }
+
+    Context 'the buffer of a read' {
+        # The first buffer of a read is 512 bytes, which holds every list of a token here, so a read never grows
+        # it. The public method that takes the size of the first buffer makes it grow, and the answer must not
+        # depend on it.
+        It 'reads the same token when its first buffer holds <FirstSize> bytes, and grows the buffer when it must' -Skip:(-not $script:onWindows) -ForEach @(
+            @{ FirstSize = 1; MustGrow = $true }
+            @{ FirstSize = 16; MustGrow = $true }
+            @{ FirstSize = 100; MustGrow = $true }
+            @{ FirstSize = 4096; MustGrow = $false }
+        ) {
+            $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+
+            try {
+                $handle = $identity.AccessToken.DangerousGetHandle()
+                $whole = $script:NativeToken::Read($handle)
+                $before = $script:NativeToken::Growths
+                $sized = $script:NativeToken::Read($handle, $FirstSize)
+                $grown = $script:NativeToken::Growths - $before
+            } finally {
+                $identity.Dispose()
+            }
+
+            if ($MustGrow) {
+                $grown | Should -BeGreaterThan 0 -Because 'a first buffer of that size cannot hold the groups of a token'
+            }
+
+            $sized.Elevated | Should -Be $whole.Elevated
+            $sized.ElevationType | Should -Be $whole.ElevationType
+            $sized.IntegrityRid | Should -Be $whole.IntegrityRid
+            ($sized.GroupSid -join ',') | Should -Be ($whole.GroupSid -join ',')
+            ($sized.GroupAttribute -join ',') | Should -Be ($whole.GroupAttribute -join ',')
+            ($sized.PrivilegeName -join ',') | Should -Be ($whole.PrivilegeName -join ',')
+            ($sized.PrivilegeAttribute -join ',') | Should -Be ($whole.PrivilegeAttribute -join ',')
+        }
+
+        It 'refuses a first buffer of <FirstSize> bytes' -Skip:(-not $script:onWindows) -ForEach @(
+            @{ FirstSize = 0 }
+            @{ FirstSize = -5 }
+            @{ FirstSize = 1048576 }
+        ) {
+            $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+
+            try {
+                $handle = $identity.AccessToken.DangerousGetHandle()
+
+                { $script:NativeToken::Read($handle, $FirstSize) } | Should -Throw
+            } finally {
+                $identity.Dispose()
+            }
+        }
+
+        It 'refuses a handle that is not a token' -Skip:(-not $script:onWindows) {
+            { $script:NativeToken::Read([System.IntPtr]::Zero) } | Should -Throw
+        }
+    }
+}
+
+Describe 'Containment token reader and a thread that impersonates' -Tag 'Unit' {
+    # The check reads the token of the process, which every program the verifier starts inherits. The binding
+    # and the probes that ask for access answer for the thread. They are one identity until the thread
+    # impersonates, and then the token read would not be the one they measured, so the read refuses.
+    BeforeAll {
+        if ($script:onWindows) {
+            Initialize-NativeToken
+        }
+
+        # Runs the script block on this thread while it impersonates a copy of the token of this process.
+        function script:Use-Impersonation {
+            param(
+                [Parameter(Mandatory)]
+                [scriptblock]$Action
+            )
+
+            $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+
+            try {
+                [System.Security.Principal.WindowsIdentity]::RunImpersonated($identity.AccessToken, [System.Action]$Action)
+            } finally {
+                $identity.Dispose()
+            }
+        }
+    }
+
+    It 'sees no impersonation on a thread that does not impersonate' -Skip:(-not $script:onWindows) {
+        $script:NativeToken::ThreadImpersonates() | Should -BeFalse
+    }
+
+    It 'sees a thread that impersonates, and sees it end' -Skip:(-not $script:onWindows) {
+        $script:whileImpersonating = $null
+
+        Use-Impersonation -Action { $script:whileImpersonating = $script:NativeToken::ThreadImpersonates() }
+
+        $script:whileImpersonating | Should -BeTrue
+        $script:NativeToken::ThreadImpersonates() | Should -BeFalse -Because 'the impersonation ended with the block'
+    }
+
+    It 'does not read the token of the process while the thread impersonates, and reads it again afterwards' -Skip:(-not $script:onWindows) {
+        $script:refusal = $null
+
+        Use-Impersonation -Action {
+            try {
+                $null = $script:NativeToken::ReadProcess()
+            } catch {
+                $script:refusal = $_.Exception.Message
+            }
+        }
+
+        $script:refusal | Should -Match 'impersonates'
+        $script:NativeToken::ReadProcess() | Should -Not -BeNullOrEmpty
+    }
+
+    It 'turns an impersonating thread into an unmeasured check that says why' -Skip:(-not $script:onWindows) {
+        $script:impersonatedResult = $null
+        $script:impersonatedFact = 'unset'
+
+        Use-Impersonation -Action {
+            $script:impersonatedFact = Get-CallerTokenFact
+            $script:impersonatedResult = Test-IdentityPrivilege
+        }
+
+        $script:impersonatedFact | Should -BeNullOrEmpty
+        $script:impersonatedResult.status | Should -Be 'Unavailable'
+        $script:impersonatedResult.evidence | Should -Match 'could not read the access token of the identity this verifier runs as \(InvalidOperationException: The calling thread impersonates, so the token'
+    }
+}
+
 Describe 'Containment token reader on real filtered tokens' -Tag 'Unit' {
     BeforeAll {
         # Tokens the operating system makes from the token of this process with CreateRestrictedToken, read by
         # handle: nothing impersonates, and nothing about the running process changes. LUA_TOKEN does what the
         # user account control does for the filtered half of an administrator's token: the Administrators group
-        # turns deny-only and every privilege but the five of a standard account is removed. The integrity level
-        # is lowered to Medium, as a filtered token has it, so that the token is one that every probe that asks
-        # for access reads as a standard account's. No host has a standard account's token and none can be made
-        # from an administrator's, so this is the nearest real token to the Pass that a test cannot reach.
+        # turns deny-only and every privilege but the five that a filtered token keeps is removed. The integrity
+        # level is lowered to Medium, as a filtered token has it, so that the token is one that every probe that
+        # asks for access reads as a standard account's. No test host here runs as a standard account, and a
+        # filtered token is refused for its Administrators group, so this is the nearest real token to the Pass,
+        # which only the facts of a seam reach: a throwaway local account read through LogonUser would close that.
         # The question that $script:adminHost answers when the file is discovered. The variables of the top of
         # this file do not exist when the blocks run (the constants of the verifier script, which the
         # BeforeAll above loads, are what define $script:onWindows then), so a block that must decide asks
-        # again.
+        # again, from the platform itself and not from a variable a test may have changed.
         function script:Test-AdministratorHost {
-            return ($script:onWindows -and [System.Security.Principal.WindowsPrincipal]::new([System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator))
+            $windows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
+
+            return ($windows -and [System.Security.Principal.WindowsPrincipal]::new([System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator))
         }
 
         if (Test-AdministratorHost) {
@@ -906,14 +1510,14 @@ Describe 'Containment token reader' -Tag 'Unit' {
     }
 
     It 'reports an elevation type that agrees with the elevation flag' -Skip:(-not $script:onWindows) {
-        # Full is the elevated half of a split token and Limited the filtered half; Default is either.
-        if ($script:realFact.ElevationType -eq 2) {
-            $script:realFact.Elevated | Should -BeTrue
+        # Full is the elevated half of a split token and Limited the filtered half; Default is either, so a
+        # token of that type, which is every token a host here has, says nothing about the flag.
+        if ($script:realFact.ElevationType -eq 1) {
+            Set-ItResult -Skipped -Because 'the elevation type of this token is Default, which holds for an elevated and a filtered flag alike'
+            return
         }
 
-        if ($script:realFact.ElevationType -eq 3) {
-            $script:realFact.Elevated | Should -BeFalse
-        }
+        $script:realFact.Elevated | Should -Be ($script:realFact.ElevationType -eq 2)
     }
 
     It 'reports the privileges that whoami reports, by name' -Skip:(-not $script:onWindows) {
@@ -992,6 +1596,14 @@ Describe 'Containment token reader' -Tag 'Unit' {
         Mock -CommandName 'Initialize-NativeToken' -MockWith { throw 'Cannot add type: language mode refuses it' }
 
         Get-CallerTokenFact | Should -BeNullOrEmpty
+        $script:TokenReadProblem | Should -Match 'language mode refuses it'
+    }
+
+    It 'clears the reason of an earlier failure when a read works' -Skip:(-not $script:onWindows) {
+        $script:TokenReadProblem = 'left over from a read that failed'
+
+        Get-CallerTokenFact | Should -Not -BeNullOrEmpty
+        $script:TokenReadProblem | Should -BeNullOrEmpty
     }
 
     It 'does not take its reader from a type the session defined under the name the script uses' -Skip:(-not $script:onWindows) {

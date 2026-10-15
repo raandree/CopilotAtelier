@@ -185,6 +185,9 @@ $script:StandardPrivilege = [System.Collections.Generic.HashSet[string]]::new(
 # The Administrators group in any state a token can hold it in, and an integrity level above Medium, are refused too.
 $script:AdministratorsSid = 'S-1-5-32-544'
 $script:MediumIntegrityRid = 0x2000
+# Why the last read of the token failed, for the evidence of a check that could not measure; empty when it
+# worked. Get-CallerTokenFact sets it, and Test-IdentityPrivilege relays it.
+$script:TokenReadProblem = ''
 
 function New-CheckResult {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory result object and changes no system state.')]
@@ -1075,6 +1078,12 @@ public static class $typeName
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
 
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentThread();
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenThreadToken(IntPtr thread, uint access, bool openAsSelf, out IntPtr token);
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
 
@@ -1106,10 +1115,15 @@ public static class $typeName
         }
     }
 
-    // The buffer of one variable-length class. The caller frees it.
-    private static IntPtr ReadBuffer(IntPtr token, int informationClass, out int length)
+    // How many times a read has made a buffer larger because the operating system said it needed more. A test
+    // reads it to see that a small first buffer did grow, as the first buffer of a domain account's groups does.
+    public static int Growths;
+
+    // The buffer of one variable-length class. The caller frees it. firstSize is the size of the first try: a
+    // buffer that is too small is answered with the size it needs, and the next try uses that.
+    private static IntPtr ReadBuffer(IntPtr token, int informationClass, int firstSize, out int length)
     {
-        int size = 512;
+        int size = firstSize;
 
         for (int attempt = 0; attempt < 3; attempt++)
         {
@@ -1132,6 +1146,7 @@ public static class $typeName
                 throw new Win32Exception(error);
             }
 
+            Growths++;
             size = returned;
         }
 
@@ -1166,10 +1181,16 @@ public static class $typeName
         throw new Win32Exception(122);
     }
 
-    // The SIDs of a token structure lie in the buffer that holds it, after the array. A pointer that does not is a
+    // The SIDs of a token structure lie in the buffer that holds it, after the structure. A pointer that does not is a
     // structure that was misread, and following it could read memory that is not the token's, so it ends the read
     // with an exception. Public so that a test can give it a buffer of its own.
     public static string SidText(IntPtr buffer, int length, IntPtr sid)
+    {
+        return SidText(buffer, length, sid, 0);
+    }
+
+    // notBefore is the offset in the buffer at which the structure that points at the SID ends, so that the SID is after it.
+    public static string SidText(IntPtr buffer, int length, IntPtr sid, int notBefore)
     {
         long start = buffer.ToInt64();
         long at = sid.ToInt64();
@@ -1179,6 +1200,11 @@ public static class $typeName
         if (at < start || at + 8 > start + length)
         {
             throw new InvalidOperationException("A SID points outside the buffer that holds it.");
+        }
+
+        if (at < start + notBefore)
+        {
+            throw new InvalidOperationException("A SID does not lie after the structure that points to it.");
         }
 
         int subAuthorities = Marshal.ReadByte(sid, 1);
@@ -1191,33 +1217,47 @@ public static class $typeName
         return new SecurityIdentifier(sid).Value;
     }
 
-    private static void ReadGroups(IntPtr token, Fact fact)
+    // TOKEN_GROUPS is a DWORD count and then an array that starts on the alignment of a pointer, and the SIDs
+    // follow the array. Public so that a test can give it a buffer of its own.
+    public static void ParseGroups(IntPtr buffer, int length, Fact fact)
+    {
+        int first = IntPtr.Size;
+        int stride = Marshal.SizeOf(typeof(SidAndAttributes));
+
+        if (length < 4)
+        {
+            throw new InvalidOperationException("The group list is too short to hold its count.");
+        }
+
+        int count = Marshal.ReadInt32(buffer, 0);
+
+        if (count < 0 || (long)first + (long)count * stride > length)
+        {
+            throw new InvalidOperationException("The group list does not fit the buffer that holds it.");
+        }
+
+        int end = first + count * stride;
+
+        fact.GroupSid = new string[count];
+        fact.GroupAttribute = new uint[count];
+
+        for (int index = 0; index < count; index++)
+        {
+            SidAndAttributes item = (SidAndAttributes)Marshal.PtrToStructure(IntPtr.Add(buffer, first + index * stride), typeof(SidAndAttributes));
+
+            fact.GroupSid[index] = SidText(buffer, length, item.Sid, end);
+            fact.GroupAttribute[index] = item.Attributes;
+        }
+    }
+
+    private static void ReadGroups(IntPtr token, Fact fact, int firstSize)
     {
         int length;
-        IntPtr buffer = ReadBuffer(token, 2, out length);
+        IntPtr buffer = ReadBuffer(token, 2, firstSize, out length);
 
         try
         {
-            // TOKEN_GROUPS is a DWORD count and then an array that starts on the alignment of a pointer.
-            int first = IntPtr.Size;
-            int stride = Marshal.SizeOf(typeof(SidAndAttributes));
-            int count = Marshal.ReadInt32(buffer, 0);
-
-            if (count < 0 || (long)first + (long)count * stride > length)
-            {
-                throw new InvalidOperationException("The group list does not fit the buffer that holds it.");
-            }
-
-            fact.GroupSid = new string[count];
-            fact.GroupAttribute = new uint[count];
-
-            for (int index = 0; index < count; index++)
-            {
-                SidAndAttributes item = (SidAndAttributes)Marshal.PtrToStructure(IntPtr.Add(buffer, first + index * stride), typeof(SidAndAttributes));
-
-                fact.GroupSid[index] = SidText(buffer, length, item.Sid);
-                fact.GroupAttribute[index] = item.Attributes;
-            }
+            ParseGroups(buffer, length, fact);
         }
         finally
         {
@@ -1225,33 +1265,45 @@ public static class $typeName
         }
     }
 
-    private static void ReadPrivileges(IntPtr token, Fact fact)
+    // TOKEN_PRIVILEGES is a DWORD count and then entries of 12 bytes, which need only 4-byte alignment. Public so
+    // that a test can give it a buffer of its own.
+    public static void ParsePrivileges(IntPtr buffer, int length, Fact fact)
+    {
+        int first = 4;
+        int stride = Marshal.SizeOf(typeof(LuidAndAttributes));
+
+        if (length < 4)
+        {
+            throw new InvalidOperationException("The privilege list is too short to hold its count.");
+        }
+
+        int count = Marshal.ReadInt32(buffer, 0);
+
+        if (count < 0 || (long)first + (long)count * stride > length)
+        {
+            throw new InvalidOperationException("The privilege list does not fit the buffer that holds it.");
+        }
+
+        fact.PrivilegeName = new string[count];
+        fact.PrivilegeAttribute = new uint[count];
+
+        for (int index = 0; index < count; index++)
+        {
+            LuidAndAttributes item = (LuidAndAttributes)Marshal.PtrToStructure(IntPtr.Add(buffer, first + index * stride), typeof(LuidAndAttributes));
+
+            fact.PrivilegeName[index] = PrivilegeNameOf(item.LowPart, item.HighPart);
+            fact.PrivilegeAttribute[index] = item.Attributes;
+        }
+    }
+
+    private static void ReadPrivileges(IntPtr token, Fact fact, int firstSize)
     {
         int length;
-        IntPtr buffer = ReadBuffer(token, 3, out length);
+        IntPtr buffer = ReadBuffer(token, 3, firstSize, out length);
 
         try
         {
-            // TOKEN_PRIVILEGES is a DWORD count and then entries of 12 bytes, which need only 4-byte alignment.
-            int first = 4;
-            int stride = Marshal.SizeOf(typeof(LuidAndAttributes));
-            int count = Marshal.ReadInt32(buffer, 0);
-
-            if (count < 0 || (long)first + (long)count * stride > length)
-            {
-                throw new InvalidOperationException("The privilege list does not fit the buffer that holds it.");
-            }
-
-            fact.PrivilegeName = new string[count];
-            fact.PrivilegeAttribute = new uint[count];
-
-            for (int index = 0; index < count; index++)
-            {
-                LuidAndAttributes item = (LuidAndAttributes)Marshal.PtrToStructure(IntPtr.Add(buffer, first + index * stride), typeof(LuidAndAttributes));
-
-                fact.PrivilegeName[index] = PrivilegeNameOf(item.LowPart, item.HighPart);
-                fact.PrivilegeAttribute[index] = item.Attributes;
-            }
+            ParsePrivileges(buffer, length, fact);
         }
         finally
         {
@@ -1259,23 +1311,36 @@ public static class $typeName
         }
     }
 
-    private static int ReadIntegrityRid(IntPtr token)
+    // TOKEN_MANDATORY_LABEL is one SID and its attributes, and the SID, S-1-16-<level>, follows them. Public so
+    // that a test can give it a buffer of its own.
+    public static int ParseIntegrityRid(IntPtr buffer, int length)
+    {
+        int structure = Marshal.SizeOf(typeof(SidAndAttributes));
+
+        if (length < structure)
+        {
+            throw new InvalidOperationException("The integrity label is too short to hold its SID.");
+        }
+
+        string sid = SidText(buffer, length, Marshal.ReadIntPtr(buffer, 0), structure);
+        string prefix = "S-1-16-";
+
+        if (!sid.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The integrity label is not an integrity SID.");
+        }
+
+        return int.Parse(sid.Substring(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture);
+    }
+
+    private static int ReadIntegrityRid(IntPtr token, int firstSize)
     {
         int length;
-        IntPtr buffer = ReadBuffer(token, 25, out length);
+        IntPtr buffer = ReadBuffer(token, 25, firstSize, out length);
 
         try
         {
-            // TOKEN_MANDATORY_LABEL is one SID and its attributes, and the SID is S-1-16-<level>.
-            string sid = SidText(buffer, length, Marshal.ReadIntPtr(buffer, 0));
-            string prefix = "S-1-16-";
-
-            if (!sid.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException("The integrity label is not an integrity SID.");
-            }
-
-            return int.Parse(sid.Substring(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture);
+            return ParseIntegrityRid(buffer, length);
         }
         finally
         {
@@ -1286,21 +1351,62 @@ public static class $typeName
     // Reads the token behind the handle, which stays the caller's. Anything that cannot be read throws.
     public static Fact Read(IntPtr token)
     {
+        return Read(token, 512);
+    }
+
+    // firstSize is the size of the first buffer of each list, so that a test can make a list grow its buffer on a
+    // token whose lists are small.
+    public static Fact Read(IntPtr token, int firstSize)
+    {
+        if (firstSize < 1 || firstSize > 65536)
+        {
+            throw new ArgumentOutOfRangeException("firstSize");
+        }
+
         Fact fact = new Fact();
 
         fact.Elevated = ReadDword(token, 20);
         fact.ElevationType = ReadDword(token, 18);
-        fact.IntegrityRid = ReadIntegrityRid(token);
-        ReadGroups(token, fact);
-        ReadPrivileges(token, fact);
+        fact.IntegrityRid = ReadIntegrityRid(token, firstSize);
+        ReadGroups(token, fact, firstSize);
+        ReadPrivileges(token, fact, firstSize);
 
         return fact;
     }
 
-    // The token of this process, which is the token every program the process starts inherits. A thread
-    // that impersonates changes who that thread is, and not whom the programs it starts run as.
+    // The programs this script starts inherit the token of the process, and its binding and its probes that ask
+    // for access answer for the thread. They are one identity unless the thread impersonates. ERROR_NO_TOKEN (1008)
+    // says that the thread has no token of its own, and any other failure is a read that failed.
+    public static bool ThreadImpersonates()
+    {
+        IntPtr token;
+
+        if (OpenThreadToken(GetCurrentThread(), 0x8, true, out token))
+        {
+            CloseHandle(token);
+            return true;
+        }
+
+        int error = Marshal.GetLastWin32Error();
+
+        if (error == 1008)
+        {
+            return false;
+        }
+
+        throw new Win32Exception(error);
+    }
+
+    // The token of this process, which is the token every program the process starts inherits. A thread that
+    // impersonates is not that identity, so it is not read: what the probes of this script measured was the
+    // thread's, and not whom the programs it starts run as.
     public static Fact ReadProcess()
     {
+        if (ThreadImpersonates())
+        {
+            throw new InvalidOperationException("The calling thread impersonates, so the token of the process is not the identity that the other probes measure.");
+        }
+
         IntPtr token;
 
         if (!OpenProcessToken(GetCurrentProcess(), 0x8, out token))
@@ -1363,7 +1469,10 @@ function Get-CallerTokenFact {
         integrity level, and its groups and privileges with their attributes. It is the token every
         program this script starts inherits, which in a fresh process is the identity Get-CallerIdentity
         names, and it never comes from the profile or from an argument. Nothing when it cannot be read,
-        so that a token that was not read is never taken for one that is clean.
+        so that a token that was not read is never taken for one that is clean, and then
+        $script:TokenReadProblem says why. A thread that impersonates is a read that cannot be made: the
+        probes of this script answered for that thread, and the programs it starts inherit the token of
+        the process, so the two are not one identity.
 
         It is the one place this script reads the token of the process, so that a test can give the
         check facts without an elevated account.
@@ -1372,11 +1481,21 @@ function Get-CallerTokenFact {
     [OutputType([pscustomobject])]
     param()
 
+    $script:TokenReadProblem = ''
+
     try {
         Initialize-NativeToken
 
         return ConvertTo-TokenFact -Native ($script:NativeToken::ReadProcess())
     } catch {
+        $cause = $_.Exception
+
+        while ($null -ne $cause.InnerException) {
+            $cause = $cause.InnerException
+        }
+
+        $script:TokenReadProblem = "$($cause.GetType().Name): $($cause.Message)"
+
         return $null
     }
 }
@@ -1440,12 +1559,18 @@ function Get-TokenFactProblem {
         return 'the integrity level is not a relative identifier'
     }
 
+    if (@($Fact.Group).Count -eq 0) {
+        return 'the token lists no group'
+    }
+
     foreach ($group in @($Fact.Group)) {
         if ($group -isnot [System.Management.Automation.PSCustomObject] -or $null -eq $group.PSObject.Properties['Sid'] -or $null -eq $group.PSObject.Properties['Attributes']) {
             return 'a group is not an object with a SID and attributes'
         }
 
-        if ($group.Sid -isnot [string] -or $group.Sid -cnotmatch '\AS-1-\d+(?:-\d+)+\z') {
+        # The text a SID has: ASCII digits and no leading zero, so that the comparison with the Administrators
+        # SID below can never miss a SID it names. \d would take any digit of any script, and $ a line feed.
+        if ($group.Sid -isnot [string] -or $group.Sid -cnotmatch '\AS-1-(?:0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*))+\z') {
             return 'a group has a SID that is not one'
         }
 
@@ -1485,12 +1610,15 @@ function Test-IdentityPrivilege {
         has, enabled or not.
 
         A token that cannot be read, or facts that cannot be interpreted, are Unavailable: a token that
-        was not read was not shown to be a standard account's. The token is read once, from the identity
-        that runs this script, and no parameter lets the profile or the caller say what it holds.
+        was not read was not shown to be a standard account's. So is a thread that impersonates, whose
+        identity the other probes measured and the programs this script starts do not inherit. The token
+        is read once, from the identity that runs this script, and no parameter lets the profile or the
+        caller say what it holds.
 
         What it does not show: a group that confers power through access lists and not through a
-        privilege, what the account stores or can reach over the network, and what the token will hold
-        after the next logon.
+        privilege (a group the token holds disabled, which a process can enable, is one), what the account
+        stores or can reach over the network, what the token will hold after the next logon, and whether
+        the program that launched this script gives the run the token it gave this script.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -1503,7 +1631,9 @@ function Test-IdentityPrivilege {
     $fact = Get-CallerTokenFact
 
     if ($null -eq $fact) {
-        return New-CheckResult -Name 'IdentityPrivilege' -Status 'Unavailable' -Evidence 'could not read the access token of the identity this verifier runs as, so it was not shown to be a standard account''s'
+        $why = if ([string]::IsNullOrEmpty($script:TokenReadProblem)) { '' } else { " ($(Format-RelayedText -Text $script:TokenReadProblem -Limit 160))" }
+
+        return New-CheckResult -Name 'IdentityPrivilege' -Status 'Unavailable' -Evidence "could not read the access token of the identity this verifier runs as$why, so it was not shown to be a standard account's"
     }
 
     $problem = Get-TokenFactProblem -Fact $fact
@@ -4178,7 +4308,7 @@ function Get-ContainmentCheck {
     $check.Add((Test-RemoteUnreachable))
 
     # git is the third program the verifier runs as the identity it measures, and it is trusted on the
-    # same four checks as the hook command: the variables are measured either way, git only after them.
+    # same five checks as the hook command: the variables are measured either way, git only after them.
     $gitGate = if ($unmet.Count -gt 0) { "$($unmet -join ', ') passed" } else { '' }
     $check.Add((Test-CredentialAbsence -WritableRoot $writableRoot -GitGateReason $gitGate))
 
