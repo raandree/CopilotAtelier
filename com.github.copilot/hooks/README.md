@@ -175,11 +175,11 @@ A check that runs a program as this identity, which is the hook command, git and
 in `-Revalidate`, the pinned appender, runs only after the controls it executes
 were measured and passed and the token of this identity was shown to be a
 standard account's, so a writable or swapped control is never run, and no program
-the verifier starts runs as an identity that holds a privilege no probe can show.
-Every other check always runs, the probes that create and remove a file among
-them, whatever the token holds, and a token that is refused fails the run as a
-whole. A run that stops at the profile reports each check as not run instead of
-leaving it out.
+the verifier starts runs as an identity that holds a privilege outside the five,
+which no probe can show. Every other check always runs, the probes that create
+and remove a file among them, whatever the token holds, and a token that is
+refused fails the run as a whole. A run that stops at the profile reports each
+check as not run instead of leaving it out.
 
 | Check | A Pass says | It does not say |
 |---|---|---|

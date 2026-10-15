@@ -9,33 +9,32 @@ source: current task evidence
 
 ## Current focus
 
-**P5, the containment verifier and the ledger appender, was rebuilt, reviewed nine times,
-and is merged: PR #40, squash `0531814` on 2026-10-15 08:13 UTC, published as
-`6.1.0-preview0012` to GitHub Releases and the PowerShell Gallery at 09:00 UTC.**
-`Test-RunContainment.ps1`
-measures, for the one identity it runs as, what the run can write, reach, and read;
-`Invoke-LedgerAppender.ps1` is the pinned, append-only, hash-chained ledger service the
-profile names, and `-Revalidate` reads the ledger back after the run. The first review
-said Block (13 findings, C-01 to C-13). The fix round answered them. Every later pass
-but the last said Approve with changes and left no Blocker, and each of those found
-something new in what the previous round had added; the last, part F, said Approve:
-pass 1 (R-01 to R-11), pass 2 over the whole branch (S-01 to S-11), pass 3 in parts
-A to F (S-12 to S-33). All are in `docs/SECURITY-REVIEW.md` with their resolutions. The
-claims shrank where a reviewer showed them too large (decision 0025, revision
-2026-10-14): two proofs about writability, not "exact writable roots"; one identity per
-run, in a fresh `pwsh -NoProfile -File` process; the Remote grant measured by what the
-pinned `hooks.json` registers (`GrantRecorderUnregistered`, which replaced
-`OverrideAbsent` on the owner's "not sure, you pick": an assumption flagged for expert
-review), so egress and credentials stay the boundary; and the hook command line accepted
-by one plain shape and not by a list of characters to refuse (a `#` is a comment to
-PowerShell and not to `cmd.exe`). Written down as not done: R-04 (token privileges and
-elevation, so the run identity must be a standard account), hook files a host finds
-outside the pinned one, a run id on `-Revalidate`, a keyed chain, a two-account test, the
-pinned line run under the PowerShell hosts and not only through `cmd.exe`, S-33 (a quoted
-program path with a colon after the drive fails closed), and the verifier on POSIX (the
-Ubuntu and macOS legs skip its Windows-only suites). A contained profile pins hashes and a `hooks.json` that registers only the guard
-(regenerate it after every deployment). Final gate on `d8eddb4`: 5,063 passed, 0 failed,
-146 skipped, 90.84 % coverage.
+**R-04, the token of the run identity, is built and reviewed on `ai/r04-run-identity-token`
+(local; the owner pushes it).** The required check `IdentityPrivilege` reads the access token of
+the verifier process and refuses one that is not a standard account's (elevated, a split
+administrator token, above Medium integrity, the Administrators group in any state, or a
+privilege outside five; a thread that impersonates is unmeasured), and gates the hook probe, git
+and the appender in `-Verify` and `-Revalidate`. One review said Approve with changes (no
+Blocker or Major); the fixes have 109 mutation checks. The Pass runs only through a seam, as no
+test host here has a standard token (decision 0025, revision 2026-10-15). Merging publishes a
+preview; re-pin the verifier digest in every contained profile and refresh `~/.copilot`.
+
+**P5, the containment verifier and the ledger appender, is merged**: #40 (squash `0531814`,
+`6.1.0-preview0012`) and its record #41 (`6.1.0-preview0013`), 2026-10-15.
+`Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can write,
+reach, and read; `Invoke-LedgerAppender.ps1` is the pinned, append-only, hash-chained ledger
+service the profile names, and `-Revalidate` reads the ledger back after the run. Nine
+independent reviews (the first said Block with 13 findings, the last Approve) are in
+`docs/SECURITY-REVIEW.md`. The claims shrank where a reviewer showed them too large (decision
+0025, revision 2026-10-14): two proofs about writability, not "exact writable roots"; one
+identity per run, in a fresh `pwsh -NoProfile -File` process; the Remote grant measured by
+what the pinned `hooks.json` registers (`GrantRecorderUnregistered`, an assumption flagged
+for expert review); the hook command line accepted by one plain shape, not a list of
+characters to refuse. Written down as not done: hook files a host finds outside the pinned
+one, a run id on `-Revalidate`, a keyed chain, a second-account test, the pinned line run
+under the PowerShell hosts, S-33, and the verifier on POSIX. A contained profile pins hashes
+and a `hooks.json` that registers only the guard (regenerate it after every deployment).
+Final gate on `d8eddb4`: 5,063 passed, 0 failed, 146 skipped, 90.84 % coverage.
 
 P2, per-command remote approval, is merged (#38, squash `1c1327e`,
 `6.1.0-preview0011`) and live on this machine: a Grant marker the user types in their own
@@ -160,11 +159,12 @@ unproven — train reached 100 % while validation fell.
    no dialog (P3 and P8 are deployed with P2; `./Setup-CopilotSettings.ps1` after a
    `git pull --ff-only origin main` only refreshes the record). Agents cannot push; the
    deployed copy under `~/.copilot` is the owner's to refresh.
-3. P5 is merged (#40; #39 was closed unmerged). Its CI found a transient PSGallery 403, 23
-   POSIX fixture failures, a runner-stall flake in #38's guard suite, and a form feed in a
-   skipped test's data that broke Pester's NUnit report (patterns in `systemPatterns.md`).
-   The owner rules on the P5 follow-ups (R-04 first; `docs/SECURITY-REVIEW.md`), P1, the 06c
-   choices (E-08, E-09), the P6 labels and the P8 assumptions (Desktop `LEDGER.md`).
+3. R-04 is built (`ai/r04-run-identity-token`, local): the owner pushes it, opens the pull
+   request and merges it (the commands are in the Desktop `LEDGER.md`), and deletes the three
+   merged branches on `origin`. Then the P5 follow-ups (`docs/SECURITY-REVIEW.md`), P1, the 06c
+   choices (E-08, E-09), the P6 labels and the P8 assumptions (Desktop `LEDGER.md`). The closing
+   test of R-04 (a throwaway local account read through `LogonUser`, expecting a Pass) needs the
+   owner's yes on a development host.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.

@@ -4,6 +4,133 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-10-15: the token of the run identity, R-04 (follow-up of prompt P5)
+
+The Custom `security-reviewer` agent reviewed the change that addresses R-04, the
+first follow-up of the P5 review: the `IdentityPrivilege` check of
+`Test-RunContainment.ps1`. It read the three commits of the first build (`8330c34`,
+`9fd3a5e`, `1f741a2`), read-only, in a fresh context and with no network call, and
+said **Approve with changes**: no Blocker, no Major, ten Minors (T-01 to T-10) and two
+Nits (T-11 and T-12). Every finding but T-03 and one part of T-01 was fixed in the
+same change, test first, with a mutation check for each control a test can reach. The
+same agent then checked the fixes (`840a438`) and said **Approve with changes** again:
+no Blocker or Major, two Minors and four Nits (T-13 to T-18). Nothing was pushed.
+
+### Scope
+
+- Can `IdentityPrivilege`, or the gates that depend on it, report a Pass for a token
+  that is not a standard account's?
+- Would it refuse, or fail to measure, a valid standard account (Windows 10, 11 and
+  Server; a local, a domain or a Microsoft account)?
+- Is the native reading correct: the layout of the token structures on x64, x86 and
+  ARM64, the growth of the buffers, the SID pointers, the handles and the generated
+  type?
+- Do the tests fail when a control is removed, and do they behave on Ubuntu and
+  macOS, where the Windows-only suites skip?
+- Do the hooks README, the controller text, decision 0025, the changelog and this
+  file claim more than the code and the measurements show?
+
+### Verdict
+
+First build: **Approve with changes**: no Blocker, no Major, 10 Minors, 2 Nits. The
+reviewer found no way for the check, or the gates that depend on it, to report a Pass
+for a token that is not a standard account's, in the model that was stated: a
+trusted launcher, and facts that come from the native reader. The weaknesses it
+found were hardening gaps, test gaps and statements that went beyond the evidence.
+
+Delta check of the fixes, on `840a438`: **Approve with changes**: no Blocker, no Major,
+2 Minors and 4 Nits. The reviewer found no new false Pass: every path the fixes changed
+(the SID shape, the empty-group rule, the thread rule and the SID-position rule)
+rejects more than before, and none adds a way to accept. It checked the new SID shape
+against 22 realistic SIDs (`S-1-5-5-0-1234567`, `S-1-15-2-…`, `S-1-18-1`,
+`S-1-16-8192` and others) and all were accepted. It confirmed that every original
+finding is fixed, or open by a choice that the records state. The code and tests of
+the delta were not changed after that check, so that the code the reviewer approved
+is the code the final gate ran on; the findings that need code are follow-ups.
+
+### Findings
+
+| ID | Severity | Where | Finding | Resolution |
+|---|---|---|---|---|
+| T-01 | Minor | `Get-TokenFactProblem` | The shape of a group SID took any Unicode digit and a leading zero, so text that is not the canonical SID would not equal the Administrators SID; an empty group list was accepted; the integrity level was not cross-checked with the label in the group list | Fixed: ASCII digits, no leading zero, and at least one group, with rows and mutations. The cross-check is not done (see Remaining risks) |
+| T-02 | Minor | `ReadProcess`, `IdentityBinding` | The check judges the token of the process, while the binding and the probes that ask for access answer for the thread (`WindowsIdentity.GetCurrent()`), and nothing tied the two | Fixed: `ThreadImpersonates` (`OpenThreadToken`, `ERROR_NO_TOKEN`) makes a thread that impersonates `Unavailable`, with the reason; tested with `WindowsIdentity.RunImpersonated`. A launcher that gives the verifier a more restricted token of the same account than it gives the run stays unseen, and the README says the launcher is trusted |
+| T-03 | Minor | `Test-IdentityPrivilege` | A group the token holds disabled (neither enabled nor deny-only), other than Administrators, is not judged, and a process can enable it | Not fixed, recorded: refusing it could refuse a valid account, and no host here has a standard token to show which groups a valid one holds disabled. The README and the controller text say it is not shown |
+| T-04 | Minor | this file | The R-04 row and the Remaining-risks bullet pointed to an entry that did not exist | Fixed: this entry |
+| T-05 | Minor | controller text, a code comment, `activeContext.md`, decision 0025 | Four gates were named where there are five, and `activeContext.md` still listed R-04 as not done | Fixed in each |
+| T-06 | Minor | README, decision 0025, changelog, controller text | Claims beyond the evidence: "none can be made from an administrator's", "closed", "Fixed", and the five privileges stated without a build | Fixed: scoped to no test host here and to a filtered token on Windows Server 2025, build 10.0.26100; "addressed" for the refusal and open for the Pass; the closing test is named (a throwaway local account read through `LogonUser`) |
+| T-07 | Minor | README | "Nothing runs as an identity that holds a privilege no probe can show" was broader than the code, which gates the hook command, git and the appender and runs every other check whatever the token holds | Fixed: "no program the verifier starts" |
+| T-08 | Minor | `Privilege.Tests.ps1` | A test with its assertions behind `if` blocks asserted nothing on every host here (elevation type Default) | Fixed: it skips explicitly on that type and asserts otherwise |
+| T-09 | Minor | `Privilege.Tests.ps1` | The exact set of five was never asserted, so a name added to it survived, and the cap on a relayed privilege name was untested | Fixed: the set is asserted, 31 other privilege names of `winnt.h` are refused row by row, and the cap is tested; five mutations that add a name were caught |
+| T-10 | Minor | `Initialize-NativeToken` | The bounds of the group and privilege arrays, the growth of the buffer and the position of a SID were untested, and nothing required a SID to lie after its structure | Fixed: `ParseGroups`, `ParsePrivileges` and `ParseIntegrityRid` are public and tested with crafted buffers; a SID has to lie after its structure; `Read(handle, firstSize)` makes the growth path run, which no list of a token here needs in 512 bytes and a domain account's groups do, and a counter shows it ran; a count, a length and a position are each guarded and tested |
+| T-11 | Nit | `Get-CallerTokenFact` | Every failure ended as `Unavailable` with no reason, so a false `Unavailable` could not be traced | Fixed: the reason is in the evidence, relayed as printable ASCII and cut; the verdict is unchanged |
+| T-12 | Nit | `Privilege.Tests.ps1` | The first block left `$script:OnWindows` true, and a helper called `WindowsIdentity.GetCurrent()` without asking the platform; Ubuntu and macOS were safe only because Pester does not run the `BeforeAll` of a block whose tests are all skipped | Fixed: the value is saved and restored, and the helper asks the platform |
+| T-13 | Minor | `ThreadImpersonates` | Only `ERROR_NO_TOKEN` returns false and every other error throws, but nothing reaches that throw (the reviewer's probe showed that anonymous impersonation does not), so a later edit that turned it into `return false` would reopen the gap that T-02 closed | Not fixed, recorded: make the decision a pure method that takes the result and the error and test 1008, 5 and 1347 |
+| T-14 | Minor | records | The records were committed after the code, so the tree at `840a438` still said R-04 was not done, decision 0025 still said "closed by measurement", and this entry said "a mutation check for each control the fixes added" while listing controls that were not mutated | Fixed: the records are committed together, and the wording is "each control a test can reach" |
+| T-15 | Nit | README | "No program the verifier starts runs as an identity that holds a privilege no probe can show" is imprecise: a Pass allows four of the five privileges while they are disabled, which a process can enable | Fixed: "outside the five" |
+| T-16 | Nit | changelog | "The elevated token of the Windows runner of CI included" states a fact that was not measured | Fixed: it names the host that was measured, and says that the runner is expected to be refused and was not measured |
+| T-17 | Nit | `Privilege.Tests.ps1` | Two new tests (a privilege that has no name, an integrity SID of more than one sub-authority) accept any exception | Not fixed, recorded: pin `Win32Exception` with error 1313 and `FormatException` |
+| T-18 | Nit | `Get-CallerTokenFact` | `Win32Exception.Message` is localized and the relay turns non-ASCII characters into `?` | Not fixed, recorded: add the native error code to the reason |
+
+What the reviewer confirmed sound: the native layout (`TOKEN_GROUPS` at the size of a
+pointer, `TOKEN_PRIVILEGES` at 4 with entries of 12, `TOKEN_MANDATORY_LABEL`), the
+information classes, the exact four-byte read of `TokenElevation`, the bounded growth
+loop, the `SidText` bounds, the freeing of every buffer and handle, the ordinal
+comparisons, the fail direction (every read or shape failure is `Unavailable`, and a
+Pass needs no reason), the wiring in both flows and in the not-run report, and the
+size of the controller text. It did not verify the Pass on a real standard token, the
+privilege set on other Windows builds, x86 and ARM64, or the Ubuntu and macOS legs.
+
+### Tests
+
+- Mutation checks: 109 changes of the verifier were applied one at a time, each in a child
+  process over the five focused suites, and the file was restored byte for byte after each:
+  the 67 of the first build and 42 for the fixes. All 109 were caught and none survived. Not
+  mutated, because no test can reach them: the 1 MiB cap on a grown buffer, the error codes
+  inside `ReadBuffer` and `PrivilegeNameOf`, `openAsSelf` of `OpenThreadToken`, and the
+  branch of `ThreadImpersonates` that throws on an unexpected error (T-13).
+- The 13 `ContainmentVerifier*` suites after the fixes: 868 passed, 0 failed, 2 skipped (791
+  passed before them). One skip is the elevation-type test, which skips on a token of the
+  default type; the other is a POSIX-only case that was skipped before.
+- Full `build,test` gate on `840a438`: 5,276 passed, 0 failed, 147 skipped, 90.84 %
+  coverage against a threshold of 65 %, 21 build tasks and no error, 45 minutes. The 16
+  warnings are the 15 simulated crashed launches of the Meter tests and one simulated
+  backend failure of the trigger eval, as in earlier gates. The records, the README
+  sentence of T-15 and the changelog sentence of T-16 changed after it, and no code or test
+  did. The first gate, on `1f741a2` before the fixes, passed too (5,199 passed, 0 failed,
+  146 skipped, 90.84 %) and is superseded.
+- Nothing could run on Ubuntu or macOS here. The new blocks that read tokens are
+  skipped there as blocks.
+
+### Remaining risks
+
+- The Pass has not been measured on a real standard-account token: no test host here
+  runs as one, and a filtered administrator token is refused for its Administrators
+  group. The closing test creates a throwaway local account, logs it on with
+  `LogonUser`, reads its token by handle with the same reader and expects a Pass. A
+  hosted CI runner is an administrator and could run it; on a development host it
+  creates an account, which is the owner's decision.
+- The five privileges were measured on a filtered token of one build (Windows Server
+  2025, 10.0.26100). A standard account's own set is expected to be some or all of
+  them, and any subset passes. Another build or a client edition may differ.
+- A group the token holds disabled, other than Administrators, is not judged (T-03),
+  and the integrity level is not cross-checked with the label in the group list. Both
+  need a real standard token to show that no valid account is refused. The reviewer's
+  suggestions, neither of which can refuse a valid account: require that an
+  `S-1-16-n` in the group list equals the integrity level when one is there, and list
+  the groups a process could re-enable in the Pass evidence without refusing them,
+  which would produce the measurement that is missing the first time a real standard
+  token is read.
+- Three small follow-ups of the delta check, none a false Pass: test the branch of
+  `ThreadImpersonates` that throws on an unexpected error (T-13), pin the exception of
+  two tests (T-17), and add the native error code to the reason that a token was not
+  read, because the message is localized (T-18).
+- The launcher is trusted to give the run the token it gave the verifier. A launcher
+  that starts the verifier under a more restricted token of the same account passes
+  here and gives the agent more.
+- The buffer growth is tested by forcing a small first buffer, and not on a token of a
+  domain account whose groups need it. x86 and ARM64 were reasoned about against
+  `winnt.h` and not run.
+
 ## 2026-10-14: containment verifier and ledger appender, after the fix round (prompt P5)
 
 The built-in `security-review` agent reviewed the containment verifier
@@ -83,7 +210,7 @@ Pass 1 (verifier at `7804e31`):
 | R-01 | Major | Verifier | The hook probe started a shell in the caller's working directory and PATH, and the shipped command begins with a bare `powershell`, so a program planted in the repository ran before any verdict. | Fixed. The probe runs in a folder of its own with the shell told not to search the working directory; the command must start with the absolute path of an interpreter the run cannot replace. |
 | R-02 | Major | Verifier | `IdentityBinding` did not gate the hook command or the appender, which run as the caller. | Fixed. It gates both. |
 | R-03 | Major | Verifier | Nothing required a fresh process, so a function or type defined earlier in a session outranked the verifier's own. | Fixed. It runs only as the entry script of a `-NoProfile -File` process; the native probe is a per-process type; the temp folder of the operating system joins the escape set. |
-| R-04 | Minor | Verifier | Token privileges and elevation are never read. | **Fixed on 2026-10-15** (see the entry of that date): `IdentityPrivilege` reads the token of the process and refuses one that is not a standard account's. |
+| R-04 | Minor | Verifier | Token privileges and elevation are never read. | **Addressed on 2026-10-15** (see the entry of that date): `IdentityPrivilege` reads the token of the process and refuses one that is not a standard account's. The refusal is measured on real tokens; the Pass has not been measured on a real standard token. |
 | R-05 | Minor | Verifier | The report path was compared as text. | Fixed. Stream, device and extended-length spellings and, on Windows, a link above the report are refused. |
 | R-06 | Minor | Verifier | The grant check passed a shape it could not read, and its name overstated it. | Fixed. Renamed `GrantRecorderUnregistered`; an unread shape is unmeasured; the pinned `hooks.json` must be the plugin's own file. Hook files a host finds elsewhere are not read. |
 | R-07 | Minor | Verifier | The hook contract read one string of one entry. | Partly. Type, matcher, timeout and equal text under every key are required and each probe is timed; keys are not probed one by one. |
@@ -231,9 +358,11 @@ change. Nothing could run on Ubuntu or macOS here.
 
 ### Remaining risks
 
-- Closed on 2026-10-15: a privilege that is held but disabled, and a filtered
+- Addressed on 2026-10-15: a privilege that is held but disabled, and a filtered
   administrator token, were not read (R-04). `IdentityPrivilege` reads the token
-  now; see the entry of that date.
+  now and refuses one that is not a standard account's; see the entry of that
+  date for what stays open (the Pass on a real standard token, a disabled group
+  other than Administrators, and the launcher).
 - A grant file a run writes itself is not stopped by the hook: egress and
   credentials are the boundary. Hook files a host finds outside the pinned file
   are not read.

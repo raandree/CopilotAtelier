@@ -12,27 +12,34 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
 `6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0012` (`0531814`, 2026-10-15) to GitHub Releases and the
+`6.1.0-preview0013` (`0145cbf`, 2026-10-15) to GitHub Releases and the
 PowerShell Gallery (verified 2026-10-15). Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-15**: R-04 (`software-engineer`, `review: on`), the first P5 follow-up, built on
+  `ai/r04-run-identity-token` after #41 merged (`0145cbf`, `6.1.0-preview0013`): the required
+  check `IdentityPrivilege` reads the access token of the verifier process and refuses one that
+  is not a standard account's (elevated, split administrator token, above Medium integrity, the
+  Administrators group in any state, or a privilege outside five; a thread that impersonates
+  is unmeasured), and gates the hook probe, git and the appender. One review said Approve with
+  changes (no Blocker or Major, 10 Minors, 2 Nits); the fixes are test first with 109 mutation
+  checks, none survived. Full gate on `840a438`: 5,276 passed, 0 failed, 147 skipped, 90.84 %.
+  A delta check said Approve with changes (2 Minors, 4 Nits, none fixed in code). The Pass is
+  tested through a seam, as no test host here has a standard token (decision 0025, revision
+  2026-10-15). Not pushed.
 - **2026-10-12 to 2026-10-15**: P5 (`software-engineer`, `review: on`) rebuilt the containment
-  verifier `Test-RunContainment.ps1` and the ledger appender `Invoke-LedgerAppender.ps1` on
-  `ai/containment-fix-round`, after a first review that said Block (13 findings). Nine
-  independent reviews in all (pass 1, pass 2 over the whole branch, pass 3 in six parts); each
-  fix round but the last found something new in the code the previous one added, the two
-  Majors (S-21, S-25) in `Get-HookInterpreter`, whose hook-line check became a plain shape
-  and not a list of characters to refuse, held to the PowerShell parser by a seeded test;
-  the last, part F, said Approve. The claims shrank where a reviewer showed them too large
-  (decision 0025). Final gate on `d8eddb4`: 5,063 passed, 0 failed, 146 skipped, 90.84 %
-  coverage. Written down as not done: R-04 (token privileges), the pinned line run under
-  the PowerShell hosts, S-33, a two-account test. Merged as #40 on 2026-10-15 (squash
-  `0531814`, `6.1.0-preview0012`; `main` CI: Windows 5,020, Ubuntu 4,145, macOS 4,143
-  passed, none failed) after CI found a Gallery 403, 23 POSIX fixture failures (`d919d94`),
-  a guard-suite flake and a form feed that broke Pester's NUnit report (`941c378`);
-  `systemPatterns.md` has the patterns.
+  verifier `Test-RunContainment.ps1` and the ledger appender `Invoke-LedgerAppender.ps1` after
+  a first review that said Block (13 findings). Nine independent reviews in all; each fix round
+  but the last found something new in the code the previous one added, the two Majors
+  (S-21, S-25) in `Get-HookInterpreter`, whose hook-line check became a plain shape held to
+  the PowerShell parser by a seeded test; the last, part F, said Approve. The claims shrank
+  where a reviewer showed them too large (decision 0025). Final gate on `d8eddb4`: 5,063
+  passed, 0 failed, 146 skipped, 90.84 %. Written down as not done: the pinned line run under
+  the PowerShell hosts, S-33, a two-account test (R-04 followed, above). Merged as #40 on
+  2026-10-15 (squash `0531814`, `6.1.0-preview0012`; `main` CI 5,020, 4,145 and 4,143 passed,
+  none failed); `systemPatterns.md` has the patterns CI found.
 - **2026-10-13 to 2026-10-14**: P2 (`software-engineer`, `review: on`) built the Remote grant
   on `ai/hook-ask-remote-approval`: a Grant marker the user types in their own prompt, such
   as `[[allow-remote: git push, gh pr create]]`, makes the new `UserPromptSubmit` hook
@@ -57,17 +64,10 @@ PowerShell Gallery (verified 2026-10-15). Incremental work is tracked under
 - **2026-10-12**: Ran Desktop prompt 06c (`review: on`): four review rounds over the eval
   kit's egress code, 2 Blockers and 7 Majors fixed test-first; E-08, E-09, E-15, E-16
   stay open and no further run is authorized (A34). `docs/SECURITY-REVIEW.md` holds it.
-- **2026-10-09 to 2026-10-11**: Closed out Decision 0028 (Desktop prompt 07): criteria
-  1 to 20 and 22 to 30 are proved, **criterion 21 stays not met**, worded as A39 fixes
-  it (the chain of prompts 04 to 06b and 05c, Amendments 5 to 7, ended record-only at
-  83.3 % persistence, one fresh run). Full gate on `ef96c2d`: 3,243 passed, 0 failed,
-  129 skipped, 90.84 % coverage; #32. Prompts 03 and 08 reached `main` (`6286ad4`):
-  detached Pester guards reject a result other than `Passed`, `Wait-DetachedResult.ps1`,
-  and the Post-flight elapsed line pinned to its own chat's clock (Decision 0024).
-- **2026-10-02 to 2026-10-08**: Hook follow-ups (`d8cc6f5` to `fea564f`: Copilot SDK
-  chats show the guard's block reason, a resumed chat keeps its clock, ten reviews
-  closed the launcher and guard findings) and Decision 0028 steps 7.1 to 7.5.
-  Detail stays in git.
+- **2026-10-09 to 2026-10-11**: Closed out Decision 0028 (#32): criteria 1 to 20 and 22 to 30
+  are proved, **criterion 21 stays not met** (one fresh run, 83.3 % persistence, record-only;
+  A39). Full gate on `ef96c2d`: 3,243 passed, 0 failed, 129 skipped, 90.84 %. Prompts 03 and
+  08 reached `main` (`6286ad4`): detached Pester guards, the clock pinned per chat (Decision 0024).
 
 ## Stable capabilities
 
