@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-14
+last-verified: 2026-10-15
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,9 +9,10 @@ source: current task evidence
 
 ## Current focus
 
-**P5, the containment verifier and the ledger appender, is rebuilt and has been reviewed
-nine times; the branch `ai/containment-fix-round` (on `origin/main` `1c1327e`) is pushed
-as PR #40 and waits for green CI and the owner's merge.** `Test-RunContainment.ps1`
+**P5, the containment verifier and the ledger appender, was rebuilt, reviewed nine times,
+and is merged: PR #40, squash `0531814` on 2026-10-15 08:13 UTC, published as
+`6.1.0-preview0012` to GitHub Releases and the PowerShell Gallery at 09:00 UTC.**
+`Test-RunContainment.ps1`
 measures, for the one identity it runs as, what the run can write, reach, and read;
 `Invoke-LedgerAppender.ps1` is the pinned, append-only, hash-chained ledger service the
 profile names, and `-Revalidate` reads the ledger back after the run. The first review
@@ -31,8 +32,8 @@ PowerShell and not to `cmd.exe`). Written down as not done: R-04 (token privileg
 elevation, so the run identity must be a standard account), hook files a host finds
 outside the pinned one, a run id on `-Revalidate`, a keyed chain, a two-account test, the
 pinned line run under the PowerShell hosts and not only through `cmd.exe`, S-33 (a quoted
-program path with a colon after the drive fails closed), and Ubuntu and macOS CI (not run
-here). A contained profile pins hashes and a `hooks.json` that registers only the guard
+program path with a colon after the drive fails closed), and the verifier on POSIX (the
+Ubuntu and macOS legs skip its Windows-only suites). A contained profile pins hashes and a `hooks.json` that registers only the guard
 (regenerate it after every deployment). Final gate on `d8eddb4`: 5,063 passed, 0 failed,
 146 skipped, 90.84 % coverage.
 
@@ -159,12 +160,11 @@ unproven — train reached 100 % while validation fell.
    no dialog (P3 and P8 are deployed with P2; `./Setup-CopilotSettings.ps1` after a
    `git pull --ff-only origin main` only refreshes the record). Agents cannot push; the
    deployed copy under `~/.copilot` is the owner's to refresh.
-3. PR #40 (`ai/containment-fix-round`) is open; #39 is closed unmerged. CI found a transient
-   PSGallery 403, 23 POSIX fixture failures (`d919d94`), a runner-stall flake in #38's guard
-   suite, and a form feed in a skipped test's data that broke Pester's NUnit report on Ubuntu
-   and macOS (`941c378`; the pattern is in `systemPatterns.md`). The owner pushes `941c378`
-   and merges on green, then rules on the P5 follow-ups (R-04 first), P1, the 06c choices,
-   the P6 labels and the P8 assumptions.
+3. P5 is merged (#40; #39 was closed unmerged). Its CI found a transient PSGallery 403, 23
+   POSIX fixture failures, a runner-stall flake in #38's guard suite, and a form feed in a
+   skipped test's data that broke Pester's NUnit report (patterns in `systemPatterns.md`).
+   The owner rules on the P5 follow-ups (R-04 first; `docs/SECURITY-REVIEW.md`), P1, the 06c
+   choices (E-08, E-09), the P6 labels and the P8 assumptions (Desktop `LEDGER.md`).
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.
