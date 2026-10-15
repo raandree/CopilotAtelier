@@ -345,7 +345,6 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Why = 'a curly single quote'; Line = ('"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command ' + [char]0x2018 + '"' + [char]0x2019 + ' ; calc.exe'); Match = 'outside printable ASCII' }
         @{ Why = 'a no-break space before the program'; Line = ([string][char]0xA0 + '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit'); Match = 'outside printable ASCII' }
         @{ Why = 'a zero-width space inside the program name'; Line = ('C:\Windows\System32\WindowsPowerShell\v1.0\power' + [char]0x200B + 'shell.exe -NoProfile -Command exit'); Match = 'outside printable ASCII' }
-        @{ Why = 'a form feed'; Line = ('"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit' + [char]12 + 'x'); Match = 'outside printable ASCII' }
         @{ Why = 'a dot segment in the program path'; Line = 'C:\Windows\System32\..\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command exit'; Match = 'dot segment' }
         @{ Why = 'a dot segment written with forward slashes'; Line = 'C:/Windows/System32/../System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command exit'; Match = 'dot segment' }
         # Review pass 3 part C, S-21: refusing a list of characters is never complete. Each line below was
@@ -392,6 +391,18 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
         $result.Path | Should -BeNullOrEmpty
         $result.Problem | Should -Match $Match
+    }
+
+    # XML 1.0 does not allow a form feed. Pester writes the data of a skipped parameterized test into the name of its NUnit
+    # test-case, so a table row that carries one breaks the report on every platform that skips the test (Ubuntu and macOS
+    # skip this Describe), and the build fails with no failed test. It is built here and not carried in a row of the table.
+    It 'refuses a form feed' {
+        $line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit' + [char]12 + 'x'
+
+        $result = Get-HookInterpreter -CommandLine $line
+
+        $result.Path | Should -BeNullOrEmpty
+        $result.Problem | Should -Match 'outside printable ASCII'
     }
 
     # Review pass 2, S-11: only the first word was judged, so a shell that read a separator after it ran
