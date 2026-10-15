@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-14
+last-verified: 2026-10-15
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -12,13 +12,13 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
 `6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0011` (`1c1327e`, 2026-10-14) to GitHub Releases and the
-PowerShell Gallery (verified 2026-10-14). Incremental work is tracked under
+`6.1.0-preview0012` (`0531814`, 2026-10-15) to GitHub Releases and the
+PowerShell Gallery (verified 2026-10-15). Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-10-12 to 2026-10-14**: P5 (`software-engineer`, `review: on`) rebuilt the containment
+- **2026-10-12 to 2026-10-15**: P5 (`software-engineer`, `review: on`) rebuilt the containment
   verifier `Test-RunContainment.ps1` and the ledger appender `Invoke-LedgerAppender.ps1` on
   `ai/containment-fix-round`, after a first review that said Block (13 findings). Nine
   independent reviews in all (pass 1, pass 2 over the whole branch, pass 3 in six parts); each
@@ -28,10 +28,11 @@ PowerShell Gallery (verified 2026-10-14). Incremental work is tracked under
   the last, part F, said Approve. The claims shrank where a reviewer showed them too large
   (decision 0025). Final gate on `d8eddb4`: 5,063 passed, 0 failed, 146 skipped, 90.84 %
   coverage. Written down as not done: R-04 (token privileges), the pinned line run under
-  the PowerShell hosts, S-33, a two-account test. Pushed as PR #40 on 2026-10-14: CI found a
-  transient PSGallery 403, 23 POSIX fixture failures (`d919d94`), a runner-stall flake in the
-  #38 guard suite, and a form feed in a skipped test's data that broke Pester's NUnit report
-  on Ubuntu and macOS (`941c378`); `systemPatterns.md` has the patterns.
+  the PowerShell hosts, S-33, a two-account test. Merged as #40 on 2026-10-15 (squash
+  `0531814`, `6.1.0-preview0012`; `main` CI: Windows 5,020, Ubuntu 4,145, macOS 4,143
+  passed, none failed) after CI found a Gallery 403, 23 POSIX fixture failures (`d919d94`),
+  a guard-suite flake and a form feed that broke Pester's NUnit report (`941c378`);
+  `systemPatterns.md` has the patterns.
 - **2026-10-13 to 2026-10-14**: P2 (`software-engineer`, `review: on`) built the Remote grant
   on `ai/hook-ask-remote-approval`: a Grant marker the user types in their own prompt, such
   as `[[allow-remote: git push, gh pr create]]`, makes the new `UserPromptSubmit` hook
@@ -46,14 +47,13 @@ PowerShell Gallery (verified 2026-10-14). Incremental work is tracked under
   `6.1.0-preview0011`) after one CI fix: a Windows runner stall made the guard name its time
   limit, so the two new suites run it with the longest limit it accepts. Decision 0016 holds
   the evidence; `activeContext.md` the state.
-- **2026-10-12**: Merged #32 to #36 into `main` one at a time (CI runs #130, #139 to
-  #142; `6.1.0-preview0005` to `0009`; `main` is `e393875`): #34 corrects the
-  `automatedlab-deployment` Skill (`Remove-LabVMSnapshot` also removes the newer
-  checkpoints; P7), #35 hands a command the user runs over in its own fenced code
-  block (P3), #36 adds the task ledger and `/migrate-handoff-sequence` to
-  `subagent-dispatch` (P8; no external eval ran). The review of the hand-merged hook
-  scripts approved with changes (`ddf5430` fixed M-01 and M-02; #33 tested M-03,
-  M-05, M-06); M-04, a `.familiarity` name collision, stays open.
+- **2026-10-12**: Merged #32 to #36 into `main` one at a time (`6.1.0-preview0005` to
+  `0009`; `main` was `e393875`): #34 corrects the `automatedlab-deployment` Skill
+  (`Remove-LabVMSnapshot` also removes the newer checkpoints; P7), #35 hands a command
+  the user runs over in its own fenced code block (P3), #36 adds the task ledger and
+  `/migrate-handoff-sequence` to `subagent-dispatch` (P8; no external eval ran). The review
+  of the hand-merged hook scripts approved with changes (M-01 and M-02 fixed, M-03, M-05
+  and M-06 tested); M-04, a `.familiarity` name collision, stays open.
 - **2026-10-12**: Ran Desktop prompt 06c (`review: on`): four review rounds over the eval
   kit's egress code, 2 Blockers and 7 Majors fixed test-first; E-08, E-09, E-15, E-16
   stay open and no further run is authorized (A34). `docs/SECURITY-REVIEW.md` holds it.
