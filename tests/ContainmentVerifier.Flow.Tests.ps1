@@ -20,6 +20,7 @@ BeforeAll {
             'Test-VerifierBinding'
             'Test-ControlImmutability'
             'Test-IdentityBinding'
+            'Test-IdentityPrivilege'
             'Test-HookContract'
             'Test-GrantRecorderUnregistered'
             'Test-EgressPolicy'
@@ -61,6 +62,7 @@ BeforeAll {
         Mock Test-ControlDigest { New-CheckResult -Name 'ControlDigest' -Status 'Pass' -Evidence 'mock' }
         Mock Test-ControlImmutability { New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'mock' }
         Mock Test-IdentityBinding { New-CheckResult -Name 'IdentityBinding' -Status 'Pass' -Evidence 'mock' }
+        Mock Test-IdentityPrivilege { New-CheckResult -Name 'IdentityPrivilege' -Status 'Pass' -Evidence 'mock' }
         Mock Test-HookContract { New-CheckResult -Name 'HookContract' -Status 'Pass' -Evidence 'mock' }
         Mock Test-GrantRecorderUnregistered { New-CheckResult -Name 'GrantRecorderUnregistered' -Status 'Pass' -Evidence 'mock' }
         Mock Test-EgressPolicy { New-CheckResult -Name 'EgressPolicy' -Status 'Pass' -Evidence 'mock' }
@@ -87,23 +89,29 @@ BeforeAll {
 }
 
 Describe 'Containment check names' -Tag 'Unit' {
-    It 'names the eleven checks of a run that is not live' {
-        @(Get-ContainmentCheckName -LiveMode 'off') | Should -HaveCount 11
+    It 'names the twelve checks of a run that is not live' {
+        @(Get-ContainmentCheckName -LiveMode 'off') | Should -HaveCount 12
     }
 
     It 'adds the live artifact check last in a live mode' {
         $name = @(Get-ContainmentCheckName -LiveMode 'disposable')
 
-        $name | Should -HaveCount 12
+        $name | Should -HaveCount 13
         $name[-1] | Should -Be 'LiveArtifacts'
     }
 
-    It 'names the identity, binding and immutability checks before the hook probe that depends on them' {
+    It 'names the identity, token, binding and immutability checks before the hook probe that depends on them' {
         $name = @(Get-ContainmentCheckName -LiveMode 'off')
 
-        foreach ($before in @('VerifierBinding', 'ControlDigest', 'ControlImmutability')) {
+        foreach ($before in @('VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'IdentityPrivilege')) {
             $name.IndexOf($before) | Should -BeLessThan $name.IndexOf('HookContract')
         }
+    }
+
+    It 'names the token check directly after the identity binding' {
+        $name = @(Get-ContainmentCheckName -LiveMode 'off')
+
+        $name.IndexOf('IdentityPrivilege') | Should -Be ($name.IndexOf('IdentityBinding') + 1)
     }
 }
 
@@ -167,6 +175,8 @@ Describe 'Containment check flow' -Tag 'Unit' {
         @{ Gate = 'ControlImmutability'; Status = 'Unavailable' }
         @{ Gate = 'IdentityBinding'; Status = 'Fail' }
         @{ Gate = 'IdentityBinding'; Status = 'Unavailable' }
+        @{ Gate = 'IdentityPrivilege'; Status = 'Fail' }
+        @{ Gate = 'IdentityPrivilege'; Status = 'Unavailable' }
     ) {
         $script:gateName = $Gate
         $script:gateStatus = $Status
@@ -189,8 +199,25 @@ Describe 'Containment check flow' -Tag 'Unit' {
         ($result | Where-Object { $_.name -ceq 'GrantRecorderUnregistered' }).evidence | Should -Be 'mock'
     }
 
+    It 'still measures the grant recorder when the token is not a standard account''s' {
+        Mock Test-IdentityPrivilege { New-CheckResult -Name 'IdentityPrivilege' -Status 'Fail' -Evidence 'mock' }
+
+        $result = Invoke-Flow
+
+        ($result | Where-Object { $_.name -ceq 'GrantRecorderUnregistered' }).evidence | Should -Be 'mock'
+    }
+
+    It 'reads the token whether or not the identity binds, because the token does not depend on the profile' {
+        Mock Test-IdentityBinding { New-CheckResult -Name 'IdentityBinding' -Status 'Fail' -Evidence 'mock breach' }
+
+        $result = Invoke-Flow
+
+        Should -Invoke Test-IdentityPrivilege -Times 1 -Exactly
+        ($result | Where-Object { $_.name -ceq 'IdentityPrivilege' }).status | Should -Be 'Pass'
+    }
+
     # Review pass 2, S-07: git is the third program the verifier runs as the identity it measures, after the
-    # hook command and the appender, and it is trusted on the same four checks.
+    # hook command and the appender, and it is trusted on the same five checks.
     It 'does not let the credential check run git when <Gate> is <Status>' -ForEach @(
         @{ Gate = 'VerifierBinding'; Status = 'Fail' }
         @{ Gate = 'ControlDigest'; Status = 'Fail' }
@@ -198,6 +225,8 @@ Describe 'Containment check flow' -Tag 'Unit' {
         @{ Gate = 'ControlImmutability'; Status = 'Unavailable' }
         @{ Gate = 'IdentityBinding'; Status = 'Fail' }
         @{ Gate = 'IdentityBinding'; Status = 'Unavailable' }
+        @{ Gate = 'IdentityPrivilege'; Status = 'Fail' }
+        @{ Gate = 'IdentityPrivilege'; Status = 'Unavailable' }
     ) {
         $script:gateName = $Gate
         $script:gateStatus = $Status

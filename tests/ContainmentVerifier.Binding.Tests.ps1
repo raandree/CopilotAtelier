@@ -63,6 +63,8 @@ Describe 'Containment identity binding' -Tag 'Unit' {
         $result.name | Should -Be 'IdentityBinding'
         $result.status | Should -Be 'Pass' -Because $result.evidence
         $result.evidence | Should -Match ([regex]::Escape($script:controllerSid))
+        $result.evidence | Should -Not -Match 'token is not read'
+        $result.evidence | Should -Match 'IdentityPrivilege'
     }
 
     It 'fails the worker role when the verifier runs as the controller identity' {

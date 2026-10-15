@@ -3,6 +3,12 @@
 # it would collide with the read-only automatic $IsWindows and abort the file.
 $script:onWindows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
 
+# Whether this process holds an elevated token, by the runtime's own answer (it exists from .NET 8). A case
+# that needs an elevated token is skipped for an account that has none and runs on a host that has one.
+$script:elevatedHost = $script:onWindows -and
+    ($null -ne [System.Environment].GetProperty('IsPrivilegedProcess', [System.Reflection.BindingFlags]'Public, Static')) -and
+    [System.Environment]::IsPrivilegedProcess
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
     $script:hookRoot = Join-Path $script:repoRoot 'com.github.copilot/hooks'
@@ -486,6 +492,7 @@ Describe 'Containment verifier' -Tag 'Unit' {
                 'ControlDigest'
                 'ControlImmutability'
                 'IdentityBinding'
+                'IdentityPrivilege'
                 'HookContract'
                 'GrantRecorderUnregistered'
                 'EgressPolicy'
@@ -675,6 +682,30 @@ Describe 'Containment verifier' -Tag 'Unit' {
         $workerCheck.status | Should -Be 'Fail' -Because $workerCheck.evidence
     }
 
+    It 'refuses a verifier that runs with an elevated token, and does not run the hook probe as that identity' -Skip:(-not $script:elevatedHost) {
+        # Review of 2026-10-12, R-04: no probe shows a privilege that is held and disabled, or the elevated
+        # half of a split token, so the token is read and refused. The identity still binds: the refusal
+        # is its own check. This case runs on a host whose token is elevated, as the Windows runner of CI is.
+        $caller = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p24t/profile.json') -Override @{
+            controllerIdentity = $caller
+            workerIdentity = 'NT AUTHORITY\LOCAL SERVICE'
+        }
+
+        $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        (Get-Check -Result $result -Name 'IdentityBinding').status | Should -Be 'Pass'
+        $privilege = Get-Check -Result $result -Name 'IdentityPrivilege'
+        $privilege.status | Should -Be 'Fail' -Because $privilege.evidence
+        $privilege.evidence | Should -Match 'not a standard account'
+        $privilege.evidence | Should -Match 'elevated'
+        $hook = Get-Check -Result $result -Name 'HookContract'
+        $hook.status | Should -Be 'Unavailable'
+        $hook.evidence | Should -Match 'not run'
+        $hook.evidence | Should -Match 'IdentityPrivilege'
+    }
+
     It 'reports a role identity it cannot resolve as unmeasured' -Skip:(-not $script:onWindows) {
         $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p25/profile.json') -Override @{
             controllerIdentity = 'CONTAINMENT\no-such-account-for-the-test'
@@ -856,7 +887,7 @@ Describe 'Containment revalidation command' -Tag 'Unit' {
         $result.Report | Should -Not -BeNullOrEmpty -Because $result.Output
         $result.Report.mode | Should -Be 'Revalidate'
         $names = @($result.Report.checks.name)
-        foreach ($expected in @('ProfileDigest', 'ProfileSchema', 'VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'LedgerChain', 'FinalReport', 'LedgerProtection')) {
+        foreach ($expected in @('ProfileDigest', 'ProfileSchema', 'VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'IdentityPrivilege', 'LedgerChain', 'FinalReport', 'LedgerProtection')) {
             $names | Should -Contain $expected
         }
     }

@@ -406,9 +406,13 @@ Describe 'Containment control immutability of live artifacts' -Tag 'Unit' {
         $result.evidence | Should -Match 'live-runner.exe'
     }
 
-    It 'passes when every control and live artifact is closed' {
+    It 'passes when every control and live artifact is closed, and says that the token is judged by IdentityPrivilege' {
         Mock -CommandName Test-PathProtection -MockWith { New-ClosedProtection -Path $Path }
 
-        (Test-ControlImmutability -ProfilePath (Join-Path $script:controls 'profile.json') -ContainmentProfile (New-ControlProfile) -WritableRoot @()).status | Should -Be 'Pass'
+        $result = Test-ControlImmutability -ProfilePath (Join-Path $script:controls 'profile.json') -ContainmentProfile (New-ControlProfile) -WritableRoot @()
+
+        $result.status | Should -Be 'Pass' -Because $result.evidence
+        $result.evidence | Should -Not -Match 'token is not read'
+        $result.evidence | Should -Match 'IdentityPrivilege'
     }
 }
