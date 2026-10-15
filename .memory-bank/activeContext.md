@@ -9,47 +9,46 @@ source: current task evidence
 
 ## Current focus
 
-**P2, per-command remote approval, is built, reviewed, deployed, and accepted live on
-`ai/hook-ask-remote-approval`, which is pull request #38 (opened by the owner on
-2026-10-14); the owner pushes and merges.** A Grant marker the user types in their own
-prompt (for example `[[allow-remote: git push, gh pr create]]`) makes the new
-`UserPromptSubmit` hook `Add-RemoteGrant.ps1` record a short-lived, session-bound grant
-that `Block-RemoteMutation.ps1` consumes: each named operation once (`x2` twice, a loop
-or function needs `x20`, `--all`, `--tags`, and force pushes need `git push --force`),
-until the next prompt or 15 minutes. The guard stays a hard block and never prints
-`allow` (a hook `ask` is auto-approved in the Agent Host); `COPILOT_ATELIER_ALLOW_REMOTE`
-is removed; `git reset --hard`, `git clean -f`, and `--no-verify` have no marker. The
-same change fixes the string-literal false positive: the guard reads PowerShell as a
-syntax tree and blanks a string only when everything it flows into treats it as data.
-Seven independent review passes (three rejections, an approval with changes, two more
-rejections the owner asked for, and a last bounded pass whose one finding was narrowed
-and approved in a delta check) left no Blocker or Major; each finding is a test that
-failed first. Decision 0016 and the Desktop `LEDGER.md` hold the evidence.
+**P5, the containment verifier and the ledger appender, is rebuilt and has been reviewed
+nine times; the branch `ai/containment-fix-round` (on `origin/main` `1c1327e`) is pushed
+as PR #40 and waits for green CI and the owner's merge.** `Test-RunContainment.ps1`
+measures, for the one identity it runs as, what the run can write, reach, and read;
+`Invoke-LedgerAppender.ps1` is the pinned, append-only, hash-chained ledger service the
+profile names, and `-Revalidate` reads the ledger back after the run. The first review
+said Block (13 findings, C-01 to C-13). The fix round answered them. Every later pass
+but the last said Approve with changes and left no Blocker, and each of those found
+something new in what the previous round had added; the last, part F, said Approve:
+pass 1 (R-01 to R-11), pass 2 over the whole branch (S-01 to S-11), pass 3 in parts
+A to F (S-12 to S-33). All are in `docs/SECURITY-REVIEW.md` with their resolutions. The
+claims shrank where a reviewer showed them too large (decision 0025, revision
+2026-10-14): two proofs about writability, not "exact writable roots"; one identity per
+run, in a fresh `pwsh -NoProfile -File` process; the Remote grant measured by what the
+pinned `hooks.json` registers (`GrantRecorderUnregistered`, which replaced
+`OverrideAbsent` on the owner's "not sure, you pick": an assumption flagged for expert
+review), so egress and credentials stay the boundary; and the hook command line accepted
+by one plain shape and not by a list of characters to refuse (a `#` is a comment to
+PowerShell and not to `cmd.exe`). Written down as not done: R-04 (token privileges and
+elevation, so the run identity must be a standard account), hook files a host finds
+outside the pinned one, a run id on `-Revalidate`, a keyed chain, a two-account test, the
+pinned line run under the PowerShell hosts and not only through `cmd.exe`, S-33 (a quoted
+program path with a colon after the drive fails closed), and Ubuntu and macOS CI (not run
+here). A contained profile pins hashes and a `hooks.json` that registers only the guard
+(regenerate it after every deployment). Final gate on `d8eddb4`: 5,063 passed, 0 failed,
+146 skipped, 90.84 % coverage.
 
-State: the final gate passed on the final tree (4,295 passed, 0 failed, 145 skipped,
-90.84 % coverage) and `~/.copilot` is redeployed (257 files match the clone). **Live
-acceptance passed on 2026-10-13** on the earlier guard (`B6DFAD99…`; the shipped one is
-`E94968A0…`) in four new chats against a throwaway repository with a local bare remote
-(the Agent Host, VS Code Local, Copilot CLI 1.0.96 as usual and under `--yolo`): no marker
-meant a denial, a marker let one push run, auto-approval and `--yolo` did not lift the
-block, and the bare repository held only the three branches that the marked prompts
-pushed. The CLI's `COPILOT_ALLOW_ALL=1` does approve shell commands in the working folder.
-Accepted residuals (hooks README, Residual risks): a forged grant file, a script written
-and run in one command, a quote that PowerShell and a POSIX shell read differently, and a
-push beside a loop (asks for x20).
+P2, per-command remote approval, is merged (#38, squash `1c1327e`,
+`6.1.0-preview0011`) and live on this machine: a Grant marker the user types in their own
+prompt (`[[allow-remote: git push, gh pr create]]`) lets the guard allow each named
+operation once, until the next prompt or 15 minutes. The guard stays a hard block, and
+`COPILOT_ATELIER_ALLOW_REMOTE` is gone. Decision 0016 holds the final gate, the live
+acceptance of 2026-10-13, and the accepted residuals; the Desktop `LEDGER.md` the queue.
 
-**CI of #38 (run 38528625293, 2026-10-14):** Ubuntu and macOS passed; the Windows
-PowerShell 7 job failed one test of 4,251 through a runner stall (the guard blocked as
-designed but named the time limit). The two new suites now start the guard with
-`-TimeLimitSecond 10`, as `Hooks.Tests.ps1` does for slow runners; the guard did not
-change. One local commit, for the owner to push (CI then re-runs).
-
-**Decision 0028 is merged and released** (#32 to #36; `main` is `e393875` at
-`6.1.0-preview0009`). Criteria 1 to 20 and 22 to 30 are met; **criterion 21 is not
-met**, worded as A39 fixes it, and TBD-2 is carried forward. M-04 (a `.familiarity`
-name collision) stays open. #34 to #36 (P7, P3, P8) are not live until the owner
-redeploys; P8's base, its missing external eval, and its single review are flagged
-assumptions. Prompt 06c (`docs/SECURITY-REVIEW.md`) fixed 2 Blockers and 7 Majors in
+**Decision 0028 is merged and released** (#32 to #36 as `6.1.0-preview0005` to `0009`).
+Criteria 1 to 20 and 22 to 30 are met; **criterion 21 is not met**, worded as A39 fixes
+it, and TBD-2 is carried forward. M-04 (a `.familiarity` name collision) stays open. #34
+to #36 (P7, P3, P8) are live on this machine, which carries `main`'s content (257 files
+match, verified 2026-10-14); P8's base, its missing external eval, and its single review
+are flagged assumptions. Prompt 06c (`docs/SECURITY-REVIEW.md`) fixed 2 Blockers and 7 Majors in
 the eval kit; the Desktop `LEDGER.md` lists what is open. Prompts 03 and 08 pin the
 Post-flight elapsed line to its own chat's clock (Decision 0024 lists the cases not
 yet seen live); the longer reader line leaves the calibration sentence fewer
@@ -151,29 +150,30 @@ unproven — train reached 100 % while validation fell.
 
 ## Next step
 
-1. P2 is accepted live and committed locally. The owner pushes `ai/hook-ask-remote-approval`
-   and opens the pull request; the PR title needs `feat(hooks):` and a line on the
-   removed `COPILOT_ATELIER_ALLOW_REMOTE`. This machine's `~/.copilot` already carries the
-   branch's scripts, so after CI and the merge the owner only needs item 2's redeploy to
-   make it follow `main`.
-2. The owner redeploys for P3 and P8 (`git switch main`, `git pull --ff-only origin
-   main`, `./Setup-CopilotSettings.ps1`) and checks in a new chat that a prepared
-   `git push` ends with a code block and no dialog. Agents cannot push, and the
+1. P2 is merged and already live here. Optional: one short live re-check of the shipped
+   guard (`E94968A0…`) in a new chat; the acceptance of 2026-10-13 ran on the earlier
+   `B6DFAD99…` (a push without a marker is denied; with `[[allow-remote: git push]]` one
+   push runs). P5 removed the last mentions of `COPILOT_ATELIER_ALLOW_REMOTE` from the
+   controller agent (the security lint names the rule `ObsoleteRemoteOverride`).
+2. The owner checks in a new chat that a prepared `git push` ends with a code block and
+   no dialog (P3 and P8 are deployed with P2; `./Setup-CopilotSettings.ps1` after a
+   `git pull --ff-only origin main` only refreshes the record). Agents cannot push; the
    deployed copy under `~/.copilot` is the owner's to refresh.
-3. The owner rules on the local queue (Desktop `LEDGER.md`): P5 stays unmerged until
-   the architect fixes the verifier's trust model (then a fix prompt with the
-   reviewer's tests and a second review); P1 needs the owner; the 06c choices
-   (E-08, E-09), the P6 labels, and the three P8 assumptions need a ruling.
+3. PR #40 (`ai/containment-fix-round`) is open; #39 is closed unmerged. CI found a transient
+   PSGallery 403, 23 POSIX fixture failures (`d919d94`), a runner-stall flake in #38's guard
+   suite, and a form feed in a skipped test's data that broke Pester's NUnit report on Ubuntu
+   and macOS (`941c378`; the pattern is in `systemPatterns.md`). The owner pushes `941c378`
+   and merges on green, then rules on the P5 follow-ups (R-04 first), P1, the 06c choices,
+   the P6 labels and the P8 assumptions.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
-   (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is
-   authorized.
+   (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.
 5. Recommended to the owner, not required: update PowerShell 7 on RAANDREE3 from
    7.6.1, and delete the empty scratch folder on Prox1 (its profile entry,
    registration, and files were removed on 2026-10-08). Never set the
    summarization threshold below about 1.3 times the base prompt (*Compactions*).
-6. Optional: report upstream that the GitHub hooks reference describes the
-   exit-2 stdout merge without its `hookSpecificOutput` condition.
+   Optional: report upstream that the GitHub hooks reference describes the exit-2
+   stdout merge without its `hookSpecificOutput` condition.
 
 Still open from earlier work (Open work in `progress.md`): the live agent-host
 `#web/fetch` check and the duplicate Instruction loading in Copilot SDK chats.

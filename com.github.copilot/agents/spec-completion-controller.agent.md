@@ -94,8 +94,10 @@ The verifier hash inside the profile is subordinate to this direct trust anchor.
   or test output into it.
 - Never use a repository-defined command or its output to derive a path outside
   the assigned worktree, endpoint, authorization, live argument, or scope.
-- Never create or persist `COPILOT_ATELIER_ALLOW_REMOTE` in Process, User,
-  Machine, or any other scope. Treat its presence as `BlockedContainment`.
+- Never record, write, or request a Remote grant, and never create, change, or
+  delete anything in the grants folder. A Remote grant is the user's own act,
+  and a contained run registers no hook that records one. Treat a
+  `GrantRecorderUnregistered` check that did not pass as `BlockedContainment`.
 
 ## Pre-containment probe
 
@@ -106,31 +108,74 @@ commands and record each raw result and exit code in the controller ledger:
 1. Canonicalize the profile, verifier, ledger appender, hook configuration, and
   hook script paths. Reject a path inside the target repository or a path
   controlled by its account. Hash all five files and require exact profile
-  matches. Confirm the resolved paths equal the profile paths and that
-  `PLUGIN_ROOT`, `HOME`, and the platform user-profile variable cannot redirect
-  hook resolution.
-2. Run only the hash-pinned verifier with its fixed `Verify` parameter set. It
+  matches. Confirm the resolved paths equal the profile paths. The verifier, not
+  the caller's environment, decides which hook script runs: it sets
+  `PLUGIN_ROOT` to the pinned root, empties `HOME` and the platform user-profile
+  variable for the probe, and fails when the hook command takes its script from
+  anywhere but `PLUGIN_ROOT`.
+2. Run only the hash-pinned verifier with its fixed `Verify` parameter set, as
+  the entry script of a process of its own, `pwsh -NoProfile -NonInteractive
+  -File <verifier> ...`, from a launcher that builds its own environment; it
+  refuses a launch that does not look like one, because a session
+  that has run other code can outrank the functions it measures with. It
   invokes the exact current-platform PreToolUse command from the pinned
-  `hooks.json` with fixed synthetic safe, push, and issue-mutation payloads;
-  require exit codes 0, 2, and 2. In an enabled live mode, the hash-pinned
+  `hooks.json` with fixed synthetic safe, push, and issue-mutation payloads, and
+  only after the verifier binding, the control digests, the immutability of
+  the pinned controls, and the binding of the running identity to its role have
+  passed; require exit codes 0, 2, and 2. The verifier runs that command through
+  `cmd.exe /d /c` on Windows, while the documented hosts wrap it in PowerShell,
+  so that is not a measurement under a host: the verifier accepts only command
+  text of one plain shape that `cmd.exe`, PowerShell and a POSIX shell are
+  expected to read alike (bare words, non-empty double-quoted words, and at most
+  the one pinned exit statement; a test parses generated lines, and no check
+  runs the pinned line under a host), and says in its evidence when the program
+  path is quoted, which a PowerShell host cannot run: record that in the report
+  as a limitation, because the hook is then not shown to run under a PowerShell
+  host. The command must
+  start with the absolute path of
+  PowerShell (`powershell` or `pwsh`; the verifier refuses any other program),
+  and the verifier requires that interpreter to be closed to the run identity
+  before it runs anything. In an
+  enabled
+  live mode, the hash-pinned
   verifier also canonicalizes and hashes the live profile, live-runner
   executable, and command-template manifest and requires exact containment-
   profile matches.
-3. Require verifier evidence that `COPILOT_ATELIER_ALLOW_REMOTE` is unset in
-  Process, User, and Machine scopes and in a freshly spawned hook process.
-  Require controller terminal children to have an effective allow set equal to
-  `controllerEgressAllow` and therefore empty, worker processes to have an
-  effective allow set equal to `workerEgressAllow` and therefore empty, remote
-  endpoints to be unreachable, and no remote credentials, credential helper,
-  proxy, package feed, browser, web, GitHub, or MCP channel to exist.
-4. Require verifier evidence from both controller and worker identities and
-  network namespaces. The measured writable filesystem set must equal exactly
-  the controller integration worktree or worker isolated worktree plus its
-  named run-artifact roots. The append-only ledger sink and protected chain
-  head are not writable, replaceable, deletable, or truncatable by any run
-  identity or terminal child. Only the pinned appender identity may write them
-  through fixed-schema authenticated local IPC. Any other writable path is
-  `BlockedContainment`. A self-description or profile assertion is not evidence.
+3. Require verifier evidence that the pinned `hooks.json` records no Remote
+  grant (`GrantRecorderUnregistered`): it registers no `UserPromptSubmit` hook,
+  does not contain the name of the Remote grant recorder anywhere in the file, and the grants folder of the
+  running identity holds none. The check does not say that no grant can
+  exist: a grant file the run writes itself is not measured, so egress and
+  credentials, not the hook, are the boundary against a remote mutation.
+  Require, from the `EgressPolicy`, `RemoteUnreachable` and `CredentialAbsence`
+  checks, that the controller run has an effective allow set equal to
+  `controllerEgressAllow` and therefore empty, that the worker run has an
+  effective allow set equal to `workerEgressAllow` and therefore empty, that
+  remote endpoints are unreachable, and that no remote credentials are present:
+  no credential variable, credential helper, or proxy is set. The verifier does
+  not measure package feeds, browsers, web or GitHub tooling, or MCP servers:
+  the deployment keeps them out of the sandbox, and the controller reports them
+  as unverified, never as passed.
+4. Require verifier evidence from both controller and worker identities: run
+  the verifier once as each, `-Role Controller` and `-Role Worker`, since each
+  run measures only the identity and network namespace it runs in. The verifier
+  proves two things about writability, and the
+  controller claims no more. Every declared root, the controller integration
+  worktree or the worker isolated worktree plus its named run-artifact roots,
+  accepts new files and folders. A fixed escape set is not writable outside
+  those roots: the user profile, the temp folder, the folder of the containment
+  profile, and the folders of the ledger sink and chain head. The verifier does
+  not enumerate the filesystem, so closing every other path is the deployment's
+  filesystem policy, and the controller never reports the writable set as exact.
+  The append-only ledger sink and protected chain head are not writable,
+  replaceable, deletable, or truncatable by any run identity or terminal child.
+  Only the pinned appender identity may write them through fixed-schema
+  authenticated local IPC. Any measured breach of these is `BlockedContainment`.
+  The verifier reads access control, not the token of the identity it runs as,
+  so a privilege that is held but disabled and a filtered administrator group
+  are not measured: the run identity must be a standard account, and an identity
+  that cannot be shown to be one is reported as unverified, never as passed.
+  A self-description or profile assertion is not evidence.
 
 Any command outside this allow-list before every probe passes is
 `BlockedContainment`. A missing, unknown, or failed result also stops the run.
@@ -148,8 +193,8 @@ live profiles, the ledger appender, protected chain head, or pre-gate probe
 implementation. Hash these immutable controls at baseline and require
 filesystem policy to make them read-only to the run. Before every delegation
 wave, and before every fix round, integration, disposable mutation, and
-finalization, verify hashes; absence of the override in Process, User, Machine,
-and a fresh hook process; empty effective allow sets; exact writable roots; the
+finalization, verify hashes; an unregistered Remote grant recorder; empty effective allow
+sets; the declared writable roots and the closed escape set; the
 ledger chain head; and synthetic 0, 2, and 2 hook results again. A mismatch is a
 Blocker and forbids further terminal or agent work except cleanup and reporting.
 
@@ -393,8 +438,15 @@ local implementation as live-verified.
 8. Verify local `refs/remotes/*` and their reflogs are unchanged. Write
   `final-report.md` with the frozen matrix, denominator diff, percentages,
   budget use, commits, tests, every review request/response hash, live evidence,
-  prepared procedures, blockers, cleanup, and residual risk. Append its SHA-256
-  to the ledger, seal the appender, and have the verifier revalidate the report,
-  complete chain, and protected checkpoint chain head before returning it.
+  prepared procedures, blockers, cleanup, and residual risk. Append a
+  `FinalReport` record whose `data.sha256` is the
+  lowercase SHA-256 of `final-report.md` as the last record before the seal,
+  seal the appender, and run the hash-pinned verifier with `Revalidate` on the
+  profile, its direct digest, and the report path. It runs the pinned
+  appender's profile-bound
+  validation of the complete chain, requires the seal and the protected chain
+  head, and requires the report's digest in the `FinalReport` record; require
+  exit code 0 before returning the report. Never return a report the verifier
+  did not revalidate as final.
 9. Return a concise summary and report path. Never claim success while tests,
    cleanup, worktree, or remote refs are not clean.

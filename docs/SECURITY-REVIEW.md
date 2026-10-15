@@ -4,6 +4,289 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-10-14: containment verifier and ledger appender, after the fix round (prompt P5)
+
+The built-in `security-review` agent reviewed the containment verifier
+(`Test-RunContainment.ps1`) and the ledger appender (`Invoke-LedgerAppender.ps1`)
+repeatedly, read-only and in a fresh context, with no network call. The first
+review (2026-10-12, change set `e42985b`) said **Block** with 13 findings, C-01 to
+C-13. The fix round rebuilt the branch on `main` after the Remote grant change
+(`#38`), fixed each finding test first with a mutation check per control, and the
+same agent then reviewed it again: pass 1 (the verifier at `7804e31`) said
+**Approve with changes** with 11 findings, R-01 to R-11; pass 2 (the whole
+branch at `ad93f66`, including the appender, which pass 1 had not read) said
+**Approve with changes** with 11 findings, S-01 to S-11; and pass 3 checked each
+round of fixes in turn, in six parts: A the verifier fixes of pass 2 (S-12 to
+S-16), B the appender fixes, the part A fixes and the interpreter allow-list
+(S-17 to S-20), and C to F bounded delta checks of the four fixes that followed
+(S-21 to S-24, S-25 to S-29, S-30 to S-32, and S-33). Every delta check but the last
+found something in what the previous round had added, and the two Majors among them
+(S-21 and S-25) were in the same function, `Get-HookInterpreter`. The last one, part
+F, said **Approve**. All are recorded below. The Custom `security-reviewer` agent was
+not tried, because its first model was unavailable in this runtime in earlier
+reviews. Nothing was pushed.
+
+### Scope
+
+- Can a run read as contained when it is not; can ledger evidence be suppressed,
+  spoofed, or altered without `-Validate` failing; can the verifier itself be made
+  to run something other than what it measured; and does the documentation claim
+  more than the code measures?
+- Pass 2 added what the fixes introduced: the fresh-process requirement, the
+  absolute interpreter path, the plugin-root tie, the whole-document scan, the
+  report-path rules, the per-process native type, and the appender in full.
+- Pass 3 added what the pass 2 fixes introduced: the launch check and its call
+  stack, the closed entry keys, the ordinal grammar, the acknowledgement rebuild,
+  the relayed-text policy, the hook-line rules, and the module origin of the
+  firewall cmdlets. Parts C to F added what the hook-line fixes introduced: the
+  shape that the line after the program has to have, the program word and the drive
+  rule, and what the Pass evidence says about the hosts.
+
+### Verdict
+
+First review: **Block** (5 Blockers, 7 Majors, 1 Minor). Pass 1: **Approve with
+changes** (no Blocker, 3 Majors, 7 Minors, 1 Nit). Pass 2: **Approve with
+changes** (no Blocker or Major, 7 Minors, 4 Nits). Pass 3 part A: **Approve with
+changes** (no Blocker or Major, 4 Minors, 1 Nit). Pass 3 part B: **Approve with
+changes** (no Blocker or Major, 1 Minor, 3 Nits). Pass 3 part C: **Approve with
+changes** (no Blocker, 1 Major, 3 Minors). Pass 3 part D: **Approve with changes**
+(no Blocker, 1 Major, 3 Minors, 1 Nit). Pass 3 part E: **Approve with changes** (no
+Blocker or Major, 2 Minors, 1 Nit). Pass 3 part F, a bounded delta check of the part
+E fixes: **Approve** (no must-fix finding, 1 Nit). Each set of findings was fixed
+before the next pass; the Nit of part F is a recorded follow-up and was not fixed,
+so that the code the last reviewer approved is the code that was gated.
+
+### Findings
+
+First review, resolved in the fix round:
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| C-01 | Blocker | Verifier | The role identities were required but never read. | Fixed. `IdentityBinding` resolves each role identity and fails unless it is the verifying identity and the two roles differ; tested with the real token (Controller Pass, Worker Fail). |
+| C-02 | Blocker | Verifier | "Immutable" meant only that the leaf could not be opened for write. | Fixed. Each right that replaces or loosens an object is asked of the kernel for the object, its parent and every ancestor, with reparse points and writable-root overlap; a sharing violation reads as granted, so the check works beside a live appender. |
+| C-03 | Blocker | Verifier | The hook probe ran a command from a configuration whose digest or immutability had failed, and never compared the resolved script. | Fixed. It runs only after the verifier, the digests, the immutability and the identity binding pass, on bytes it hashed itself, with `PLUGIN_ROOT` set to the pinned root and a decoy tree; see R-01 and R-06 for what pass 1 then required. |
+| C-04 | Blocker | Appender | The pipe could be taken in a gap, and the client authenticated nobody. | Fixed. A pending instance is always kept and a creation failure is fatal; the creator owns the pipe and the network identity is denied; the client checks the owner and access list before it sends and checks the acknowledgement against the ledger. The owner comparison replaces a process-id lookup. |
+| C-05 | Blocker | Appender | Validation did not close the stored line, so text could be planted in it. | Fixed. A stored line must be byte-for-byte the canonical form of what it parses to, with exactly seven fields. |
+| C-06 | Major | Appender | A restart adopted whatever the sink held. | Fixed. The start is refused unless the head names the last record or the one before it. |
+| C-07 | Major | Appender | A head failure left a persisted, unacknowledged record and a stale sequence. | Fixed. Persist, advance, publish; a head failure stops the service. |
+| C-08 | Major | Appender | The canonical form was not a function of the data. | Fixed. Ordinal keys, raw tokens, integers within ±(2^53−1); the vectors were cross-checked with an independent implementation. |
+| C-09 | Major | Verifier | The egress check passed a disabled firewall profile and read a timeout as closed. | Fixed. Profiles must be enabled and default to Block, allow rules are read (an alias principal fails closed), and a timeout is unmeasured. The premise that a filtering-platform block returns an access error is unverified and fails closed to unmeasured. |
+| C-10 | Major | Verifier | The caller's environment decided some results. | Fixed. git is resolved to an absolute path that must be closed to the run, the steering variables are reported and dropped, a sentinel and an exit code are required, and values are never printed. |
+| C-11 | Major | Verifier | Live artifacts were not in the immutability set, and the writable-roots check claimed more than it measured. | Fixed. They are measured; the check makes two proofs and no longer claims the set is exact. The P2 grant is reconciled by `GrantRecorderUnregistered` (an assumption on a delegated choice; see R-06). |
+| C-12 | Major | Both | The verifier could not revalidate the chain, and `-Validate` took any path. | Fixed. `-Validate` is bound to the profile and can require a seal; `-Revalidate` runs it, reads the sink before and after, and checks the `FinalReport` record. |
+| C-13 | Minor | Both | A set of smaller defects. | Fixed, apart from a signed chain. |
+
+Pass 1 (verifier at `7804e31`):
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| R-01 | Major | Verifier | The hook probe started a shell in the caller's working directory and PATH, and the shipped command begins with a bare `powershell`, so a program planted in the repository ran before any verdict. | Fixed. The probe runs in a folder of its own with the shell told not to search the working directory; the command must start with the absolute path of an interpreter the run cannot replace. |
+| R-02 | Major | Verifier | `IdentityBinding` did not gate the hook command or the appender, which run as the caller. | Fixed. It gates both. |
+| R-03 | Major | Verifier | Nothing required a fresh process, so a function or type defined earlier in a session outranked the verifier's own. | Fixed. It runs only as the entry script of a `-NoProfile -File` process; the native probe is a per-process type; the temp folder of the operating system joins the escape set. |
+| R-04 | Minor | Verifier | Token privileges and elevation are never read. | **Not fixed.** Documented as a residual: the run identity must be a standard account. The smallest honest measurement is a read of the token. |
+| R-05 | Minor | Verifier | The report path was compared as text. | Fixed. Stream, device and extended-length spellings and, on Windows, a link above the report are refused. |
+| R-06 | Minor | Verifier | The grant check passed a shape it could not read, and its name overstated it. | Fixed. Renamed `GrantRecorderUnregistered`; an unread shape is unmeasured; the pinned `hooks.json` must be the plugin's own file. Hook files a host finds elsewhere are not read. |
+| R-07 | Minor | Verifier | The hook contract read one string of one entry. | Partly. Type, matcher, timeout and equal text under every key are required and each probe is timed; keys are not probed one by one. |
+| R-08 | Minor | Verifier | A directory entry is one object, and other registered hooks are unpinned. | Partly. Only the guard may be registered and the directory-leaf right has a test; a directory entry is still one object, documented. |
+| R-09 | Minor | Tests | Cases that could not fail, and one that failed off Windows. | Fixed. Eight network cases repaired (half the finding was redaction of credential-shaped fixtures, which are now distinctive and not credential-shaped), a ledger contract suite built on the real appender, the link branch and the digest case tested. |
+| R-10 | Minor | Docs | Claims beyond measurement; a loose `schemaVersion`. | Fixed. |
+| R-11 | Nit | Both | Probe files on POSIX, an uncaught `Add-Type` failure, uncapped relayed text, no run id. | Partly. The failure is unmeasured, relayed text is cut and cleaned, the probe files are documented; a run id is not bound. |
+
+Pass 2 (the whole branch at `ad93f66`, the appender included). It found no Blocker
+and no Major, and set the pass 1 findings as follows: R-01, R-02, R-06 and R-09
+resolved; R-03, R-05, R-07, R-08, R-10 and R-11 partly, each open part being a
+finding below or documented; R-04 not resolved, acceptable as a documented
+residual for this change set and not as the end state.
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| S-01 | Minor | Verifier | The fresh-process check accepts a `-Command` launch that carries a trailing `-File <script>`, which runs planted code before the script. | Fixed (`3676fce`): the check also reads the call stack (one frame under `-File`, two under `-Command`). Part A found the check skippable and the options before `-File` unread: S-12 and S-13. |
+| S-02 | Minor | Verifier | The fresh process still inherits `PSModulePath` and `DOTNET_STARTUP_HOOKS`, which outrank what it measures with. | Split. The module-path half is measured: `EgressPolicy` is unmeasured unless the three firewall cmdlets come from a module under the system folder (`b2cf267`). The start-up hook and the rest of the launcher's environment are documented as the launcher's job, because a hook can unset its own variable; the reviewer accepted that for the start-up hook only. |
+| S-03 | Minor | Verifier | `HookContract` reads some keys of the guard's entry and ignores the rest. | Fixed (`3676fce`): the entry is a closed set of keys, and `timeoutSec`, `env`, `cwd`, a capitalized `Timeout` and a key whose name only looks like a known one all fail. |
+| S-04 | Minor | Both | The "closed" grammar is closed only up to culture equivalence (`-ceq` treats a zero-width character as nothing), and `utc` is a shape, not an instant. | Fixed in the verifier (`3676fce`) and the appender (`73621c5`): ordinal comparisons, `\A...\z` patterns, `utc` parsed as an instant. Part A found one more culture-ordered site in the verifier, `Get-PathChain`, fixed in `b2cf267`. |
+| S-05 | Minor | Appender | The acknowledgement check accepts a replay: a server that answers a new record with the sequence and digest of a stored one. | Fixed (`d384c89`): the client rebuilds the digest of the record it sent and requires it in both the acknowledgement and the ledger. |
+| S-06 | Minor | Verifier | `Format-RelayedText` leaves supplementary-plane format characters, the Unicode tag block among them. | Fixed for the tag block (`3676fce`). Part A showed that the category deny-list still passed other invisible characters (S-15), so it is now an allow-list (`b2cf267`). |
+| S-07 | Minor | Verifier | The git child process is not gated by `IdentityBinding`. | Fixed (`3676fce`): git runs only after the checks that gate the hook command. |
+| S-08 | Nit | Appender | The client prints the server's refusal text raw. | Fixed (`feb91a3`, `4c287be`): one line of printable ASCII, every other character one `?`, cut at 200 characters. |
+| S-09 | Nit | Appender | A process of the service's own account can join the pipe name. | Not fixed, accepted. With S-05 fixed it can make an append fail but cannot make an unstored record read as stored. The reviewer's fix, `FirstPipeInstance` and a pending instance at start, is a follow-up. |
+| S-10 | Nit | Verifier | Report-path aliases are still accepted: a hard link to a protected file, and a UNC spelling of the same machine. | Not fixed, accepted. The report is written with the rights of the run identity, which holds no write right on any control when `ControlImmutability` passes. |
+| S-11 | Nit | Verifier | `Get-HookInterpreter` judges the first word only. | Fixed in three steps: the rest of the line (`3676fce`); `%`, `!`, parentheses and the semicolon tail (S-14, `b2cf267`); and a program not named `powershell` or `pwsh` is refused (`982fe1d`). |
+
+Pass 3, part A (the verifier fixes at `6c5fc7f`). It confirmed that the fixes close
+the mechanisms reported, found S-12 to S-16, and judged the documentation-only
+resolution of S-02 acceptable for the start-up hook and not for the module path.
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| S-12 | Minor | Verifier | The process check is a call by name, and command lookup tries an alias before a function, so `Set-Alias Get-FreshProcessProblem Out-Null` made it do nothing. | Fixed (`b2cf267`): the check and the option reader contain no command and are reached through the function table. A structural test counts the commands in them, and an end-to-end launch with the alias prelude is refused. |
+| S-13 | Minor | Verifier | The options before `-File` were scanned for `-NoProfile`, not allow-listed: `-ConfigurationFile` ran a planted `Get-Date` at a call stack of one, and `-WorkingDirectory -nop` swallowed what looked like `-NoProfile`. | Fixed (`b2cf267`): only options that cannot change what runs first are allowed, an option that takes a value takes the next argument, and the hook-line check uses the same reader. |
+| S-14 | Minor | Verifier | A `%` in the hook command line expands in `cmd` before `&` is read, and an unquoted `;` or parenthesis lets a host's PowerShell run a second program. | Fixed (`b2cf267`): `%` and `!` are refused anywhere, parentheses outside quotes are refused, and after an unquoted `;` only the one statement the shipped command ends with is accepted. A test derives the commands from the shipped `hooks.json`. |
+| S-15 | Minor | Verifier | `Format-RelayedText` is a deny-list: variation selectors, Hangul fillers, the Braille blank and the wider spaces pass. | Fixed (`b2cf267`): printable ASCII only, every other rune one `?`. The appender's refusal text follows the same policy. |
+| S-16 | Nit | Docs | The README said `Start-Process -UseNewEnvironment` gives a clean launcher. | Fixed (`7f6504b`): it clears what the child inherits, not the module path or the start-up hook; the advice is a launcher that builds its own environment. |
+
+Found while fixing S-11, not by the reviewer; its severity is my own judgement and
+part B is asked to confirm it:
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| (none) | Minor | Verifier | The probe shell ran `cmd.exe /c`, and `cmd.exe` runs the `AutoRun` commands of the registry of the identity that starts it unless it is given `/d`, so a hostile identity could answer for the guard from there. | Fixed (`982fe1d`): the probe runs `cmd.exe /d /c`, and a test reads `%CMDCMDLINE%` from inside the probe. The same commit makes the hook interpreter an allow-list (`powershell` or `pwsh`), since what any other program loads cannot be read. |
+
+Pass 3, part B (the appender fixes, the part A fixes and the interpreter
+allow-list, at `7f6504b`). No Blocker and no Major. S-04 (appender), S-08, S-12,
+S-13, S-15, S-16 and the module-path half of S-02 were confirmed resolved, S-05
+resolved with one residual (S-19), S-14 and S-11 partly (the rest is S-17), and S-09,
+S-10 and the two availability limits accepted. It confirmed that the interpreter
+allow-list refuses everything the shipped hook does not need and refuses
+nothing it does need, that no other launch in either script runs the identity's
+start-up configuration, and that the `AutoRun` claim is right as far as the text
+of `cmd /?` goes (no value exists on the host and nothing was written to the
+registry, so it was not demonstrated). `Test-UtcInstant` never accepts a
+non-instant; it refuses a valid leap second (`23:59:60Z`), year 0000 and a
+fraction of ten digits, all fail closed.
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| S-17 | Minor | Verifier | The hook-line scan reads `cmd.exe` rules only: `-Command "$(calc.exe)"`, `"$env:PLUGIN_ROOT"`, a backtick inside quotes and `-Command x '"' ; calc.exe '"'` were accepted, and a PowerShell wrapper or a POSIX shell reads them differently from a scan that toggles on the ASCII double quote. | Fixed (`25cedd4`): no `$` or backtick anywhere, no `'` outside double quotes, and, beyond what was asked, nothing outside printable ASCII (checked on the text as given; PowerShell reads curly quotes as quotes) and no dot segment in the program path. The 15 shipped command strings carry none of them. Thirteen new rows failed first; five mutations, one per rule, broke exactly those rows. |
+| S-18 | Nit | Docs | The README launcher recipe (`Environment.Clear()` and a `PSModulePath` of system folders) does not do what it says: pwsh adds the account's own module folder first. | Fixed in the README, after reproducing it. The module path is closed only where the verifier measures it (the three firewall cmdlets); adding the folders pwsh searches to the escape set of `WritableRoots` is a follow-up. |
+| S-19 | Nit | Docs | "Cannot make a record that was not stored read as stored" has an exception: a server that replays the earlier acknowledgement of a record identical to one already stored. | Fixed in the README: the exception and what the client cannot prove (how many times the record was stored). The reviewer's hardening, `sequence == head before send + 1`, needs the client to read the chain before it sends, and is not done. |
+| S-20 | Nit | Both | Two service-side `[Console]::Error.WriteLine` lines print raw exception text; the S-04 and S-05 appender tests are Windows-only although three of the functions are platform-neutral; `..` in the program word is normalized textually. | The `..` item is fixed with S-17. The first is not changed: no client text reaches those lines (`Test-RecordSchema` returns canonicalization errors to the client inside a `try`, and `Add-Record` runs only after it passed), so there is nothing to provoke in a test; part C accepted that as a Nit and still recommends routing both lines through `Format-RefusalText`. The second is a follow-up, because Ubuntu and macOS cannot be run here. |
+
+Pass 3, part C (a bounded delta check of `25cedd4` and `c7e886e`). It confirmed S-18 and S-19 resolved and S-17 resolved for the characters it names, and showed that the class was not closed: **one Major, three Minors**. It also confirmed that the ASCII rule refuses nothing a shipped-shape command carries (the commands resolve `PLUGIN_ROOT` at run time), that the order of the checks is safe, and that the rule makes the culture-sensitive `IndexOf('"', 1)` and `StartsWith('\\')` safe, because they now see only ASCII. It accepted as follow-ups S-20 (both bullets), the escape-set addition and the S-19 hardening, and R-04 stays accepted.
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| S-21 | Major | Verifier | The hook-line scan was still a list of characters to refuse. A `#` before the closing statement is a comment to PowerShell and not to `cmd.exe`, so under both documented hosts the statement that turns the guard's exit code into the hook's never runs, a push exits 1, which does not block, and `HookContract` still passes with 0, 2, 2 (reproduced on the shipped `windows` command). An unterminated quote, a doubled quote inside a quoted part and, under a POSIX shell, a quote after a backslash passed too and were read three ways. The claim that the verifier refuses command text two shells could read differently was false. | Fixed (`44396e8`): the scan accepts one shape instead of refusing a list. After the program only bare words of letters, digits and `. _ : \ / -` and double-quoted words with no double quote inside (and no backslash before the closing one) may follow, then at most the one pinned exit statement after an unquoted `;`. Eighteen tests failed first, among them an end-to-end row that inserts the hash into the shipped command; four mutations, one per addition, broke exactly those 18. The shipped commands and the derived-from-shipped tests still pass. The reviewer's larger fix, running the pinned line under the PowerShell wrappers the README's host table lists (after checking the wrapper binary is closed to the run identity), so that the whole class fails by measurement, is a follow-up. |
+| S-22 | Minor | Verifier | An unquoted program word may hold `;`, `,` or `=`, and a closing quote may be glued to the next word: `cmd.exe` started a decoy `a.cmd` beside `a;b\powershell.exe` with the rest as its arguments, so the measured path and the started program differ. | Fixed (`44396e8`): an unquoted program word holds only the safe characters, and the shape refuses text glued to a closing quote. The decoy has to sit in a directory above the interpreter, which `Test-PathProtection` requires closed to the run, so only a deployer or a package could plant it. |
+| S-23 | Minor | Docs | Sentences that claimed more than the code measures: "refuses the characters on which the two shells could disagree"; the probe's `cmd.exe` "which a host may not" (both documented hosts wrap the line in PowerShell, and `cmd.exe` is the exception); the 5.1 measurement holds only when the whole line is given as one argument; the `HookContract` Pass evidence named no shell. | Fixed: the README, the controller text, the changelog entry and the Pass evidence now say that the probe ran through `cmd.exe /d /c`, that a PowerShell host reads the line by other rules, and which model the 5.1 measurement used. |
+| S-24 | Minor | Verifier | A quoted program path passes `HookContract` and the `cmd.exe` probe and fails open under both documented hosts: PowerShell needs a leading `&` before a quoted path, the check refuses the `&`, and the wrappers exit 1, which does not block. The README called it "not settled" while the check returned Pass. | Partly (`44396e8`): the Pass evidence now says so when the program path is quoted, and the README tells a deployment to pin an unquoted path until a form that works under both is settled. The check still passes a quoted path; returning Unavailable or Fail for it is the reviewer's other option, and a follow-up. |
+
+Pass 3, part D (a bounded delta check of `44396e8` and `6a6af58`). It confirmed S-21 and S-22 resolved for everything named in part C, S-23 partly (S-29) and S-24 accepted as a follow-up, and found **one more Major**: the shape still let a word that starts with a dash through. The reviewer generated 12,000 lines, ran them through the verbatim function, and parsed every accepted line with the real parsers of Windows PowerShell 5.1 and 7.6.6: of 7,814 accepted lines, 126 deviated, all of them dash words. It also confirmed that the quote loop and the shape agree on where the head of the line ends, that the shape refuses nothing the shipped `PreToolUse` command needs, and that the program-word rule is enough for `;`, `,`, `=` and a glued quote.
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| S-25 | Major | Verifier | A bare word may start with `-`. PowerShell reads `-name:` as a parameter that binds to the next word or, as the last word, fails to parse, and splits `-Z.7` in two, where `cmd.exe` passes each through whole. Reproduced on the shipped body: ` -x:` before the closing statement made both PowerShell wrappers exit 1 for a push, which does not block, while the `cmd.exe` probe still measured 0, 2, 2. | Fixed (`032d6c4`): a word that starts with a dash is an option name of letters only (the reviewer's regex, character for character; its generated set gave 0 deviations). Six rows and an end-to-end row failed first. The reviewer's method is now a seeded test: every line the shape accepts out of 4,000 generated ones has to parse, with the parser of the host, as one command whose words are the words the shape saw. Under the part C shape it finds 533 deviating lines, such as `-d.f0` and `-bf0YZc1.`; under the new one, none. |
+| S-26 | Minor | Verifier | A network path is two separators in any mix. The check refused only `\\` and `//`, so `\/server\share\powershell.exe` and `/\server\share\powershell.exe` reached `Test-PathProtection`, which would read the access list over the network as the verifier's own identity. | Fixed (`032d6c4`): two separators in any mix, quoted or not. |
+| S-27 | Minor | Verifier | Off Windows the shape and the program word allow backslashes that a POSIX shell reads as escapes: `/opt/x\y/pwsh` runs `/opt/xy/pwsh`, a sibling directory that was never measured. | Fixed (`032d6c4`): off Windows a backslash anywhere in the line is refused, tested with the platform switched so that the rule runs on every host. Verified at the level of `sh` word splitting (Git's `sh.exe`); the POSIX probe itself was not run on a POSIX host. |
+| S-28 | Nit | Verifier | A line with an empty word (`... -Command exit ""`) made the option reader throw, so the verifier ended with exit code 1 and nothing verified instead of refusing the line with its reason. Fail-closed, not a hole. | Fixed (`032d6c4`): `[AllowEmptyString()]`. |
+| S-29 | Minor | Docs | "Read alike" was too strong until S-25 and S-27 were fixed; the README contradicted itself about the POSIX backslash; the controller was told that the quoted-path caveat exists but not what to do with it. | Fixed (`8a95351`): the README cells, the changelog entry and the help comment describe the shape, and the controller records a quoted program path in the report as a limitation of the hook. |
+
+The reviewer accepted as follow-ups the wrapper measurement (run the pinned line under the PowerShell hosts and require 0, 2, 2 there too, which is the real fix for the whole class: S-25 would have failed by measurement), S-24 as Unavailable or Fail (with the controller sentence, now done), S-20, the escape-set addition, the S-19 hardening and R-04.
+
+Pass 3, part E (a bounded delta check of `032d6c4` and `8a95351`). It confirmed S-25, S-27 and S-28 resolved and S-26 and S-29 partly, and found **no Blocker or Major, two Minors and a Nit**. It generated two fresh sets of 12,000 lines (seeds 20261014 and 777, with tabs inside quotes, `-nop -noni -c`, `-File` forms, tails and hostile characters inserted at random) and parsed every accepted line with Windows PowerShell 5.1 and PowerShell 7.6.6: 0 deviations in 15,296 accepted lines under each parser. It gave Git's `sh.exe` 220 accepted heads without a backslash (0 differences) and compared the arguments that `cmd.exe /d /c`, the 5.1 wrapper and the 7 wrapper hand to a script for 140 `-File` lines: they matched except for one word, an empty quoted word.
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| S-30 | Minor | Verifier | A quoted NT-prefixed program path passes the program-word rules: `"\??\UNC\server\share\powershell.exe"` and `"\??\C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"`. `\??\` has one separator, so the network-path rule does not see it, .NET calls it fully qualified, and the unquoted-word rule applies only to unquoted words (the unquoted spelling was refused only because `?` is not in its character class). The reviewer measured that `CreateFileW`, the call that measures the rights, opens `\??\C:\...` as the NT path it names, so `Test-PathProtection` would read a remote access list as the identity of the verifier (the network side was not exercised). A path with one `?` became `D:\?\...` on the working drive of the verifier. | Fixed (`f6cd56a`): on Windows the program word, quoted or not, has to start with a drive letter and a separator (the reviewer's rule; the `[\\/]{2}` rule stays for its message and for POSIX paths). Four rows failed first (three accepted lines and one message); with the rule switched off the same four fail. |
+| S-31 | Nit | Verifier | An empty quoted word is read differently under Windows PowerShell 5.1: for `-File x.ps1 ""` the `cmd.exe` probe and the 7 wrapper give the script one empty argument and the 5.1 wrapper gives none. For `-Command "body"` it changes nothing. The property test compares parse trees and cannot see it. | Fixed (`f6cd56a`): the quoted word must not be empty (`+` in the shape) and the empty-word test expects the shape refusal. Two tests failed first, and with the old quantifier put back the same two fail. The option reader keeps `[AllowEmptyString()]` with a direct test; removing it breaks only that test. |
+| S-32 | Minor | Docs | "Not a network or device path" was false for `\??\` and "read alike" false for an empty quoted word under 5.1 until S-30 and S-31 were fixed, and the README said the PowerShell half was "tested and not only reasoned" without saying that the test checks the structure PowerShell reads and not what a wrapper hands on to the program. | Fixed in the documentation commit: the README `HookContract` row, the help comment, the controller text and the changelog entry say that the shape is expected to be read alike, what the test and the review measured, and that on Windows the drive letter decides which program path is read. |
+
+The reviewer accepted as follow-ups the wrapper measurement (S-25 and S-31 would have failed by measurement), S-24 as Unavailable or Fail, S-20, the escape-set addition, the S-19 hardening and R-04, and added one: run the property test once in CI with a fresh printed seed. It also asked for a tail, a `-File` form and a tab inside a quote in the property test, which `f6cd56a` has. I ran a differential check of my own on `8a95351` with those features: 90,000 generated lines and 150,000 one-character mutants of accepted ones gave 108,798 accepted lines, with 0 deviations under PowerShell 7.6.6 and under Windows PowerShell 5.1.
+
+Pass 3, part F (a bounded delta check of `f6cd56a` and `d8eddb4`): **Approve, with no must-fix finding** and one Nit. The reviewer extracted the verbatim function and constants by AST and read each line with `cmd.exe /d /c` and with the 5.1 and 7.6.6 wrappers. It confirmed S-30, S-31 and S-32 resolved:
+
+- **S-30.** Of 46 spellings that must be refused, quoted and not (`\??\` local and `UNC`, `\?\`, `\\?\`, `\\.\`, `//?/`, `//./`, `\/`, `/\`, `C:`, `C:foo`, `C::\`, a stream on the file, a non-ASCII drive letter, rooted without a drive, a bare name, a relative path, a leading space or tab in a quoted word), 44 are refused and the two that pass are S-33. The function has 22 returns and only one returns a path, and the drive rule comes before the loop and the shape, so no earlier rule lets a word through. `GetFullPath` does not change the object: for forward slashes, a doubled separator, a trailing dot, dots plus a space, a trailing space and lower case, opening the raw word and the measured path with `CreateFileW`, as the verifier does, gives the same volume and file index.
+- **S-31.** The arguments that `-File echoargs.ps1` receives under the three readers were compared for 28 targeted quoted words (a space, two spaces, a lone tab, `"a "`, `" a"`, `"-"`, `"--"`, `"-x"`, `"a\b"`, `"a" "b"`, and quoted `-File`, `-Command`, `;`, `=`, `,`, `:`, `/`, `.`, `..`): every accepted one is the same, and a lone backslash, `"a\"`, `"\\"` and `"a\\"` are refused. Of 200 random `-File` lines (68 with a whitespace-only quoted word), 198 are the same; the other two are artifacts of the reviewer's generator (a mutation put a backslash into the script path, so all three readers fail, with different exit-code mapping), not an argument difference.
+- **The property test.** Sound. Run by AST against the verbatim function it generates 4,000 lines and accepts 1,841 (468 with the pinned statement, 617 with `-File`, 637 with `-Command`, 319 with a tab inside a quote, 424 with a whitespace-only quoted word, none with an empty one) with 0 deviations; the reviewer's own 24,000 further lines gave 16,576 accepted and 0 deviations under 7.6.6 and 5.1. It checks parse structure only, which the documentation now says.
+- **S-32.** Nothing in the README row, the help comment, the controller text or the changelog entry claims more than the code measures. The one statement not verified end to end is that a share is read over the network: the reviewer confirmed the local `\??\C:` resolution and not the network side.
+
+| ID | Severity | Area | Finding | Resolution |
+|---|---|---|---|---|
+| S-33 | Nit | Verifier | A quoted program path may carry a colon after the drive. `"C:\:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"` and `"C:\Windows\System32\WindowsPowerShell\v1.0:x\powershell.exe"` pass the drive rule. The unquoted spellings are refused, because the program-word rule allows `:` only as the drive's, and that rule does not apply to a quoted word. `CreateFileW` returns error 123 (invalid name) for both, so they name no file, and the verifier then fails closed at "the interpreter does not exist" or "could not be measured". A colon on the file itself is refused by the name rule. Only the claim that the drive rule closes every spelling falls short. I reproduced it against the verbatim function: both are accepted and `File.Exists` is false for both; the unquoted spellings and the NT path are refused (and `File.Exists` is true for the NT path, which is what made S-30 matter). | **Not fixed, a recorded follow-up**, which is also the reviewer's classification ("before merge: nothing"). The fix is one line, `\A[A-Za-z]:[\\/][^:]*\z` for the drive rule, with two quoted rows (`C:\:\...` and `...v1.0:x\...`) in the `refuses <Why>` table that must fail without it. I left it, because the fix would put a code change on the commit after the last approval and restart the final gate for a path that fails closed; it is the first item to take together with the wrapper measurement. |
+
+Recorded as a residual, not a finding: a drive letter that is a mapped network drive or a `subst` cannot be seen textually, and measuring it needs the mappings of the verifier's own logon session. The reviewer accepted every deferred item again: the wrapper measurement, S-24 as Unavailable or Fail, the fresh printed seed for the property test in CI, S-20, the escape-set addition, the S-19 hardening and R-04. Not assessed by part F: the POSIX probe branch and macOS, the off-Windows tests and the Pester suite itself (it ran only the property test body), the network side of S-30, how VS Code and the SDK host spawn the command beyond the README's table, two-account behaviour, WFP, the unsigned chain and R-04.
+
+### Documentation
+
+The hooks README, the changelog entry and the controller text were corrected
+twice to say what each check proves and what it does not. After pass 2: the check
+names, the one-identity-per-run rule, the privileges that are not read, the
+fresh-process requirement, the ledger as the appender behaves, and the claims of
+the pass 2 report that went beyond the code (E1 to E9). After pass 3: the launch
+options, the hook-line rules and the PowerShell-only interpreter, the ASCII
+relay, the module origin of the firewall cmdlets, the acknowledgement rebuild,
+`-ExpectedServerIdentity`, the fact that the record schema fixes four field names
+and nothing about their values, the availability limits of the appender, and the
+S-09 and S-10 residuals. After pass 3 parts B to F: the hook line as a shape and not
+a list, the probe named as `cmd.exe` and not as a host, the model of the Windows
+PowerShell 5.1 measurement, what the evidence says about a quoted program path and
+what the controller does with it, the drive rule for the program path and the
+non-empty quoted word, what the seeded test and the review measured (the structure
+PowerShell reads, not what a wrapper hands on), the launcher recipe (pwsh adds the
+account's own module folder first), the identical-record exception of the
+acknowledgement check, and the POSIX backslash. Decision 0025 carries a revision
+that withdraws "exact writable roots" and records the pass 3 rules.
+
+### Tests
+
+Every control a finding names has a test that fails when it is removed, shown by
+switching each off in turn (the mutation runs of each round are listed in the pull
+request description). The twelve verifier suites and the appender suite together
+have 767 passing tests and one that is skipped off POSIX. The final full
+`build,test` gate, run on `d8eddb4` (the commit after it changes only records),
+passed: 5,063 passed, 0 failed, 146 skipped, 90.84 % coverage against a threshold
+of 65 %, 21 build tasks and no error. The gates that ran before it on earlier
+commits (4,673 and 4,861 passed on the first rounds, none failed) are not its
+result, and four more were stopped because the next review pass required a code
+change. Nothing could run on Ubuntu or macOS here.
+
+### Remaining risks
+
+- A privilege that is held but disabled, and a filtered administrator token, are
+  not read (R-04). The reviewer's measurement is about 45 lines of token reading;
+  it would fail every administrator account, this host and the CI runner
+  included, so it is the first follow-up and not part of this change set.
+- A grant file a run writes itself is not stopped by the hook: egress and
+  credentials are the boundary. Hook files a host finds outside the pinned file
+  are not read.
+- The launcher's environment is the launcher's job: `DOTNET_STARTUP_HOOKS` and
+  any other carrier that outranks the measurement cannot be measured from inside.
+  Only the module path of the firewall cmdlets is measured (S-02). pwsh adds the
+  account's own module folder ahead of the system ones whatever `PSModulePath` a
+  launcher sets (reproduced), so a module that the verifier's other commands would
+  auto-load from it is not measured; adding the folders pwsh searches to the escape
+  set of `WritableRoots` is a follow-up.
+- A process of the service's own account can take or join the pipe name and make
+  an append fail (S-09). An open handle on the chain head stops the service by
+  design, and a silent connection holds it for as long as it stays open.
+- `-Revalidate` does not bind the ledger to a run id, and the chain is not keyed,
+  so whoever can write the sink and the head can write a chain that validates.
+- The hook line is accepted by a shape that `cmd.exe`, PowerShell and a POSIX shell
+  should read alike, and the probe runs it through `cmd.exe /d /c`. Both documented
+  hosts wrap the line in PowerShell, so the probe is not a measurement under either.
+  The PowerShell half of the shape's claim is tested with the host's parser over
+  generated lines, which checks the structure PowerShell reads and not what a
+  wrapper hands on to the program it starts; the review checked that by hand for
+  sampled `-File` lines (`cmd.exe`, Windows PowerShell 5.1 and 7 agree, once an
+  empty quoted word is refused). Nothing was run on a POSIX host or on VS Code. The
+  real fix, which the reviewer recommends and I did not do, is to run the pinned
+  line under the hosts' wrappers and require 0, 2, 2 there too.
+- A quoted program path, which a path with a space needs (PowerShell 7 under
+  `Program Files`), passes the check and the probe and fails under both hosts:
+  PowerShell needs a leading `&`, the check refuses it, and exit 1 does not block.
+  The Pass evidence says so and the controller records it as a limitation;
+  returning Unavailable or Fail for it is a follow-up. The interpreter is judged by
+  its name and not by an identity.
+- On Windows the program path has to start with a drive letter and a separator. A
+  quoted path with a colon after the drive (`"C:\:\...\powershell.exe"`,
+  `"C:\...\v1.0:x\powershell.exe"`) passes that text rule and names no file, so the
+  verifier fails closed (S-33, a follow-up with a one-line fix and two test rows). A
+  drive letter that is a mapped network drive or a `subst` cannot be seen textually;
+  measuring it needs the mappings of the verifier's own logon session.
+- A server that replays the earlier acknowledgement of a record identical to one
+  already stored passes the client's acknowledgement check, so the client cannot
+  prove how many times a record was stored (S-19). The reviewer's hardening,
+  `sequence == head before send + 1`, needs the client to read the chain before it
+  sends and is not done.
+- Two service-side `[Console]::Error.WriteLine` lines print raw exception text
+  (S-20). No client text reaches them, which was traced and not provoked; routing
+  both through `Format-RefusalText` is a follow-up, and so is gating the S-04 and
+  S-05 appender tests, which are Windows-only although three of the functions are
+  platform-neutral.
+- No test used a second Windows account, and the firewall results depend on a
+  premise about the filtering platform that was not verified. Nothing could run on
+  Ubuntu or macOS here, and most of the appender tests are Windows-only.
+- Package feeds, browsers, web tooling and MCP servers are not measured.
+
 ## 2026-10-12: hand-resolved merge of `main` into the calibration branch (hook scripts)
 
 The built-in `security-review` agent reviewed, read-only and in a fresh context,

@@ -241,7 +241,9 @@ agents: []
         $implementer = Get-Content -LiteralPath $script:implementerPath -Raw -Encoding UTF8
 
         $controller | Should -Match 'Block-RemoteMutation'
-        $controller | Should -Match 'COPILOT_ATELIER_ALLOW_REMOTE'
+        $controller | Should -Match 'GrantRecorderUnregistered'
+        $controller | Should -Not -Match 'GrantChannelClosed'
+        $controller | Should -Not -Match 'COPILOT_ATELIER_ALLOW_REMOTE'
         $controller | Should -Match 'containment-profile'
         $controller | Should -Match 'default-deny outbound'
         $controller | Should -Match 'remote credentials'
@@ -274,8 +276,10 @@ agents: []
         $controller | Should -Match '(?s)Reverify the profile, runner, template manifest'
         $controller | Should -Match '(?s)Repository-defined build and test commands.*only repository-derived\s+executable inputs'
         $controller | Should -Match '(?s)record.*verbatim.*ledger.*before execution'
-        $controller | Should -Match '(?s)writable filesystem set.*exactly.*isolated worktree.*run-artifact'
-        $controller | Should -Match '(?s)verify hashes.*exact writable roots'
+        $controller | Should -Match '(?s)every declared root.*isolated worktree.*run-artifact.*escape set.*not writable outside'
+        $controller | Should -Match '(?s)verifier does\s+not enumerate the filesystem'
+        $controller | Should -Not -Match 'equal\s+exactly'
+        $controller | Should -Match '(?s)verify hashes.*declared writable roots.*closed escape set'
         $controller | Should -Match '(?s)tracked and untracked.*outside.*assigned.*Blocker'
         $controller | Should -Match '(?s)reviewer.*verbatim.*append-only JSONL\s+ledger.*SHA-256'
         $controller | Should -Match 'every review request/response hash'
@@ -339,7 +343,7 @@ agents: []
         $controller | Should -Match 'raw numerator, denominator, and\s+excluded-row counts'
     }
 
-    It 'protects the ledger and override state from repository processes' {
+    It 'protects the ledger and the Remote grant channel from repository processes' {
         $controller = Get-Content -LiteralPath $script:controllerPath -Raw -Encoding UTF8
 
         $controller | Should -Match '(?s)ledger\s+appender.*canonical path.*SHA-256'
@@ -347,8 +351,17 @@ agents: []
         $controller | Should -Match '(?s)monotonic sequence.*prevSha256.*recordSha256'
         $controller | Should -Match '(?s)chain head.*checkpoint'
         $controller | Should -Match '(?s)protected chain\s+head.*not writable.*run\s+identity'
-        $controller | Should -Match '(?s)Process, User, and Machine.*freshly spawned hook process'
-        $controller | Should -Match '(?s)Never create or persist.*COPILOT_ATELIER_ALLOW_REMOTE.*scope'
+        $controller | Should -Match '(?s)registers no\s+`UserPromptSubmit` hook.*grants folder of the\s+running identity'
+        $controller | Should -Match '(?s)Never record, write, or request a Remote grant.*grants\s+folder'
+    }
+
+    It 'revalidates the final report against the sealed ledger before returning it' {
+        $controller = Get-Content -LiteralPath $script:controllerPath -Raw -Encoding UTF8
+
+        $controller | Should -Match '(?s)`FinalReport` record whose `data\.sha256` is the\s+lowercase SHA-256 of `final-report\.md`'
+        $controller | Should -Match '(?s)seal the appender.*verifier with `Revalidate`'
+        $controller | Should -Match '(?s)profile-bound\s+validation of the complete chain'
+        $controller | Should -Match 'require\s+exit code 0 before returning'
     }
 
     It 'retains dirty-tree, issue, injection, budget, and remote safety gates' {

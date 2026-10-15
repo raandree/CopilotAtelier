@@ -47,9 +47,11 @@ BeforeAll {
                     $findings.Add('InterpolatedHookCommand')
                 }
             }
+            # The guard no longer reads this variable, so a hook that still sets it
+            # documents a bypass that does not exist and hides that a grant is needed.
             if ($Configuration.env -and $Configuration.env.Contains('COPILOT_ATELIER_ALLOW_REMOTE'))
             {
-                $findings.Add('PreauthorizedRemoteMutation')
+                $findings.Add('ObsoleteRemoteOverride')
             }
             return $findings
         }
@@ -237,7 +239,7 @@ Describe 'Customization security gate discrimination' -Tag 'Unit' {
         { Get-SecurityHookConfiguration -Path $fixturePath } | Should -Throw
     }
 
-    It 'preserves hook JSON types and rejects preauthorized remote mutation' {
+    It 'preserves hook JSON types and rejects the obsolete remote override variable' {
         $fixturePath = Join-Path $TestDrive 'valid-hooks.json'
         '{"hooks":{"PreToolUse":[{"type":"command","timeout":20,"command":"pwsh -File hook.ps1","windows":"powershell -File hook.ps1","env":{"COPILOT_ATELIER_ALLOW_REMOTE":"1"}}]}}' |
             Set-Content -LiteralPath $fixturePath
@@ -246,7 +248,7 @@ Describe 'Customization security gate discrimination' -Tag 'Unit' {
 
         @($configuration.PreToolUse).Count | Should -Be 1
         $configuration.PreToolUse[0].timeout | Should -Be 20
-        @(Get-CustomizationSecurityFinding -Kind Hook -Configuration $configuration.PreToolUse[0]) | Should -Contain 'PreauthorizedRemoteMutation'
+        @(Get-CustomizationSecurityFinding -Kind Hook -Configuration $configuration.PreToolUse[0]) | Should -Contain 'ObsoleteRemoteOverride'
     }
 
     It 'rejects <Code> in <Kind> configuration' -ForEach @(
@@ -265,7 +267,7 @@ Describe 'Customization security gate discrimination' -Tag 'Unit' {
         @{ Kind = 'Hook'; Code = 'InterpolatedHookCommand'; Configuration = @{ type = 'command'; timeout = 20; command = 'pwsh -Command "$env:USERPROFILE"'; windows = 'powershell -File hook.ps1' } }
         @{ Kind = 'Hook'; Code = 'InterpolatedHookCommand'; Configuration = @{ type = 'command'; timeout = 20; command = 'pwsh -File hook.ps1'; windows = 'powershell -File hook.ps1'; powershell = 'pwsh -Command "$env:USERPROFILE"' } }
         @{ Kind = 'Hook'; Code = 'MissingHookCommand'; Configuration = @{ type = 'command'; timeout = 20; command = 'pwsh -File hook.ps1'; windows = 'powershell -File hook.ps1'; powershell = ' ' } }
-        @{ Kind = 'Hook'; Code = 'PreauthorizedRemoteMutation'; Configuration = @{ type = 'command'; timeout = 20; command = 'pwsh -File hook.ps1'; windows = 'powershell -File hook.ps1'; env = @{ COPILOT_ATELIER_ALLOW_REMOTE = '1' } } }
+        @{ Kind = 'Hook'; Code = 'ObsoleteRemoteOverride'; Configuration = @{ type = 'command'; timeout = 20; command = 'pwsh -File hook.ps1'; windows = 'powershell -File hook.ps1'; env = @{ COPILOT_ATELIER_ALLOW_REMOTE = '1' } } }
     ) {
         $knownAgents = @{ worker = @{ tools = @('read/readFile'); agents = @() } }
         @(Get-CustomizationSecurityFinding -Kind $Kind -Configuration $Configuration -Agents $knownAgents) | Should -Contain $Code

@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-09-02
-last-verified: 2026-09-02
+last-verified: 2026-10-14
 owner: software-engineer
 source: user request and specification-completion package evidence
 ---
@@ -84,3 +84,80 @@ The native `build,test` workflow passed 957 tests with 0 failures and 78.86%
 coverage against a 65% threshold; 108 environment-declared cases were skipped.
 Independent agentic-security reviews ended with 0 Critical and 0 High findings.
 The Prompt and its three agents were not invoked.
+
+## Revision, 2026-10-14: what the verifier and the appender measure
+
+The verifier and the appender this decision relies on now exist, and a series of
+independent review passes corrected what the first paragraph of this decision
+claims for them.
+
+- **Writable roots are not exact.** The profile no longer anchors "exact
+  writable roots". The verifier proves two things: every declared root accepts
+  new files and folders, and a fixed, named escape set (the user profile, the
+  temp folders, the folder of the profile, the folders of the ledger sink and
+  the chain head) is not writable outside them. It does not enumerate the
+  filesystem, so closing every other path is the deployment's filesystem policy,
+  and the controller never reports the writable set as exact.
+- **One identity per run, in a fresh process.** A verifier measures the identity
+  and network namespace it runs in, so the controller runs it once per role. It
+  runs only as the entry script of a `pwsh -NoProfile -File` process, read from
+  its command line and its call stack, because a function or type defined
+  earlier in a session outranks the ones it measures with. The command line is
+  an allow-list (only options that cannot change what runs first may precede
+  the script), and the check reaches its own helpers through the function
+  table, so an alias or a function of the session cannot stand over it. Code
+  that already runs in the process belongs to the launcher, and so does its
+  environment, a .NET start-up hook included; only the module path is measured,
+  because the firewall check is unmeasured unless its cmdlets come from a module
+  under the system folder. It executes the pinned hook command, git and the
+  pinned appender only after the verifier, the control digests, the immutability
+  of the controls and the binding of the running identity to its role have
+  passed.
+- **Names are compared exactly.** PowerShell's case-sensitive operators compare
+  by culture and ignore characters such as a zero-width space, so every name,
+  type, operation and digest that either script reads from a profile, a hook
+  file, a ledger or a pipe is compared ordinally. Text that either script relays,
+  the verifier's evidence and the appender's refusal line, is cut to printable
+  ASCII by rune: a deny-list of invisible characters never closes, an
+  allow-list does.
+- **The Remote grant.** A contained run registers no hook that records a Remote
+  grant, so a contained deployment pins a copy of the plugin whose `hooks.json`
+  registers only the guard, names PowerShell (`powershell` or `pwsh`) by
+  absolute path and starts it with `-NoProfile`, and is the file at the root of
+  the pinned script. Any other program is refused, because what it loads first
+  cannot be read, and the probe's own shell runs with `/d` so that no `AutoRun`
+  command of the identity answers for the guard. The rest of the hook line is
+  accepted by one plain shape, never by a list of characters to refuse: bare
+  words of safe characters, non-empty double-quoted words, and at most the one
+  pinned exit statement, after a program path that on Windows starts with a drive
+  letter and a separator (a network, device or NT path would have the check read
+  an access list over the network). A list was shown incomplete twice (a `#` is a
+  comment to PowerShell and not to `cmd.exe`, so under a PowerShell host a push
+  exited 1 and was not blocked while the `cmd.exe` probe still passed it; a word
+  like `-x:` is a parameter to PowerShell), and a seeded test now holds every
+  accepted line to the parser of the host. The probe runs through `cmd.exe`,
+  which neither documented host does, so its Pass is not a measurement under a
+  host and says so.
+  `GrantRecorderUnregistered`
+  measures that registration and an empty grants folder, and does not say that
+  no grant can exist: the guard honors any well-formed grant file in a folder
+  the run owns, so egress and credentials remain the boundary, as the
+  consequences above already say.
+- **The ledger.** The appender is bound to the profile when validating, keeps
+  one canonical form for every record and refuses any other stored line,
+  authenticates its pipe at both ends, and the client believes an acknowledgement
+  only after rebuilding the digest of the record it sent and finding it in the
+  ledger. The schema fixes four field names and nothing about their values,
+  which stay untrusted text. The controller appends a `FinalReport` record
+  carrying the digest of the report before it seals, which the verifier's
+  `-Revalidate` checks.
+- **Still open, and written down.** A privilege that is held but disabled and a
+  filtered administrator token are not read, so the run identity must be a
+  standard account; hook files a host finds outside the pinned file are not
+  read; the verifier inherits the environment of its launcher; `-Revalidate`
+  does not bind the ledger to a run id; the chain is not keyed; a process of the
+  service's own account can join the pipe name and make an append fail; the
+  pinned hook line is not run under the PowerShell hosts (the recommended
+  follow-up) and a quoted program path, which a path with a space needs, passes
+  the check and fails under them; and no test used a second Windows account.
+  See [`docs/SECURITY-REVIEW.md`](../../docs/SECURITY-REVIEW.md).

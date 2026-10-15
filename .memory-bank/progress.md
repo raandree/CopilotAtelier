@@ -12,57 +12,58 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
 `6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0009` (`e393875`, 2026-10-12) to GitHub Releases and the
-PowerShell Gallery (verified 2026-10-12). Incremental work is tracked under
+`6.1.0-preview0011` (`1c1327e`, 2026-10-14) to GitHub Releases and the
+PowerShell Gallery (verified 2026-10-14). Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-10-13 to 2026-10-14**: P2 (Desktop prompt, `software-engineer`, `review: on`, Prox1) built the
-  Remote grant on `ai/hook-ask-remote-approval`. A Grant marker the user types in their
-  own prompt, such as `[[allow-remote: git push, gh pr create]]`, makes the new
-  `UserPromptSubmit` hook `Add-RemoteGrant.ps1` record a short-lived, session-bound
-  grant that `Block-RemoteMutation.ps1` consumes; it works the same in the Agent Host,
-  VS Code Local, and Copilot CLI. A hook `ask` was disproved live (the Agent Host
-  approves it under `chat.tools.global.autoApprove`); `COPILOT_ATELIER_ALLOW_REMOTE` is
-  removed. The guard now reads PowerShell as a syntax tree, so a string that only
-  mentions a blocked command passes (evidence item 2). The independent review rejected
-  three rounds (provider drives that define and run code, parameter spellings the guard
-  did not know, a quadratic analysis that outlasted the hook timeout, `git --% push`, one
-  grant use for a loop of pushes) and approved the fourth with changes. Three more passes,
-  which the owner asked for, found neighbors of the same classes (paths compared as
-  written, force options git abbreviates, a backtick inside a command word, repeaters
-  behind a launcher) and a grant double-spend under load; the last, bounded pass found one
-  finding, a markdown code span in a commit message counted as a command, which the owner
-  had narrowed to single-quoted text and a delta check approved. Each finding is a test
-  that failed first. Live acceptance on 2026-10-13 passed in the Agent Host, VS Code
-  Local, and Copilot CLI 1.0.96 started as usual and under `--yolo` (no marker: denied;
-  marker: pushed once; auto-approval and `--yolo` did not lift the block). Decision 0016
-  holds the evidence; `activeContext.md` holds the state. The owner opened pull request #38
-  on 2026-10-14; its Windows job failed one test through a runner stall (the guard blocked
-  as designed but named the time limit), so the two new suites now run the guard with the
-  longest limit it accepts.
+- **2026-10-12 to 2026-10-14**: P5 (`software-engineer`, `review: on`) rebuilt the containment
+  verifier `Test-RunContainment.ps1` and the ledger appender `Invoke-LedgerAppender.ps1` on
+  `ai/containment-fix-round`, after a first review that said Block (13 findings). Nine
+  independent reviews in all (pass 1, pass 2 over the whole branch, pass 3 in six parts); each
+  fix round but the last found something new in the code the previous one added, the two
+  Majors (S-21, S-25) in `Get-HookInterpreter`, whose hook-line check became a plain shape
+  and not a list of characters to refuse, held to the PowerShell parser by a seeded test;
+  the last, part F, said Approve. The claims shrank where a reviewer showed them too large
+  (decision 0025). Final gate on `d8eddb4`: 5,063 passed, 0 failed, 146 skipped, 90.84 %
+  coverage. Written down as not done: R-04 (token privileges), the pinned line run under
+  the PowerShell hosts, S-33, a two-account test. Pushed as PR #40 on 2026-10-14: CI found a
+  transient PSGallery 403, 23 POSIX fixture failures (`d919d94`), a runner-stall flake in the
+  #38 guard suite, and a form feed in a skipped test's data that broke Pester's NUnit report
+  on Ubuntu and macOS (`941c378`); `systemPatterns.md` has the patterns.
+- **2026-10-13 to 2026-10-14**: P2 (`software-engineer`, `review: on`) built the Remote grant
+  on `ai/hook-ask-remote-approval`: a Grant marker the user types in their own prompt, such
+  as `[[allow-remote: git push, gh pr create]]`, makes the new `UserPromptSubmit` hook
+  `Add-RemoteGrant.ps1` record a short-lived, session-bound grant that
+  `Block-RemoteMutation.ps1` consumes, the same in the Agent Host, VS Code Local, and Copilot
+  CLI. A hook `ask` was disproved live (the Agent Host approves it under auto-approve),
+  `COPILOT_ATELIER_ALLOW_REMOTE` is removed, and the guard reads PowerShell as a syntax tree,
+  so a string that only mentions a blocked command passes. Seven independent review passes
+  (three rejections, an approval with changes, three more the owner asked for, and a bounded
+  delta check) left no Blocker or Major, each finding a test that failed first; live
+  acceptance passed on 2026-10-13. Merged as #38 (squash `1c1327e`, 2026-10-14 09:29 UTC;
+  `6.1.0-preview0011`) after one CI fix: a Windows runner stall made the guard name its time
+  limit, so the two new suites run it with the longest limit it accepts. Decision 0016 holds
+  the evidence; `activeContext.md` the state.
 - **2026-10-12**: Merged #32 to #36 into `main` one at a time (CI runs #130, #139 to
-  #142; `6.1.0-preview0005` to `0009` on GitHub Releases and the Gallery; `main` is
-  `e393875`). The review of the hand-merged hook scripts approved with changes
-  (`ddf5430` fixed M-01 and M-02; #33 tested M-03, M-05, M-06); M-04, a
-  `.familiarity` name collision, stays open.
-- **2026-10-12**: #34 corrects the `automatedlab-deployment` Skill (`Remove-LabVMSnapshot`
-  also removes the newer checkpoints; P7). #35 hands a command the user runs over in
-  its own fenced code block (P3; live after a redeploy). #36 adds the task ledger and
-  `/migrate-handoff-sequence` to `subagent-dispatch` (P8; no external eval ran).
+  #142; `6.1.0-preview0005` to `0009`; `main` is `e393875`): #34 corrects the
+  `automatedlab-deployment` Skill (`Remove-LabVMSnapshot` also removes the newer
+  checkpoints; P7), #35 hands a command the user runs over in its own fenced code
+  block (P3), #36 adds the task ledger and `/migrate-handoff-sequence` to
+  `subagent-dispatch` (P8; no external eval ran). The review of the hand-merged hook
+  scripts approved with changes (`ddf5430` fixed M-01 and M-02; #33 tested M-03,
+  M-05, M-06); M-04, a `.familiarity` name collision, stays open.
 - **2026-10-12**: Ran Desktop prompt 06c (`review: on`): four review rounds over the eval
   kit's egress code, 2 Blockers and 7 Majors fixed test-first; E-08, E-09, E-15, E-16
   stay open and no further run is authorized (A34). `docs/SECURITY-REVIEW.md` holds it.
-- **2026-10-11**: Closed out Decision 0028 (Desktop prompt 07). The close-out matrix
-  proves criteria 1 to 20 and 22 to 30; **criterion 21 stays not met**, worded as A39
-  fixes it. Full gate on `ef96c2d`: 3,243 passed, 0 failed, 129 skipped, 90.84 %
-  coverage; pull request #32.
-- **2026-10-09 to 2026-10-11**: Desktop prompts 03 and 08 reached `main` (`6286ad4`):
+- **2026-10-09 to 2026-10-11**: Closed out Decision 0028 (Desktop prompt 07): criteria
+  1 to 20 and 22 to 30 are proved, **criterion 21 stays not met**, worded as A39 fixes
+  it (the chain of prompts 04 to 06b and 05c, Amendments 5 to 7, ended record-only at
+  83.3 % persistence, one fresh run). Full gate on `ef96c2d`: 3,243 passed, 0 failed,
+  129 skipped, 90.84 % coverage; #32. Prompts 03 and 08 reached `main` (`6286ad4`):
   detached Pester guards reject a result other than `Passed`, `Wait-DetachedResult.ps1`,
   and the Post-flight elapsed line pinned to its own chat's clock (Decision 0024).
-  The criterion 21 chain (prompts 04 to 06b and 05c, Amendments 5 to 7: persistence
-  83.3 %, one fresh run) ended record-only. Records: the Decision's Confirmation.
 - **2026-10-02 to 2026-10-08**: Hook follow-ups (`d8cc6f5` to `fea564f`: Copilot SDK
   chats show the guard's block reason, a resumed chat keeps its clock, ten reviews
   closed the launcher and guard findings) and Decision 0028 steps 7.1 to 7.5.

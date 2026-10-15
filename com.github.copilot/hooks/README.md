@@ -81,6 +81,334 @@ passing the text on unexpanded.
 | [`scripts/Get-SessionElapsed.ps1`](scripts/Get-SessionElapsed.ps1) | — | Agent-run reader that prints the Post-flight elapsed line of the clock it is given |
 | [`scripts/Write-CompactionCheckpoint.ps1`](scripts/Write-CompactionCheckpoint.ps1) | `PreCompact` | Anchors the session on disk before context is truncated, and counts the compaction for contributor calibration |
 | [`scripts/Add-FamiliarityContext.ps1`](scripts/Add-FamiliarityContext.ps1) | `PostToolUse` | Re-sends saved familiarity levels after a compaction and, where no `PreCompact` runs, within one turn; registered only by `~/.copilot/hooks/contributor-profile.json` |
+| [`scripts/Test-RunContainment.ps1`](scripts/Test-RunContainment.ps1) | — | Measures the containment controls `/complete-specifications` requires, and revalidates its sealed ledger |
+| [`scripts/Invoke-LedgerAppender.ps1`](scripts/Invoke-LedgerAppender.ps1) | — | Append-only hash-chained evidence ledger for the same workflow |
+
+## Containment for /complete-specifications
+
+The last two scripts are not VS Code hooks. They are the external verifier and
+the pinned ledger appender that the specification completion controller names in
+its containment profile, and they live here because this folder already deploys
+to a stable path outside every target repository.
+
+That deployed copy is the source for an install, not the control a profile pins.
+The account that installs Copilot Atelier can write `~/.copilot/hooks/scripts`,
+and the verifier measures whether the identity that runs it can replace or
+loosen the profile and every pinned control, so pin copies installed where no
+run identity can write.
+
+Decision 0025 records that the package *specifies* the operating-system boundary
+without deploying it. These two scripts close part of that gap and deliberately
+leave the rest open:
+
+- `Test-RunContainment.ps1` **measures** a boundary. It never creates or repairs
+  one. On an ordinary workstation it fails, and that failure is the correct
+  answer.
+- `Invoke-LedgerAppender.ps1` **stores** evidence so tampering is detectable by
+  anyone who does not also control the sink and the chain head. The chain is not
+  signed, so it cannot stop an identity that can write both; keeping them outside
+  that identity's reach is filesystem policy.
+
+Separate controller and worker identities, an outbound policy that is enabled on
+every firewall profile, defaults to Block, and grants no outbound allow rule that
+could apply to the run identity, and a filesystem policy that closes the ledger
+to the run are still deployment work.
+
+### Containment profile
+
+The profile is non-secret structured data. Every path is absolute, with no dot
+segment and no Windows short name, and on Windows no device or extended-length
+prefix and no stream name, because each of those is another spelling of a file
+that a comparison of text cannot see. Every digest is lowercase 64-hex. Unknown
+fields, wildcards, a `schemaVersion` other than the integer `1`, and non-empty
+egress lists are refused. Field names are compared exactly, so a name spelled in
+another case, or with an invisible character in it, is an unknown field and does
+not stand in for the field it imitates. Credential material is not a profile field: it is
+measured on the machine, and any that is reachable fails the run.
+
+| Field | Meaning |
+|---|---|
+| `schemaVersion` | The integer `1`; any other value, and any other type, is refused |
+| `verifier`, `hooksConfig`, `hookScript`, `ledgerAppender` | Pinned control, each `{ path, sha256 }`. The verifier that runs must be the pinned file |
+| `ledgerSink`, `chainHead` | Ledger paths, which must be closed to the run |
+| `controllerEgressAllow`, `workerEgressAllow` | Must both be empty |
+| `controllerIdentity`, `workerIdentity` | The account, by name or SID, the verifier must run as for each role; the two must differ |
+| `immutableControlPaths` | Further paths that must be closed to the run; the profile, the four pinned controls, and every live artifact are always measured |
+| `writableRoots` | The roots the run may write; each must be a directory the run identity can add files and folders to |
+| `liveProfile`, `liveRunner`, `liveCommandTemplates` | Required only when live mode is enabled |
+
+`hooksConfig` pins the `hooks.json` of the plugin copy a host loads, which is
+`<root>/com.github.copilot/hooks/hooks.json` for the root of `hookScript`; a
+byte-identical file anywhere else is not the file a host reads, and is refused.
+It registers the remote-mutation guard and nothing else: one `PreToolUse` entry
+of type `command`, with no matcher, an integer `timeout`, and the same command
+under every key a host reads. That command starts with the absolute path of its
+interpreter, because a bare name is looked up in the working directory of the
+host and then in PATH, and the interpreter must be closed to the run identity.
+The interpreter must be PowerShell, a program named `powershell` or `pwsh`: the
+verifier reads what PowerShell loads before its command and cannot read what
+another program loads (`cmd.exe` runs the `AutoRun` commands of the registry of
+the identity that starts it unless it is given `/d`), so any other program is
+refused, a renamed copy of PowerShell and a preview build included.
+The shipped file registers more, for the human workflow: session context, the
+session clock, and the hook that records a Remote grant from a Grant marker on
+the prompt event, whose prompt text in a contained run includes specification
+and issue content that is not the operator's own. It also names its interpreter
+as `powershell` and `pwsh`. The verifier refuses it for a contained run, so a
+contained deployment pins a copy of its own. `hookScript` must sit at
+`<root>/com.github.copilot/hooks/scripts/Block-RemoteMutation.ps1`, the layout
+the hook command resolves it from, and the pinned command must take its script
+from `PLUGIN_ROOT` before any other place, as the shipped command does. The
+verifier proves that with a decoy tree and fails a command that does not.
+
+### What each check says
+
+The verifier reports each check as `Pass`, `Fail`, or `Unavailable`, and an
+`Unavailable` check fails the run exactly like a `Fail`. A control that was not
+measured was not verified: a locked file, a read-only attribute, a missing path,
+a firewall profile whose state cannot be read, a canary endpoint that timed out
+or was unreachable, a probe that could not be validated, a git that cannot be
+resolved to a file the run cannot replace, and a git child that crashed or
+printed nothing are all reported as unmeasured, never as protected or clean.
+
+A check that runs a program as this identity, which is the hook command, git and,
+in `-Revalidate`, the pinned appender, runs only after the controls it executes
+were measured and passed, so a writable or swapped control is never run. Every
+other check always runs, and a run that stops at the profile reports each check
+as not run instead of leaving it out.
+
+| Check | A Pass says | It does not say |
+|---|---|---|
+| `ProfileDigest`, `ProfileSchema` | The profile hashes to the digest argument, compared as typed, and satisfies the closed schema | |
+| `VerifierBinding` | The verifier that runs is the file the profile pins, by path and digest | |
+| `ControlDigest` | Each pinned control hashes to its pinned digest | |
+| `ControlImmutability` | This identity cannot replace or loosen the profile, a pinned control, a live artifact, or an immutable path: not by writing it, deleting it, changing its access list or owner, creating it, or through a directory above it or a reparse point, and none lies in or holds a writable root | What an identity other than the one that runs can do. A directory entry is judged as one object, its own rights and those above it, not the rights of what it holds. What the token of this identity holds beyond what the probes show: a disabled privilege and a filtered administrator group are not read (see below). Off Windows only write access is measured |
+| `IdentityBinding` | The verifier runs as the account the profile declares for the role, and the two roles differ. The pinned hook command, git and, in `-Revalidate`, the pinned appender run only when this passes, because the immutability above is measured for the identity that verifies | That the account is a standard one: its token is not read (see below) |
+| `HookContract` | The pinned `hooks.json` is the plugin's own at the root of the pinned script and registers only the guard. Its one `PreToolUse` entry carries no key but `type`, an integer `timeout` and the command keys (`timeoutSec`, `env`, `cwd` and any other key fail the check, because a host may act on a key the check does not read), is of type `command` with no matcher, and holds the same command text under every command key. That command starts with the absolute path of PowerShell (a program named `powershell` or `pwsh`; this check reads what PowerShell loads first and cannot read what any other program loads, so any other program, `cmd.exe` included, is refused) that this identity cannot replace; has no line break, no character outside printable ASCII (PowerShell reads curly quotes as quotes, and some other characters as spaces or dashes), and no `%`, `!`, `$` or backtick, which a shell expands or acts on even inside quotes; has no `.` or `..` segment in the program path, does not start with two separators in any mix (a network or device path, as in `\/server\share`) and, on Windows, starts with a drive letter and a separator whether it is quoted or not, so that an NT path such as `\??\UNC\server\share` is refused too (the check measures rights by opening the path, and would read an access list over the network); and, after the program, is made only of words of one plain shape, because `cmd.exe`, a PowerShell wrapper and a POSIX shell read anything else differently (a `#` is a comment to PowerShell and not to `cmd.exe`, so under a wrapper the closing statement below would never run and a push would exit 1, which does not block): a word is bare, of letters, digits and `. _ : \ /` and `-`, with a word that starts with a dash being an option name of letters only (PowerShell reads `-name:` as a parameter that binds to the next word or fails to parse, and splits `-Z.7` in two, where `cmd.exe` passes each through whole), or double-quoted, not empty, with no double quote inside and no backslash before its closing quote (the Windows PowerShell 5.1 wrapper drops an empty quoted argument that `cmd.exe` and the PowerShell 7 wrapper pass on), and an unquoted program word holds only the same characters. Off Windows a backslash anywhere in the line is refused, because a POSIX shell reads it as an escape. A list of characters to refuse was tried first and is never complete, so this is a shape that is accepted. After an unquoted `;` only the statement the shipped command ends with is accepted (`exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]`). It passes `-NoProfile` before its script or command, and no option that loads code first: the same options as the verifier's own launch are allowed. Run from a folder of its own, with `PLUGIN_ROOT` set to the pinned root and the other places it looks emptied, within the timeout, it runs the pinned script, which exits 0, 2 and 2 for a safe, a push and an issue-mutation payload | What a host passes the hook in a real run, and how a host spawns the command. Both documented hosts wrap the line in PowerShell (VS Code for the `windows` key, the Copilot SDK host for the `powershell` key) and this probe does not: it runs the line through `cmd.exe /d /c` (`/d` keeps the `AutoRun` commands of the registry of the identity under test from running ahead of the probe). So the probe is not a measurement under either host. The check accepts only the plain shape described in the left cell, which `cmd.exe`, a PowerShell wrapper and a POSIX shell are expected to read alike, and says in its Pass evidence that a PowerShell host reads the line by other rules. What was measured is narrower than that: a seeded test generates lines (with tabs inside quotes, `-Command` and `-File`, and the closing statement), and every line the shape accepts has to parse, with the parser of the host that runs the tests, as one command whose words are exactly the words the shape saw. That is the structure PowerShell reads, not what a wrapper hands on to the program it starts. The review ran the same method by hand against Windows PowerShell 5.1 and 7.6 (it found the dash-word hole this way) and compared the arguments that `cmd.exe` and the two PowerShell wrappers hand to a script for sampled `-File` lines: they matched, except for an empty quoted word, which the shape no longer reads. For Windows PowerShell in the system folder, whose path holds no space, the shipped `windows` command with that path written unquoted passes this check, and was run under a Windows PowerShell 5.1 wrapper, with the whole line given as one argument to `-ExecutionPolicy Bypass -NoProfile -NoLogo -Command` as the host table reads it (2026-10-14): exit 0 for a safe payload, and exit 2 with the block message for a push. Other ways of handing the line over were not measured. A quoted program path passes this check and the `cmd.exe` probe and fails under a PowerShell host: PowerShell needs a leading `&` before a quoted program path, the form a path with a space needs (PowerShell 7 under `Program Files`), and without it the wrapper fails with a parse error, exit 1, which does not block. This check refuses the `&`, so when the program path is quoted its Pass evidence says that the command is not shown to run under a PowerShell host; pin an unquoted path, which has no space, until a form that works under both is settled. A POSIX shell is read for backslashes only: off Windows a backslash anywhere in the line is refused, and the POSIX probe itself (`/bin/sh`), the `bash`, `linux` and `osx` keys and macOS were not run. The program is judged by its name, not by its identity: nothing checks a signature or a digest of the interpreter, only that the run cannot replace it. The absolute interpreter path in the pinned command is what stops a host looking its interpreter up in its own working directory |
+| `GrantRecorderUnregistered` | The pinned `hooks.json` is of a shape the check reads, registers no prompt hook, and does not contain the name `Add-RemoteGrant` anywhere in the file, at any depth, and the grants folder of this identity is empty | That no grant can exist: the guard honors any well-formed grant file in a folder the run owns, so a run that writes one is not stopped here, and egress and credentials are the boundary against a remote mutation. A recorder under another name (a renamed copy, a wildcard, a name built by an expansion) is not seen. A hook file the host finds outside the pinned file, such as a user-level or workspace hooks folder or an installed copy of the plugin |
+| `EgressPolicy` | The three firewall cmdlets come from a module under the system folder, every firewall profile of the active store is enabled and defaults outbound to Block, and no enabled outbound allow rule could apply to this identity by its user condition | A system-wide proxy, and the program, service, port and address scoping of a rule. A host that reaches NetSecurity through the Windows PowerShell compatibility layer resolves it outside the system folder, so the check is unmeasured there until the module loads natively |
+| `RemoteUnreachable` | The probe works against a loopback listener, and local policy denied the connection to both canary addresses | A network that is silent or down: a timeout is unmeasured, not closed |
+| `CredentialAbsence` | None of the credential and git steering variables is set, `XDG_CONFIG_HOME` among them, and a git that is closed to the run reports no credential helper. git runs only after the checks that gate the hook command passed; otherwise it is not run, and the check is unmeasured. The git child gets the caller's environment without the `GIT_` variables, `SSH_ASKPASS` and `XDG_CONFIG_HOME`, with `HOME` and `USERPROFILE`, and on Windows `PROGRAMDATA`, pinned to the operating system's own folders. Evidence names variables and configuration keys, never their values | The files git itself loads from its own installation, and package feeds, browsers, web and GitHub tooling, and MCP servers, none of which this verifier measures |
+| `WritableRoots` | Every declared root accepts new files and folders, and none of the escape set is writable outside them: the user profile, the temp folder, the temp folder of the operating system, the folder of the profile, and the folders of the ledger sink and chain head | The rest of the filesystem, which is not enumerated. Off Windows the write measurement creates and removes a short-lived probe file in each place it measures |
+| `LedgerProtection` | This identity cannot replace or loosen the sink or the chain head, or a directory above them | The chain is not signed: whoever can write both files can write a chain that validates |
+| `LiveArtifacts` | Live mode only: the live artifacts are pinned and match | |
+
+An elevated administrator holds every right the immutability probes ask for, so
+the verifier fails for one by design. Run it as the role identity, a standard
+account. The probes ask the operating system with the token the verifier runs
+with, and two things in a token are not read: a privilege that is held but
+disabled (backup, restore, take ownership), and a filtered administrator token
+whose Administrators group is deny-only. Neither shows as a right, so a run
+identity that holds either is outside what a Pass says, and removing them from
+the account is deployment work.
+
+A verifier measures one identity and one network namespace: the one it runs in.
+The controller therefore runs it once per role, `-Role Controller` and
+`-Role Worker`, each as the account it measures.
+
+It runs only as the entry script of a process of its own, and refuses a launch
+that does not look like one: a function or a type defined earlier in a session
+outranks the ones it measures with, so a call from inside another command, from
+an interactive session, or from a script that was started for another purpose
+could make every measurement read as it likes. It reads the command line: only
+options that cannot change what runs first may come before `-File`
+(`-NoProfile` is required; `-NonInteractive`, `-NoLogo`, `-ExecutionPolicy`,
+`-WindowStyle`, `-WorkingDirectory`, `-MTA` and `-STA` are allowed, and an option
+such as `-ConfigurationFile` or `-SettingsFile`, which loads code or a module
+path first, is refused, as is any argument that is not an option). It also
+reads the call stack, where the script must be the only frame: a `-Command` text
+that merely carries `-File` and the script after it lists them on the command
+line while its own code runs first, and has a deeper stack. The check calls no
+command by name, because command lookup tries an alias before a function, and an
+alias named like the check would otherwise make the call do nothing.
+
+That reads the launch. It cannot see code that already runs inside the process
+before its first line, such as a .NET startup hook named by `DOTNET_STARTUP_HOOKS`,
+and the environment belongs to whatever starts the verifier: only a launcher that
+builds it can close that. Start the verifier through
+`System.Diagnostics.ProcessStartInfo` with an explicit environment
+(`Environment.Clear()`, then only what it needs). That closes the environment
+variables. It does not close the module path: pwsh adds the account's own module
+folder (`Documents\PowerShell\Modules`) ahead of the system ones whatever
+`PSModulePath` the launcher sets, measured on 2026-10-14 with a cleared
+environment and a `PSModulePath` of the system folder only, and for the worker
+role that folder is the run's. `Start-Process -UseNewEnvironment` is no better:
+it clears what the launching process inherited, and still hands the verifier the
+account's own user environment and its own module folder. So the module path is
+closed only where the verifier measures it. The firewall cmdlets are resolved by
+name, so `EgressPolicy` measures where they come from and is unmeasured unless
+all three come from a module under the system folder. A module that the
+verifier's other commands would auto-load from the account's module folder is not
+measured, and adding the folders pwsh searches to the escape set of
+`WritableRoots` is a follow-up.
+
+```powershell
+$digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $profilePath).Hash.ToLowerInvariant()
+pwsh -NoProfile -NonInteractive -File $verifierPath -Verify -ProfilePath $profilePath -ProfileSha256 $digest -Role Controller
+```
+
+`$verifierPath` is the installed copy the profile pins as `verifier.path`.
+Compute the digest yourself and pass it as a direct argument. It is the trust
+anchor: a digest the run derives from the file it is about to trust proves
+nothing. `-ReportPath` writes the structured result, and must be an absolute
+path in a directory that already exists and not be, or lie inside, any file the
+verdict depends on. A stream of such a file, a device or extended-length
+spelling of it, and on Windows a path whose directory goes through a junction
+or a symbolic link are refused as well, because each reaches the file under a
+name the text does not show. A hard link in a writable folder to such a file, and a
+UNC spelling that loops back to the same machine, are not recognized. They reach
+the file under another name, but the report is written with the rights of the run
+identity, and a passing `ControlImmutability` means that identity holds no write
+right on any control, so the write is refused.
+
+`-LiveMode` is `off` (the default), `read-only`, or `disposable`: the live
+validation the caller intends to run. Anything but `off` adds the `LiveArtifacts`
+check, which requires `liveProfile`, `liveRunner`, and `liveCommandTemplates` to
+be pinned in the profile, each an existing file that matches its digest.
+
+The exit code is 0 when every check passed, and 2 when a check failed or could
+not be measured, or when the call is refused: there is no partial success. Any
+other code, including 1 from an unhandled error, means the verifier itself failed
+and nothing was verified.
+
+### Revalidation
+
+`-Revalidate` is the second use of the verifier, after a run. It runs the same
+four gates, and the pinned appender only after they pass.
+
+```powershell
+pwsh -NoProfile -NonInteractive -File $verifierPath -Revalidate -ProfilePath $profilePath -ProfileSha256 $digest -Role Controller -FinalReportPath $report
+```
+
+| Check | A Pass says | It does not say |
+|---|---|---|
+| `VerifierBinding`, `ControlDigest`, `ControlImmutability`, `IdentityBinding` | As above | |
+| `LedgerChain` | The pinned appender, run bound to the pinned profile, says the sink and the chain head form a valid chain from genesis and that the chain is sealed. The sink is read before and after the appender validates it, and the two reads must hash alike | That what was validated is what was read, against a writer that restores the same bytes between the two reads: `LedgerProtection` for this identity is what excludes a writer. And that the ledger belongs to this run: the verifier does not know a run id, so a sink that holds an earlier sealed run and its report revalidates, and the controller gives each run a sink of its own |
+| `FinalReport` | The record directly before the `Seal` is a `FinalReport` record whose `data.sha256` is the digest of the report file, compared as written and in lowercase, the seal chains to it, and the seal is the head the appender validated | That the report says anything true |
+| `LedgerProtection` | As above, measured again | |
+
+What the pinned appender says, and the text of the ledger records the verifier
+names, reach evidence that a model reads. They are cut to a short length, and
+only printable ASCII is relayed: every other character, which includes control
+and format characters, the Unicode tag block, variation selectors, fillers and
+blanks, and a letter with an accent, becomes a question mark. A record cannot add
+lines to the report, hide an instruction in text a person cannot see, or fill it.
+
+### Ledger
+
+The appender is the only writer of the sink and the protected chain head. It
+serves one local named pipe, on Windows only. The pipe's access list grants the
+appender's own account read and write and the right to create further
+instances, grants `-AllowedIdentity` read and write when that names another
+account, and denies the network identity. The appender is the pipe's owner, so
+no caller can rewrite its security descriptor. Where the pipe cannot be
+restricted and authenticated, `-Serve`, `-Append` and `-Seal` refuse. The service
+holds the sink open for appending for as long as it runs, so a second appender
+on the same ledger is refused.
+
+Each record carries a monotonic sequence, its predecessor's digest, and its own
+digest over a canonical serialization. A record is flushed to disk before the
+append is acknowledged, so an acknowledged record survives a crash. The converse
+does not hold: a crash, a lock or an I/O error between the sink flush and the
+head write can leave a record that is stored and was never acknowledged. The
+sequence is therefore spent when the record becomes durable, a head that cannot
+be written stops the service, and a restart refuses to serve unless the head
+names the last record or the one before it.
+
+```powershell
+# Service, under the pinned appender identity
+Invoke-LedgerAppender.ps1 -Serve -PipeName ca-ledger-run1 -SinkPath $sink -ChainHeadPath $head
+
+# Caller
+Invoke-LedgerAppender.ps1 -Append -PipeName ca-ledger-run1 -RecordJson $record -SinkPath $sink -ChainHeadPath $head
+Invoke-LedgerAppender.ps1 -Seal -PipeName ca-ledger-run1 -RecordJson $seal -SinkPath $sink -ChainHeadPath $head
+
+# Bound to the profile, which is what the verifier uses
+Invoke-LedgerAppender.ps1 -Validate -ProfilePath $profilePath -ProfileSha256 $digest -RequireSealed
+
+# Operator form: proves only that these two files form a valid chain
+Invoke-LedgerAppender.ps1 -Validate -SinkPath $sink -ChainHeadPath $head
+```
+
+The client authenticates the pipe's owner and access list before it sends the
+record. It reports success only after it has rebuilt the digest of the record it
+sent, at the acknowledged sequence and on top of the stored record before it, and
+found that digest both in the acknowledgement and in the ledger at that
+sequence: a server that merely answers `Ok` is not believed, and neither is one
+that answers with the sequence and digest of a different record that was already
+stored. A record identical to one that is already stored is the exception, set
+out under the limits below.
+By default the client expects the pipe to belong to the account that would own
+what the client creates, which is the right account when both run as one
+identity. When the service runs as another account, as in a separate-account
+deployment, name it with `-ExpectedServerIdentity` (an account name or a SID),
+or the client refuses the real service. Sealing is the server's decision,
+carried by the operation the client asks for and not by the type of the record,
+and the type `Seal` is reserved for it. Every refusal is one line on standard
+error beginning `Ledger appender refused:`, and the exit code is 0 for success
+and 2 for a refusal, never a warning. The text after the prefix is cleaned like
+the text the verifier relays: only printable ASCII, every other character one
+question mark, cut at 200 characters, so a server or a record cannot add a line
+to it or hide an instruction in it.
+
+The bound form of `-Validate` takes the sink and the head from the profile's
+`ledgerSink` and `chainHead`, requires `-ProfileSha256` to match the bytes it
+parsed, and requires the running script to be the appender the profile pins. It
+writes one JSON object to standard output and exits 0, or writes nothing there,
+one line of reason to standard error, and exits 2. The unbound form reports
+`"bound":false` and warns, because it proves only that two files form a chain.
+
+```json
+{"valid":true,"records":3,"headSequence":3,"sealed":true,"headRecordSha256":"<hex>","bound":true}
+```
+
+A record is exactly `type`, `runId`, `utc`, and `data`. Field names are
+compared exactly, by code unit, and a repeated field is refused, so a field named
+like a known one does not stand in for it. That is all the schema fixes: the
+values of `type`, `runId` and `data` are free text that whoever can append
+chooses, tag characters and instructions included, and whatever reads the ledger
+must treat them as untrusted text. The ledger is evidence that a record was
+written and has not changed, not that what it says is true or safe. `utc` must be
+an ISO-8601 instant in UTC, with no fractional digits or one to nine, and a date
+that exists (the thirtieth of February and the twenty-fourth hour are refused);
+it is checked by parsing it, and it is stored exactly as given and never
+rewritten. `data` must be a JSON object, and every number in it must be a JSON
+integer within ±(2^53−1): a fraction, an exponent or a wider integer is refused
+at append time rather than stored in a form that reads back as another value.
+
+The stored line is the canonical serialization of the record plus `sequence`,
+`prevSha256` and `recordSha256`, with the keys in ordinal order, no whitespace,
+no byte-order mark and a single `\n`; `recordSha256` is the SHA-256 of the same
+text without `recordSha256`. Validation recomputes the chain from genesis over
+the stored bytes. A stored line must be byte-for-byte the canonical
+serialization of what it parses to and must carry exactly those seven fields,
+so a rewritten body, a removed, added or reordered line, an extra or duplicate
+field, inserted whitespace, an uppercase digest, a byte-order mark, a blank or
+junk line and a half-written final record all fail. The chain head must name the
+last record, and its sealed flag must agree with the chain.
+
+A run that finishes appends a `FinalReport` record whose `data.sha256` is the
+lowercase SHA-256 of `final-report.md` directly before it seals the ledger, and
+`-Revalidate` holds the sealed ledger to that.
+
+The chain is not keyed. A caller that can write the sink and the head can write
+a chain that validates; keeping both out of the reach of the run identity is
+filesystem policy. A process of the service's own account can still take the
+pipe name before the service starts, or join it: it can make an append fail, but
+it cannot make a record that was not stored read as stored, because the client
+rebuilds the digest of its own record and looks for it in the ledger. The one
+exception is a record identical to one already stored: a server that replays the
+earlier acknowledgement of an identical record is believed at the earlier
+sequence, since the ledger does hold that record there. What the client cannot
+prove is how many times the record was stored. Separate accounts and
+`-ExpectedServerIdentity` are what tell such a process from the service.
+
+Two availability limits remain, and neither changes what the ledger says. Any
+open handle on the chain head, even one opened with sharing, makes the service's
+replace of the head fail, and a head that cannot be written stops the service by
+design. And the service reads one request at a time with no deadline for a
+connection, so a client that connects and says nothing holds it for as long as it
+keeps the connection.
 
 ## Block-RemoteMutation
 
