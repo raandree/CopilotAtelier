@@ -171,11 +171,15 @@ commands and record each raw result and exit code in the controller ledger:
   replaceable, deletable, or truncatable by any run identity or terminal child.
   Only the pinned appender identity may write them through fixed-schema
   authenticated local IPC. Any measured breach of these is `BlockedContainment`.
-  The verifier reads access control, not the token of the identity it runs as,
-  so a privilege that is held but disabled and a filtered administrator group
-  are not measured: the run identity must be a standard account, and an identity
-  that cannot be shown to be one is reported as unverified, never as passed.
-  A self-description or profile assertion is not evidence.
+  The verifier also reads the access token of the identity it runs as
+  (`IdentityPrivilege`): an elevated token, a split administrator token, an
+  Administrators group in any state, an integrity level above Medium, or a
+  privilege outside the five of a standard account, held or not, fails the run,
+  and a token it cannot read is unmeasured. The run identity must be a standard
+  account, and an identity that is not shown to be one is `BlockedContainment`,
+  never passed. The token read does not show a group that confers power without
+  a privilege, or what the account stores or can reach over the network. A
+  self-description or profile assertion is not evidence.
 
 Any command outside this allow-list before every probe passes is
 `BlockedContainment`. A missing, unknown, or failed result also stops the run.

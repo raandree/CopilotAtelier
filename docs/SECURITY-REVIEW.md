@@ -83,7 +83,7 @@ Pass 1 (verifier at `7804e31`):
 | R-01 | Major | Verifier | The hook probe started a shell in the caller's working directory and PATH, and the shipped command begins with a bare `powershell`, so a program planted in the repository ran before any verdict. | Fixed. The probe runs in a folder of its own with the shell told not to search the working directory; the command must start with the absolute path of an interpreter the run cannot replace. |
 | R-02 | Major | Verifier | `IdentityBinding` did not gate the hook command or the appender, which run as the caller. | Fixed. It gates both. |
 | R-03 | Major | Verifier | Nothing required a fresh process, so a function or type defined earlier in a session outranked the verifier's own. | Fixed. It runs only as the entry script of a `-NoProfile -File` process; the native probe is a per-process type; the temp folder of the operating system joins the escape set. |
-| R-04 | Minor | Verifier | Token privileges and elevation are never read. | **Not fixed.** Documented as a residual: the run identity must be a standard account. The smallest honest measurement is a read of the token. |
+| R-04 | Minor | Verifier | Token privileges and elevation are never read. | **Fixed on 2026-10-15** (see the entry of that date): `IdentityPrivilege` reads the token of the process and refuses one that is not a standard account's. |
 | R-05 | Minor | Verifier | The report path was compared as text. | Fixed. Stream, device and extended-length spellings and, on Windows, a link above the report are refused. |
 | R-06 | Minor | Verifier | The grant check passed a shape it could not read, and its name overstated it. | Fixed. Renamed `GrantRecorderUnregistered`; an unread shape is unmeasured; the pinned `hooks.json` must be the plugin's own file. Hook files a host finds elsewhere are not read. |
 | R-07 | Minor | Verifier | The hook contract read one string of one entry. | Partly. Type, matcher, timeout and equal text under every key are required and each probe is timed; keys are not probed one by one. |
@@ -231,10 +231,9 @@ change. Nothing could run on Ubuntu or macOS here.
 
 ### Remaining risks
 
-- A privilege that is held but disabled, and a filtered administrator token, are
-  not read (R-04). The reviewer's measurement is about 45 lines of token reading;
-  it would fail every administrator account, this host and the CI runner
-  included, so it is the first follow-up and not part of this change set.
+- Closed on 2026-10-15: a privilege that is held but disabled, and a filtered
+  administrator token, were not read (R-04). `IdentityPrivilege` reads the token
+  now; see the entry of that date.
 - A grant file a run writes itself is not stopped by the hook: egress and
   credentials are the boundary. Hook files a host finds outside the pinned file
   are not read.

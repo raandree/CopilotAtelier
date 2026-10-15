@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-09-02
-last-verified: 2026-10-14
+last-verified: 2026-10-15
 owner: software-engineer
 source: user request and specification-completion package evidence
 ---
@@ -151,13 +151,54 @@ claims for them.
   which stay untrusted text. The controller appends a `FinalReport` record
   carrying the digest of the report before it seals, which the verifier's
   `-Revalidate` checks.
-- **Still open, and written down.** A privilege that is held but disabled and a
-  filtered administrator token are not read, so the run identity must be a
-  standard account; hook files a host finds outside the pinned file are not
-  read; the verifier inherits the environment of its launcher; `-Revalidate`
-  does not bind the ledger to a run id; the chain is not keyed; a process of the
-  service's own account can join the pipe name and make an append fail; the
-  pinned hook line is not run under the PowerShell hosts (the recommended
-  follow-up) and a quoted program path, which a path with a space needs, passes
-  the check and fails under them; and no test used a second Windows account.
-  See [`docs/SECURITY-REVIEW.md`](../../docs/SECURITY-REVIEW.md).
+- **Still open, and written down.** Hook files a host finds outside the pinned
+  file are not read; the verifier inherits the environment of its launcher;
+  `-Revalidate` does not bind the ledger to a run id; the chain is not keyed; a
+  process of the service's own account can join the pipe name and make an append
+  fail; the pinned hook line is not run under the PowerShell hosts (the
+  recommended follow-up) and a quoted program path, which a path with a space
+  needs, passes the check and fails under them; and no test used a second
+  Windows account. The token of the run identity was open here until the
+  revision of 2026-10-15 below. See
+  [`docs/SECURITY-REVIEW.md`](../../docs/SECURITY-REVIEW.md).
+
+## Revision, 2026-10-15: the token of the run identity is read
+
+R-04 of the P5 review, the first item that was open above, is closed by
+measurement. The probes of the verifier ask the operating system whether the
+token it runs with holds a right, and two things in a token never show as a
+right: a privilege that is held but disabled, and the Administrators group of a
+filtered administrator token, which is deny-only until the account is elevated.
+`IdentityPrivilege` reads the token of the verifier process and refuses one that
+is not a standard account's: elevated, of an elevation type other than default,
+above Medium integrity, holding the Administrators group in any state, or
+holding a privilege outside the five of a standard account
+(`SeChangeNotifyPrivilege`, `SeShutdownPrivilege`, `SeUndockPrivilege`,
+`SeIncreaseWorkingSetPrivilege`, `SeTimeZonePrivilege`), enabled or not. A token
+that cannot be read, or facts that cannot be interpreted, are unmeasured, which
+fails the run like a refusal. It is a check of its own that gates the hook probe,
+git and the appender in `-Verify` and `-Revalidate`, so an administrator's
+identity still binds (`IdentityBinding` is unchanged) and is refused one check
+later. The owner ruled for this option, out of four, on 2026-10-15 and asked for
+a rebuild from nothing.
+
+- **The claim is narrower than "a standard account".** The check shows that the
+  token read at that moment is a standard account's by those rules. It does not
+  show a group that confers power through access lists and not through a
+  privilege, what the account stores or can reach over the network (egress and
+  credentials stay the boundary), or the token after the next logon. It reads the
+  token of the process, which every program the verifier starts inherits, and not
+  that of a thread that impersonates.
+- **The five privileges were measured.** A test makes a filtered administrator
+  token with `CreateRestrictedToken` (`LUA_TOKEN`), reads it by handle, and finds
+  the Administrators group deny-only and exactly those five privileges (Windows
+  Server 2025, build 10.0.26100). The check refuses that token for its
+  Administrators group alone, which is the case no probe that asks for access can
+  see. A service-style account that also holds `SeImpersonatePrivilege` and
+  `SeCreateGlobalPrivilege` is refused: accepting one would need a field in the
+  profile that pins extra privileges, which was not built.
+- **The Pass is tested through a seam.** No host has a standard account's token,
+  and none can be made from an administrator's, so the Pass path is covered by
+  rows that supply the facts, and the refusal by real tokens: the elevated token
+  of the host, and filtered tokens the tests make. A test under a second account
+  stays open.
