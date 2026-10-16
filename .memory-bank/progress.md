@@ -18,6 +18,15 @@ PowerShell Gallery (verified 2026-10-16). Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-10-16**: The pinned hook line under the PowerShell hosts (`software-engineer`, `review: on`),
+  the first follow-up after R-04 that the owner chose (option A of a design note), built on
+  `ai/hook-line-under-hosts` after #42 merged: `HookContract` also runs the line under Windows
+  PowerShell 5.1 and the PowerShell that runs the verifier, built from the README's table of hosts,
+  and needs 0, 2, 2 under all three; each wrapper is shown closed to the run identity first, and a
+  quoted program path now fails (1, 1, 1 under both wrappers; the old check passed it). Three reviews
+  (Approve with changes, Approve with changes, Approve; 16 findings, mostly wording that claimed more
+  than was run), 95 mutation checks none of which survived, gates of 5,328, 5,341 and 5,341 passed.
+  No host ran the line (decision 0025, revision 2026-10-16). Not pushed.
 - **2026-10-15**: R-04 (`software-engineer`, `review: on`), the first P5 follow-up, built on
   `ai/r04-run-identity-token` after #41 merged (`0145cbf`, `6.1.0-preview0013`): the required
   check `IdentityPrivilege` reads the access token of the verifier process and refuses one that
@@ -37,7 +46,7 @@ PowerShell Gallery (verified 2026-10-16). Incremental work is tracked under
   the PowerShell parser by a seeded test; the last, part F, said Approve. The claims shrank
   where a reviewer showed them too large (decision 0025). Final gate on `d8eddb4`: 5,063
   passed, 0 failed, 146 skipped, 90.84 %. Written down as not done: the pinned line run under
-  the PowerShell hosts, S-33, a two-account test (R-04 followed, above). Merged as #40 on
+  the PowerShell hosts, S-33, a two-account test (R-04 and the hook line followed, above). Merged as #40 on
   2026-10-15 (squash `0531814`, `6.1.0-preview0012`; `main` CI 5,020, 4,145 and 4,143 passed,
   none failed); `systemPatterns.md` has the patterns CI found.
 - **2026-10-13 to 2026-10-14**: P2 (`software-engineer`, `review: on`) built the Remote grant
@@ -54,20 +63,11 @@ PowerShell Gallery (verified 2026-10-16). Incremental work is tracked under
   `6.1.0-preview0011`) after one CI fix: a Windows runner stall made the guard name its time
   limit, so the two new suites run it with the longest limit it accepts. Decision 0016 holds
   the evidence; `activeContext.md` the state.
-- **2026-10-12**: Merged #32 to #36 into `main` one at a time (`6.1.0-preview0005` to
-  `0009`; `main` was `e393875`): #34 corrects the `automatedlab-deployment` Skill
-  (`Remove-LabVMSnapshot` also removes the newer checkpoints; P7), #35 hands a command
-  the user runs over in its own fenced code block (P3), #36 adds the task ledger and
-  `/migrate-handoff-sequence` to `subagent-dispatch` (P8; no external eval ran). The review
-  of the hand-merged hook scripts approved with changes (M-01 and M-02 fixed, M-03, M-05
-  and M-06 tested); M-04, a `.familiarity` name collision, stays open.
-- **2026-10-12**: Ran Desktop prompt 06c (`review: on`): four review rounds over the eval
-  kit's egress code, 2 Blockers and 7 Majors fixed test-first; E-08, E-09, E-15, E-16
-  stay open and no further run is authorized (A34). `docs/SECURITY-REVIEW.md` holds it.
-- **2026-10-09 to 2026-10-11**: Closed out Decision 0028 (#32): criteria 1 to 20 and 22 to 30
-  are proved, **criterion 21 stays not met** (one fresh run, 83.3 % persistence, record-only;
-  A39). Full gate on `ef96c2d`: 3,243 passed, 0 failed, 129 skipped, 90.84 %. Prompts 03 and
-  08 reached `main` (`6286ad4`): detached Pester guards, the clock pinned per chat (Decision 0024).
+- **2026-10-12**: Merged #32 to #36 into `main` one at a time (`6.1.0-preview0005` to `0009`):
+  #34 corrects the `automatedlab-deployment` Skill (P7), #35 hands a command the user runs
+  over in its own fenced code block (P3), #36 adds the task ledger and `/migrate-handoff-sequence`
+  to `subagent-dispatch` (P8; no external eval ran). The review of the hand-merged hook scripts
+  approved with changes (M-01 to M-06; M-04, a `.familiarity` name collision, stays open).
 
 ## Stable capabilities
 
