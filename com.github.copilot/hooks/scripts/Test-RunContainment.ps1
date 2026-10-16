@@ -2534,13 +2534,14 @@ function Get-HookWrapper {
         A host hands the whole line over as the one argument that follows.
 
         The first program is the one in the system folder and the second is the PowerShell that runs this verifier, each by
-        absolute path, so that neither is looked up through a PATH. A host finds its own program through its own search path,
-        which the launcher owns, so these are the stand-ins this check measures with and not a claim about which file a host
-        starts. The command line of a host is rebuilt here from the README, and a host's own spawn code is not run. A test holds
+        absolute path, so that neither is looked up through a PATH. VS Code starts Windows PowerShell from %SystemRoot%\System32
+        and the Copilot SDK host starts pwsh by name, so both depend on an environment that the launcher owns; these are the
+        stand-ins this check measures with and not a claim about which file a host starts. The command line of a host is rebuilt
+        here from the README, and a host's own spawn code is not run. A test holds
         the arguments to the README's table.
     #>
     [CmdletBinding()]
-    [OutputType([pscustomobject[]])]
+    [OutputType([object[]])]
     param()
 
     $system = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System)
@@ -2567,9 +2568,14 @@ function Get-HookWrapperProblem {
         Whether the line may be run under a wrapper. A wrapper is a program this check starts as the identity under test, and one
         that identity can replace could answer 0, 2 and 2 for the guard, so it gets the test the pinned interpreter gets: the
         program, its folder and every folder above it are closed to this identity. Nothing is returned for a wrapper that exists
-        and is closed. A wrapper that can be replaced fails the check, and one that does not exist or could not be measured
-        leaves it unmeasured, as for the interpreter; in each case the line was not run under it. The text is cut to printable
-        ASCII where it is not one this check composed.
+        and is closed. A wrapper that can be replaced fails the check, and one that could not be measured leaves it unmeasured.
+        A wrapper that does not exist leaves it unmeasured too, where an interpreter that does not exist fails: the pinned
+        command names its interpreter, so a missing one is a broken command, and a wrapper is this check's own choice, so its
+        absence says nothing about the command. This test comes before anything is run, so in each case nothing was.
+
+        The reasons come from the access check and carry the path of the wrapper. For the PowerShell that runs this verifier that
+        path is not held to printable ASCII by the shape rule that holds the interpreter's, so the reasons are cut to printable
+        ASCII and to a length that cannot fill the report, like every other text this check did not compose.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -2588,23 +2594,23 @@ function Get-HookWrapperProblem {
     try {
         $protection = Test-PathProtection -Path $Wrapper.Path -WritableRoot $WritableRoot
     } catch {
-        return [pscustomobject]@{ Status = 'Unavailable'; Evidence = "$named could not be measured, so the hook command was not run under it: $(Format-RelayedText -Text $_.Exception.Message)" }
+        return [pscustomobject]@{ Status = 'Unavailable'; Evidence = "$named could not be measured, so the hook command was not run: $(Format-RelayedText -Text $_.Exception.Message)" }
     }
 
     if ($protection.Absent) {
-        return [pscustomobject]@{ Status = 'Unavailable'; Evidence = "$named does not exist, so the hook command was not run under it" }
+        return [pscustomobject]@{ Status = 'Unavailable'; Evidence = "$named does not exist, so the hook command was not run" }
     }
 
     if (@($protection.Violation).Count -gt 0) {
-        $detail = @($protection.Violation | Select-Object -First 6) -join '; '
+        $detail = Format-RelayedText -Text (@($protection.Violation | Select-Object -First 6) -join '; ') -Limit 1000
 
-        return [pscustomobject]@{ Status = 'Fail'; Evidence = "$named can be replaced by this identity, so what the line reports under it proves nothing and the hook command was not run under it: $detail" }
+        return [pscustomobject]@{ Status = 'Fail'; Evidence = "$named can be replaced by this identity, so the hook command was not run, and what the line reports under it would prove nothing: $detail" }
     }
 
     if (@($protection.Unmeasured).Count -gt 0) {
-        $detail = @($protection.Unmeasured | Select-Object -First 6) -join '; '
+        $detail = Format-RelayedText -Text (@($protection.Unmeasured | Select-Object -First 6) -join '; ') -Limit 1000
 
-        return [pscustomobject]@{ Status = 'Unavailable'; Evidence = "$named could not be shown to be closed to this identity, so the hook command was not run under it: $detail" }
+        return [pscustomobject]@{ Status = 'Unavailable'; Evidence = "$named could not be shown to be closed to this identity, so the hook command was not run: $detail" }
     }
 
     return $null
@@ -2694,7 +2700,8 @@ function Test-HookContract {
         <root>/com.github.copilot/hooks/hooks.json for the root derived from the pinned script; a
         byte-identical file anywhere else is not the one a host reads, and fails before it is run.
 
-        How the command is started is decided by the host too, and the documented hosts on Windows wrap the line in PowerShell.
+        How the command is started is decided by the host too, and the documented hosts on Windows wrap the line in PowerShell
+        (VS Code runs it through cmd.exe /d /s /c instead when ComSpec does not name cmd.exe).
         The line is therefore run through cmd.exe, as it always was, and then under Windows PowerShell 5.1 and PowerShell 7
         the way the README's table of hosts spawns them (Get-HookWrapper); all three have to give 0, 2 and 2. A line that
         passes under cmd.exe and fails under a wrapper fails, which is how a quoted program path, a dash word or a comment
@@ -2890,6 +2897,12 @@ function Test-HookContract {
     if ($script:OnWindows) {
         $wrapper = @(Get-HookWrapper)
 
+        # The README table has two rows. A list of another length means that a host was dropped or added without this check being
+        # read again, and a measurement that silently covers fewer hosts than the claim names is not one.
+        if ($wrapper.Count -ne 2) {
+            return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "the wrappers of the two documented hosts could not be listed ($($wrapper.Count) found), so the hook command was not run"
+        }
+
         foreach ($candidate in $wrapper) {
             $wrapperProblem = Get-HookWrapperProblem -Wrapper $candidate -WritableRoot $WritableRoot
 
@@ -2983,9 +2996,10 @@ function Test-HookContract {
             }
         }
 
-        # Both documented hosts wrap the line in PowerShell and neither starts cmd.exe, so a line that passed there is run under
-        # both wrappers as well, and both are measured even when the first one fails. A line that already failed is not run
-        # again: that verdict does not need them, and nothing more of it has to run as this identity.
+        # The documented hosts wrap the line in PowerShell, so a line that passed under cmd.exe is run under both wrappers as well,
+        # and both are measured even when the first one fails. (VS Code does so only when ComSpec names cmd.exe and SystemRoot or
+        # WINDIR is set, and otherwise runs the line through cmd.exe /d /s /c, which the first spawn here stands in for.) A line that
+        # already failed is not run again: that verdict does not need them, and nothing more of it has to run as this identity.
         if (-not $failed) {
             foreach ($candidate in $wrapper) {
                 $wrapperResult.Add((Measure-HookWrapper -Wrapper $candidate -CommandLine $commandLine -Case $case -TimeoutSecond $timeoutSeconds -EnvironmentVariable @{
@@ -3009,11 +3023,11 @@ function Test-HookContract {
     } elseif ($failed) {
         $evidence += '; it was not run under the PowerShell wrappers of the documented hosts, because it already failed there'
     } else {
-        $evidence += '; ' + (@($wrapperResult | ForEach-Object -Process { $_.Evidence }) -join '; ') + '. Each wrapper is the program and the arguments that the README table of hosts gives for that host, rebuilt here: no host ran the line'
+        $evidence += '; ' + (@($wrapperResult | ForEach-Object -Process { $_.Evidence }) -join '; ') + '. Each wrapper is rebuilt here from the README table of hosts: the arguments are the ones the table gives for that host, and the program is this check''s own choice, by absolute path. No host ran the line'
     }
 
     if ($interpreter.Quoted -and $wrapperFailed) {
-        $evidence += '. The program path is quoted: PowerShell needs a leading ampersand before a quoted program path, which this check refuses, so a PowerShell host fails to parse the line and exits 1, which does not block; pin a program path that has no space and is not quoted'
+        $evidence += '. The program path is quoted: PowerShell reads a quoted program path as an expression and not as a command unless a leading ampersand comes first, which this check refuses, and a wrapper that exits 1 for every payload has not parsed the line. Exit 1 is a warning in VS Code, so a push goes ahead there, and the Copilot SDK host denies every call on it; pin a program path that has no space and is not quoted'
     }
 
     if ($failed -or $wrapperFailed) {

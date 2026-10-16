@@ -738,9 +738,11 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             [regex]::Matches($script:shippedRun.evidence, 'safe=0 push=2 issue=2').Count | Should -Be 3 -Because 'there is one measurement for each of the three spawns'
         }
 
-        It 'says that the spawns are rebuilt from the README and that no host ran the line' {
+        It 'says that the spawns are rebuilt from the README, that the program is this check''s own choice, and that no host ran the line' {
             $script:shippedRun.evidence | Should -Match 'README'
+            $script:shippedRun.evidence | Should -Match 'program is this check''s own choice'
             $script:shippedRun.evidence | Should -Match 'no host'
+            $script:shippedRun.evidence | Should -Not -Match 'the program and the arguments that the README table'
         }
 
         It 'no longer says that a PowerShell host reads the line by other rules, because it ran the line under two' {
@@ -826,6 +828,22 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             @{ Index = 1; Label = 'PowerShell 7' }
         ) {
             Invoke-HookPayload -CommandLine 'exit (@(Get-ChildItem -Force).Count + 5)' -Payload '{}' -EnvironmentVariable @{} -Wrapper $script:wrapper[$Index] | Should -Be 5
+        }
+
+        # Review of 2026-10-16, U-07: the instruction reached the cmd.exe spawn and was tested only there, and a change that kept it
+        # from the wrapper spawns passed every test of the file.
+        It 'tells the line not to look for a command in the working directory, under <Label>' -ForEach @(
+            @{ Index = 0; Label = 'Windows PowerShell' }
+            @{ Index = 1; Label = 'PowerShell 7' }
+        ) {
+            Invoke-HookPayload -CommandLine 'if ($env:NoDefaultCurrentDirectoryInExePath -eq "1") { exit 5 } else { exit 6 }' -Payload '{}' -EnvironmentVariable @{} -Wrapper $script:wrapper[$Index] | Should -Be 5
+        }
+
+        It 'keeps that instruction when the caller tries to remove it, under <Label>' -ForEach @(
+            @{ Index = 0; Label = 'Windows PowerShell' }
+            @{ Index = 1; Label = 'PowerShell 7' }
+        ) {
+            Invoke-HookPayload -CommandLine 'if ($env:NoDefaultCurrentDirectoryInExePath -eq "1") { exit 5 } else { exit 6 }' -Payload '{}' -EnvironmentVariable @{ NoDefaultCurrentDirectoryInExePath = $null } -Wrapper $script:wrapper[$Index] | Should -Be 5
         }
 
         It 'stops a line that does not finish within the time it is given, under <Label>' -ForEach @(
@@ -920,6 +938,35 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $problem.Evidence | Should -Not -Match ([string][char]0x00E9)
         }
 
+        # Review of 2026-10-16, U-05: the closure test comes before every spawn, so nothing had run when a wrapper was refused.
+        # "Not run under it" read as if the line had run elsewhere, and a reader could take the cmd.exe measurement for passed.
+        It 'says that the hook command was not run, and not that it was not run under the wrapper, for a wrapper that <Case>' -ForEach @(
+            @{ Case = 'can be replaced'; Absent = $false; Violation = @('x: this identity holds DELETE'); Unmeasured = @() }
+            @{ Case = 'does not exist'; Absent = $true; Violation = @(); Unmeasured = @() }
+            @{ Case = 'could not be shown to be closed'; Absent = $false; Violation = @(); Unmeasured = @('x: a right could not be measured') }
+        ) {
+            $script:protectionAbsent = $Absent
+            $script:protectionViolation = $Violation
+            $script:protectionUnmeasured = $Unmeasured
+            Mock -CommandName Test-PathProtection -MockWith {
+                [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $script:protectionAbsent; Violation = $script:protectionViolation; Unmeasured = $script:protectionUnmeasured }
+            }
+
+            $problem = Get-HookWrapperProblem -Wrapper $script:aWrapper
+
+            $problem.Evidence | Should -Match 'so the hook command was not run'
+            $problem.Evidence | Should -Not -Match 'not run under it'
+        }
+
+        It 'says that the hook command was not run when the wrapper cannot be measured at all' {
+            Mock -CommandName Test-PathProtection -MockWith { throw 'access check unavailable' }
+
+            $problem = Get-HookWrapperProblem -Wrapper $script:aWrapper
+
+            $problem.Evidence | Should -Match 'so the hook command was not run'
+            $problem.Evidence | Should -Not -Match 'not run under it'
+        }
+
         It 'relays the path of the wrapper as printable ASCII' {
             Mock -CommandName Test-PathProtection -MockWith {
                 [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @('replaceable'); Unmeasured = @() }
@@ -930,6 +977,38 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
             $problem.Evidence | Should -Match 'w\?\\powershell\.exe'
             $problem.Evidence | Should -Not -Match ([string][char]0x00E9)
+        }
+
+        # Review of 2026-10-16, U-01: the second wrapper is the program that runs the verifier, so its path is not held to printable
+        # ASCII by the shape rule that holds the interpreter's, and the access check puts that path into every reason it gives.
+        # Four tag characters spell a word that a reader cannot see; an accent is the plain case.
+        It 'cuts the reason of <Kind> to printable ASCII and to a length that cannot fill the report' -ForEach @(
+            @{ Kind = 'a wrapper that can be replaced'; Replaceable = $true; Status = 'Fail' }
+            @{ Kind = 'a wrapper whose protection could not be measured'; Replaceable = $false; Status = 'Unavailable' }
+        ) {
+            $hidden = -join @(0xE0050, 0xE0041, 0xE0053, 0xE0053 | ForEach-Object -Process { [char]::ConvertFromUtf32($_) })
+            $oddPath = "C:\containment\w$([char]0x00E9)$hidden\powershell.exe"
+            $script:reason = @("${oddPath}: this identity holds the right to delete it", ('x' * 3000))
+            $script:asViolation = $Replaceable
+            Mock -CommandName Test-PathProtection -MockWith {
+                [pscustomobject]@{
+                    Path = $Path
+                    Closed = $false
+                    Absent = $false
+                    Violation = $(if ($script:asViolation) { $script:reason } else { @() })
+                    Unmeasured = $(if ($script:asViolation) { @() } else { $script:reason })
+                }
+            }
+            $odd = [pscustomobject]@{ Name = 'Windows PowerShell 5.1'; Host = 'VS Code Local harness'; Path = $oddPath; Argument = @('-Command') }
+
+            $problem = Get-HookWrapperProblem -Wrapper $odd
+
+            $problem.Status | Should -Be $Status
+            $problem.Evidence | Should -Match 'the right to delete it'
+            $problem.Evidence | Should -Match 'w\?{5}\\powershell\.exe' -Because 'the accent and each of the four tag characters, which are one rune each, become one question mark each'
+            @($problem.Evidence.ToCharArray() | Where-Object -FilterScript { [int]$_ -lt 0x20 -or [int]$_ -gt 0x7E }).Count | Should -Be 0
+            $problem.Evidence.Length | Should -BeLessThan 1500
+            $problem.Evidence | Should -Match '\.\.\.$'
         }
     }
 
@@ -1066,6 +1145,10 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $result.evidence | Should -Match 'program path is quoted'
             $result.evidence | Should -Match 'ampersand'
             $result.evidence | Should -Not -Match 'Unexpected token|ParserError|At line'
+            # Review of 2026-10-16, U-03: VS Code treats exit 1 as a warning, and the Copilot SDK host denies the call on it.
+            $result.evidence | Should -Match 'warning in VS Code'
+            $result.evidence | Should -Match 'SDK host denies'
+            $result.evidence | Should -Not -Match 'does not block'
         }
 
         It 'passes the line with the program path unquoted' {
@@ -1128,6 +1211,32 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             Should -Invoke Measure-HookWrapper -Times 2 -Exactly
             $result.evidence | Should -Match "fragment for VS Code Local harness is $First"
             $result.evidence | Should -Match "fragment for Copilot SDK host is $Second"
+        }
+
+        # Review of 2026-10-16, U-06: nothing held the number of wrappers, so a list that came back short made the check pass on
+        # the cmd.exe measurement alone, with an evidence sentence that still spoke of "each wrapper". The README table has two rows.
+        It 'is unavailable, and runs nothing, when <Count> wrappers are listed and not the two of the documented hosts' -ForEach @(
+            @{ Count = 0 }
+            @{ Count = 1 }
+            @{ Count = 3 }
+        ) {
+            $real = @(Get-HookWrapper)
+            $script:listed = switch ($Count) {
+                0 { @() }
+                1 { @($real[0]) }
+                default { @($real[0], $real[1], $real[1]) }
+            }
+            Mock -CommandName Get-HookWrapper -MockWith { $script:listed }
+            Mock -CommandName Invoke-HookPayload -MockWith { 0 }
+
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+            $result.evidence | Should -Match 'could not be listed'
+            $result.evidence | Should -Match "$Count found"
+            Should -Invoke Invoke-HookPayload -Times 0 -Exactly
+            Should -Invoke Measure-HookWrapper -Times 0 -Exactly
         }
 
         It 'does not run the line under a wrapper when it already failed under cmd.exe, and says so' {
