@@ -133,12 +133,13 @@ claims for them.
   letter and a separator (a network, device or NT path would have the check read
   an access list over the network). A list was shown incomplete twice (a `#` is a
   comment to PowerShell and not to `cmd.exe`, so under a PowerShell host a push
-  exited 1 and was not blocked while the `cmd.exe` probe still passed it; a word
+  exited 1, which VS Code treats as a warning and the Copilot SDK host as a
+  denial, while the `cmd.exe` probe still passed it; a word
   like `-x:` is a parameter to PowerShell), and a seeded test now holds every
   accepted line to the parser of the host. The probe ran through `cmd.exe` alone
   until the revision of 2026-10-16, and both documented hosts wrap the line in
-  PowerShell (VS Code falls back to `cmd.exe /d /s /c` when `ComSpec` does not
-  name `cmd.exe`); it now also runs the line under the wrapper of each host.
+  PowerShell (VS Code only when `ComSpec` names `cmd.exe` and `SystemRoot` or
+  `WINDIR` is set); it now also runs the line under the wrapper of each host.
   `GrantRecorderUnregistered`
   measures that registration and an empty grants folder, and does not say that
   no grant can exist: the guard honors any well-formed grant file in a folder
@@ -237,8 +238,10 @@ The first follow-up after R-04 is built: the probe of `HookContract` no longer
 stops at `cmd.exe`. The review of 2026-10-14 called the wrapper measurement "the
 real fix for the whole class", because a line that `cmd.exe` and PowerShell read
 differently passes a probe that only `cmd.exe` runs, and a line that PowerShell
-cannot parse exits 1 under the host that wraps it: a warning in VS Code, so the
-push goes ahead there, and a denial of every call in the Copilot SDK host.
+cannot parse exits 1 under a host that wraps it, which VS Code treats as a
+warning, so the push would go ahead there, and the Copilot SDK host as a denial of
+every call (both as the hooks README states; VS Code's was also read in its 1.142.0
+bundle).
 `HookContract` now runs the pinned line through
 `cmd.exe /d /c`, as before, and on Windows then under Windows PowerShell 5.1 and
 under the PowerShell that runs the verifier, started the way the table of hosts in
@@ -257,22 +260,25 @@ passed, and both run even if the first one fails.
 - **A quoted program path now fails by measurement.** On 2026-10-16 the shipped
   line, with its interpreter named by an unquoted absolute path without a space,
   gave 0, 2, 2 under all three spawns. With the path quoted it gave 0, 2, 2 under
-  `cmd.exe` and 1, 1, 1 under both wrappers (a parse error: exit 1 is a warning in
-  VS Code, so a push goes ahead there, and a denial of every call in the Copilot
-  SDK host), and the check passed it before; with a leading `&` the wrappers gave
-  0, 2, 2 and
-  `cmd.exe` gave 255. Only an unquoted path without a space works under all
+  `cmd.exe` and 1, 1, 1 under both wrappers (a parse error), and the check passed
+  it before; with a leading `&` the wrappers gave 0, 2, 2 and `cmd.exe` gave 255.
+  What exit 1 does is read and not measured: a warning in VS Code, so a push would
+  go ahead there, and a denial of every call in the Copilot SDK host, as the hooks
+  README states. Only an unquoted path without a space works under all
   three, so PowerShell 7 at its default path (under `Program Files`) cannot be the
   pinned interpreter on Windows. S-24 is closed. S-33 stays a recorded Nit: its two
   spellings fail closed before the wrappers.
 - **The claim is narrower than "run under the hosts".** The two spawns are rebuilt
   from the README's table with `ProcessStartInfo.ArgumentList`, and no host ran
   the line. VS Code's own spawn code, the Copilot SDK runtime, a host update that
-  changes its form, the `cmd.exe /d /s /c "<line>"` form that VS Code falls back to
-  when `ComSpec` does not name `cmd.exe`, the `POWERSHELL_UPDATECHECK=Off` that VS
+  changes its form, the forms that VS Code falls back to (`cmd.exe /d /s /c "<line>"`
+  when `ComSpec` is unset or names `cmd.exe`, and `<ComSpec> -c <line>` when it names
+  another shell), the `POWERSHELL_UPDATECHECK=Off` that VS
   Code sets, the `bash`, `linux` and `osx` keys, macOS, Linux and other hosts were
   not run. How VS Code starts the line, and that it treats any exit code but 2 as a
-  warning, was read in its 1.142.0 bundle on this host; how the Copilot SDK host
+  warning, was read in its 1.142.0 bundle on this host, and what Node does with
+  `shell: true` was reproduced with Node by the delta check of the review; how the
+  Copilot SDK host
   starts the line and answers an exit code is the README's statement, which no run
   confirmed. The wrapper programs are the verifier's choice, by absolute path: the
   system `powershell.exe` and the PowerShell that runs the verifier. VS Code starts

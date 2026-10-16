@@ -12,11 +12,13 @@ under the wrappers of the two documented hosts: the `HookContract` check of
 `security-reviewer` agent could not start: the model its definition names is not
 available in this runtime, the dispatch does not fall back to the next entry, and the
 model was not overridden. The reviewer read the three commits of the first build
-(`fd66a5e`, `7ffe3d4`, `d2da113`), read-only, in a fresh context and with no network
-call, ran VS Code's own spawn call from Node, and said **Approve with changes**: no
-Blocker, no Major, three Minors (U-01 to U-03) and four Nits (U-04 to U-07). Every
-finding was fixed in the same change, test first, with a mutation check for each rule a
-test can reach.
+(`fd66a5e`, `7ffe3d4`, `d2da113`), read-only and in a fresh context, ran a Node `spawn`
+built from the arguments it read in VS Code's spawn code, and said **Approve with
+changes**: no Blocker, no Major, three Minors (U-01 to U-03) and four Nits (U-04 to
+U-07). Every finding was fixed in the same change, test first, with a mutation check for
+each rule a test can reach. The same agent then checked the fixes (`d2da113..f2e46e9`)
+and said **Approve with changes** again: no code defect, one Minor and four Nits (V-01
+to V-05). They were fixed in the same change too, and the change was gated again.
 
 ### Scope
 
@@ -45,17 +47,32 @@ or for a wrapper that the run identity can replace. The weaknesses it found were
 that reached the evidence unrelayed, statements that went beyond the evidence, and two
 rules that no test could see.
 
+Delta check of the fixes, on `f2e46e9` (`d2da113..f2e46e9`): **Approve with changes**: no
+code defect, no Blocker, no Major, 1 Minor (V-03) and 4 Nits (V-01, V-02, V-04, V-05).
+All seven first findings stay fixed in code and tests, and nothing in the delta opens a
+new false Pass or a new path for misleading evidence. The reviewer re-ran its U-01
+reproduction on a copy of HEAD, scripted `Test-HookContract` with 0, 1 and 3 wrappers
+listed, scripted four quoted-path cases, and tokenised both commits to show that the
+`[OutputType]` change is attribute-only. What it found was wording in the records and in
+the comments of the script, one test that did not pin the cap, and a first sweep for U-03
+that was not repository-wide.
+
 ### Findings
 
 | ID | Severity | Where | Finding | Resolution |
 |---|---|---|---|---|
-| U-01 | Minor | `Get-HookWrapperProblem` | The reason of a `Violation` or an `Unmeasured` entered the evidence without `Format-RelayedText`, although the path next to it was relayed. The path of the second wrapper is `MainModule.FileName` of the verifier's own `pwsh`, and nothing limits it to printable ASCII. Reproduced with the real `Test-PathProtection` and a wrapper in a folder named with an accent and four tag characters (a hidden "PASS"): they reached a 1,425-character Fail evidence verbatim. The interpreter's path is limited by `Get-HookInterpreter`, so the same pattern for the interpreter is safe. The result can only be Fail or Unavailable, and it needs someone who chooses where the verifier's `pwsh` runs from | Fixed: both reasons go through `Format-RelayedText` with the largest cap the function takes (1,000 characters). Tests with an accent and four tag characters (five `?`) for the Violation and for the Unmeasured, and one for the cap; three mutations (G13 to G15) that drop either relay or cut the cap were caught |
+| U-01 | Minor | `Get-HookWrapperProblem` | The reason of a `Violation` or an `Unmeasured` entered the evidence without `Format-RelayedText`, although the path next to it was relayed. The path of the second wrapper is `MainModule.FileName` of the verifier's own `pwsh`, and nothing limits it to printable ASCII. Reproduced with the real `Test-PathProtection` and a wrapper in a folder named with an accent and four tag characters (a hidden "PASS"): they reached a 1,425-character Fail evidence verbatim. The interpreter's path is limited by `Get-HookInterpreter`, so the same pattern for the interpreter is safe. The result can only be Fail or Unavailable, and it needs someone who chooses where the verifier's `pwsh` runs from | Fixed: both reasons go through `Format-RelayedText` with the largest cap the function takes (1,000 characters). Tests with an accent and four tag characters (five `?`) for the Violation and for the Unmeasured, and a length bound; mutations G13 and G14 (either relay dropped) and G15 (the cap cut at one site) were caught, but the delta check showed that the bound did not pin the value of the cap (V-04) |
 | U-02 | Minor | this file | S-21 called the wrapper run "a follow-up", S-24 said "Partly … the check still passes a quoted path", and Remaining risks said the probe "is not a measurement under either" and that a quoted path "passes the check" | Fixed: this entry, and the S-21 and S-24 rows and the two bullets of the 2026-10-14 entry are annotated with the date and a pointer |
-| U-03 | Minor | the runtime evidence of the check, README, CHANGELOG, decision 0025 | Four places said that exit 1 "does not block" under both wrappers. That holds for VS Code only (1.142.0, `HookExecutor`: an exit code of 2 blocks, any other non-zero code is a warning). The README's own statement for the Copilot SDK host is that it fails closed on every non-zero exit and denies the call. The verdict is right either way, but the sentence the controller reads was wrong for the second wrapper | Fixed: the runtime evidence says that VS Code treats exit 1 as a warning and the SDK host denies every call on it; the README, the CHANGELOG, decision 0025 and the S-21 and S-24 rows of this file say the same. Tests assert the wording and refuse "does not block"; mutations Q01 and Q02 were caught |
-| U-04 | Nit | comments of the check, README, CHANGELOG, decision 0025 | "Neither documented host starts `cmd.exe`" is true only by default. VS Code 1.142.0 (`X8a`) uses the PowerShell form only when `ComSpec` names `cmd.exe` and `SystemRoot` or `WINDIR` is set; otherwise it uses `shell:true`, which Node starts as `cmd.exe /d /s /c "<line>"` (reproduced). It also finds PowerShell through `%SystemRoot%` and not through a search path. No verdict gap: the `cmd.exe` leg stays required | Fixed: the text says "by default" and names the condition, and says that VS Code starts Windows PowerShell from `%SystemRoot%\System32` and the SDK host starts `pwsh` by name. The `cmd.exe /d /s /c` form and the `POWERSHELL_UPDATECHECK=Off` that VS Code sets are listed among what no run covered. Both facts were read in the VS Code 1.142.0 bundle on this host, and neither was run |
+| U-03 | Minor | the runtime evidence of the check, README, CHANGELOG, decision 0025 | Four places said that exit 1 "does not block" under both wrappers. That holds for VS Code only (1.142.0, `HookExecutor`: an exit code of 2 blocks, any other non-zero code is a warning). The README's own statement for the Copilot SDK host is that it fails closed on every non-zero exit and denies the call. The verdict is right either way, but the sentence the controller reads was wrong for the second wrapper | Fixed: the runtime evidence says that VS Code treats exit 1 as a warning and the SDK host denies every call on it; the README, the CHANGELOG, decision 0025 and the S-21 and S-24 rows of this file say the same. Tests assert the wording and refuse "does not block"; mutations Q01 and Q02 were caught. The sweep for these four places missed four more (V-03) |
+| U-04 | Nit | comments of the check, README, CHANGELOG, decision 0025 | "Neither documented host starts `cmd.exe`" is true only by default. VS Code 1.142.0 (`X8a`) uses the PowerShell form only when `ComSpec` names `cmd.exe` and `SystemRoot` or `WINDIR` is set; otherwise it uses `shell:true`, which Node starts as `cmd.exe /d /s /c "<line>"` when `ComSpec` is unset or names `cmd.exe`, and as `<ComSpec> -c <line>` when it names another shell (this entry first said only the first form: V-01). It also finds PowerShell through `%SystemRoot%` and not through a search path. No verdict gap: the `cmd.exe` leg stays required | Fixed: the text says "by default" and names the condition, and says that VS Code starts Windows PowerShell from `%SystemRoot%\System32` and the SDK host starts `pwsh` by name. The fallback forms (`cmd.exe /d /s /c` and `<ComSpec> -c`) and the `POWERSHELL_UPDATECHECK=Off` that VS Code sets are listed among what no run covered. The facts about VS Code were read in its 1.142.0 bundle on this host, and none was run |
 | U-05 | Nit | four evidence strings, the Pass evidence, the quoted-path note, a docstring | (a) The closure failures said "the hook command was not run under it", but nothing ran at all, since closure precedes the canary, and a reader could take the `cmd.exe` leg to have passed. (b) The Pass evidence said the program of each wrapper comes from the README's table, but it is this check's own choice by absolute path. (c) The quoted-path note was keyed on "a wrapper failed" and not on the codes, so a quoted line that fails under a wrapper for another reason, a time-out for one, still asserted a parse error. (d) A docstring said an absent wrapper is judged "as for the interpreter", but an absent interpreter is Fail and an absent wrapper is Unavailable | Fixed: (a) says "so the hook command was not run" in all four strings; (b) says that the arguments are the table's and the program is this check's own choice; (c) states what is known, that PowerShell reads a quoted program path as an expression and that a wrapper that exits 1 for every payload has not parsed the line, and no longer asserts a parse error; (d) names both outcomes. Tests assert the wording; mutations W01 to W04, P01, Q01 and Q02 were caught |
 | U-06 | Nit | `Test-HookContract` | The verdict has no invariant on how many wrappers it measured. In a scratch run with `Get-HookWrapper` returning an empty list, `Test-HookContract` returned Pass. No production path reaches it: `Get-HookWrapper` returns a literal pair, and tests hold it at two | Fixed: on Windows, a count other than two is `Unavailable`, with the count in the evidence and before anything runs. Rows for 0, 1 and 3, and five mutations (N01 to N05) that were caught |
-| U-07 | Nit | `ContainmentVerifier.HookContract.Tests.ps1` | Nothing asserted that `NoDefaultCurrentDirectoryInExePath` reaches a wrapper spawn, and none of the 72 mutations touched it: on a scratch mirror that skipped it under a wrapper, "running a line under a wrapper" still passed 12 of 12. No security effect, since the paths are absolute, but the docstring promises the same environment | Fixed: one test under each wrapper; mutation E01 was caught |
+| U-07 | Nit | `ContainmentVerifier.HookContract.Tests.ps1` | Nothing asserted that `NoDefaultCurrentDirectoryInExePath` reaches a wrapper spawn, and none of the 72 mutations touched it: on a scratch mirror that skipped it under a wrapper, "running a line under a wrapper" still passed 12 of 12. No security effect, since the paths are absolute, but the docstring promises the same environment | Fixed: two tests under each wrapper (the variable is set, and it survives an attempt to remove it); mutation E01 was caught |
+| V-01 | Nit | README, CHANGELOG, decision 0025, the U-04 row and a remaining risk of this entry, two comments of the verifier | "Otherwise VS Code runs `cmd.exe /d /s /c "<line>"`" is false for a `ComSpec` that names another shell: `X8a` falls back to Node's `shell:true`, and Node reads the host's own `ComSpec`. With it set to the path of `pwsh`, the spawn was `pwsh.exe -c <line>`, a form that runs the profile. It is `cmd.exe /d /s /c` only when `ComSpec` is unset or names `cmd.exe`. The first report said "reproduced" for the unset and default cases only, and the records copied it. A sentence of the changelog also read as a double negative and dropped the `SystemRoot` and `WINDIR` condition | Fixed: each says that the PowerShell form needs `ComSpec` to name `cmd.exe` and `SystemRoot` or `WINDIR` to be set, and that otherwise Node runs the line as `cmd.exe /d /s /c` (`ComSpec` unset or `cmd.exe`) or as `<ComSpec> -c <line>` (another shell), a form that no leg of the check runs and that the launcher owns. The two comments of the script now say the same, and that the first spawn only approximates the first form (it runs a script file under `cmd.exe /d /c`) |
+| V-02 | Nit | CHANGELOG, decision 0025, the README row, the runtime note of the check, this entry | Facts that were only read were worded as done or measured: (a) "a push went ahead", though no push ran; (b) the host treatment of exit 1 sat inside text that ends "measured on 2026-10-16"; (c) the runtime note stated both host behaviours as fact; (d) this entry said that the reviewer "ran VS Code's own spawn call from Node" (it ran a Node `spawn` built from the arguments it read in `X8a`) and that "the kill of the process tree held" (it read `Kill($true)`; no time-out occurred in its runs, and it observed only the clean-up of the temporary folder); (e) the U-07 row said "one test under each wrapper", where there are two | Fixed: (a) "would go ahead"; (b) the parse error is the measured part, and what exit 1 does is read, as the README states and the VS Code bundle shows; (c) the note begins "As the hooks README states" and says "would go ahead", with a test and mutations Q01 to Q05; (d) and (e) reworded |
+| V-03 | Minor | the S-25 row of this file, decision 0025 (the `#` example), three comments of the suite | The sweep for U-03 was incomplete: they still said that exit 1 for a push "does not block" or "was not blocked" under both wrappers, where the README says that the SDK host fails closed on every non-zero exit | Fixed: the S-25 row is annotated like S-21 and S-24, and the decision and the comments say that VS Code treats exit 1 as a warning and the SDK host denies the call. The sweep this time covered `docs/`, `.memory-bank/`, `tests/`, `com.github.copilot/`, `skills/`, `source/`, `.github/`, the changelog and the README, for "does not block", "not blocked", "goes ahead" and "went ahead". What remains is intended or about other things: the assertions that refuse the old wording, quotations of it in this file, a historical finding in `assessment-log.md`, and hooks that never block a session |
+| V-04 | Nit | the relay test of `ContainmentVerifier.HookContract.Tests.ps1`, mutation G15 | The cap was not pinned. The six assertions of the test, run by hand against mutated copies of `Get-HookWrapperProblem`, passed when `-Limit 1000` was dropped at either site (the default is 200) and when each reason was cut at 1,000 on its own (up to about 6 KB for six reasons); only G13 to G15 were caught, and G15 (`-Limit 1` at one site) is not an edit anyone would make | Fixed: the test holds six reasons of 3,000 characters and a length between 1,050 and 1,500, so the default cap and a cap on each reason fail. Mutations G16 to G19 (the default cap and a cap on each reason, at either site) were added and caught, one failing test each |
+| V-05 | Nit | the docstring of `Get-HookWrapperProblem` | "Like every other text this check did not compose" is false: four `$($_.Exception.Message)` texts of `Test-HookContract` still reach the evidence unrelayed | Fixed: the docstring says "as Measure-HookWrapper does for the texts it relays". Not fixed, recorded: all four lines exist unchanged at `origin/main`, so relaying them is a separate change, to be made with S-20 |
 
 What the reviewer confirmed sound:
 
@@ -70,8 +87,9 @@ What the reviewer confirmed sound:
   use equals the interpreter's. `MainModule.FileName` keeps the spelling of the launch: a
   `pwsh` launched through a junction reported the junction path, so the reparse-point rule
   gives a Fail and does not measure another file.
-- **The same argument and environment as the hosts.** VS Code's own spawn call, run from
-  Node with the shipped line, gave 0, 2, 2 with an unquoted program path, 1, 1, 1 with a
+- **The same argument and environment as the hosts.** A Node `spawn` built from the
+  arguments the reviewer read in VS Code's spawn code (VS Code's own code did not run),
+  with the shipped line, gave 0, 2, 2 with an unquoted program path, 1, 1, 1 with a
   quoted one and 0, 2, 2 with a leading `&`: the results of the .NET `ArgumentList` spawn.
   The `pwsh -nop -nol -c` form matches too, and a `pwsh` 7 interpreter at a path without a
   space gives 0, 2, 2 under `cmd.exe` and both wrappers. Every spawn uses one
@@ -79,8 +97,9 @@ What the reviewer confirmed sound:
 - **Relay.** What a spawn writes is never read into the evidence, and a test with a real
   parse error asserts that.
 - **Failure modes.** About 1.0 to 1.3 seconds per payload under a wrapper, a worst case
-  bounded under four minutes, and the kill of the process tree and the clean-up of the
-  temporary folder held.
+  bounded under four minutes (from the time-outs in the code), and the clean-up of the
+  temporary folder held. The kill of the process tree was read in the code, and no
+  time-out occurred in the reviewer's runs.
 - **Closure under a filtered token.** Re-running the author's script, both wrappers came
   out closed, the temporary-file control was writable, and the elevated token was not
   closed.
@@ -94,6 +113,42 @@ closure under a filtered token was measured); a Microsoft Store `pwsh`; Ubuntu a
 Constrained Language Mode and AppLocker; the mutations, the test file and the gate; and
 the claim of about 85 seconds more for the suite.
 
+What the delta check confirmed sound:
+
+- **U-01.** Re-run on a copy of HEAD, the evidence was 1,229 characters, none outside
+  printable ASCII, and ended in `...`. Both sites are relayed, and 1,000 is the largest
+  cap `Format-RelayedText` takes.
+- **U-06.** With the spawns replaced and 0, 1 and 3 wrappers listed, `Test-HookContract`
+  gave Unavailable each time, with the count in the evidence and no spawn. The check sits
+  before the closure loop and the work folder.
+- **U-05.** All four closure strings say "so the hook command was not run", which is true
+  because closure precedes every spawn. In four scripted cases (both wrappers 1, 1, 1;
+  one wrapper over the time-out; one wrapper 0, 0, 0; unquoted with a wrapper 0, 0, 0) the
+  quoted-path note appeared only with a quoted path and a failing wrapper. It no longer
+  asserts a parse error, so it is true wherever it can appear: a quoted program path fails
+  to parse in both builds, so a wrapper that ran gives 1 for every payload, and a time-out
+  cannot be caused by the quote, which the note does not claim.
+- **U-07.** The second test removes the inherited variable, so it is not vacuous when the
+  ambient environment already sets it. E01 is exactly the mutant that had survived.
+- **`[OutputType]`.** Tokenised without comments, both commits hold 71 functions and three
+  differ (`Get-HookWrapper`, `Get-HookWrapperProblem`, `Test-HookContract`);
+  `Get-HookWrapper` differs in one token of 152, `pscustomobject` to `object`, so that
+  change is attribute-only.
+- **The 16 new mutations.** Fifteen are sensible edits; G15 was the weak one (V-04).
+- **The tests and the records.** The row for 0 wrappers relies on `switch` returning
+  nothing, which it confirmed in a throwaway `pwsh` 7 process. The numbers of the entry
+  were internally consistent (the 13 new tests are 4 + 4 + 2 + 3, and the 11 that failed
+  before the fix match the 11 tests that assert new behaviour). S-21, S-24 and the two
+  bullets of 2026-10-14 were annotated, and no "neither host starts `cmd.exe`" or "search
+  path" sentence remained.
+
+It could not verify: the gate and test counts, the analyzer and the 88 mutations (it ran
+none of them, to keep the gate that was running free of contention); the SDK host's
+behaviour (the README's statement only); that VS Code treats the exit-code kind 3 as a
+non-blocking warning (it read the mapping and did not run VS Code); a run on a
+standard-account token, a Microsoft Store `pwsh`, Ubuntu and macOS; and the costs of about
+85 and 7 seconds.
+
 ### Tests
 
 - Mutation checks: 72 changes of the verifier were applied one at a time for the first
@@ -103,22 +158,36 @@ the claim of about 85 seconds more for the suite.
   changes: G13 to G15 (the relay of a reason and its cap), W01 to W04 (the wording of the
   closure strings), N01 to N05 (the wrapper count), E01 (the environment variable under a
   wrapper), P01 (the Pass evidence) and Q01 and Q02 (the quoted-path note). All 88 were
-  caught and none survived, and the file had the same sha256 after the run. One
-  `[OutputType]` attribute of `Get-HookWrapper` was changed after that run, for the
-  analyzer, and no logic.
+  caught and none survived, and the file had the same sha256 after the run. The delta
+  round (V-01 to V-05) changed comments, one evidence string and one attribute (the
+  `[OutputType]` of `Get-HookWrapper`, for the analyzer), and no logic. It added seven
+  mutations, Q03 to Q05 (the quoted-path note) and G16 to G19 (the default cap, and a cap
+  on each reason, at either site), and rewrote Q01 and Q02 for the new text. A dry run
+  showed that all 95 apply to the final text, once each, and parse. The 12 that touch the
+  changed lines (G13 to G19 and Q01 to Q05) were run again on the final text: all 12 were
+  caught, none survived, and the file had the same sha256 after the run. The other 83 were
+  not run again, because the code they change did not change and no assertion was
+  weakened.
 - The `HookContract` suite: 177 passed and 47 failed before the first build's code, 226
   passed after it; 228 passed and 11 failed before the review fixes, all of them
-  assertion failures of the new tests, and 239 passed after them.
+  assertion failures of the new tests, and 239 passed after them. In the delta round the
+  quoted-path note test failed first (238 passed, 1 failed) and the suite passes 239 again.
 - The 13 `ContainmentVerifier*` suites: 920 passed, 0 failed, 2 skipped on the first build;
   933 passed, 0 failed, 2 skipped after the fixes (the 13 new tests of the `HookContract`
-  suite), in 250 seconds.
+  suite), in 250 seconds; and 933 passed, 0 failed, 2 skipped again after the delta
+  round, in 244 seconds.
 - Full `build,test` gate on `d2da113`: 5,328 passed, 0 failed, 147 skipped, 90.84 %
   coverage against a threshold of 65 %, 21 build tasks and no error, 47 minutes. The 16
   warnings are the 15 simulated crashed launches of the Meter tests and one simulated
   backend failure of the trigger eval, as in earlier gates.
+- Full `build,test` gate on `f2e46e9` (the fixes of the first review): 5,341 passed, 0
+  failed, 147 skipped, 90.84 % coverage, 21 build tasks and no error, 48 minutes; 13 more
+  than on `d2da113`, which are the 13 new tests, and the same 16 warnings. The delta round
+  came after it, so the final gate is the next item: GATE3-RESULT.
 - PSScriptAnalyzer 1.24.0 was clean at every severity, `Information` included, on the
-  verifier and the suite after the fixes; before them it reported one `Information`
-  finding, the declared output type of `Get-HookWrapper`.
+  verifier and the suite after the fixes and again after the delta round; before the
+  first fixes it reported one `Information` finding, the declared output type of
+  `Get-HookWrapper`.
 - Nothing could run on Ubuntu or macOS here. The new blocks are skipped there as blocks.
 
 ### Remaining risks
@@ -126,9 +195,11 @@ the claim of about 85 seconds more for the suite.
 - No host ran the line. The two spawns are rebuilt from the README's table. VS Code's own
   spawn code was read and not run, and the reviewer's Node `spawn` reproduction is the
   closest measurement; how the Copilot SDK host starts the line and answers an exit code
-  is the README's statement, which no run confirmed. The `cmd.exe /d /s /c "<line>"` form
-  that VS Code falls back to and the `POWERSHELL_UPDATECHECK=Off` that it sets were not
-  run. A host update that changes its form is seen only when the table is updated.
+  is the README's statement, which no run confirmed. The forms that VS Code falls back to
+  (`cmd.exe /d /s /c "<line>"` when `ComSpec` is unset or names `cmd.exe`, and
+  `<ComSpec> -c <line>` for another shell) and the `POWERSHELL_UPDATECHECK=Off` that it
+  sets were not run. A host update that changes its form is seen only when the table is
+  updated.
 - The wrappers were shown closed under a filtered administrator token only. The Pass has
   not been measured on a real standard-account token, which is also the open item of
   R-04 and has the same closing test.
@@ -148,6 +219,9 @@ the claim of about 85 seconds more for the suite.
   PowerShell from `%SystemRoot%\System32` and the SDK host starts `pwsh` by name, so both
   depend on an environment that the launcher owns.
 - S-33 stays a recorded Nit: its two spellings fail closed before the wrappers.
+- Four `$($_.Exception.Message)` texts of `Test-HookContract` still reach the evidence
+  unrelayed (V-05). They are older than this change, so relaying them is a separate
+  change, to be made with S-20.
 - The suite of the check takes about 85 seconds longer and a verify run about 7 seconds
   longer, on one host; the reviewer did not verify the first figure.
 - The Custom `security-reviewer` agent cannot start in this runtime until the first entry
@@ -445,7 +519,7 @@ Pass 3, part D (a bounded delta check of `44396e8` and `6a6af58`). It confirmed 
 
 | ID | Severity | Area | Finding | Resolution |
 |---|---|---|---|---|
-| S-25 | Major | Verifier | A bare word may start with `-`. PowerShell reads `-name:` as a parameter that binds to the next word or, as the last word, fails to parse, and splits `-Z.7` in two, where `cmd.exe` passes each through whole. Reproduced on the shipped body: ` -x:` before the closing statement made both PowerShell wrappers exit 1 for a push, which does not block, while the `cmd.exe` probe still measured 0, 2, 2. | Fixed (`032d6c4`): a word that starts with a dash is an option name of letters only (the reviewer's regex, character for character; its generated set gave 0 deviations). Six rows and an end-to-end row failed first. The reviewer's method is now a seeded test: every line the shape accepts out of 4,000 generated ones has to parse, with the parser of the host, as one command whose words are the words the shape saw. Under the part C shape it finds 533 deviating lines, such as `-d.f0` and `-bf0YZc1.`; under the new one, none. |
+| S-25 | Major | Verifier | A bare word may start with `-`. PowerShell reads `-name:` as a parameter that binds to the next word or, as the last word, fails to parse, and splits `-Z.7` in two, where `cmd.exe` passes each through whole. Reproduced on the shipped body: ` -x:` before the closing statement made both PowerShell wrappers exit 1 for a push, which VS Code treats as a warning and the Copilot SDK host as a denial (corrected on 2026-10-16: the entry said it "does not block"), while the `cmd.exe` probe still measured 0, 2, 2. | Fixed (`032d6c4`): a word that starts with a dash is an option name of letters only (the reviewer's regex, character for character; its generated set gave 0 deviations). Six rows and an end-to-end row failed first. The reviewer's method is now a seeded test: every line the shape accepts out of 4,000 generated ones has to parse, with the parser of the host, as one command whose words are the words the shape saw. Under the part C shape it finds 533 deviating lines, such as `-d.f0` and `-bf0YZc1.`; under the new one, none. |
 | S-26 | Minor | Verifier | A network path is two separators in any mix. The check refused only `\\` and `//`, so `\/server\share\powershell.exe` and `/\server\share\powershell.exe` reached `Test-PathProtection`, which would read the access list over the network as the verifier's own identity. | Fixed (`032d6c4`): two separators in any mix, quoted or not. |
 | S-27 | Minor | Verifier | Off Windows the shape and the program word allow backslashes that a POSIX shell reads as escapes: `/opt/x\y/pwsh` runs `/opt/xy/pwsh`, a sibling directory that was never measured. | Fixed (`032d6c4`): off Windows a backslash anywhere in the line is refused, tested with the platform switched so that the rule runs on every host. Verified at the level of `sh` word splitting (Git's `sh.exe`); the POSIX probe itself was not run on a POSIX host. |
 | S-28 | Nit | Verifier | A line with an empty word (`... -Command exit ""`) made the option reader throw, so the verifier ended with exit code 1 and nothing verified instead of refusing the line with its reason. Fail-closed, not a hole. | Fixed (`032d6c4`): `[AllowEmptyString()]`. |
