@@ -20,6 +20,9 @@ BeforeAll {
             'Get-GateFailure'
             'Test-PathProtection'
             'Invoke-HookPayload'
+            'Get-HookWrapper'
+            'Get-HookWrapperProblem'
+            'Measure-HookWrapper'
             'Test-HookContract'
         ))
 
@@ -74,6 +77,8 @@ BeforeAll {
     }
 
     # The shipped PreToolUse command with its interpreter named by absolute path, as a contained deployment must pin it.
+    # The path of Windows PowerShell in the system folder holds no space, so it is not quoted: a quoted program path
+    # does not run under a PowerShell host, and the check measures that.
     function script:New-ContainedConfig {
         param(
             [Parameter(Mandatory)]
@@ -87,7 +92,7 @@ BeforeAll {
             throw 'the shipped Windows command no longer starts with the bare name powershell'
         }
 
-        return New-HookConfig -Path $Path -Command ('"' + $script:systemPowerShell + '"' + $command.Substring('powershell'.Length))
+        return New-HookConfig -Path $Path -Command ($script:systemPowerShell + $command.Substring('powershell'.Length))
     }
 
     # A plugin tree as a deployment lays it out: a copy of the guard under scripts, and beside it the
@@ -721,27 +726,469 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $script:shippedRun.evidence | Should -Match ([regex]::Escape([System.IO.Path]::GetFullPath($script:systemPowerShell)))
         }
 
-        # Review pass 3 part C, S-23 and S-24: the probe is a measurement through cmd.exe, and the hosts the README
-        # lists wrap the line in PowerShell, so a Pass must not read as a measurement under them.
-        It 'says that the probe ran the line through cmd.exe, and that a PowerShell host reads it by other rules' {
+        # Review pass 3 part C, S-23, and the P5 follow-up that runs the line under the hosts' wrappers: the probe ran the line
+        # through cmd.exe only, and the hosts the README lists wrap it in PowerShell, so a Pass names every spawn that measured it.
+        It 'says that the line ran through cmd.exe and under both wrappers of the hosts, each with its codes' {
             $script:shippedRun.evidence | Should -Match 'through cmd\.exe /d /c'
-            $script:shippedRun.evidence | Should -Match 'PowerShell host'
+            $script:shippedRun.evidence | Should -Match 'Windows PowerShell 5\.1'
+            $script:shippedRun.evidence | Should -Match 'VS Code Local harness'
+            $script:shippedRun.evidence | Should -Match 'Copilot SDK host'
+            $script:shippedRun.evidence | Should -Match '-ExecutionPolicy Bypass -NoProfile -NoLogo -Command'
+            $script:shippedRun.evidence | Should -Match '-nop -nol -c'
+            [regex]::Matches($script:shippedRun.evidence, 'safe=0 push=2 issue=2').Count | Should -Be 3 -Because 'there is one measurement for each of the three spawns'
         }
 
-        It 'says that a quoted program path is not shown to run under a PowerShell host' {
-            $script:shippedRun.evidence | Should -Match 'program path is quoted'
+        It 'says that the spawns are rebuilt from the README and that no host ran the line' {
+            $script:shippedRun.evidence | Should -Match 'README'
+            $script:shippedRun.evidence | Should -Match 'no host'
         }
 
-        It 'does not say so when the program path is not quoted' {
+        It 'no longer says that a PowerShell host reads the line by other rules, because it ran the line under two' {
+            $script:shippedRun.evidence | Should -Not -Match 'by other rules'
+            $script:shippedRun.evidence | Should -Not -Match 'not a measurement under'
+        }
+
+        It 'says nothing about a quoted program path when the path is not quoted' {
+            $script:shippedRun.evidence | Should -Not -Match 'quoted'
+        }
+    }
+
+    # The P5 follow-up that runs the pinned line under the wrappers of the documented hosts, and not through cmd.exe alone
+    # (option A of the design note of 2026-10-16). The spawn forms are the README's table of hosts; HookLauncher.Tests.ps1
+    # models the same two against the shipped line, and this check runs them against the pinned one.
+    Context 'the wrappers the documented hosts start the line in' {
+        BeforeAll {
+            $script:wrapper = @(Get-HookWrapper)
+            $script:ownPowerShell = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        }
+
+        It 'lists Windows PowerShell from the system folder, then the PowerShell that runs the verifier' {
+            $script:wrapper | Should -HaveCount 2
+            $script:wrapper[0].Name | Should -BeExactly 'Windows PowerShell 5.1'
+            $script:wrapper[0].Path | Should -BeExactly $script:systemPowerShell
+            $script:wrapper[1].Name | Should -BeLike "*PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
+            $script:wrapper[1].Path | Should -BeExactly $script:ownPowerShell
+        }
+
+        It 'passes each the arguments that the README table of hosts gives for it' {
+            ($script:wrapper[0].Argument -join ' ') | Should -BeExactly '-ExecutionPolicy Bypass -NoProfile -NoLogo -Command'
+            ($script:wrapper[1].Argument -join ' ') | Should -BeExactly '-nop -nol -c'
+        }
+
+        It 'names the host of each as the README table does, and that row carries the same arguments' {
+            $line = [System.IO.File]::ReadAllLines((Join-Path $script:repoRoot 'com.github.copilot/hooks/README.md'))
+
+            foreach ($item in $script:wrapper) {
+                $row = @($line | Where-Object -FilterScript { $_.StartsWith("| $($item.Host) |", [System.StringComparison]::Ordinal) })
+
+                $row | Should -HaveCount 1 -Because "the table of hosts has one row for $($item.Host)"
+                $row[0] | Should -Match ([regex]::Escape(($item.Argument -join ' ') + ' <'))
+            }
+        }
+    }
+
+    Context 'running a line under a wrapper' {
+        BeforeAll {
+            $script:wrapper = @(Get-HookWrapper)
+        }
+
+        It 'returns the exit code the line ends with, under <Label>' -ForEach @(
+            @{ Index = 0; Label = 'Windows PowerShell' }
+            @{ Index = 1; Label = 'PowerShell 7' }
+        ) {
+            Invoke-HookPayload -CommandLine "exit ([int]'7')" -Payload '{}' -EnvironmentVariable @{} -Wrapper $script:wrapper[$Index] | Should -Be 7
+        }
+
+        It 'hands the payload over on standard input, under <Label>' -ForEach @(
+            @{ Index = 0; Label = 'Windows PowerShell' }
+            @{ Index = 1; Label = 'PowerShell 7' }
+        ) {
+            $line = 'if ([Console]::In.ReadToEnd() -eq "payload-text") { exit 9 } else { exit 8 }'
+
+            Invoke-HookPayload -CommandLine $line -Payload 'payload-text' -EnvironmentVariable @{} -Wrapper $script:wrapper[$Index] | Should -Be 9
+        }
+
+        It 'gives the line the environment it is passed and not the caller''s, under <Label>' -ForEach @(
+            @{ Index = 0; Label = 'Windows PowerShell' }
+            @{ Index = 1; Label = 'PowerShell 7' }
+        ) {
+            $line = 'if ($env:PLUGIN_ROOT -eq "given") { exit 9 } else { exit 8 }'
+
+            $code = Invoke-WithEnvironment -Name 'PLUGIN_ROOT' -Value 'caller' -Action {
+                Invoke-HookPayload -CommandLine $line -Payload '{}' -EnvironmentVariable @{ PLUGIN_ROOT = 'given' } -Wrapper $script:wrapper[$Index]
+            }
+
+            $code | Should -Be 9
+        }
+
+        It 'starts the line in a folder of its own that holds nothing, under <Label>' -ForEach @(
+            @{ Index = 0; Label = 'Windows PowerShell' }
+            @{ Index = 1; Label = 'PowerShell 7' }
+        ) {
+            Invoke-HookPayload -CommandLine 'exit (@(Get-ChildItem -Force).Count + 5)' -Payload '{}' -EnvironmentVariable @{} -Wrapper $script:wrapper[$Index] | Should -Be 5
+        }
+
+        It 'stops a line that does not finish within the time it is given, under <Label>' -ForEach @(
+            @{ Index = 0; Label = 'Windows PowerShell' }
+            @{ Index = 1; Label = 'PowerShell 7' }
+        ) {
+            { Invoke-HookPayload -CommandLine 'Start-Sleep -Seconds 30' -Payload '{}' -EnvironmentVariable @{} -TimeoutSecond 1 -Wrapper $script:wrapper[$Index] } |
+                Should -Throw '*did not finish within 1 seconds*'
+        }
+
+        It 'throws when the wrapper cannot be started' {
+            $missing = [pscustomobject]@{ Name = 'missing'; Host = 'none'; Path = (Join-Path $TestDrive 'no-such-folder\powershell.exe'); Argument = @('-Command') }
+
+            { Invoke-HookPayload -CommandLine 'exit 0' -Payload '{}' -EnvironmentVariable @{} -Wrapper $missing } | Should -Throw
+        }
+
+        It 'still runs the line through cmd.exe when no wrapper is given' {
+            Invoke-HookPayload -CommandLine 'exit /b 6' -Payload '{}' -EnvironmentVariable @{} | Should -Be 6
+        }
+    }
+
+    # A wrapper is a program this check runs as the identity under test, and one that identity can replace could answer
+    # 0, 2, 2 for the guard: it gets the test the pinned interpreter gets.
+    Context 'a wrapper that this identity must not be able to replace' {
+        BeforeAll {
+            $script:aWrapper = [pscustomobject]@{
+                Name = 'Windows PowerShell 5.1'
+                Host = 'VS Code Local harness'
+                Path = 'C:\containment\wrapper\powershell.exe'
+                Argument = @('-Command')
+            }
+        }
+
+        It 'reports nothing when the wrapper exists and is closed to this identity' {
+            Get-HookWrapperProblem -Wrapper $script:aWrapper | Should -BeNullOrEmpty
+        }
+
+        It 'asks the access check about the wrapper itself, with the writable roots it is given' {
+            $null = Get-HookWrapperProblem -Wrapper $script:aWrapper -WritableRoot @('C:\work')
+
+            Should -Invoke Test-PathProtection -Times 1 -Exactly -ParameterFilter {
+                $Path -eq $script:aWrapper.Path -and $WritableRoot -contains 'C:\work'
+            }
+        }
+
+        It 'fails a wrapper this identity can replace, and names it and the reason' {
+            Mock -CommandName Test-PathProtection -MockWith {
+                [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @("${Path}: this identity holds the right to delete it"); Unmeasured = @() }
+            }
+
+            $problem = Get-HookWrapperProblem -Wrapper $script:aWrapper
+
+            $problem.Status | Should -Be 'Fail'
+            $problem.Evidence | Should -Match 'can be replaced'
+            $problem.Evidence | Should -Match 'Windows PowerShell 5\.1'
+            $problem.Evidence | Should -Match ([regex]::Escape($script:aWrapper.Path))
+            $problem.Evidence | Should -Match 'this identity holds the right to delete it'
+            $problem.Evidence | Should -Match 'not run'
+        }
+
+        It 'reports a wrapper that does not exist as unavailable, because nothing could be measured under it' {
+            Mock -CommandName Test-PathProtection -MockWith {
+                [pscustomobject]@{ Path = $Path; Closed = $true; Absent = $true; Violation = @(); Unmeasured = @() }
+            }
+
+            $problem = Get-HookWrapperProblem -Wrapper $script:aWrapper
+
+            $problem.Status | Should -Be 'Unavailable'
+            $problem.Evidence | Should -Match 'does not exist'
+            $problem.Evidence | Should -Match 'Windows PowerShell 5\.1'
+        }
+
+        It 'reports a wrapper whose protection could not be measured as unavailable' {
+            Mock -CommandName Test-PathProtection -MockWith {
+                [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @(); Unmeasured = @("${Path}: a right could not be measured") }
+            }
+
+            $problem = Get-HookWrapperProblem -Wrapper $script:aWrapper
+
+            $problem.Status | Should -Be 'Unavailable'
+            $problem.Evidence | Should -Match 'not be shown to be closed'
+            $problem.Evidence | Should -Match 'a right could not be measured'
+        }
+
+        It 'reports a wrapper that cannot be measured at all as unavailable, and cuts the reason to printable ASCII' {
+            Mock -CommandName Test-PathProtection -MockWith { throw "access check unavailable $([char]0x00E9)" }
+
+            $problem = Get-HookWrapperProblem -Wrapper $script:aWrapper
+
+            $problem.Status | Should -Be 'Unavailable'
+            $problem.Evidence | Should -Match 'access check unavailable \?'
+            $problem.Evidence | Should -Not -Match ([string][char]0x00E9)
+        }
+
+        It 'relays the path of the wrapper as printable ASCII' {
+            Mock -CommandName Test-PathProtection -MockWith {
+                [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @('replaceable'); Unmeasured = @() }
+            }
+            $odd = [pscustomobject]@{ Name = 'Windows PowerShell 5.1'; Host = 'VS Code Local harness'; Path = "C:\containment\w$([char]0x00E9)\powershell.exe"; Argument = @('-Command') }
+
+            $problem = Get-HookWrapperProblem -Wrapper $odd
+
+            $problem.Evidence | Should -Match 'w\?\\powershell\.exe'
+            $problem.Evidence | Should -Not -Match ([string][char]0x00E9)
+        }
+    }
+
+    Context 'measuring the line under one wrapper' {
+        BeforeAll {
+            $script:aWrapper = [pscustomobject]@{
+                Name = 'Windows PowerShell 5.1'
+                Host = 'VS Code Local harness'
+                Path = 'C:\containment\wrapper\powershell.exe'
+                Argument = @('-ExecutionPolicy', 'Bypass', '-Command')
+            }
+            $script:case = [ordered]@{
+                safe = @{ expected = 0; payload = 'safe-payload' }
+                push = @{ expected = 2; payload = 'push-payload' }
+                issue = @{ expected = 2; payload = 'issue-payload' }
+            }
+            $script:given = @{ PLUGIN_ROOT = 'C:\root'; HOME = 'C:\empty'; USERPROFILE = 'C:\empty' }
+            $script:answer = @{ 'safe-payload' = 0; 'push-payload' = 2; 'issue-payload' = 2 }
+
+            function script:Measure-Line {
+                param(
+                    [Parameter()]
+                    [int]$TimeoutSecond = 20
+                )
+
+                Measure-HookWrapper -Wrapper $script:aWrapper -CommandLine 'the pinned line' -Case $script:case -EnvironmentVariable $script:given -TimeoutSecond $TimeoutSecond
+            }
+        }
+
+        BeforeEach {
+            $script:order = [System.Collections.Generic.List[string]]::new()
+            Mock -CommandName Invoke-HookPayload -MockWith {
+                $script:order.Add($Payload)
+                [int]$script:answer[$Payload]
+            }
+        }
+
+        It 'passes when every payload gets the code the guard has to give, and names the wrapper and the codes' {
+            $result = Measure-Line
+
+            $result.Status | Should -Be 'Pass' -Because $result.Evidence
+            $result.Name | Should -Be 'Windows PowerShell 5.1'
+            $result.Evidence | Should -Match 'safe=0 push=2 issue=2'
+            $result.Evidence | Should -Match 'Windows PowerShell 5\.1'
+            $result.Evidence | Should -Match 'VS Code Local harness'
+            $result.Evidence | Should -Match ([regex]::Escape('C:\containment\wrapper\powershell.exe -ExecutionPolicy Bypass -Command'))
+        }
+
+        It 'runs the safe, the push and then the issue payload, one spawn each, with the wrapper, the line and the environment it was given' {
+            $null = Measure-Line
+
+            $script:order | Should -Be @('safe-payload', 'push-payload', 'issue-payload')
+            Should -Invoke Invoke-HookPayload -Times 3 -Exactly -ParameterFilter {
+                $Wrapper.Path -eq $script:aWrapper.Path -and $CommandLine -ceq 'the pinned line' -and
+                $EnvironmentVariable.PLUGIN_ROOT -eq 'C:\root' -and $EnvironmentVariable.HOME -eq 'C:\empty'
+            }
+        }
+
+        It 'fails a payload that gets <Measured> and still measures the others' -ForEach @(
+            @{ Safe = 1; Push = 2; Issue = 2; Measured = 'safe=1 push=2 issue=2' }
+            @{ Safe = 2; Push = 2; Issue = 2; Measured = 'safe=2 push=2 issue=2' }
+            @{ Safe = 0; Push = 0; Issue = 2; Measured = 'safe=0 push=0 issue=2' }
+            @{ Safe = 0; Push = 1; Issue = 2; Measured = 'safe=0 push=1 issue=2' }
+            @{ Safe = 0; Push = 2; Issue = 0; Measured = 'safe=0 push=2 issue=0' }
+            @{ Safe = 0; Push = 2; Issue = 1; Measured = 'safe=0 push=2 issue=1' }
+            @{ Safe = 1; Push = 1; Issue = 1; Measured = 'safe=1 push=1 issue=1' }
+        ) {
+            $script:answer = @{ 'safe-payload' = $Safe; 'push-payload' = $Push; 'issue-payload' = $Issue }
+
+            $result = Measure-Line
+
+            $result.Status | Should -Be 'Fail' -Because $result.Evidence
+            $result.Evidence | Should -Match $Measured
+            Should -Invoke Invoke-HookPayload -Times 3 -Exactly
+        }
+
+        It 'reports a spawn that throws as unavailable, with the reason, and runs nothing after it' {
+            Mock -CommandName Invoke-HookPayload -ParameterFilter { $Payload -eq 'push-payload' } -MockWith { throw 'the wrapper did not start' }
+
+            $result = Measure-Line
+
+            $result.Status | Should -Be 'Unavailable'
+            $result.Evidence | Should -Match 'could not run the push payload'
+            $result.Evidence | Should -Match 'the wrapper did not start'
+            $result.Evidence | Should -Match 'Windows PowerShell 5\.1'
+            Should -Invoke Invoke-HookPayload -Times 2 -Exactly
+        }
+
+        It 'cuts the reason of a spawn that throws to printable ASCII' {
+            Mock -CommandName Invoke-HookPayload -MockWith { throw "no start $([char]0x00E9)" }
+
+            $result = Measure-Line
+
+            $result.Evidence | Should -Match 'no start \?'
+            $result.Evidence | Should -Not -Match ([string][char]0x00E9)
+        }
+
+        It 'relays the path of the wrapper as printable ASCII' {
+            $odd = [pscustomobject]@{ Name = 'Windows PowerShell 5.1'; Host = 'VS Code Local harness'; Path = "C:\containment\w$([char]0x00E9)\powershell.exe"; Argument = @('-Command') }
+
+            $result = Measure-HookWrapper -Wrapper $odd -CommandLine 'the pinned line' -Case $script:case -EnvironmentVariable $script:given -TimeoutSecond 20
+
+            $result.Evidence | Should -Match 'w\?\\powershell\.exe'
+            $result.Evidence | Should -Not -Match ([string][char]0x00E9)
+        }
+
+        It 'fails a payload that takes as long as the timeout the hook declares, and runs nothing after it' {
+            Mock -CommandName Invoke-HookPayload -MockWith { Start-Sleep -Seconds 2; 0 }
+
+            $result = Measure-Line -TimeoutSecond 1
+
+            $result.Status | Should -Be 'Fail'
+            $result.Evidence | Should -Match 'timeout of 1 seconds'
+            $result.Evidence | Should -Match 'safe payload'
+            $result.Evidence | Should -Match 'Windows PowerShell 5\.1'
+            Should -Invoke Invoke-HookPayload -Times 1 -Exactly
+        }
+    }
+
+    # Review pass 3 part C, S-23 and S-24, measured on 2026-10-16: the cmd.exe probe says 0, 2, 2 for a quoted program path
+    # and both wrappers say 1, 1, 1, which is a parse error and does not block.
+    Context 'a line that has to pass under the wrappers of the documented hosts, run for real' {
+        It 'fails a quoted program path, which both wrappers fail to parse, and says why without relaying what they wrote' {
             $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
             $text = [string]@($shipped.hooks.PreToolUse)[0].windows
-            $tree = New-PluginTree -Name 'unquoted-program' -Command ($script:systemPowerShell + $text.Substring('powershell'.Length))
+            $tree = New-PluginTree -Name 'quoted-program' -Command ('"' + $script:systemPowerShell + '"' + $text.Substring('powershell'.Length))
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match 'measured safe=0 push=2 issue=2'
+            [regex]::Matches($result.evidence, 'safe=1 push=1 issue=1').Count | Should -Be 2 -Because 'both wrappers fail the line'
+            $result.evidence | Should -Match 'program path is quoted'
+            $result.evidence | Should -Match 'ampersand'
+            $result.evidence | Should -Not -Match 'Unexpected token|ParserError|At line'
+        }
+
+        It 'passes the line with the program path unquoted' {
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be 'Pass' -Because $result.evidence
+        }
+    }
+
+    Context 'the verdict over the wrappers of the documented hosts' {
+        BeforeEach {
+            $script:seen = [System.Collections.Generic.List[object]]::new()
+            $script:statusByHost = @{ 'VS Code Local harness' = 'Pass'; 'Copilot SDK host' = 'Pass' }
+            Mock -CommandName Measure-HookWrapper -MockWith {
+                $script:seen.Add([pscustomobject]@{ Wrapper = $Wrapper; Line = $CommandLine; Case = $Case; Environment = $EnvironmentVariable; Timeout = $TimeoutSecond })
+
+                [pscustomobject]@{ Name = $Wrapper.Name; Status = $script:statusByHost[$Wrapper.Host]; Evidence = "fragment for $($Wrapper.Host) is $($script:statusByHost[$Wrapper.Host])" }
+            }
+        }
+
+        It 'measures both wrappers in the order of the table, with the pinned line, the three cases, the hook''s own timeout and the environment of the probe' {
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be 'Pass' -Because $result.evidence
+            $script:seen | Should -HaveCount 2
+            $script:seen[0].Wrapper.Host | Should -Be 'VS Code Local harness'
+            $script:seen[1].Wrapper.Host | Should -Be 'Copilot SDK host'
+
+            $pinned = [string]@(([System.IO.File]::ReadAllText($script:plugin.Config) | ConvertFrom-Json).hooks.PreToolUse)[0].windows
+
+            foreach ($item in $script:seen) {
+                $item.Line | Should -BeExactly $pinned
+                @($item.Case.Keys) | Should -Be @('safe', 'push', 'issue')
+                @($item.Case.Values.expected) | Should -Be @(0, 2, 2)
+                $item.Timeout | Should -Be 20
+                [System.IO.Path]::GetFullPath($item.Environment['PLUGIN_ROOT']) | Should -Be ([System.IO.Path]::GetFullPath($script:plugin.Root))
+                $item.Environment['HOME'] | Should -Be $item.Environment['USERPROFILE']
+                $item.Environment['HOME'] | Should -Not -Be $env:USERPROFILE
+            }
+
+            $result.evidence.IndexOf('fragment for VS Code Local harness') | Should -BeLessThan $result.evidence.IndexOf('fragment for Copilot SDK host')
+        }
+
+        It 'gives <Expected> when the first wrapper is <First> and the second is <Second>, and measures both' -ForEach @(
+            @{ First = 'Fail'; Second = 'Pass'; Expected = 'Fail' }
+            @{ First = 'Pass'; Second = 'Fail'; Expected = 'Fail' }
+            @{ First = 'Unavailable'; Second = 'Pass'; Expected = 'Unavailable' }
+            @{ First = 'Pass'; Second = 'Unavailable'; Expected = 'Unavailable' }
+            @{ First = 'Fail'; Second = 'Unavailable'; Expected = 'Fail' }
+            @{ First = 'Unavailable'; Second = 'Fail'; Expected = 'Fail' }
+        ) {
+            $script:statusByHost = @{ 'VS Code Local harness' = $First; 'Copilot SDK host' = $Second }
+
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be $Expected -Because $result.evidence
+            Should -Invoke Measure-HookWrapper -Times 2 -Exactly
+            $result.evidence | Should -Match "fragment for VS Code Local harness is $First"
+            $result.evidence | Should -Match "fragment for Copilot SDK host is $Second"
+        }
+
+        It 'does not run the line under a wrapper when it already failed under cmd.exe, and says so' {
+            $broken = New-PluginTree -Name 'wrapper-after-shell' -Body 'exit 0'
+
+            $result = Test-HookContract -HookConfigPath $broken.Config -HookConfigSha256 $broken.ConfigDigest `
+                -HookScriptPath $broken.Script -HookScriptSha256 $broken.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'safe=0 push=0 issue=0'
+            $result.evidence | Should -Match 'not run under the PowerShell wrappers'
+            Should -Invoke Measure-HookWrapper -Times 0 -Exactly
+        }
+
+        It 'says nothing about a quoted program path when both wrappers passed the line, because it reports what they measured and not what a rule predicts' {
+            $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
+            $text = [string]@($shipped.hooks.PreToolUse)[0].windows
+            $tree = New-PluginTree -Name 'wrappers-pass-the-line' -Command ('"' + $script:systemPowerShell + '"' + $text.Substring('powershell'.Length))
 
             $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
                 -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
 
             $result.status | Should -Be 'Pass' -Because $result.evidence
             $result.evidence | Should -Not -Match 'program path is quoted'
+        }
+
+        It 'runs nothing when a wrapper can be replaced by this identity' {
+            Mock -CommandName Invoke-HookPayload -MockWith { 0 }
+            $second = (Get-HookWrapper)[1].Path
+            Mock -CommandName Test-PathProtection -ParameterFilter { $Path -eq $second } -MockWith {
+                [pscustomobject]@{ Path = $Path; Closed = $false; Absent = $false; Violation = @("${Path}: this identity holds the right to delete it"); Unmeasured = @() }
+            }
+
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $result.evidence | Should -Match 'can be replaced'
+            $result.evidence | Should -Match ([regex]::Escape($second))
+            Should -Invoke Invoke-HookPayload -Times 0 -Exactly
+            Should -Invoke Measure-HookWrapper -Times 0 -Exactly
+        }
+
+        It 'returns the problem of a wrapper as the verdict, with its status and its evidence, and runs nothing, for the <HostName> wrapper as <Status>' -ForEach @(
+            @{ HostName = 'VS Code Local harness'; Status = 'Fail' }
+            @{ HostName = 'VS Code Local harness'; Status = 'Unavailable' }
+            @{ HostName = 'Copilot SDK host'; Status = 'Fail' }
+            @{ HostName = 'Copilot SDK host'; Status = 'Unavailable' }
+        ) {
+            Mock -CommandName Invoke-HookPayload -MockWith { 0 }
+            $script:problem = [pscustomobject]@{ Status = $Status; Evidence = "the problem of the $HostName wrapper" }
+            $script:problemHost = $HostName
+            Mock -CommandName Get-HookWrapperProblem -MockWith { if ($Wrapper.Host -eq $script:problemHost) { $script:problem } }
+
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be $Status
+            $result.evidence | Should -Be "the problem of the $HostName wrapper"
+            Should -Invoke Invoke-HookPayload -Times 0 -Exactly
+            Should -Invoke Measure-HookWrapper -Times 0 -Exactly
         }
     }
 
@@ -892,14 +1339,19 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             Test-Path -LiteralPath $script:marker | Should -BeFalse
         }
 
-        It 'measures the interpreter against the writable roots it is given' {
+        It 'measures the interpreter and each wrapper against the writable roots it is given' {
             $root = Join-Path $TestDrive 'a-writable-root'
+            $ownPowerShell = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
 
             $null = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
                 -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest -WritableRoot @($root)
 
-            Should -Invoke Test-PathProtection -Times 1 -Exactly -ParameterFilter {
+            # Windows PowerShell in the system folder is the pinned interpreter and the first wrapper, so it is asked about twice.
+            Should -Invoke Test-PathProtection -Times 2 -Exactly -ParameterFilter {
                 $Path -eq [System.IO.Path]::GetFullPath($script:systemPowerShell) -and $WritableRoot -contains $root
+            }
+            Should -Invoke Test-PathProtection -Times 1 -Exactly -ParameterFilter {
+                $Path -eq $ownPowerShell -and $WritableRoot -contains $root
             }
         }
     }

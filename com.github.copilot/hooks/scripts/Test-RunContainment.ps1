@@ -2414,6 +2414,12 @@ function Invoke-HookPayload {
         the directory the verifier was started from is never the one that runs. That instruction is
         applied after the caller's variables and cannot be removed by them.
         A command that does not finish is stopped and refused, never waited for.
+
+        With a wrapper the line is run the way a documented host runs it: the wrapper's program is started with the arguments
+        the README table of hosts gives for it and the whole line as the one argument that follows, with no script file, and
+        in the same folder, with the same environment and under the same time limit. Its exit code is the wrapper's own,
+        which is the line's only when the line ends with the statement that passes it on. What the command wrote is read and
+        dropped, because it is text from the identity under test and is never relayed.
     #>
     [CmdletBinding()]
     [OutputType([int])]
@@ -2430,7 +2436,11 @@ function Invoke-HookPayload {
 
         [Parameter()]
         [ValidateRange(1, 600)]
-        [int]$TimeoutSecond = 30
+        [int]$TimeoutSecond = 30,
+
+        [Parameter()]
+        [AllowNull()]
+        [pscustomobject]$Wrapper = $null
     )
 
     $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) "containment-hook-$([guid]::NewGuid().ToString('N'))"
@@ -2440,7 +2450,13 @@ function Invoke-HookPayload {
     try {
         $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
 
-        if ($script:OnWindows) {
+        if ($null -ne $Wrapper) {
+            $startInfo.FileName = $Wrapper.Path
+
+            foreach ($argument in @($Wrapper.Argument) + $CommandLine) {
+                $startInfo.ArgumentList.Add([string]$argument)
+            }
+        } elseif ($script:OnWindows) {
             $scriptPath = Join-Path $workRoot 'probe.cmd'
             [System.IO.File]::WriteAllText($scriptPath, "@echo off`r`n$CommandLine`r`n", [System.Text.ASCIIEncoding]::new())
             $startInfo.FileName = [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System), 'cmd.exe')
@@ -2510,6 +2526,148 @@ function Invoke-HookPayload {
     }
 }
 
+function Get-HookWrapper {
+    <#
+        The programs a documented host wraps a hook line in on Windows, with the arguments it passes ahead of the line, in the
+        order of the table of hosts in the hooks README: the VS Code Local harness starts Windows PowerShell with
+        -ExecutionPolicy Bypass -NoProfile -NoLogo -Command, and the Copilot SDK host starts PowerShell 7 with -nop -nol -c.
+        A host hands the whole line over as the one argument that follows.
+
+        The first program is the one in the system folder and the second is the PowerShell that runs this verifier, each by
+        absolute path, so that neither is looked up through a PATH. A host finds its own program through its own search path,
+        which the launcher owns, so these are the stand-ins this check measures with and not a claim about which file a host
+        starts. The command line of a host is rebuilt here from the README, and a host's own spawn code is not run. A test holds
+        the arguments to the README's table.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject[]])]
+    param()
+
+    $system = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System)
+    $ownEdition = if ($PSVersionTable.PSEdition -eq 'Desktop') { 'Windows PowerShell' } else { 'PowerShell' }
+
+    return @(
+        [pscustomobject]@{
+            Name = 'Windows PowerShell 5.1'
+            Host = 'VS Code Local harness'
+            Path = [System.IO.Path]::Combine($system, 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+            Argument = @('-ExecutionPolicy', 'Bypass', '-NoProfile', '-NoLogo', '-Command')
+        }
+        [pscustomobject]@{
+            Name = '{0} {1}.{2}' -f $ownEdition, $PSVersionTable.PSVersion.Major, $PSVersionTable.PSVersion.Minor
+            Host = 'Copilot SDK host'
+            Path = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+            Argument = @('-nop', '-nol', '-c')
+        }
+    )
+}
+
+function Get-HookWrapperProblem {
+    <#
+        Whether the line may be run under a wrapper. A wrapper is a program this check starts as the identity under test, and one
+        that identity can replace could answer 0, 2 and 2 for the guard, so it gets the test the pinned interpreter gets: the
+        program, its folder and every folder above it are closed to this identity. Nothing is returned for a wrapper that exists
+        and is closed. A wrapper that can be replaced fails the check, and one that does not exist or could not be measured
+        leaves it unmeasured, as for the interpreter; in each case the line was not run under it. The text is cut to printable
+        ASCII where it is not one this check composed.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject]$Wrapper,
+
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]]$WritableRoot = @()
+    )
+
+    $named = "the wrapper $($Wrapper.Name) at $(Format-RelayedText -Text $Wrapper.Path)"
+
+    try {
+        $protection = Test-PathProtection -Path $Wrapper.Path -WritableRoot $WritableRoot
+    } catch {
+        return [pscustomobject]@{ Status = 'Unavailable'; Evidence = "$named could not be measured, so the hook command was not run under it: $(Format-RelayedText -Text $_.Exception.Message)" }
+    }
+
+    if ($protection.Absent) {
+        return [pscustomobject]@{ Status = 'Unavailable'; Evidence = "$named does not exist, so the hook command was not run under it" }
+    }
+
+    if (@($protection.Violation).Count -gt 0) {
+        $detail = @($protection.Violation | Select-Object -First 6) -join '; '
+
+        return [pscustomobject]@{ Status = 'Fail'; Evidence = "$named can be replaced by this identity, so what the line reports under it proves nothing and the hook command was not run under it: $detail" }
+    }
+
+    if (@($protection.Unmeasured).Count -gt 0) {
+        $detail = @($protection.Unmeasured | Select-Object -First 6) -join '; '
+
+        return [pscustomobject]@{ Status = 'Unavailable'; Evidence = "$named could not be shown to be closed to this identity, so the hook command was not run under it: $detail" }
+    }
+
+    return $null
+}
+
+function Measure-HookWrapper {
+    <#
+        Runs the pinned hook line under one wrapper with the three fixed payloads and reports the exit code each got, the way the
+        check reads them through cmd.exe. Every payload is measured, so a wrong code names all three. A spawn that cannot be run
+        leaves the measurement under this wrapper unavailable, and one that takes as long as the timeout the hook declares fails
+        it, because a host would stop such a command before it could answer; neither runs anything after it.
+
+        The result carries a verdict (Pass, Fail or Unavailable), the name of the wrapper, and evidence that names the wrapper,
+        the host it stands for, the program and arguments it is started with, and the codes or the reason. The exit code is the
+        only thing read from a spawn: what it wrote is text from the identity under test and is dropped by Invoke-HookPayload.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject]$Wrapper,
+
+        [Parameter(Mandatory)]
+        [string]$CommandLine,
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]$Case,
+
+        [Parameter(Mandatory)]
+        [System.Collections.IDictionary]$EnvironmentVariable,
+
+        [Parameter(Mandatory)]
+        [ValidateRange(1, 600)]
+        [int]$TimeoutSecond
+    )
+
+    $prefix = "under $($Wrapper.Name) as the $($Wrapper.Host) starts it ($(Format-RelayedText -Text $Wrapper.Path) $(@($Wrapper.Argument) -join ' ') <line>)"
+    $measured = [System.Collections.Generic.List[string]]::new()
+    $verdict = 'Pass'
+    $clock = [System.Diagnostics.Stopwatch]::new()
+
+    foreach ($name in $Case.Keys) {
+        try {
+            $clock.Restart()
+            $exitCode = Invoke-HookPayload -CommandLine $CommandLine -Payload $Case[$name].payload -EnvironmentVariable $EnvironmentVariable -Wrapper $Wrapper
+        } catch {
+            return [pscustomobject]@{ Name = $Wrapper.Name; Status = 'Unavailable'; Evidence = "${prefix}: could not run the $name payload: $(Format-RelayedText -Text $_.Exception.Message)" }
+        }
+
+        if ($clock.Elapsed.TotalSeconds -ge $TimeoutSecond) {
+            return [pscustomobject]@{ Name = $Wrapper.Name; Status = 'Fail'; Evidence = "${prefix}: the hook command took $([int][Math]::Ceiling($clock.Elapsed.TotalSeconds)) seconds for the $name payload, which is not under the timeout of $TimeoutSecond seconds the PreToolUse hook declares, so a host would stop it before it could answer" }
+        }
+
+        $measured.Add("$name=$exitCode")
+
+        if ($exitCode -ne $Case[$name].expected) {
+            $verdict = 'Fail'
+        }
+    }
+
+    return [pscustomobject]@{ Name = $Wrapper.Name; Status = $verdict; Evidence = "${prefix}: measured $($measured -join ' ')" }
+}
+
 function Test-HookContract {
     <#
         Runs the pinned hook through the pinned hooks.json command and measures its real exit codes.
@@ -2535,6 +2693,13 @@ function Test-HookContract {
         plugin root the hook script lives under. The pinned hooks.json must therefore be that file,
         <root>/com.github.copilot/hooks/hooks.json for the root derived from the pinned script; a
         byte-identical file anywhere else is not the one a host reads, and fails before it is run.
+
+        How the command is started is decided by the host too, and the documented hosts on Windows wrap the line in PowerShell.
+        The line is therefore run through cmd.exe, as it always was, and then under Windows PowerShell 5.1 and PowerShell 7
+        the way the README's table of hosts spawns them (Get-HookWrapper); all three have to give 0, 2 and 2. A line that
+        passes under cmd.exe and fails under a wrapper fails, which is how a quoted program path, a dash word or a comment
+        marker is caught by measurement and not by a rule. Each wrapper is shown closed to this identity first, and nothing runs
+        under one that is not. A host's own spawn code is not run, so the Pass says what was rebuilt and not that a host ran it.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -2718,6 +2883,22 @@ function Test-HookContract {
         return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "the interpreter $($interpreter.Path) could not be shown to be closed to this identity, so the hook command was not run: $detail"
     }
 
+    # A wrapper is a program this check starts as the identity under test, so it is shown closed to that identity before
+    # anything is run, the interpreter's own program included. Nothing is run under a wrapper that is not.
+    $wrapper = @()
+
+    if ($script:OnWindows) {
+        $wrapper = @(Get-HookWrapper)
+
+        foreach ($candidate in $wrapper) {
+            $wrapperProblem = Get-HookWrapperProblem -Wrapper $candidate -WritableRoot $WritableRoot
+
+            if ($null -ne $wrapperProblem) {
+                return New-CheckResult -Name 'HookContract' -Status $wrapperProblem.Status -Evidence $wrapperProblem.Evidence
+            }
+        }
+    }
+
     $resolvedScript = [System.IO.Path]::GetFullPath($HookScriptPath)
     $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) "containment-hook-contract-$([guid]::NewGuid().ToString('N'))"
 
@@ -2776,6 +2957,7 @@ function Test-HookContract {
         }
 
         $measured = [System.Collections.Generic.List[string]]::new()
+        $wrapperResult = [System.Collections.Generic.List[object]]::new()
         $failed = $false
 
         foreach ($name in $case.Keys) {
@@ -2800,19 +2982,46 @@ function Test-HookContract {
                 $failed = $true
             }
         }
+
+        # Both documented hosts wrap the line in PowerShell and neither starts cmd.exe, so a line that passed there is run under
+        # both wrappers as well, and both are measured even when the first one fails. A line that already failed is not run
+        # again: that verdict does not need them, and nothing more of it has to run as this identity.
+        if (-not $failed) {
+            foreach ($candidate in $wrapper) {
+                $wrapperResult.Add((Measure-HookWrapper -Wrapper $candidate -CommandLine $commandLine -Case $case -TimeoutSecond $timeoutSeconds -EnvironmentVariable @{
+                            PLUGIN_ROOT = $binding.Root
+                            USERPROFILE = $emptyHome
+                            HOME = $emptyHome
+                        }))
+            }
+        }
     } finally {
         Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     $shell = if ($script:OnWindows) { 'cmd.exe /d /c' } else { '/bin/sh' }
-    $evidence = 'expected 0,2,2 and measured ' + ($measured -join ' ') + " from the pinned script $resolvedScript through the interpreter $($interpreter.Path), with the line run through $shell; a PowerShell host reads the line by other rules, and this is not a measurement under one"
+    $evidence = 'expected 0,2,2 and measured ' + ($measured -join ' ') + " from the pinned script $resolvedScript through the interpreter $($interpreter.Path), with the line run through $shell"
+    $wrapperFailed = @($wrapperResult | Where-Object -FilterScript { $_.Status -eq 'Fail' }).Count -gt 0
+    $wrapperUnmeasured = @($wrapperResult | Where-Object -FilterScript { $_.Status -eq 'Unavailable' }).Count -gt 0
 
-    if ($interpreter.Quoted) {
-        $evidence += '. The program path is quoted: a PowerShell host fails to parse a quoted program path unless it starts with an ampersand, which this check refuses, so that host exits 1, which does not block, and the command is not shown to run there'
+    if (-not $script:OnWindows) {
+        $evidence += '; a PowerShell host reads the line by other rules, and this is not a measurement under one'
+    } elseif ($failed) {
+        $evidence += '; it was not run under the PowerShell wrappers of the documented hosts, because it already failed there'
+    } else {
+        $evidence += '; ' + (@($wrapperResult | ForEach-Object -Process { $_.Evidence }) -join '; ') + '. Each wrapper is the program and the arguments that the README table of hosts gives for that host, rebuilt here: no host ran the line'
     }
 
-    if ($failed) {
+    if ($interpreter.Quoted -and $wrapperFailed) {
+        $evidence += '. The program path is quoted: PowerShell needs a leading ampersand before a quoted program path, which this check refuses, so a PowerShell host fails to parse the line and exits 1, which does not block; pin a program path that has no space and is not quoted'
+    }
+
+    if ($failed -or $wrapperFailed) {
         return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence $evidence
+    }
+
+    if ($wrapperUnmeasured) {
+        return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence $evidence
     }
 
     return New-CheckResult -Name 'HookContract' -Status 'Pass' -Evidence $evidence
