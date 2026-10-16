@@ -981,14 +981,15 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
         # Review of 2026-10-16, U-01: the second wrapper is the program that runs the verifier, so its path is not held to printable
         # ASCII by the shape rule that holds the interpreter's, and the access check puts that path into every reason it gives.
-        # Four tag characters spell a word that a reader cannot see; an accent is the plain case.
+        # Four tag characters spell a word that a reader cannot see; an accent is the plain case. Delta check, V-04: there are six reasons
+        # of 3,000 characters each, because the cap holds what they make together, and a cap on each reason, or the default of 200, has to fail.
         It 'cuts the reason of <Kind> to printable ASCII and to a length that cannot fill the report' -ForEach @(
             @{ Kind = 'a wrapper that can be replaced'; Replaceable = $true; Status = 'Fail' }
             @{ Kind = 'a wrapper whose protection could not be measured'; Replaceable = $false; Status = 'Unavailable' }
         ) {
             $hidden = -join @(0xE0050, 0xE0041, 0xE0053, 0xE0053 | ForEach-Object -Process { [char]::ConvertFromUtf32($_) })
             $oddPath = "C:\containment\w$([char]0x00E9)$hidden\powershell.exe"
-            $script:reason = @("${oddPath}: this identity holds the right to delete it", ('x' * 3000))
+            $script:reason = @("${oddPath}: this identity holds the right to delete it") + @(1..5 | ForEach-Object -Process { 'x' * 3000 })
             $script:asViolation = $Replaceable
             Mock -CommandName Test-PathProtection -MockWith {
                 [pscustomobject]@{
@@ -1007,7 +1008,8 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $problem.Evidence | Should -Match 'the right to delete it'
             $problem.Evidence | Should -Match 'w\?{5}\\powershell\.exe' -Because 'the accent and each of the four tag characters, which are one rune each, become one question mark each'
             @($problem.Evidence.ToCharArray() | Where-Object -FilterScript { [int]$_ -lt 0x20 -or [int]$_ -gt 0x7E }).Count | Should -Be 0
-            $problem.Evidence.Length | Should -BeLessThan 1500
+            $problem.Evidence.Length | Should -BeGreaterThan 1050 -Because 'the six reasons are cut together at 1,000 characters, and not at the default of 200'
+            $problem.Evidence.Length | Should -BeLessThan 1500 -Because 'and not each at 1,000'
             $problem.Evidence | Should -Match '\.\.\.$'
         }
     }
@@ -1129,7 +1131,8 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
     }
 
     # Review pass 3 part C, S-23 and S-24, measured on 2026-10-16: the cmd.exe probe says 0, 2, 2 for a quoted program path
-    # and both wrappers say 1, 1, 1, which is a parse error and does not block.
+    # and both wrappers say 1, 1, 1, which is a parse error. By the README, VS Code treats exit 1 as a warning and the Copilot SDK host
+    # denies the call on it.
     Context 'a line that has to pass under the wrappers of the documented hosts, run for real' {
         It 'fails a quoted program path, which both wrappers fail to parse, and says why without relaying what they wrote' {
             $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
@@ -1149,6 +1152,11 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $result.evidence | Should -Match 'warning in VS Code'
             $result.evidence | Should -Match 'SDK host denies'
             $result.evidence | Should -Not -Match 'does not block'
+            # Delta check of the same review, V-02: that is what the README says of the hosts, and no host ran the line, so the note
+            # says what a push would do and not what one did.
+            $result.evidence | Should -Match 'hooks README states'
+            $result.evidence | Should -Match 'would go ahead'
+            $result.evidence | Should -Not -Match 'goes ahead|went ahead'
         }
 
         It 'passes the line with the program path unquoted' {
@@ -1309,8 +1317,8 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         }
 
         # Review pass 3 part D, S-25, reproduced end to end: PowerShell reads '-x:' as a parameter that binds to the next
-        # word or, as the last word, fails to parse, so both documented hosts exit 1 for a push, which does not block,
-        # and the cmd.exe probe still reports 0, 2, 2.
+        # word or, as the last word, fails to parse, so both PowerShell wrappers exit 1 for a push, which VS Code treats as
+        # a warning and the Copilot SDK host as a denial, and the cmd.exe probe still reports 0, 2, 2.
         It 'fails the shipped command with a dash word that ends in a colon before its closing statement' {
             $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
             $text = [string]@($shipped.hooks.PreToolUse)[0].windows
@@ -1328,7 +1336,8 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
         # Review pass 3 part C, S-21, reproduced end to end: PowerShell reads everything after a hash as a comment, so
         # a host that wraps the line in it never runs the statement that turns the guard's exit code into the hook's,
-        # and a push exits 1, which does not block. The cmd.exe probe passes the same text through and reports 0, 2, 2.
+        # and a push exits 1, which VS Code treats as a warning and the Copilot SDK host as a denial. The cmd.exe probe
+        # passes the same text through and reports 0, 2, 2.
         It 'fails the shipped command with a comment marker before its closing statement, which the cmd probe passes' {
             $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
             $text = [string]@($shipped.hooks.PreToolUse)[0].windows

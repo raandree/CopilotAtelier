@@ -2575,7 +2575,7 @@ function Get-HookWrapperProblem {
 
         The reasons come from the access check and carry the path of the wrapper. For the PowerShell that runs this verifier that
         path is not held to printable ASCII by the shape rule that holds the interpreter's, so the reasons are cut to printable
-        ASCII and to a length that cannot fill the report, like every other text this check did not compose.
+        ASCII and to a length that cannot fill the report, as Measure-HookWrapper does for the texts it relays.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -2701,7 +2701,8 @@ function Test-HookContract {
         byte-identical file anywhere else is not the one a host reads, and fails before it is run.
 
         How the command is started is decided by the host too, and the documented hosts on Windows wrap the line in PowerShell
-        (VS Code runs it through cmd.exe /d /s /c instead when ComSpec does not name cmd.exe).
+        (VS Code only when ComSpec names cmd.exe and SystemRoot or WINDIR is set; otherwise Node runs the line, as cmd.exe /d /s /c
+        or, when ComSpec names another shell, as <ComSpec> -c, and neither form is run here).
         The line is therefore run through cmd.exe, as it always was, and then under Windows PowerShell 5.1 and PowerShell 7
         the way the README's table of hosts spawns them (Get-HookWrapper); all three have to give 0, 2 and 2. A line that
         passes under cmd.exe and fails under a wrapper fails, which is how a quoted program path, a dash word or a comment
@@ -2998,7 +2999,8 @@ function Test-HookContract {
 
         # The documented hosts wrap the line in PowerShell, so a line that passed under cmd.exe is run under both wrappers as well,
         # and both are measured even when the first one fails. (VS Code does so only when ComSpec names cmd.exe and SystemRoot or
-        # WINDIR is set, and otherwise runs the line through cmd.exe /d /s /c, which the first spawn here stands in for.) A line that
+        # WINDIR is set; otherwise Node runs the line as cmd.exe /d /s /c, which the first spawn here approximates with a script file
+        # under cmd.exe /d /c, or as <ComSpec> -c for another shell, which no spawn here approximates.) A line that
         # already failed is not run again: that verdict does not need them, and nothing more of it has to run as this identity.
         if (-not $failed) {
             foreach ($candidate in $wrapper) {
@@ -3027,7 +3029,7 @@ function Test-HookContract {
     }
 
     if ($interpreter.Quoted -and $wrapperFailed) {
-        $evidence += '. The program path is quoted: PowerShell reads a quoted program path as an expression and not as a command unless a leading ampersand comes first, which this check refuses, and a wrapper that exits 1 for every payload has not parsed the line. Exit 1 is a warning in VS Code, so a push goes ahead there, and the Copilot SDK host denies every call on it; pin a program path that has no space and is not quoted'
+        $evidence += '. The program path is quoted: PowerShell reads a quoted program path as an expression and not as a command unless a leading ampersand comes first, which this check refuses, and a wrapper that exits 1 for every payload has not parsed the line. As the hooks README states, exit 1 is a warning in VS Code, so a push would go ahead there, and the Copilot SDK host denies every call on it. Pin a program path that has no space and is not quoted'
     }
 
     if ($failed -or $wrapperFailed) {
