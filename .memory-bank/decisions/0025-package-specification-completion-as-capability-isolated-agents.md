@@ -135,9 +135,9 @@ claims for them.
   comment to PowerShell and not to `cmd.exe`, so under a PowerShell host a push
   exited 1 and was not blocked while the `cmd.exe` probe still passed it; a word
   like `-x:` is a parameter to PowerShell), and a seeded test now holds every
-  accepted line to the parser of the host. The probe runs through `cmd.exe`,
-  which neither documented host does, so its Pass is not a measurement under a
-  host and says so.
+  accepted line to the parser of the host. The probe ran through `cmd.exe` alone
+  until the revision of 2026-10-16, and neither documented host starts the line
+  that way; it now also runs the line under the wrapper of each host.
   `GrantRecorderUnregistered`
   measures that registration and an empty grants folder, and does not say that
   no grant can exist: the guard honors any well-formed grant file in a folder
@@ -155,11 +155,10 @@ claims for them.
   file are not read; the verifier inherits the environment of its launcher;
   `-Revalidate` does not bind the ledger to a run id; the chain is not keyed; a
   process of the service's own account can join the pipe name and make an append
-  fail; the pinned hook line is not run under the PowerShell hosts (the
-  recommended follow-up) and a quoted program path, which a path with a space
-  needs, passes the check and fails under them; and no test used a second
-  Windows account. The token of the run identity was open here until the
-  revision of 2026-10-15 below. See
+  fail; and no test used a second Windows account. The token of the run identity
+  was open here until the revision of 2026-10-15 below, and the pinned hook line
+  was not run under the PowerShell hosts until the revision of 2026-10-16 below,
+  which still runs no host itself. See
   [`docs/SECURITY-REVIEW.md`](../../docs/SECURITY-REVIEW.md).
 
 ## Revision, 2026-10-15: the token of the run identity is read
@@ -230,3 +229,52 @@ option, out of four, on 2026-10-15 and asked for a rebuild from nothing.
   standard token, and three small follow-ups of the delta check (the branch of
   `ThreadImpersonates` that fails closed has no test, two tests accept any
   exception, and the reason text is localized).
+
+## Revision, 2026-10-16: the hook line is run under the wrappers of the documented hosts
+
+The first follow-up after R-04 is built: the probe of `HookContract` no longer
+stops at `cmd.exe`. The review of 2026-10-14 called the wrapper measurement "the
+real fix for the whole class", because a line that `cmd.exe` and PowerShell read
+differently passes a probe that only `cmd.exe` runs, and the host that wraps it in
+PowerShell does not block. `HookContract` now runs the pinned line through
+`cmd.exe /d /c`, as before, and on Windows then under Windows PowerShell 5.1 and
+under the PowerShell that runs the verifier, started the way the table of hosts in
+the hooks README gives for VS Code and the Copilot SDK host
+(`-ExecutionPolicy Bypass -NoProfile -NoLogo -Command <line>` and
+`-nop -nol -c <line>`, the line as the one argument that follows), and requires 0,
+2 and 2 under each. It is still one check, so the gates, the controller's list of
+checks and the profile schema are unchanged. The owner ruled for this option, out
+of five (a profile key that names the hosts, replacing `cmd.exe`, keeping the
+residual, and refusing only a quoted program path were the others), on 2026-10-16,
+and took the recommended details: each wrapper is shown closed to the run identity
+by the test the pinned interpreter gets, before anything runs under it; all three
+spawns are required for every profile; and the wrappers run only after `cmd.exe`
+passed, and both run even if the first one fails.
+
+- **A quoted program path now fails by measurement.** On 2026-10-16 the shipped
+  line, with its interpreter named by an unquoted absolute path without a space,
+  gave 0, 2, 2 under all three spawns. With the path quoted it gave 0, 2, 2 under
+  `cmd.exe` and 1, 1, 1 under both wrappers (a parse error, which does not block),
+  and the check passed it before; with a leading `&` the wrappers gave 0, 2, 2 and
+  `cmd.exe` gave 255. Only an unquoted path without a space works under all
+  three, so PowerShell 7 at its default path (under `Program Files`) cannot be the
+  pinned interpreter on Windows. S-24 is closed. S-33 stays a recorded Nit: its two
+  spellings fail closed before the wrappers.
+- **The claim is narrower than "run under the hosts".** The two spawns are rebuilt
+  from the README's table with `ProcessStartInfo.ArgumentList`, and no host ran
+  the line. VS Code's own spawn code, the Copilot SDK runtime, a host update that
+  changes its form, the `bash`, `linux` and `osx` keys, macOS, Linux and other
+  hosts were not run. The wrapper programs are the verifier's choice, by absolute
+  path: the system `powershell.exe` and the PowerShell that runs the verifier. A
+  host finds its own through its search path, which the launcher owns. A test
+  holds the argument lists to the README's table. The measurement is of one host,
+  with Windows PowerShell 5.1.26100.33648 and PowerShell 7.6.7.
+- **The wrappers are programs run as the identity under test.** One that identity
+  can replace could answer 0, 2 and 2 for the guard, so each is shown closed (the
+  program, its folder and every folder above it) before anything runs under it. A
+  wrapper that can be replaced fails the check, and one that is absent or cannot be
+  measured leaves it unmeasured. A Microsoft Store install of PowerShell 7, whose
+  folder is not readable, is expected to be unmeasured; that was not tried. What a
+  spawn wrote is never relayed, only its exit code.
+- **Cost.** About 7 seconds more for each verify run (three payloads under each
+  wrapper, warm, one host) and about 85 seconds more for the `HookContract` suite.
