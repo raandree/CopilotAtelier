@@ -23,6 +23,7 @@ BeforeAll {
             'Test-ControlDigest'
             'Test-ControlImmutability'
             'Test-IdentityBinding'
+            'Test-IdentityPrivilege'
             'Test-LedgerProtection'
         ))
 
@@ -107,10 +108,10 @@ BeforeAll {
 }
 
 Describe 'Revalidation check names' -Tag 'Unit' {
-    It 'names the seven checks of a revalidation, the chain and the report after the controls that gate them' {
+    It 'names the eight checks of a revalidation, the chain and the report after the controls that gate them' {
         $name = @(Get-RevalidationCheckName)
 
-        $name | Should -Be @('VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'LedgerChain', 'FinalReport', 'LedgerProtection')
+        $name | Should -Be @('VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'IdentityPrivilege', 'LedgerChain', 'FinalReport', 'LedgerProtection')
     }
 }
 
@@ -545,6 +546,7 @@ Describe 'Revalidation flow' -Tag 'Unit' {
         Mock -CommandName Test-ControlDigest -MockWith { New-CheckResult -Name 'ControlDigest' -Status 'Pass' -Evidence 'mock' }
         Mock -CommandName Test-ControlImmutability -MockWith { New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'mock' }
         Mock -CommandName Test-IdentityBinding -MockWith { New-CheckResult -Name 'IdentityBinding' -Status 'Pass' -Evidence 'mock' }
+        Mock -CommandName Test-IdentityPrivilege -MockWith { New-CheckResult -Name 'IdentityPrivilege' -Status 'Pass' -Evidence 'mock' }
         Mock -CommandName Get-LedgerChainResult -MockWith { [pscustomobject]@{ Check = (New-CheckResult -Name 'LedgerChain' -Status 'Pass' -Evidence 'mock'); Summary = (New-Summary) } }
         Mock -CommandName Test-FinalReport -MockWith { New-CheckResult -Name 'FinalReport' -Status 'Pass' -Evidence 'mock' }
         Mock -CommandName Test-LedgerProtection -MockWith { New-CheckResult -Name 'LedgerProtection' -Status 'Pass' -Evidence 'mock' }
@@ -569,6 +571,8 @@ Describe 'Revalidation flow' -Tag 'Unit' {
         @{ Gate = 'ControlImmutability'; Status = 'Unavailable' }
         @{ Gate = 'IdentityBinding'; Status = 'Fail' }
         @{ Gate = 'IdentityBinding'; Status = 'Unavailable' }
+        @{ Gate = 'IdentityPrivilege'; Status = 'Fail' }
+        @{ Gate = 'IdentityPrivilege'; Status = 'Unavailable' }
     ) {
         $script:gateName = $Gate
         $script:gateStatus = $Status

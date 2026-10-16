@@ -11,7 +11,8 @@
     -Verify measures: that the verifier that runs is the pinned file; the pinned
     control digests; whether the profile and every control it pins are closed to
     the run, with the directories above them; that the verifier runs as the
-    identity the profile declares for the role; the remote-mutation hook's real
+    identity the profile declares for the role; that the access token of that
+    identity is a standard account's; the remote-mutation hook's real
     exit codes, run only on controls already measured and through an interpreter
     named by absolute path that the run cannot replace; that no hook that
     records a Remote grant is registered in the pinned hooks.json and none is
@@ -176,6 +177,17 @@ $script:HookExitTail = 'exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -Erro
 $script:HookLineShape = '\A(?:[ \t]+(?:-[A-Za-z]+|[A-Za-z0-9_.:\\/][A-Za-z0-9_.:\\/-]*|"(?:[^"\\]|\\(?!"))+"))*[ \t]*\z'
 # An unquoted program word is read by the shell as well, so it may hold only those characters too.
 $script:HookProgramWord = '\A(?:[A-Za-z]:)?[\\/][A-Za-z0-9_.\\/-]+\z'
+# The privileges a standard account's token holds. A token that holds any other, enabled or not, is refused:
+# a disabled privilege is one the process can enable, and no probe of this script shows it. Compared exactly.
+$script:StandardPrivilege = [System.Collections.Generic.HashSet[string]]::new(
+    [string[]]@('SeChangeNotifyPrivilege', 'SeShutdownPrivilege', 'SeUndockPrivilege', 'SeIncreaseWorkingSetPrivilege', 'SeTimeZonePrivilege'),
+    [System.StringComparer]::Ordinal)
+# The Administrators group in any state a token can hold it in, and an integrity level above Medium, are refused too.
+$script:AdministratorsSid = 'S-1-5-32-544'
+$script:MediumIntegrityRid = 0x2000
+# Why the last read of the token failed, for the evidence of a check that could not measure; empty when it
+# worked. Get-CallerTokenFact sets it, and Test-IdentityPrivilege relays it.
+$script:TokenReadProblem = ''
 
 function New-CheckResult {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Builds an in-memory result object and changes no system state.')]
@@ -878,7 +890,7 @@ function Test-ControlImmutability {
         return New-CheckResult -Name 'ControlImmutability' -Status 'Unavailable' -Evidence ('not measurable: ' + ($unmeasured -join '; '))
     }
 
-    return New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'the profile, every pinned control, every declared immutable path, and the directories above them are closed to this identity; its token is not read, so a disabled privilege or a filtered administrator group is not measured and the run identity must be a standard account'
+    return New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'the profile, every pinned control, every declared immutable path, and the directories above them are closed to this identity as its token stands; a disabled privilege or a filtered administrator group never shows as a right, so IdentityPrivilege judges the token and this Pass holds only while that check passes'
 }
 
 function Get-IdentitySid {
@@ -989,7 +1001,682 @@ function Test-IdentityBinding {
         return New-CheckResult -Name 'IdentityBinding' -Status 'Fail' -Evidence "this verifier runs as $($caller.Name) ($($caller.Sid)), but the profile declares the $Role as $declared; a probe run as another account measures that account, not the $Role"
     }
 
-    return New-CheckResult -Name 'IdentityBinding' -Status 'Pass' -Evidence "this verifier runs as $($caller.Name) ($($caller.Sid)), the identity the profile declares for the $Role; the other role is $other; its token is not read, so the account must be a standard one"
+    return New-CheckResult -Name 'IdentityBinding' -Status 'Pass' -Evidence "this verifier runs as $($caller.Name) ($($caller.Sid)), the identity the profile declares for the $Role; the other role is $other; IdentityPrivilege reads its token and judges whether the account is a standard one"
+}
+
+function Initialize-NativeToken {
+    <#
+        Windows only. Defines a reader of the facts the check of the token needs: whether the token is
+        elevated, its elevation type, its integrity level, and its groups and privileges with their
+        attributes. It only asks. Every call is GetTokenInformation on a token opened for query, which
+        is the token of this process or a handle the caller gives (a test gives one it made), and the
+        structures that point into their own buffer are read here, while the buffer still lives.
+
+        The type is defined under a name made for this process alone and is held in $script:NativeToken,
+        and it is never looked up by a fixed name, for the reason Initialize-NativeAccess gives: a type of
+        a fixed name that something declared earlier in the session would be the one that answers.
+    #>
+    [CmdletBinding()]
+    [OutputType([void])]
+    param()
+
+    $existing = Get-Variable -Name NativeToken -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+
+    if ($null -ne $existing) {
+        return
+    }
+
+    $typeName = 'ContainmentToken' + [guid]::NewGuid().ToString('N')
+
+    Add-Type -TypeDefinition @"
+using System;
+using System.ComponentModel;
+using System.Globalization;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
+using System.Text;
+
+public static class $typeName
+{
+    // What one read of the token says. The arrays line up: one index names one group, or one privilege.
+    public sealed class Fact
+    {
+        public int Elevated;
+        public int ElevationType;
+        public int IntegrityRid;
+        public string[] GroupSid;
+        public uint[] GroupAttribute;
+        public string[] PrivilegeName;
+        public uint[] PrivilegeAttribute;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SidAndAttributes
+    {
+        public IntPtr Sid;
+        public uint Attributes;
+    }
+
+    // A LUID is two 4-byte parts. Declared as one long it would be aligned on 8 bytes and the entry would grow to 16.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LuidAndAttributes
+    {
+        public uint LowPart;
+        public int HighPart;
+        public uint Attributes;
+    }
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetTokenInformation(IntPtr token, int informationClass, IntPtr information, int length, out int returned);
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool LookupPrivilegeNameW(string systemName, ref long luid, StringBuilder name, ref int nameLength);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentThread();
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenThreadToken(IntPtr thread, uint access, bool openAsSelf, out IntPtr token);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    // TokenElevation answers a buffer of exactly its own size and refuses a larger one with ERROR_BAD_LENGTH,
+    // so a class of one DWORD is read with a buffer of four bytes.
+    private static int ReadDword(IntPtr token, int informationClass)
+    {
+        IntPtr buffer = Marshal.AllocHGlobal(4);
+
+        try
+        {
+            int returned;
+
+            if (!GetTokenInformation(token, informationClass, buffer, 4, out returned))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+
+            if (returned != 4)
+            {
+                throw new InvalidOperationException("Token information class " + informationClass + " returned " + returned + " bytes and not 4.");
+            }
+
+            return Marshal.ReadInt32(buffer);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    // How many times a read has made a buffer larger because the operating system said it needed more. A test
+    // reads it to see that a small first buffer did grow, as the first buffer of a domain account's groups does.
+    public static int Growths;
+
+    // The buffer of one variable-length class. The caller frees it. firstSize is the size of the first try: a
+    // buffer that is too small is answered with the size it needs, and the next try uses that.
+    private static IntPtr ReadBuffer(IntPtr token, int informationClass, int firstSize, out int length)
+    {
+        int size = firstSize;
+
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            IntPtr buffer = Marshal.AllocHGlobal(size);
+            int returned;
+
+            if (GetTokenInformation(token, informationClass, buffer, size, out returned))
+            {
+                length = returned;
+                return buffer;
+            }
+
+            int error = Marshal.GetLastWin32Error();
+            Marshal.FreeHGlobal(buffer);
+
+            // ERROR_INSUFFICIENT_BUFFER says how much it needs. Any other error, or a size that does not
+            // grow or is absurd, is a read that failed.
+            if (error != 122 || returned <= size || returned > 1048576)
+            {
+                throw new Win32Exception(error);
+            }
+
+            Growths++;
+            size = returned;
+        }
+
+        throw new Win32Exception(122);
+    }
+
+    private static string PrivilegeNameOf(uint lowPart, int highPart)
+    {
+        long luid = ((long)highPart << 32) | lowPart;
+        int size = 64;
+
+        for (int attempt = 0; attempt < 2; attempt++)
+        {
+            StringBuilder name = new StringBuilder(size);
+            int length = size;
+
+            if (LookupPrivilegeNameW(null, ref luid, name, ref length))
+            {
+                return name.ToString();
+            }
+
+            int error = Marshal.GetLastWin32Error();
+
+            if (error != 122 || length < size || length > 1024)
+            {
+                throw new Win32Exception(error);
+            }
+
+            size = length + 1;
+        }
+
+        throw new Win32Exception(122);
+    }
+
+    // The SIDs of a token structure lie in the buffer that holds it, after the structure. A pointer that does not is a
+    // structure that was misread, and following it could read memory that is not the token's, so it ends the read
+    // with an exception. Public so that a test can give it a buffer of its own.
+    public static string SidText(IntPtr buffer, int length, IntPtr sid)
+    {
+        return SidText(buffer, length, sid, 0);
+    }
+
+    // notBefore is the offset in the buffer at which the structure that points at the SID ends, so that the SID is after it.
+    public static string SidText(IntPtr buffer, int length, IntPtr sid, int notBefore)
+    {
+        long start = buffer.ToInt64();
+        long at = sid.ToInt64();
+
+        // A SID is eight bytes of header (revision, number of sub-authorities, identifier authority) and then
+        // four bytes for each sub-authority, of which there are at most 15.
+        if (at < start || at + 8 > start + length)
+        {
+            throw new InvalidOperationException("A SID points outside the buffer that holds it.");
+        }
+
+        if (at < start + notBefore)
+        {
+            throw new InvalidOperationException("A SID does not lie after the structure that points to it.");
+        }
+
+        int subAuthorities = Marshal.ReadByte(sid, 1);
+
+        if (subAuthorities > 15 || at + 8 + 4L * subAuthorities > start + length)
+        {
+            throw new InvalidOperationException("A SID does not fit the buffer that holds it.");
+        }
+
+        return new SecurityIdentifier(sid).Value;
+    }
+
+    // TOKEN_GROUPS is a DWORD count and then an array that starts on the alignment of a pointer, and the SIDs
+    // follow the array. Public so that a test can give it a buffer of its own.
+    public static void ParseGroups(IntPtr buffer, int length, Fact fact)
+    {
+        int first = IntPtr.Size;
+        int stride = Marshal.SizeOf(typeof(SidAndAttributes));
+
+        if (length < 4)
+        {
+            throw new InvalidOperationException("The group list is too short to hold its count.");
+        }
+
+        int count = Marshal.ReadInt32(buffer, 0);
+
+        if (count < 0 || (long)first + (long)count * stride > length)
+        {
+            throw new InvalidOperationException("The group list does not fit the buffer that holds it.");
+        }
+
+        int end = first + count * stride;
+
+        fact.GroupSid = new string[count];
+        fact.GroupAttribute = new uint[count];
+
+        for (int index = 0; index < count; index++)
+        {
+            SidAndAttributes item = (SidAndAttributes)Marshal.PtrToStructure(IntPtr.Add(buffer, first + index * stride), typeof(SidAndAttributes));
+
+            fact.GroupSid[index] = SidText(buffer, length, item.Sid, end);
+            fact.GroupAttribute[index] = item.Attributes;
+        }
+    }
+
+    private static void ReadGroups(IntPtr token, Fact fact, int firstSize)
+    {
+        int length;
+        IntPtr buffer = ReadBuffer(token, 2, firstSize, out length);
+
+        try
+        {
+            ParseGroups(buffer, length, fact);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    // TOKEN_PRIVILEGES is a DWORD count and then entries of 12 bytes, which need only 4-byte alignment. Public so
+    // that a test can give it a buffer of its own.
+    public static void ParsePrivileges(IntPtr buffer, int length, Fact fact)
+    {
+        int first = 4;
+        int stride = Marshal.SizeOf(typeof(LuidAndAttributes));
+
+        if (length < 4)
+        {
+            throw new InvalidOperationException("The privilege list is too short to hold its count.");
+        }
+
+        int count = Marshal.ReadInt32(buffer, 0);
+
+        if (count < 0 || (long)first + (long)count * stride > length)
+        {
+            throw new InvalidOperationException("The privilege list does not fit the buffer that holds it.");
+        }
+
+        fact.PrivilegeName = new string[count];
+        fact.PrivilegeAttribute = new uint[count];
+
+        for (int index = 0; index < count; index++)
+        {
+            LuidAndAttributes item = (LuidAndAttributes)Marshal.PtrToStructure(IntPtr.Add(buffer, first + index * stride), typeof(LuidAndAttributes));
+
+            fact.PrivilegeName[index] = PrivilegeNameOf(item.LowPart, item.HighPart);
+            fact.PrivilegeAttribute[index] = item.Attributes;
+        }
+    }
+
+    private static void ReadPrivileges(IntPtr token, Fact fact, int firstSize)
+    {
+        int length;
+        IntPtr buffer = ReadBuffer(token, 3, firstSize, out length);
+
+        try
+        {
+            ParsePrivileges(buffer, length, fact);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    // TOKEN_MANDATORY_LABEL is one SID and its attributes, and the SID, S-1-16-<level>, follows them. Public so
+    // that a test can give it a buffer of its own.
+    public static int ParseIntegrityRid(IntPtr buffer, int length)
+    {
+        int structure = Marshal.SizeOf(typeof(SidAndAttributes));
+
+        if (length < structure)
+        {
+            throw new InvalidOperationException("The integrity label is too short to hold its SID.");
+        }
+
+        string sid = SidText(buffer, length, Marshal.ReadIntPtr(buffer, 0), structure);
+        string prefix = "S-1-16-";
+
+        if (!sid.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("The integrity label is not an integrity SID.");
+        }
+
+        return int.Parse(sid.Substring(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture);
+    }
+
+    private static int ReadIntegrityRid(IntPtr token, int firstSize)
+    {
+        int length;
+        IntPtr buffer = ReadBuffer(token, 25, firstSize, out length);
+
+        try
+        {
+            return ParseIntegrityRid(buffer, length);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    // Reads the token behind the handle, which stays the caller's. Anything that cannot be read throws.
+    public static Fact Read(IntPtr token)
+    {
+        return Read(token, 512);
+    }
+
+    // firstSize is the size of the first buffer of each list, so that a test can make a list grow its buffer on a
+    // token whose lists are small.
+    public static Fact Read(IntPtr token, int firstSize)
+    {
+        if (firstSize < 1 || firstSize > 65536)
+        {
+            throw new ArgumentOutOfRangeException("firstSize");
+        }
+
+        Fact fact = new Fact();
+
+        fact.Elevated = ReadDword(token, 20);
+        fact.ElevationType = ReadDword(token, 18);
+        fact.IntegrityRid = ReadIntegrityRid(token, firstSize);
+        ReadGroups(token, fact, firstSize);
+        ReadPrivileges(token, fact, firstSize);
+
+        return fact;
+    }
+
+    // The programs this script starts inherit the token of the process, and its binding and its probes that ask
+    // for access answer for the thread. They are one identity unless the thread impersonates. ERROR_NO_TOKEN (1008)
+    // says that the thread has no token of its own, and any other failure is a read that failed.
+    public static bool ThreadImpersonates()
+    {
+        IntPtr token;
+
+        if (OpenThreadToken(GetCurrentThread(), 0x8, true, out token))
+        {
+            CloseHandle(token);
+            return true;
+        }
+
+        int error = Marshal.GetLastWin32Error();
+
+        if (error == 1008)
+        {
+            return false;
+        }
+
+        throw new Win32Exception(error);
+    }
+
+    // The token of this process, which is the token every program the process starts inherits. A thread that
+    // impersonates is not that identity, so it is not read: what the probes of this script measured was the
+    // thread's, and not whom the programs it starts run as.
+    public static Fact ReadProcess()
+    {
+        if (ThreadImpersonates())
+        {
+            throw new InvalidOperationException("The calling thread impersonates, so the token of the process is not the identity that the other probes measure.");
+        }
+
+        IntPtr token;
+
+        if (!OpenProcessToken(GetCurrentProcess(), 0x8, out token))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+
+        try
+        {
+            return Read(token);
+        }
+        finally
+        {
+            CloseHandle(token);
+        }
+    }
+}
+"@
+
+    $script:NativeToken = $typeName -as [type]
+}
+
+function ConvertTo-TokenFact {
+    <#
+        The facts the check of the token reads, from what the native reader returned. The native object
+        holds arrays that line up, one index for one group or one privilege, and the facts hold one
+        object for each, of the types Get-TokenFactProblem asks for.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        $Native
+    )
+
+    $group = @(
+        for ($index = 0; $index -lt $Native.GroupSid.Length; $index++) {
+            [pscustomobject]@{ Sid = [string]$Native.GroupSid[$index]; Attributes = [uint32]$Native.GroupAttribute[$index] }
+        }
+    )
+    $privilege = @(
+        for ($index = 0; $index -lt $Native.PrivilegeName.Length; $index++) {
+            [pscustomobject]@{ Name = [string]$Native.PrivilegeName[$index]; Attributes = [uint32]$Native.PrivilegeAttribute[$index] }
+        }
+    )
+
+    return [pscustomobject]@{
+        Elevated = ($Native.Elevated -ne 0)
+        ElevationType = [int]$Native.ElevationType
+        IntegrityRid = [int]$Native.IntegrityRid
+        Group = $group
+        Privilege = $privilege
+    }
+}
+
+function Get-CallerTokenFact {
+    <#
+        The facts of the access token of this process, read from the token itself: whether it is
+        elevated, its elevation type (1 default, 2 full, 3 limited), the relative identifier of its
+        integrity level, and its groups and privileges with their attributes. It is the token every
+        program this script starts inherits, which in a fresh process is the identity Get-CallerIdentity
+        names, and it never comes from the profile or from an argument. Nothing when it cannot be read,
+        so that a token that was not read is never taken for one that is clean, and then
+        $script:TokenReadProblem says why. A thread that impersonates is a read that cannot be made: the
+        probes of this script answered for that thread, and the programs it starts inherit the token of
+        the process, so the two are not one identity.
+
+        It is the one place this script reads the token of the process, so that a test can give the
+        check facts without an elevated account.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param()
+
+    $script:TokenReadProblem = ''
+
+    try {
+        Initialize-NativeToken
+
+        return ConvertTo-TokenFact -Native ($script:NativeToken::ReadProcess())
+    } catch {
+        $cause = $_.Exception
+
+        while ($null -ne $cause.InnerException) {
+            $cause = $cause.InnerException
+        }
+
+        $script:TokenReadProblem = "$($cause.GetType().Name): $($cause.Message)"
+
+        return $null
+    }
+}
+
+function Get-IntegrityLevelName {
+    <#
+        The name of an integrity level, from the relative identifier of its SID (S-1-16-<identifier>).
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [int]$Rid
+    )
+
+    switch ($Rid) {
+        0 { return 'Untrusted' }
+        0x1000 { return 'Low' }
+        0x2000 { return 'Medium' }
+        0x2100 { return 'Medium Plus' }
+        0x3000 { return 'High' }
+        0x4000 { return 'System' }
+        0x5000 { return 'Protected' }
+        default { return 'an unnamed level' }
+    }
+}
+
+function Get-TokenFactProblem {
+    <#
+        Why facts about a token cannot be interpreted, or nothing when they can. They come from
+        Get-CallerTokenFact, and a check that reads them must never guess: a fact of an unexpected type
+        or range is a token that was not read.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        $Fact
+    )
+
+    if ($Fact -isnot [System.Management.Automation.PSCustomObject]) {
+        return 'the facts are not an object'
+    }
+
+    foreach ($name in @('Elevated', 'ElevationType', 'IntegrityRid', 'Group', 'Privilege')) {
+        if ($null -eq $Fact.PSObject.Properties[$name]) {
+            return "the facts have no $name"
+        }
+    }
+
+    if ($Fact.Elevated -isnot [bool]) {
+        return 'the elevation flag is not a boolean'
+    }
+
+    if ($Fact.ElevationType -isnot [int] -or $Fact.ElevationType -lt 1 -or $Fact.ElevationType -gt 3) {
+        return 'the elevation type is not 1, 2 or 3'
+    }
+
+    if ($Fact.IntegrityRid -isnot [int] -or $Fact.IntegrityRid -lt 0) {
+        return 'the integrity level is not a relative identifier'
+    }
+
+    if (@($Fact.Group).Count -eq 0) {
+        return 'the token lists no group'
+    }
+
+    foreach ($group in @($Fact.Group)) {
+        if ($group -isnot [System.Management.Automation.PSCustomObject] -or $null -eq $group.PSObject.Properties['Sid'] -or $null -eq $group.PSObject.Properties['Attributes']) {
+            return 'a group is not an object with a SID and attributes'
+        }
+
+        # The text a SID has: ASCII digits and no leading zero, so that the comparison with the Administrators
+        # SID below can never miss a SID it names. \d would take any digit of any script, and $ a line feed.
+        if ($group.Sid -isnot [string] -or $group.Sid -cnotmatch '\AS-1-(?:0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*))+\z') {
+            return 'a group has a SID that is not one'
+        }
+
+        if ($group.Attributes -isnot [uint32]) {
+            return 'a group has attributes that are not a number'
+        }
+    }
+
+    foreach ($privilege in @($Fact.Privilege)) {
+        if ($privilege -isnot [System.Management.Automation.PSCustomObject] -or $null -eq $privilege.PSObject.Properties['Name'] -or $null -eq $privilege.PSObject.Properties['Attributes']) {
+            return 'a privilege is not an object with a name and attributes'
+        }
+
+        if ($privilege.Name -isnot [string] -or [string]::IsNullOrEmpty($privilege.Name)) {
+            return 'a privilege has no name'
+        }
+
+        if ($privilege.Attributes -isnot [uint32]) {
+            return 'a privilege has attributes that are not a number'
+        }
+    }
+
+    return $null
+}
+
+function Test-IdentityPrivilege {
+    <#
+        Every probe in this script asks the operating system whether the token it runs with holds a
+        right, and two things in a token never answer as a right: a privilege that is held but disabled
+        (backup, restore, take ownership, debug), which the process can enable later and step around an
+        access list with, and the Administrators group of a filtered administrator token, which is
+        deny-only until the account is elevated. So the Pass of the immutability and writable-root probes
+        holds for the token as it is, and for the account only when the account is a standard one. This
+        check reads the token and refuses one that is not a standard account's: elevated, of an elevation
+        type other than default (a split administrator token), above Medium integrity, holding the
+        Administrators group in any state, or holding a privilege outside the five a standard account
+        has, enabled or not.
+
+        A token that cannot be read, or facts that cannot be interpreted, are Unavailable: a token that
+        was not read was not shown to be a standard account's. So is a thread that impersonates, whose
+        identity the other probes measured and the programs this script starts do not inherit. The token
+        is read once, from the identity that runs this script, and no parameter lets the profile or the
+        caller say what it holds.
+
+        What it does not show: a group that confers power through access lists and not through a
+        privilege (a group the token holds disabled, which a process can enable, is one), what the account
+        stores or can reach over the network, what the token will hold after the next logon, and whether
+        the program that launched this script gives the run the token it gave this script.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param()
+
+    if (-not $script:OnWindows) {
+        return New-CheckResult -Name 'IdentityPrivilege' -Status 'Unavailable' -Evidence 'the access token is read on Windows only'
+    }
+
+    $fact = Get-CallerTokenFact
+
+    if ($null -eq $fact) {
+        $why = if ([string]::IsNullOrEmpty($script:TokenReadProblem)) { '' } else { " ($(Format-RelayedText -Text $script:TokenReadProblem -Limit 160))" }
+
+        return New-CheckResult -Name 'IdentityPrivilege' -Status 'Unavailable' -Evidence "could not read the access token of the identity this verifier runs as$why, so it was not shown to be a standard account's"
+    }
+
+    $problem = Get-TokenFactProblem -Fact $fact
+
+    if ($problem) {
+        return New-CheckResult -Name 'IdentityPrivilege' -Status 'Unavailable' -Evidence "the facts of the access token could not be interpreted ($problem), so it was not shown to be a standard account's"
+    }
+
+    $integrity = "$(Get-IntegrityLevelName -Rid $fact.IntegrityRid) (S-1-16-$($fact.IntegrityRid))"
+    $reason = [System.Collections.Generic.List[string]]::new()
+
+    if ($fact.Elevated) {
+        $reason.Add('the token is elevated')
+    }
+
+    if ($fact.ElevationType -ne 1) {
+        $reason.Add("its elevation type is $(if ($fact.ElevationType -eq 2) { 'Full' } else { 'Limited' }), the mark of a split administrator token")
+    }
+
+    if ($fact.IntegrityRid -gt $script:MediumIntegrityRid) {
+        $reason.Add("its integrity level is $integrity, above Medium")
+    }
+
+    foreach ($group in @($fact.Group | Where-Object -FilterScript { [string]::Equals($_.Sid, $script:AdministratorsSid, [System.StringComparison]::Ordinal) })) {
+        $state = if (($group.Attributes -band 0x10) -ne 0) { 'deny-only' } elseif (($group.Attributes -band 0x4) -ne 0) { 'enabled' } else { 'disabled' }
+        $reason.Add("the Administrators group ($($script:AdministratorsSid)) is in the token, $state")
+    }
+
+    $outside = @($fact.Privilege | Where-Object -FilterScript { -not $script:StandardPrivilege.Contains($_.Name) })
+
+    if ($outside.Count -gt 0) {
+        $named = @($outside | ForEach-Object -Process { '{0} ({1})' -f (Format-RelayedText -Text $_.Name -Limit 60), $(if (($_.Attributes -band 2) -ne 0) { 'enabled' } else { 'disabled' }) })
+        $reason.Add("it holds $($outside.Count) privilege$(if ($outside.Count -ne 1) { 's' }) outside the five of a standard account: $(Format-LimitedList -Item $named -Limit 6)")
+    }
+
+    if ($reason.Count -gt 0) {
+        return New-CheckResult -Name 'IdentityPrivilege' -Status 'Fail' -Evidence ('the access token this verifier runs with is not a standard account''s: ' + ($reason -join '; '))
+    }
+
+    $held = @($fact.Privilege | ForEach-Object -Process { '{0} ({1})' -f $_.Name, $(if (($_.Attributes -band 2) -ne 0) { 'enabled' } else { 'disabled' }) })
+    $heldText = if ($held.Count -gt 0) { Format-LimitedList -Item $held -Limit 6 } else { 'none' }
+
+    return New-CheckResult -Name 'IdentityPrivilege' -Status 'Pass' -Evidence "the access token this verifier runs with is a standard account's: not elevated, elevation type Default, integrity $integrity, no Administrators group in any state, and no privilege outside the five of a standard account (held: $heldText); a group that confers power without a privilege, what the account stores, and the token after the next logon are not measured"
 }
 
 function Get-BytesDigest {
@@ -3538,6 +4225,7 @@ function Get-ContainmentCheckName {
         'ControlDigest'
         'ControlImmutability'
         'IdentityBinding'
+        'IdentityPrivilege'
         'HookContract'
         'GrantRecorderUnregistered'
         'EgressPolicy'
@@ -3559,10 +4247,11 @@ function Get-ContainmentCheck {
         Runs the measurements against a profile that already satisfies the schema. The order is part
         of the contract: the hook probe executes the pinned hook command as the identity that
         verifies, so it runs only after the verifier, the digests and the immutability of the
-        controls it executes were measured and passed and that identity was bound to the role, since
-        the immutability is measured for the identity that verifies and only the binding says
-        whether that is the identity the profile names. Every other check is independent and always
-        runs.
+        controls it executes were measured and passed, that identity was bound to the role and its
+        token was read and shown to be a standard account's, since the immutability is measured for
+        the identity that verifies, only the binding says whether that is the identity the profile
+        names, and only the token says what a probe that asks for access cannot see. Every other check
+        is independent and always runs.
     #>
     [CmdletBinding()]
     [OutputType([object[]])]
@@ -3592,8 +4281,9 @@ function Get-ContainmentCheck {
     $check.Add((Test-ControlDigest -ContainmentProfile $ContainmentProfile))
     $check.Add((Test-ControlImmutability -ProfilePath $ProfilePath -ContainmentProfile $ContainmentProfile -WritableRoot $writableRoot))
     $check.Add((Test-IdentityBinding -Role $Role -ControllerIdentity ([string]$ContainmentProfile.controllerIdentity) -WorkerIdentity ([string]$ContainmentProfile.workerIdentity)))
+    $check.Add((Test-IdentityPrivilege))
 
-    $unmet = @(Get-GateFailure -Check @($check) -Require @('VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding'))
+    $unmet = @(Get-GateFailure -Check @($check) -Require @('VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'IdentityPrivilege'))
 
     if ($unmet.Count -gt 0) {
         foreach ($notRun in @(Get-NotRunCheck -Name 'HookContract' -Reason "it executes the pinned hook command as this identity, which is trusted only after $($unmet -join ', ') passed")) {
@@ -3618,7 +4308,7 @@ function Get-ContainmentCheck {
     $check.Add((Test-RemoteUnreachable))
 
     # git is the third program the verifier runs as the identity it measures, and it is trusted on the
-    # same four checks as the hook command: the variables are measured either way, git only after them.
+    # same five checks as the hook command: the variables are measured either way, git only after them.
     $gitGate = if ($unmet.Count -gt 0) { "$($unmet -join ', ') passed" } else { '' }
     $check.Add((Test-CredentialAbsence -WritableRoot $writableRoot -GitGateReason $gitGate))
 
@@ -3716,6 +4406,7 @@ function Get-RevalidationCheckName {
         'ControlDigest'
         'ControlImmutability'
         'IdentityBinding'
+        'IdentityPrivilege'
         'LedgerChain'
         'FinalReport'
         'LedgerProtection'
@@ -4023,8 +4714,8 @@ function Get-RevalidationCheck {
     <#
         Runs the revalidation against a profile that already satisfies the schema. The pinned
         appender is executed as the identity that verifies, so it runs only after the verifier, the
-        control digests, the immutability of the controls and the binding of that identity to the
-        role were measured and passed, exactly like the hook probe. The sink
+        control digests, the immutability of the controls, the binding of that identity to the
+        role and the reading of its token were measured and passed, exactly like the hook probe. The sink
         is snapshotted before and after the appender validates it: a sink that changed in between
         was not the one that was validated, and fails the chain. The report is looked for only in a
         chain that validated, in the bytes of the second snapshot. The protection of the ledger is
@@ -4061,8 +4752,9 @@ function Get-RevalidationCheck {
     $check.Add((Test-ControlDigest -ContainmentProfile $ContainmentProfile))
     $check.Add((Test-ControlImmutability -ProfilePath $ProfilePath -ContainmentProfile $ContainmentProfile -WritableRoot $writableRoot))
     $check.Add((Test-IdentityBinding -Role $Role -ControllerIdentity ([string]$ContainmentProfile.controllerIdentity) -WorkerIdentity ([string]$ContainmentProfile.workerIdentity)))
+    $check.Add((Test-IdentityPrivilege))
 
-    $unmet = @(Get-GateFailure -Check @($check) -Require @('VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding'))
+    $unmet = @(Get-GateFailure -Check @($check) -Require @('VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'IdentityPrivilege'))
 
     if ($unmet.Count -gt 0) {
         foreach ($notRun in @(Get-NotRunCheck -Name @('LedgerChain', 'FinalReport') -Reason "the pinned appender is executed as this identity, and is trusted only after $($unmet -join ', ') passed")) {

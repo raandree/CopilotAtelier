@@ -173,17 +173,22 @@ printed nothing are all reported as unmeasured, never as protected or clean.
 
 A check that runs a program as this identity, which is the hook command, git and,
 in `-Revalidate`, the pinned appender, runs only after the controls it executes
-were measured and passed, so a writable or swapped control is never run. Every
-other check always runs, and a run that stops at the profile reports each check
-as not run instead of leaving it out.
+were measured and passed and the token of this identity was shown to be a
+standard account's, so a writable or swapped control is never run, and no program
+the verifier starts runs as an identity that holds a privilege outside the five,
+which no probe can show. Every other check always runs, the probes that create
+and remove a file among them, whatever the token holds, and a token that is
+refused fails the run as a whole. A run that stops at the profile reports each
+check as not run instead of leaving it out.
 
 | Check | A Pass says | It does not say |
 |---|---|---|
 | `ProfileDigest`, `ProfileSchema` | The profile hashes to the digest argument, compared as typed, and satisfies the closed schema | |
 | `VerifierBinding` | The verifier that runs is the file the profile pins, by path and digest | |
 | `ControlDigest` | Each pinned control hashes to its pinned digest | |
-| `ControlImmutability` | This identity cannot replace or loosen the profile, a pinned control, a live artifact, or an immutable path: not by writing it, deleting it, changing its access list or owner, creating it, or through a directory above it or a reparse point, and none lies in or holds a writable root | What an identity other than the one that runs can do. A directory entry is judged as one object, its own rights and those above it, not the rights of what it holds. What the token of this identity holds beyond what the probes show: a disabled privilege and a filtered administrator group are not read (see below). Off Windows only write access is measured |
-| `IdentityBinding` | The verifier runs as the account the profile declares for the role, and the two roles differ. The pinned hook command, git and, in `-Revalidate`, the pinned appender run only when this passes, because the immutability above is measured for the identity that verifies | That the account is a standard one: its token is not read (see below) |
+| `ControlImmutability` | This identity cannot replace or loosen the profile, a pinned control, a live artifact, or an immutable path: not by writing it, deleting it, changing its access list or owner, creating it, or through a directory above it or a reparse point, and none lies in or holds a writable root | What an identity other than the one that runs can do. A directory entry is judged as one object, its own rights and those above it, not the rights of what it holds. What the token of this identity holds beyond what the probes show: a disabled privilege and a filtered administrator group never show as a right, and `IdentityPrivilege` reads them. Off Windows only write access is measured |
+| `IdentityBinding` | The verifier runs as the account the profile declares for the role, and the two roles differ | That the account is a standard one: `IdentityPrivilege` reads the token, and an administrator's identity binds here and is refused there |
+| `IdentityPrivilege` | The access token of this process, which every program the verifier starts inherits, is a standard account's: not elevated, of the default elevation type, at Medium integrity or lower, without the Administrators group in any state (a filtered administrator token holds it deny-only), and without a privilege outside `SeChangeNotifyPrivilege`, `SeShutdownPrivilege`, `SeUndockPrivilege`, `SeIncreaseWorkingSetPrivilege` and `SeTimeZonePrivilege`, enabled or not. The pinned hook command, git and, in `-Revalidate`, the pinned appender run only when this and `IdentityBinding` pass | A group that confers power through access lists and not through a privilege, among them a group the token holds disabled, which a process can enable; what the account stores or can reach over the network; the token after the next logon; and whether the program that launched the verifier gives the run the token it gave the verifier. A token that cannot be read, facts that cannot be interpreted, and a thread that impersonates (its identity is not the process's, which the programs inherit) are `Unavailable`, and so is any platform but Windows (see below) |
 | `HookContract` | The pinned `hooks.json` is the plugin's own at the root of the pinned script and registers only the guard. Its one `PreToolUse` entry carries no key but `type`, an integer `timeout` and the command keys (`timeoutSec`, `env`, `cwd` and any other key fail the check, because a host may act on a key the check does not read), is of type `command` with no matcher, and holds the same command text under every command key. That command starts with the absolute path of PowerShell (a program named `powershell` or `pwsh`; this check reads what PowerShell loads first and cannot read what any other program loads, so any other program, `cmd.exe` included, is refused) that this identity cannot replace; has no line break, no character outside printable ASCII (PowerShell reads curly quotes as quotes, and some other characters as spaces or dashes), and no `%`, `!`, `$` or backtick, which a shell expands or acts on even inside quotes; has no `.` or `..` segment in the program path, does not start with two separators in any mix (a network or device path, as in `\/server\share`) and, on Windows, starts with a drive letter and a separator whether it is quoted or not, so that an NT path such as `\??\UNC\server\share` is refused too (the check measures rights by opening the path, and would read an access list over the network); and, after the program, is made only of words of one plain shape, because `cmd.exe`, a PowerShell wrapper and a POSIX shell read anything else differently (a `#` is a comment to PowerShell and not to `cmd.exe`, so under a wrapper the closing statement below would never run and a push would exit 1, which does not block): a word is bare, of letters, digits and `. _ : \ /` and `-`, with a word that starts with a dash being an option name of letters only (PowerShell reads `-name:` as a parameter that binds to the next word or fails to parse, and splits `-Z.7` in two, where `cmd.exe` passes each through whole), or double-quoted, not empty, with no double quote inside and no backslash before its closing quote (the Windows PowerShell 5.1 wrapper drops an empty quoted argument that `cmd.exe` and the PowerShell 7 wrapper pass on), and an unquoted program word holds only the same characters. Off Windows a backslash anywhere in the line is refused, because a POSIX shell reads it as an escape. A list of characters to refuse was tried first and is never complete, so this is a shape that is accepted. After an unquoted `;` only the statement the shipped command ends with is accepted (`exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]`). It passes `-NoProfile` before its script or command, and no option that loads code first: the same options as the verifier's own launch are allowed. Run from a folder of its own, with `PLUGIN_ROOT` set to the pinned root and the other places it looks emptied, within the timeout, it runs the pinned script, which exits 0, 2 and 2 for a safe, a push and an issue-mutation payload | What a host passes the hook in a real run, and how a host spawns the command. Both documented hosts wrap the line in PowerShell (VS Code for the `windows` key, the Copilot SDK host for the `powershell` key) and this probe does not: it runs the line through `cmd.exe /d /c` (`/d` keeps the `AutoRun` commands of the registry of the identity under test from running ahead of the probe). So the probe is not a measurement under either host. The check accepts only the plain shape described in the left cell, which `cmd.exe`, a PowerShell wrapper and a POSIX shell are expected to read alike, and says in its Pass evidence that a PowerShell host reads the line by other rules. What was measured is narrower than that: a seeded test generates lines (with tabs inside quotes, `-Command` and `-File`, and the closing statement), and every line the shape accepts has to parse, with the parser of the host that runs the tests, as one command whose words are exactly the words the shape saw. That is the structure PowerShell reads, not what a wrapper hands on to the program it starts. The review ran the same method by hand against Windows PowerShell 5.1 and 7.6 (it found the dash-word hole this way) and compared the arguments that `cmd.exe` and the two PowerShell wrappers hand to a script for sampled `-File` lines: they matched, except for an empty quoted word, which the shape no longer reads. For Windows PowerShell in the system folder, whose path holds no space, the shipped `windows` command with that path written unquoted passes this check, and was run under a Windows PowerShell 5.1 wrapper, with the whole line given as one argument to `-ExecutionPolicy Bypass -NoProfile -NoLogo -Command` as the host table reads it (2026-10-14): exit 0 for a safe payload, and exit 2 with the block message for a push. Other ways of handing the line over were not measured. A quoted program path passes this check and the `cmd.exe` probe and fails under a PowerShell host: PowerShell needs a leading `&` before a quoted program path, the form a path with a space needs (PowerShell 7 under `Program Files`), and without it the wrapper fails with a parse error, exit 1, which does not block. This check refuses the `&`, so when the program path is quoted its Pass evidence says that the command is not shown to run under a PowerShell host; pin an unquoted path, which has no space, until a form that works under both is settled. A POSIX shell is read for backslashes only: off Windows a backslash anywhere in the line is refused, and the POSIX probe itself (`/bin/sh`), the `bash`, `linux` and `osx` keys and macOS were not run. The program is judged by its name, not by its identity: nothing checks a signature or a digest of the interpreter, only that the run cannot replace it. The absolute interpreter path in the pinned command is what stops a host looking its interpreter up in its own working directory |
 | `GrantRecorderUnregistered` | The pinned `hooks.json` is of a shape the check reads, registers no prompt hook, and does not contain the name `Add-RemoteGrant` anywhere in the file, at any depth, and the grants folder of this identity is empty | That no grant can exist: the guard honors any well-formed grant file in a folder the run owns, so a run that writes one is not stopped here, and egress and credentials are the boundary against a remote mutation. A recorder under another name (a renamed copy, a wildcard, a name built by an expansion) is not seen. A hook file the host finds outside the pinned file, such as a user-level or workspace hooks folder or an installed copy of the plugin |
 | `EgressPolicy` | The three firewall cmdlets come from a module under the system folder, every firewall profile of the active store is enabled and defaults outbound to Block, and no enabled outbound allow rule could apply to this identity by its user condition | A system-wide proxy, and the program, service, port and address scoping of a rule. A host that reaches NetSecurity through the Windows PowerShell compatibility layer resolves it outside the system folder, so the check is unmeasured there until the module loads natively |
@@ -194,13 +199,51 @@ as not run instead of leaving it out.
 | `LiveArtifacts` | Live mode only: the live artifacts are pinned and match | |
 
 An elevated administrator holds every right the immutability probes ask for, so
-the verifier fails for one by design. Run it as the role identity, a standard
-account. The probes ask the operating system with the token the verifier runs
-with, and two things in a token are not read: a privilege that is held but
-disabled (backup, restore, take ownership), and a filtered administrator token
-whose Administrators group is deny-only. Neither shows as a right, so a run
-identity that holds either is outside what a Pass says, and removing them from
-the account is deployment work.
+the verifier fails for one by design. The probes ask the operating system with
+the token the verifier runs with, and two things in a token never show as a
+right: a privilege that is held but disabled (backup, restore, take ownership),
+which the process can enable later, and a filtered administrator token whose
+Administrators group is deny-only, which the account can elevate. A Pass of the
+probes therefore holds for the token as it is, and for the account only when the
+account is a standard one, so `IdentityPrivilege` reads the token and refuses one
+that is not. Removing the privileges or the group from the account is deployment
+work, and a run identity that holds either now fails the run instead of being
+outside what a Pass says.
+
+The five privileges are the ones the operating system leaves in a filtered
+administrator token, which [Microsoft describes](https://learn.microsoft.com/en-us/windows/security/application-security/application-control/user-account-control/how-it-works)
+as the standard user access token of an administrator's logon (the administrative
+privileges and SIDs are removed). That the filtered token holds exactly these five
+was measured, not assumed: a test makes such a token from the token of the
+test process with `CreateRestrictedToken` (`LUA_TOKEN`), reads it by handle, and
+finds the Administrators group deny-only and exactly those five privileges
+(Windows Server 2025, build 10.0.26100; no other build and no client edition was
+measured). A standard account's own set was not measured, because no host here
+has one. It is expected to be some or all of these five, which is why any subset
+passes, and an account that holds one more is refused. The check refuses a filtered
+token for its Administrators group alone, which is the case no probe that asks
+for access can see. A service account that holds `SeImpersonatePrivilege` and
+`SeCreateGlobalPrivilege` as well is refused too, because the profile has no
+field to accept more. The token is a snapshot of one process, and a change of
+group membership reaches a token at the next logon, so the verifier runs right
+before each run, which the controller does once for each role.
+
+No test host here runs as a standard account, and a filtered administrator token
+is not one (its Administrators group is deny-only, so the check refuses it), so
+the Pass of this check is exercised through a seam that supplies the facts and
+has not been measured on a real standard token. Its refusal is exercised on real
+tokens: the elevated token of the host that runs the tests, and filtered ones the
+tests make. The test that closes this is still open: create a throwaway local
+account, log it on with `LogonUser`, read its token by handle with the same reader,
+and expect a Pass. A hosted CI runner is an administrator and could run it; on a
+development host it creates an account, which is the owner's decision.
+
+The check reads the token of the process, which every program the verifier starts
+inherits. The binding and the probes that ask for access answer for the thread, and
+they are the same identity until the thread impersonates, so a thread that does is
+`Unavailable`. It does not see a launcher that gives the verifier a more restricted
+token of the same account than it gives the run: the launcher is trusted, as for the
+rest of what the verifier measures.
 
 A verifier measures one identity and one network namespace: the one it runs in.
 The controller therefore runs it once per role, `-Role Controller` and
@@ -274,7 +317,7 @@ and nothing was verified.
 ### Revalidation
 
 `-Revalidate` is the second use of the verifier, after a run. It runs the same
-four gates, and the pinned appender only after they pass.
+five gates, and the pinned appender only after they pass.
 
 ```powershell
 pwsh -NoProfile -NonInteractive -File $verifierPath -Revalidate -ProfilePath $profilePath -ProfileSha256 $digest -Role Controller -FinalReportPath $report
@@ -282,7 +325,7 @@ pwsh -NoProfile -NonInteractive -File $verifierPath -Revalidate -ProfilePath $pr
 
 | Check | A Pass says | It does not say |
 |---|---|---|
-| `VerifierBinding`, `ControlDigest`, `ControlImmutability`, `IdentityBinding` | As above | |
+| `VerifierBinding`, `ControlDigest`, `ControlImmutability`, `IdentityBinding`, `IdentityPrivilege` | As above | |
 | `LedgerChain` | The pinned appender, run bound to the pinned profile, says the sink and the chain head form a valid chain from genesis and that the chain is sealed. The sink is read before and after the appender validates it, and the two reads must hash alike | That what was validated is what was read, against a writer that restores the same bytes between the two reads: `LedgerProtection` for this identity is what excludes a writer. And that the ledger belongs to this run: the verifier does not know a run id, so a sink that holds an earlier sealed run and its report revalidates, and the controller gives each run a sink of its own |
 | `FinalReport` | The record directly before the `Seal` is a `FinalReport` record whose `data.sha256` is the digest of the report file, compared as written and in lowercase, the seal chains to it, and the seal is the head the appender validated | That the report says anything true |
 | `LedgerProtection` | As above, measured again | |

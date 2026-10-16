@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-09-02
-last-verified: 2026-10-14
+last-verified: 2026-10-15
 owner: software-engineer
 source: user request and specification-completion package evidence
 ---
@@ -111,8 +111,8 @@ claims for them.
   because the firewall check is unmeasured unless its cmdlets come from a module
   under the system folder. It executes the pinned hook command, git and the
   pinned appender only after the verifier, the control digests, the immutability
-  of the controls and the binding of the running identity to its role have
-  passed.
+  of the controls, the binding of the running identity to its role and, since the
+  revision of 2026-10-15, the token of that identity have passed.
 - **Names are compared exactly.** PowerShell's case-sensitive operators compare
   by culture and ignore characters such as a zero-width space, so every name,
   type, operation and digest that either script reads from a profile, a hook
@@ -151,13 +151,82 @@ claims for them.
   which stay untrusted text. The controller appends a `FinalReport` record
   carrying the digest of the report before it seals, which the verifier's
   `-Revalidate` checks.
-- **Still open, and written down.** A privilege that is held but disabled and a
-  filtered administrator token are not read, so the run identity must be a
-  standard account; hook files a host finds outside the pinned file are not
-  read; the verifier inherits the environment of its launcher; `-Revalidate`
-  does not bind the ledger to a run id; the chain is not keyed; a process of the
-  service's own account can join the pipe name and make an append fail; the
-  pinned hook line is not run under the PowerShell hosts (the recommended
-  follow-up) and a quoted program path, which a path with a space needs, passes
-  the check and fails under them; and no test used a second Windows account.
-  See [`docs/SECURITY-REVIEW.md`](../../docs/SECURITY-REVIEW.md).
+- **Still open, and written down.** Hook files a host finds outside the pinned
+  file are not read; the verifier inherits the environment of its launcher;
+  `-Revalidate` does not bind the ledger to a run id; the chain is not keyed; a
+  process of the service's own account can join the pipe name and make an append
+  fail; the pinned hook line is not run under the PowerShell hosts (the
+  recommended follow-up) and a quoted program path, which a path with a space
+  needs, passes the check and fails under them; and no test used a second
+  Windows account. The token of the run identity was open here until the
+  revision of 2026-10-15 below. See
+  [`docs/SECURITY-REVIEW.md`](../../docs/SECURITY-REVIEW.md).
+
+## Revision, 2026-10-15: the token of the run identity is read
+
+R-04 of the P5 review, the first item that was open above, is addressed, and not
+closed for every claim. The refusal is measured on real tokens. The Pass is
+tested through supplied facts and has not been measured on a real standard
+account's token (third bullet). The probes of the verifier ask the operating
+system whether the token it runs with holds a right, and two things in a token
+never show as a right: a privilege that is held but disabled, and the
+Administrators group of a filtered administrator token, which is deny-only until
+the account is elevated.
+`IdentityPrivilege` reads the token of the verifier process and refuses one that
+is not a standard account's: elevated, of an elevation type other than default,
+above Medium integrity, holding the Administrators group in any state, or
+holding a privilege outside the five a filtered administrator token keeps
+(`SeChangeNotifyPrivilege`, `SeShutdownPrivilege`, `SeUndockPrivilege`,
+`SeIncreaseWorkingSetPrivilege`, `SeTimeZonePrivilege`), enabled or not. A token
+that cannot be read, facts that cannot be interpreted, and a thread that
+impersonates are unmeasured, which fails the run like a refusal. It is a check of
+its own that gates the hook probe, git and the appender in `-Verify` and
+`-Revalidate`, so an administrator's identity still binds (`IdentityBinding` is
+unchanged) and is refused one check later. It supersedes the four gates that
+"One identity per run" names above: there are five. The owner ruled for this
+option, out of four, on 2026-10-15 and asked for a rebuild from nothing.
+
+- **The claim is narrower than "a standard account".** The check shows that the
+  token read at that moment is a standard account's by those rules. It does not
+  show a group that confers power through access lists and not through a
+  privilege (a group the token holds disabled, which a process can enable, is
+  one: recorded as a follow-up, because it needs a real standard token to show
+  that no valid account holds one), what the account stores or can reach over the
+  network (egress and credentials stay the boundary), the token after the next
+  logon, or whether the launcher gives the run the token it gave the verifier. It
+  reads the token of the process, which every program the verifier starts
+  inherits. A thread that impersonates is unmeasured: the binding and the probes
+  that ask for access answer for the thread, and they are the process's identity
+  only until it does.
+- **The five privileges are measured on a filtered token, on one build.** A test
+  makes a filtered administrator token with `CreateRestrictedToken` (`LUA_TOKEN`),
+  reads it by handle, and finds the Administrators group deny-only and exactly
+  those five privileges (Windows Server 2025, build 10.0.26100; no other build and
+  no client edition). Microsoft describes that token as the standard user access
+  token of an administrator's logon. A standard account's own set was not
+  measured: it is expected to be some or all of the five, and any subset passes.
+  The check refuses the filtered token for its Administrators group alone, which
+  is the case no probe that asks for access can see. A service-style account that
+  also holds `SeImpersonatePrivilege` and `SeCreateGlobalPrivilege` is refused:
+  accepting one would need a field in the profile that pins extra privileges,
+  which was not built.
+- **The Pass is tested through a seam.** No test host here runs as a standard
+  account, and a filtered administrator token is not one, so the Pass path is
+  covered by rows that supply the facts, and the refusal by real tokens: the
+  elevated token of the host, and filtered tokens the tests make. The test that
+  closes it is open: create a throwaway local account, log it on with `LogonUser`,
+  read its token by handle with the same reader, and expect a Pass. A hosted CI
+  runner is an administrator and could run it; on a development host it creates
+  an account, which is the owner's decision.
+- **Review.** An independent review of the first build said Approve with changes:
+  no Blocker or Major, ten Minors and two Nits (`docs/SECURITY-REVIEW.md`, the
+  entry of 2026-10-15). The fixes are in the same change: the shape check of a SID
+  and of the group list, the thread that impersonates, the bounds of the native
+  parsers with crafted buffers, the reason a token was not read, the exact set of
+  five privileges, and the wording above. A delta check of the fixes said Approve
+  with changes again (no Blocker or Major, two Minors, four Nits) and found no new
+  false Pass. Not done: a disabled group other than Administrators, a cross-check
+  of the integrity level against the label in the group list, the Pass on a real
+  standard token, and three small follow-ups of the delta check (the branch of
+  `ThreadImpersonates` that fails closed has no test, two tests accept any
+  exception, and the reason text is localized).
