@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-15
+last-verified: 2026-10-16
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,15 +9,15 @@ source: current task evidence
 
 ## Current focus
 
-**R-04, the token of the run identity, is built and reviewed on `ai/r04-run-identity-token`
-(local; the owner pushes it).** The required check `IdentityPrivilege` reads the access token of
+**R-04, the token of the run identity, is merged** as #42 (squash `3481536`,
+`6.1.0-preview0014`, 2026-10-16). The required check `IdentityPrivilege` reads the access token of
 the verifier process and refuses one that is not a standard account's (elevated, a split
 administrator token, above Medium integrity, the Administrators group in any state, or a
 privilege outside five; a thread that impersonates is unmeasured), and gates the hook probe, git
-and the appender in `-Verify` and `-Revalidate`. One review said Approve with changes (no
-Blocker or Major); the fixes have 109 mutation checks. The Pass runs only through a seam, as no
-test host here has a standard token (decision 0025, revision 2026-10-15). Merging publishes a
-preview; re-pin the verifier digest in every contained profile and refresh `~/.copilot`.
+and the appender in `-Verify` and `-Revalidate`. Two reviews said Approve with changes (no
+Blocker or Major). CI measured what no host here could: its Windows runner is an administrator
+with UAC off, its token is refused, and the real-token tests passed there. The Pass runs only
+through a seam (decision 0025, revision 2026-10-15); re-pin the verifier digest and refresh `~/.copilot`.
 
 **P5, the containment verifier and the ledger appender, is merged**: #40 (squash `0531814`,
 `6.1.0-preview0012`) and its record #41 (`6.1.0-preview0013`), 2026-10-15.

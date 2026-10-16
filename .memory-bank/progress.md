@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-15
+last-verified: 2026-10-16
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -12,8 +12,8 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
 `6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0013` (`0145cbf`, 2026-10-15) to GitHub Releases and the
-PowerShell Gallery (verified 2026-10-15). Incremental work is tracked under
+`6.1.0-preview0014` (`3481536`, 2026-10-16) to GitHub Releases and the
+PowerShell Gallery (verified 2026-10-16). Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
@@ -27,8 +27,8 @@ PowerShell Gallery (verified 2026-10-15). Incremental work is tracked under
   changes (no Blocker or Major, 10 Minors, 2 Nits); the fixes are test first with 109 mutation
   checks, none survived. Full gate on `840a438`: 5,276 passed, 0 failed, 147 skipped, 90.84 %.
   A delta check said Approve with changes (2 Minors, 4 Nits, none fixed in code). The Pass is
-  tested through a seam, as no test host here has a standard token (decision 0025, revision
-  2026-10-15). Not pushed.
+  tested through a seam (decision 0025, revision 2026-10-15). Merged as #42 on 2026-10-16
+  (squash `3481536`, `6.1.0-preview0014`; CI 5,232, 4,298 and 4,296 passed, none failed).
 - **2026-10-12 to 2026-10-15**: P5 (`software-engineer`, `review: on`) rebuilt the containment
   verifier `Test-RunContainment.ps1` and the ledger appender `Invoke-LedgerAppender.ps1` after
   a first review that said Block (13 findings). Nine independent reviews in all; each fix round

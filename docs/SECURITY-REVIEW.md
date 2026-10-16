@@ -14,7 +14,8 @@ said **Approve with changes**: no Blocker, no Major, ten Minors (T-01 to T-10) a
 Nits (T-11 and T-12). Every finding but T-03 and one part of T-01 was fixed in the
 same change, test first, with a mutation check for each control a test can reach. The
 same agent then checked the fixes (`840a438`) and said **Approve with changes** again:
-no Blocker or Major, two Minors and four Nits (T-13 to T-18). Nothing was pushed.
+no Blocker or Major, two Minors and four Nits (T-13 to T-18). The change was pushed as pull
+request #42 and squash-merged on 2026-10-16 (`3481536`).
 
 ### Scope
 
@@ -67,7 +68,7 @@ is the code the final gate ran on; the findings that need code are follow-ups.
 | T-13 | Minor | `ThreadImpersonates` | Only `ERROR_NO_TOKEN` returns false and every other error throws, but nothing reaches that throw (the reviewer's probe showed that anonymous impersonation does not), so a later edit that turned it into `return false` would reopen the gap that T-02 closed | Not fixed, recorded: make the decision a pure method that takes the result and the error and test 1008, 5 and 1347 |
 | T-14 | Minor | records | The records were committed after the code, so the tree at `840a438` still said R-04 was not done, decision 0025 still said "closed by measurement", and this entry said "a mutation check for each control the fixes added" while listing controls that were not mutated | Fixed: the records are committed together, and the wording is "each control a test can reach" |
 | T-15 | Nit | README | "No program the verifier starts runs as an identity that holds a privilege no probe can show" is imprecise: a Pass allows four of the five privileges while they are disabled, which a process can enable | Fixed: "outside the five" |
-| T-16 | Nit | changelog | "The elevated token of the Windows runner of CI included" states a fact that was not measured | Fixed: it names the host that was measured, and says that the runner is expected to be refused and was not measured |
+| T-16 | Nit | changelog | "The elevated token of the Windows runner of CI included" states a fact that was not measured | Fixed: it names the host that was measured, and says that the runner is expected to be refused and was not measured. Measured afterwards: the Windows leg of CI on pull request #42 (run 38862088537, Windows Server 2025, an administrator with UAC off) ran the end-to-end refusal and the tests on real filtered tokens, and they passed, so the changelog now says so |
 | T-17 | Nit | `Privilege.Tests.ps1` | Two new tests (a privilege that has no name, an integrity SID of more than one sub-authority) accept any exception | Not fixed, recorded: pin `Win32Exception` with error 1313 and `FormatException` |
 | T-18 | Nit | `Get-CallerTokenFact` | `Win32Exception.Message` is localized and the relay turns non-ASCII characters into `?` | Not fixed, recorded: add the native error code to the reason |
 
