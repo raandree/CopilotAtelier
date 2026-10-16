@@ -18,7 +18,9 @@ changes**: no Blocker, no Major, three Minors (U-01 to U-03) and four Nits (U-04
 U-07). Every finding was fixed in the same change, test first, with a mutation check for
 each rule a test can reach. The same agent then checked the fixes (`d2da113..f2e46e9`)
 and said **Approve with changes** again: no code defect, one Minor and four Nits (V-01
-to V-05). They were fixed in the same change too, and the change was gated again.
+to V-05). They were fixed in the same change too. A last confirmation of those fixes
+(`f2e46e9..ecd82fc`) said **Approve**: no code issue, and four Nits in the records
+(W-01 to W-04), fixed in the same change. The final gate is recorded under Tests.
 
 ### Scope
 
@@ -57,11 +59,17 @@ listed, scripted four quoted-path cases, and tokenised both commits to show that
 the comments of the script, one test that did not pin the cap, and a first sweep for U-03
 that was not repository-wide.
 
+Final confirmation of the delta fixes, on `ecd82fc` (`f2e46e9..ecd82fc`): **Approve**:
+V-01 to V-05 are resolved, `eff87a8` changes no behaviour beyond one evidence string, and
+the reviewer found no code issue. Four Nits remain, all in the records (W-01 to W-04), and
+none needed a change of the verifier, so the gate that ran on `ecd82fc` stays valid for the
+code.
+
 ### Findings
 
 | ID | Severity | Where | Finding | Resolution |
 |---|---|---|---|---|
-| U-01 | Minor | `Get-HookWrapperProblem` | The reason of a `Violation` or an `Unmeasured` entered the evidence without `Format-RelayedText`, although the path next to it was relayed. The path of the second wrapper is `MainModule.FileName` of the verifier's own `pwsh`, and nothing limits it to printable ASCII. Reproduced with the real `Test-PathProtection` and a wrapper in a folder named with an accent and four tag characters (a hidden "PASS"): they reached a 1,425-character Fail evidence verbatim. The interpreter's path is limited by `Get-HookInterpreter`, so the same pattern for the interpreter is safe. The result can only be Fail or Unavailable, and it needs someone who chooses where the verifier's `pwsh` runs from | Fixed: both reasons go through `Format-RelayedText` with the largest cap the function takes (1,000 characters). Tests with an accent and four tag characters (five `?`) for the Violation and for the Unmeasured, and a length bound; mutations G13 and G14 (either relay dropped) and G15 (the cap cut at one site) were caught, but the delta check showed that the bound did not pin the value of the cap (V-04) |
+| U-01 | Minor | `Get-HookWrapperProblem` | The reason of a `Violation` or an `Unmeasured` entered the evidence without `Format-RelayedText`, although the path next to it was relayed. The path of the second wrapper is `MainModule.FileName` of the verifier's own `pwsh`, and nothing limits it to printable ASCII. Reproduced with the real `Test-PathProtection` and a wrapper in a folder named with an accent and four tag characters (a hidden "PASS"): they reached a 1,425-character Fail evidence verbatim. The interpreter's path is limited by `Get-HookInterpreter`, so the same pattern for the interpreter is safe for the path (the access check's reason is another matter: W-03). The result can only be Fail or Unavailable, and it needs someone who chooses where the verifier's `pwsh` runs from | Fixed: both reasons go through `Format-RelayedText` with the largest cap the function takes (1,000 characters). Tests with an accent and four tag characters (five `?`) for the Violation and for the Unmeasured, and a length bound; mutations G13 and G14 (either relay dropped) and G15 (the cap cut at one site) were caught, but the delta check showed that the bound did not pin the value of the cap (V-04) |
 | U-02 | Minor | this file | S-21 called the wrapper run "a follow-up", S-24 said "Partly … the check still passes a quoted path", and Remaining risks said the probe "is not a measurement under either" and that a quoted path "passes the check" | Fixed: this entry, and the S-21 and S-24 rows and the two bullets of the 2026-10-14 entry are annotated with the date and a pointer |
 | U-03 | Minor | the runtime evidence of the check, README, CHANGELOG, decision 0025 | Four places said that exit 1 "does not block" under both wrappers. That holds for VS Code only (1.142.0, `HookExecutor`: an exit code of 2 blocks, any other non-zero code is a warning). The README's own statement for the Copilot SDK host is that it fails closed on every non-zero exit and denies the call. The verdict is right either way, but the sentence the controller reads was wrong for the second wrapper | Fixed: the runtime evidence says that VS Code treats exit 1 as a warning and the SDK host denies every call on it; the README, the CHANGELOG, decision 0025 and the S-21 and S-24 rows of this file say the same. Tests assert the wording and refuse "does not block"; mutations Q01 and Q02 were caught. The sweep for these four places missed four more (V-03) |
 | U-04 | Nit | comments of the check, README, CHANGELOG, decision 0025 | "Neither documented host starts `cmd.exe`" is true only by default. VS Code 1.142.0 (`X8a`) uses the PowerShell form only when `ComSpec` names `cmd.exe` and `SystemRoot` or `WINDIR` is set; otherwise it uses `shell:true`, which Node starts as `cmd.exe /d /s /c "<line>"` when `ComSpec` is unset or names `cmd.exe`, and as `<ComSpec> -c <line>` when it names another shell (this entry first said only the first form: V-01). It also finds PowerShell through `%SystemRoot%` and not through a search path. No verdict gap: the `cmd.exe` leg stays required | Fixed: the text says "by default" and names the condition, and says that VS Code starts Windows PowerShell from `%SystemRoot%\System32` and the SDK host starts `pwsh` by name. The fallback forms (`cmd.exe /d /s /c` and `<ComSpec> -c`) and the `POWERSHELL_UPDATECHECK=Off` that VS Code sets are listed among what no run covered. The facts about VS Code were read in its 1.142.0 bundle on this host, and none was run |
@@ -72,7 +80,11 @@ that was not repository-wide.
 | V-02 | Nit | CHANGELOG, decision 0025, the README row, the runtime note of the check, this entry | Facts that were only read were worded as done or measured: (a) "a push went ahead", though no push ran; (b) the host treatment of exit 1 sat inside text that ends "measured on 2026-10-16"; (c) the runtime note stated both host behaviours as fact; (d) this entry said that the reviewer "ran VS Code's own spawn call from Node" (it ran a Node `spawn` built from the arguments it read in `X8a`) and that "the kill of the process tree held" (it read `Kill($true)`; no time-out occurred in its runs, and it observed only the clean-up of the temporary folder); (e) the U-07 row said "one test under each wrapper", where there are two | Fixed: (a) "would go ahead"; (b) the parse error is the measured part, and what exit 1 does is read, as the README states and the VS Code bundle shows; (c) the note begins "As the hooks README states" and says "would go ahead", with a test and mutations Q01 to Q05; (d) and (e) reworded |
 | V-03 | Minor | the S-25 row of this file, decision 0025 (the `#` example), three comments of the suite | The sweep for U-03 was incomplete: they still said that exit 1 for a push "does not block" or "was not blocked" under both wrappers, where the README says that the SDK host fails closed on every non-zero exit | Fixed: the S-25 row is annotated like S-21 and S-24, and the decision and the comments say that VS Code treats exit 1 as a warning and the SDK host denies the call. The sweep this time covered `docs/`, `.memory-bank/`, `tests/`, `com.github.copilot/`, `skills/`, `source/`, `.github/`, the changelog and the README, for "does not block", "not blocked", "goes ahead" and "went ahead". What remains is intended or about other things: the assertions that refuse the old wording, quotations of it in this file, a historical finding in `assessment-log.md`, and hooks that never block a session |
 | V-04 | Nit | the relay test of `ContainmentVerifier.HookContract.Tests.ps1`, mutation G15 | The cap was not pinned. The six assertions of the test, run by hand against mutated copies of `Get-HookWrapperProblem`, passed when `-Limit 1000` was dropped at either site (the default is 200) and when each reason was cut at 1,000 on its own (up to about 6 KB for six reasons); only G13 to G15 were caught, and G15 (`-Limit 1` at one site) is not an edit anyone would make | Fixed: the test holds six reasons of 3,000 characters and a length between 1,050 and 1,500, so the default cap and a cap on each reason fail. Mutations G16 to G19 (the default cap and a cap on each reason, at either site) were added and caught, one failing test each |
-| V-05 | Nit | the docstring of `Get-HookWrapperProblem` | "Like every other text this check did not compose" is false: four `$($_.Exception.Message)` texts of `Test-HookContract` still reach the evidence unrelayed | Fixed: the docstring says "as Measure-HookWrapper does for the texts it relays". Not fixed, recorded: all four lines exist unchanged at `origin/main`, so relaying them is a separate change, to be made with S-20 |
+| V-05 | Nit | the docstring of `Get-HookWrapperProblem` | "Like every other text this check did not compose" is false: four `$($_.Exception.Message)` texts of `Test-HookContract` still reach the evidence unrelayed | Fixed: the docstring says "as Measure-HookWrapper does for the texts it relays". Not fixed, recorded: all four lines exist unchanged at `origin/main`, and so do the two closure details of the interpreter (W-03), so relaying them is a separate change, to be made with S-20 |
+| W-01 | Nit | this entry | The committed text still held the placeholder "the final gate is the next item", and its introduction said that the change "was gated again" while the only finished gate predated the V fixes | Fixed: the gate on `ecd82fc` is recorded under Tests, and the introduction points there |
+| W-02 | Nit | this entry (Tests) | "The delta round changed … one attribute (the `[OutputType]` …)" is wrong: the attribute changed in `01b0e31`, in the first round. `eff87a8` changed comments and one string literal of `Test-HookContract` only | Fixed: the attribute change is placed after the 88-mutation run, where it happened, and the delta round is said to have changed comments and one evidence string |
+| W-03 | Nit | this entry (Remaining risks), the U-01 row | "Four `$($_.Exception.Message)` texts" is true but incomplete: the two closure details of the interpreter (lines 2885 and 2891 of the verifier at `ecd82fc`, `$detail`) also pass the access check's reason unrelayed, and that reason is localized .NET text from `GetBaseException().Message`. The interpreter's path is limited to printable ASCII, but the reason is not; the first review's remark that the interpreter pattern "is safe" covered the path only | Fixed in the records: the follow-up reads "four texts and the two closure details of the interpreter", and the U-01 row says that the safety covers the path. Not fixed, recorded: both are older than this change (the same lines exist at `origin/main`), so relaying them is a separate change, with S-20 |
+| W-04 | Nit | `com.github.copilot/hooks/README.md` lines 50, 1171 and 1190 | They said flatly that both hosts run the launcher in an outer PowerShell, or that VS Code hands the command to a PowerShell shell, where the `HookContract` row says that VS Code does so only when `ComSpec` names `cmd.exe` and `SystemRoot` or `WINDIR` is set | Fixed: "by default" in the three places. The `HookContract` suite, the only one that reads this README, was run again: 239 passed, 0 failed |
 
 What the reviewer confirmed sound:
 
@@ -149,6 +161,39 @@ non-blocking warning (it read the mapping and did not run VS Code); a run on a
 standard-account token, a Microsoft Store `pwsh`, Ubuntu and macOS; and the costs of about
 85 and 7 seconds.
 
+What the final confirmation confirmed sound:
+
+- **V-01 to V-05.** The README row, the changelog, decision 0025, the U-04 and V-01 rows and
+  both comments of the script match `X8a` and Node's behaviour, and "went ahead" and "goes
+  ahead" are gone. A grep over the whole tree except `.git` and `output` leaves only the
+  assertions that refuse the old wording, quotations of it in this entry, unrelated "does not
+  block the chat" hits, and a historical finding in `assessment-log.md`. The docstring of
+  V-05 is true.
+- **V-04.** Evaluated by hand against a copy of the final verifier, without running Pester:
+  the committed code passes both rows (evidence of 1,201 and 1,161 characters, against bounds
+  of 1,050 and 1,500), and each mutation fails its own row (G13 15,292, G14 15,252, G15 202,
+  G16 401, G17 361, G18 5,303 and G19 5,263 characters). A cap of 500, and the first reason
+  only, fail too.
+- **`eff87a8`.** Of 71 functions only `Test-HookContract` differs in tokens, comments
+  excluded; the tokens outside the functions are identical, and exactly one string literal
+  differs. In the suite 2 of 128 blocks differ, the relay test and the quoted-path real-run
+  test, and both were tightened. `ecd82fc` touches no `.ps1` or `.json` file.
+- **The new note.** It is true against README lines 62 and 1174; "so a push would go ahead"
+  is the inference that the README supports at line 1184; the bundle of VS Code labels a
+  kind 3 result a non-blocking error (read, not run).
+- **The Tests section.** All 95 `Find` strings occur exactly once in a copy of the final text
+  and the 12 touched mutations parse after mutation; Q01 to Q05 are each caught by an
+  assertion of the note test. The 83 that were not run again target `Get-HookWrapper` (8),
+  `Get-HookWrapperProblem` (16), `Invoke-HookPayload` (6), `Measure-HookWrapper` (20) and
+  `Test-HookContract` (33), and none of that code changed except the one string that only Q01
+  to Q05 touch; the change to the suite only adds or tightens assertions.
+
+It could not verify: the gate and test counts, the analyzer and the 12 re-runs (it ran no
+Pester and no analyzer); the SDK host's behaviour; what VS Code does with a kind 3 result
+beyond its label; that no assertion was weakened outside the two changed blocks (it relied on
+the other 126 being token-identical); a standard-account run, a Microsoft Store `pwsh`,
+Ubuntu and macOS; and the costs of about 85 and 7 seconds.
+
 ### Tests
 
 - Mutation checks: 72 changes of the verifier were applied one at a time for the first
@@ -158,9 +203,10 @@ standard-account token, a Microsoft Store `pwsh`, Ubuntu and macOS; and the cost
   changes: G13 to G15 (the relay of a reason and its cap), W01 to W04 (the wording of the
   closure strings), N01 to N05 (the wrapper count), E01 (the environment variable under a
   wrapper), P01 (the Pass evidence) and Q01 and Q02 (the quoted-path note). All 88 were
-  caught and none survived, and the file had the same sha256 after the run. The delta
-  round (V-01 to V-05) changed comments, one evidence string and one attribute (the
-  `[OutputType]` of `Get-HookWrapper`, for the analyzer), and no logic. It added seven
+  caught and none survived, and the file had the same sha256 after the run. One attribute,
+  the `[OutputType]` of `Get-HookWrapper`, was changed after that run, for the analyzer, and
+  no logic (`01b0e31`). The delta round (V-01 to V-05, `eff87a8`) changed comments and one
+  evidence string, and no logic. It added seven
   mutations, Q03 to Q05 (the quoted-path note) and G16 to G19 (the default cap, and a cap
   on each reason, at either site), and rewrote Q01 and Q02 for the new text. A dry run
   showed that all 95 apply to the final text, once each, and parse. The 12 that touch the
@@ -183,7 +229,11 @@ standard-account token, a Microsoft Store `pwsh`, Ubuntu and macOS; and the cost
 - Full `build,test` gate on `f2e46e9` (the fixes of the first review): 5,341 passed, 0
   failed, 147 skipped, 90.84 % coverage, 21 build tasks and no error, 48 minutes; 13 more
   than on `d2da113`, which are the 13 new tests, and the same 16 warnings. The delta round
-  came after it, so the final gate is the next item: GATE3-RESULT.
+  came after it, so there is one more gate.
+- Full `build,test` gate on `ecd82fc` (after the delta round): 5,341 passed, 0 failed, 147
+  skipped, 90.84 % coverage, 21 build tasks and no error, 46 minutes; the same count as on
+  `f2e46e9`, because the delta round added no test, and the same 16 warnings. The commits
+  after it change only documents and records, and no code or test.
 - PSScriptAnalyzer 1.24.0 was clean at every severity, `Information` included, on the
   verifier and the suite after the fixes and again after the delta round; before the
   first fixes it reported one `Information` finding, the declared output type of
@@ -219,9 +269,10 @@ standard-account token, a Microsoft Store `pwsh`, Ubuntu and macOS; and the cost
   PowerShell from `%SystemRoot%\System32` and the SDK host starts `pwsh` by name, so both
   depend on an environment that the launcher owns.
 - S-33 stays a recorded Nit: its two spellings fail closed before the wrappers.
-- Four `$($_.Exception.Message)` texts of `Test-HookContract` still reach the evidence
-  unrelayed (V-05). They are older than this change, so relaying them is a separate
-  change, to be made with S-20.
+- Four `$($_.Exception.Message)` texts of `Test-HookContract` and the two closure details of
+  the interpreter (the access check's reason, which is localized .NET text) still reach the
+  evidence unrelayed (V-05, W-03). They are older than this change (the same lines exist at
+  `origin/main`), so relaying them is a separate change, to be made with S-20.
 - The suite of the check takes about 85 seconds longer and a verify run about 7 seconds
   longer, on one host; the reviewer did not verify the first figure.
 - The Custom `security-reviewer` agent cannot start in this runtime until the first entry

@@ -47,7 +47,7 @@ script and the underlying error on standard error and exits `2` for
 `command` and `powershell` need `pwsh` on `PATH`.
 
 The launcher passes the script's exit code through unchanged, but on Windows
-both hosts run it inside an outer PowerShell, which reports any failed native
+both hosts by default run it inside an outer PowerShell, which reports any failed native
 command as `1`:
 
 | Host | Spawn on Windows | Source |
@@ -1168,7 +1168,7 @@ the hook's atomic replace. Never write the file to inspect or repair evidence.
   That `hook.end` event's `output.additionalContext` shows exactly what the host
   injected, and the field is absent when nothing was.
 - **A `PreToolUse` block reaches the host as exit `1`.** On Windows both hosts
-  run the launcher inside an outer PowerShell `-Command` (see Launchers). That
+  by default run the launcher inside an outer PowerShell `-Command` (see Launchers). That
   outer PowerShell reports only whether its last command succeeded, so exit `2`
   arrives as `1`.
   - The Copilot SDK host fails closed on every non-zero `preToolUse` exit. The
@@ -1187,7 +1187,7 @@ the hook's atomic replace. Never write the file to inspect or repair evidence.
     hands the inner code on.
   - A bare trailing `exit` would not work: it exits `0` and would allow the call.
   - `command` cannot carry the statement, because `sh` runs it too.
-- **The hook dies with a PowerShell parser error.** VS Code hands the command to
+- **The hook dies with a PowerShell parser error.** VS Code by default hands the command to
   a PowerShell shell, which expands the double-quoted `-Command` argument before
   the child process parses it. A `$` token is therefore consumed by the outer
   shell and reaches the child as an empty string — `$b = if ($env:PLUGIN_ROOT)`
