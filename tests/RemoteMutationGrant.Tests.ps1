@@ -330,6 +330,13 @@ BeforeAll {
     # payload after a 7.8-second test. These cases test the rules and the grant, not the limit (tests/Hooks.Tests.ps1 does),
     # so the guard runs with the longest limit it accepts.
     $script:guardTimeLimit = @('-TimeLimitSecond', '10')
+    # The guard spends half of its time limit on walking a command and fails closed past that, so a call that was
+    # blocked after that long may have been stalled by the machine and not decided by the rules.
+    $script:guardStallSecond = [double]$script:guardTimeLimit[1] / 2
+    # A stalled call is run once more, and at most this many times in one run of this file, so that a guard that is
+    # slow on every call still fails.
+    $script:stallRetryLimit = 5
+    $script:stallRetryCount = 0
     $script:hookConfigPath = Join-Path -Path $script:repoRoot -ChildPath 'com.github.copilot/hooks/hooks.json'
     $script:powerShellPath = (Get-Process -Id $PID).Path
     $script:windowsPowerShellPath = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
@@ -404,7 +411,86 @@ BeforeAll {
         }
     }
 
-    function script:Invoke-Guard {
+    # True when a guard call ended the way a stalled one does: it failed closed (exit code 2) after it had run as long as
+    # the guard allows for its analysis, and the allowance for retries is not used up. A call that was allowed (exit
+    # code 0) has spent its grant and is never retried.
+    function script:Test-StallRetryDue {
+        param(
+            [Parameter(Mandatory)]
+            [int]$ExitCode,
+
+            [Parameter(Mandatory)]
+            [double]$ElapsedSecond,
+
+            [Parameter(Mandatory)]
+            [int]$RetryCount
+        )
+
+        ($ExitCode -eq 2) -and ($ElapsedSecond -ge $script:guardStallSecond) -and ($RetryCount -lt $script:stallRetryLimit)
+    }
+
+    # Runs a block that makes a guard call and returns an object with ExitCode and ElapsedSecond, and runs it once more
+    # when the call ended the way a stalled one does. The log says so, so a retry never goes unseen. The block runs in
+    # the scope of the caller and sees its variables.
+    function script:Invoke-StallRetry {
+        param(
+            [Parameter(Mandatory)]
+            [scriptblock]$Run,
+
+            [Parameter(Mandatory)]
+            [string]$Description,
+
+            [Parameter()]
+            [int]$PauseSecond = 1
+        )
+
+        $result = & $Run
+        if (script:Test-StallRetryDue -ExitCode $result.ExitCode -ElapsedSecond $result.ElapsedSecond -RetryCount $script:stallRetryCount) {
+            $script:stallRetryCount++
+            # What the first call printed is the one trace of a real defect that a retry could otherwise hide. A block
+            # message opens with about 245 characters that are the same every time, so 400 reach the sentence that tells a
+            # stall from an ordinary block.
+            $firstAnswer = if ($result.PSObject.Properties['Output']) { ([string]$result.Output -replace '\s+', ' ').Trim() } else { '' }
+            if ($firstAnswer.Length -gt 400) {
+                $firstAnswer = $firstAnswer.Substring(0, 400) + '...'
+            }
+
+            if (-not $firstAnswer) {
+                $firstAnswer = '(nothing)'
+            }
+
+            Write-Warning ('Stall retry {0} of {1} allowed: {2} ended with exit code {3} after {4:n1} s, past the {5:n1} s the guard allows for its analysis, so it runs once more. First answer: {6}' -f $script:stallRetryCount, $script:stallRetryLimit, $Description, $result.ExitCode, $result.ElapsedSecond, $script:guardStallSecond, $firstAnswer)
+            Start-Sleep -Seconds $PauseSecond
+            $result = & $Run
+        }
+
+        $result
+    }
+
+    # One round of concurrent guard calls as Invoke-StallRetry reads it. Its exit code is the lowest of the processes, so a
+    # round counts as failed closed only when no process was allowed and none ended otherwise.
+    function script:New-GuardRound {
+        param(
+            [Parameter(Mandatory)]
+            [string]$Path,
+
+            [Parameter(Mandatory)]
+            [object[]]$Result,
+
+            [Parameter(Mandatory)]
+            [double]$ElapsedSecond
+        )
+
+        [pscustomobject]@{
+            Path = $Path
+            Results = $Result
+            ExitCode = [int]($Result | Measure-Object -Property ExitCode -Minimum).Minimum
+            ElapsedSecond = $ElapsedSecond
+            Output = (@($Result | ForEach-Object -Process { $_.Output }) -join ' | ')
+        }
+    }
+
+    function script:Invoke-GuardOnce {
         param(
             [Parameter(Mandatory)]
             [AllowEmptyString()]
@@ -425,8 +511,32 @@ BeforeAll {
             $argumentList += @('-GrantRoot', ('"{0}"' -f $GrantRoot))
         }
 
+        $clock = [Diagnostics.Stopwatch]::StartNew()
         $started = script:Start-HookProcess -ScriptPath $script:guardScript -Payload $Payload -ArgumentList $argumentList -PowerShellPath $PowerShellPath -Environment $Environment
-        script:Wait-HookProcess -Started $started
+        $result = script:Wait-HookProcess -Started $started
+
+        Add-Member -InputObject $result -NotePropertyName ElapsedSecond -NotePropertyValue $clock.Elapsed.TotalSeconds -PassThru
+    }
+
+    function script:Invoke-Guard {
+        param(
+            [Parameter(Mandatory)]
+            [AllowEmptyString()]
+            [string]$Payload,
+
+            [Parameter()]
+            [string]$GrantRoot,
+
+            [Parameter()]
+            [string]$PowerShellPath = $script:powerShellPath,
+
+            [Parameter()]
+            [hashtable]$Environment = @{}
+        )
+
+        $guardArgument = @{ Payload = $Payload; GrantRoot = $GrantRoot; PowerShellPath = $PowerShellPath; Environment = $Environment }
+        $description = 'the guard call for ...{0}' -f $Payload.Substring([Math]::Max(0, $Payload.Length - 100))
+        script:Invoke-StallRetry -Description $description -Run { script:Invoke-GuardOnce @guardArgument }
     }
 
     function script:Invoke-Grant {
@@ -1030,17 +1140,33 @@ Describe 'Block-RemoteMutation with a Remote grant' -Tag 'Unit' {
     }
 
     It 'lets exactly one of several concurrent pushes use a single grant' {
-        $path = script:New-GrantFile -Root $script:root
         $payload = script:New-ToolPayload -Command 'git push origin main'
+        $argumentList = @($script:guardTimeLimit) + @('-GrantRoot', ('"{0}"' -f $script:root))
 
-        $started = 1..4 | ForEach-Object -Process {
-            script:Start-HookProcess -ScriptPath $script:guardScript -Payload $payload -ArgumentList (@($script:guardTimeLimit) + @('-GrantRoot', ('"{0}"' -f $script:root)))
+        # A stall that makes every process fail closed leaves nobody allowed, so that round runs again with a fresh grant.
+        $round = script:Invoke-StallRetry -Description 'four concurrent guard calls' -Run {
+            $path = script:New-GrantFile -Root $script:root
+            $clock = [Diagnostics.Stopwatch]::StartNew()
+            $started = 1..4 | ForEach-Object -Process {
+                script:Start-HookProcess -ScriptPath $script:guardScript -Payload $payload -ArgumentList $argumentList
+            }
+            $results = @($started | ForEach-Object -Process { script:Wait-HookProcess -Started $_ })
+
+            script:New-GuardRound -Path $path -Result $results -ElapsedSecond $clock.Elapsed.TotalSeconds
         }
-        $results = $started | ForEach-Object -Process { script:Wait-HookProcess -Started $_ }
 
-        @($results | Where-Object -Property ExitCode -EQ -Value 0).Count | Should -Be 1 -Because (($results | ForEach-Object -Process { $_.Output }) -join ' | ')
-        @($results | Where-Object -Property ExitCode -EQ -Value 2).Count | Should -Be 3
-        Test-Path -LiteralPath $path | Should -Be $false
+        @($round.Results | Where-Object -Property ExitCode -EQ -Value 0).Count | Should -Be 1 -Because (($round.Results | ForEach-Object -Process { $_.Output }) -join ' | ')
+        @($round.Results | Where-Object -Property ExitCode -EQ -Value 2).Count | Should -Be 3
+
+        # The guard empties a used-up grant under its lock and deletes the file afterwards. The delete fails when another
+        # guard process has the file open at that moment, and the file then stays, empty, which is no grant. That
+        # happened in about one run in twenty, so the test asks for what the guard promises: no usable grant is left.
+        if (Test-Path -LiteralPath $round.Path) {
+            (Get-Item -LiteralPath $round.Path).Length | Should -Be 0 -Because 'a used-up grant that stays on disk must have been emptied'
+        }
+
+        $again = script:Invoke-Guard -Payload $payload -GrantRoot $script:root
+        $again.ExitCode | Should -Be 2 -Because 'a grant that was used up cannot be spent again, whatever is left of its file'
     }
 
     It 'leaves no usable grant in a used-up file, because a process that waited on the lock opens it before the delete' {
@@ -1259,6 +1385,319 @@ Describe 'Hook configuration for the Remote grant' -Tag 'Unit' {
         foreach ($launcher in 'command', 'windows', 'powershell') {
             $entry.$launcher | Should -Match 'exit 1'
             $entry.$launcher | Should -Not -Match 'exit 2' -Because 'exit 2 blocks the prompt in VS Code'
+        }
+    }
+}
+
+Describe 'Retrying a guard call that a stall made fail closed' -Tag 'Unit' {
+    BeforeAll {
+        $script:savedStallRetryCount = $script:stallRetryCount
+    }
+
+    BeforeEach {
+        $script:stallRetryCount = 0
+        Mock Write-Warning {}
+        Mock Start-Sleep {}
+    }
+
+    AfterAll {
+        $script:stallRetryCount = $script:savedStallRetryCount
+    }
+
+    It 'takes the stall time from half of the time limit the guard is given' {
+        $script:guardStallSecond | Should -Be 5 -Because 'the guard walks a command for half of its limit and the suite gives it 10 seconds'
+    }
+
+    It 'matches the guard, which spends half of its time limit on walking a command' {
+        $guardText = Get-Content -LiteralPath $script:guardScript -Raw
+        $halvesItsLimit = $guardText -match '\$walkTimeLimit\s*=\s*\[TimeSpan\]::FromTicks\(\[long\]\(\$timeLimit\.Ticks\s*/\s*2\)\)'
+
+        $halvesItsLimit | Should -Be $true -Because 'the stall time of these tests is half of the time limit the guard is given, so change both together'
+    }
+
+    It 'decides <Expected> for a call that <Why>' -ForEach @(
+        @{ Why = 'failed closed exactly at the stall time'; ExitCode = 2; ElapsedSecond = 5; RetryCount = 0; Expected = $true }
+        @{ Why = 'failed closed long after the stall time, on the last retry allowed'; ExitCode = 2; ElapsedSecond = 9.5; RetryCount = 4; Expected = $true }
+        @{ Why = 'failed closed just before the stall time'; ExitCode = 2; ElapsedSecond = 4.9; RetryCount = 0; Expected = $false }
+        @{ Why = 'was allowed, however long it took'; ExitCode = 0; ElapsedSecond = 9.5; RetryCount = 0; Expected = $false }
+        @{ Why = 'ended with an exit code other than 0 and 2'; ExitCode = 1; ElapsedSecond = 9.5; RetryCount = 0; Expected = $false }
+        @{ Why = 'failed closed after the stall time with the allowance used up'; ExitCode = 2; ElapsedSecond = 9.5; RetryCount = 5; Expected = $false }
+    ) {
+        $due = script:Test-StallRetryDue -ExitCode $ExitCode -ElapsedSecond $ElapsedSecond -RetryCount $RetryCount
+
+        $due | Should -BeOfType ([bool])
+        $due | Should -Be $Expected
+    }
+
+    It 'runs a call once when the guard blocked it quickly' {
+        $script:calls = 0
+
+        $result = script:Invoke-StallRetry -Description 'a fake call' -Run {
+            $script:calls++
+            [pscustomobject]@{ ExitCode = 2; ElapsedSecond = 0.9 }
+        }
+
+        $script:calls | Should -Be 1
+        $result.ExitCode | Should -Be 2
+        Should -Invoke -CommandName Write-Warning -Exactly -Times 0 -Scope It
+    }
+
+    It 'runs a call once when it was allowed, however long it took, because an allowed call has spent its grant' {
+        $script:calls = 0
+
+        $result = script:Invoke-StallRetry -Description 'a fake call' -Run {
+            $script:calls++
+            [pscustomobject]@{ ExitCode = 0; ElapsedSecond = 9.5 }
+        }
+
+        $script:calls | Should -Be 1
+        $result.ExitCode | Should -Be 0
+    }
+
+    It 'runs a call again when it failed closed after the stall time, and returns the second result' {
+        $script:calls = 0
+        $script:fake = @(
+            [pscustomobject]@{ ExitCode = 2; ElapsedSecond = 8.7 }
+            [pscustomobject]@{ ExitCode = 0; ElapsedSecond = 1.1 }
+        )
+
+        $result = script:Invoke-StallRetry -Description 'a fake call' -Run { $script:fake[$script:calls++] }
+
+        $script:calls | Should -Be 2
+        $result.ExitCode | Should -Be 0
+        $result.ElapsedSecond | Should -Be 1.1
+    }
+
+    It 'runs a call at most twice, and returns the second result when it stalls again' {
+        $script:calls = 0
+        $script:fake = @(
+            [pscustomobject]@{ ExitCode = 2; ElapsedSecond = 8.7 }
+            [pscustomobject]@{ ExitCode = 2; ElapsedSecond = 9.1 }
+            [pscustomobject]@{ ExitCode = 0; ElapsedSecond = 1.0 }
+        )
+
+        $result = script:Invoke-StallRetry -Description 'a fake call' -Run { $script:fake[$script:calls++] }
+
+        $script:calls | Should -Be 2
+        $result.ElapsedSecond | Should -Be 9.1
+    }
+
+    It 'counts a retry against the allowance and says so in the log' {
+        $script:calls = 0
+        $script:fake = @(
+            [pscustomobject]@{ ExitCode = 2; ElapsedSecond = 8.7 }
+            [pscustomobject]@{ ExitCode = 0; ElapsedSecond = 1.1 }
+        )
+
+        $null = script:Invoke-StallRetry -Description 'a fake call' -Run { $script:fake[$script:calls++] }
+
+        $script:stallRetryCount | Should -Be 1
+        Should -Invoke -CommandName Write-Warning -Exactly -Times 1 -Scope It -ParameterFilter { $Message -match 'Stall retry 1 of 5 allowed: a fake call ended with exit code 2 after 8[.,]7 s' }
+    }
+
+    It 'waits a second before the retry, so that a short disturbance can pass' {
+        $script:calls = 0
+        $script:fake = @(
+            [pscustomobject]@{ ExitCode = 2; ElapsedSecond = 8.7 }
+            [pscustomobject]@{ ExitCode = 0; ElapsedSecond = 1.1 }
+        )
+
+        $null = script:Invoke-StallRetry -Description 'a fake call' -Run { $script:fake[$script:calls++] }
+
+        Should -Invoke -CommandName Start-Sleep -Exactly -Times 1 -Scope It -ParameterFilter { $Seconds -eq 1 }
+    }
+
+    It 'does not retry once the allowance is used up' {
+        $script:stallRetryCount = $script:stallRetryLimit
+        $script:calls = 0
+
+        $result = script:Invoke-StallRetry -Description 'a fake call' -Run {
+            $script:calls++
+            [pscustomobject]@{ ExitCode = 2; ElapsedSecond = 8.7 }
+        }
+
+        $script:calls | Should -Be 1
+        $result.ExitCode | Should -Be 2
+        $script:stallRetryCount | Should -Be $script:stallRetryLimit
+        Should -Invoke -CommandName Write-Warning -Exactly -Times 0 -Scope It
+    }
+
+    It 'puts the first answer of a retried call into the log, as one line cut to 400 characters' {
+        $script:calls = 0
+        $script:fake = @(
+            [pscustomobject]@{ ExitCode = 2; ElapsedSecond = 8.7; Output = ("No Grant marker lifts this block.`r`n" + ('x' * 800)) }
+            [pscustomobject]@{ ExitCode = 0; ElapsedSecond = 1.1; Output = '' }
+        )
+
+        $null = script:Invoke-StallRetry -Description 'a fake call' -Run { $script:fake[$script:calls++] }
+
+        Should -Invoke -CommandName Write-Warning -Exactly -Times 1 -Scope It -ParameterFilter { $Message -match 'First answer: No Grant marker lifts this block\. x{366}\.\.\.$' }
+    }
+
+    It 'cuts a first answer of <Length> characters after 400 and not before' -ForEach @(
+        @{ Length = 400; Ending = 'y{400}$' }
+        @{ Length = 401; Ending = 'y{400}\.\.\.$' }
+    ) {
+        Mock Write-Warning { $script:lastWarning = $Message }
+        $script:calls = 0
+        $script:fake = @(
+            [pscustomobject]@{ ExitCode = 2; ElapsedSecond = 8.7; Output = ('y' * $Length) }
+            [pscustomobject]@{ ExitCode = 0; ElapsedSecond = 1.1; Output = '' }
+        )
+
+        $null = script:Invoke-StallRetry -Description 'a fake call' -Run { $script:fake[$script:calls++] }
+
+        $script:lastWarning | Should -Match ('First answer: ' + $Ending)
+    }
+
+    It 'says that the first call printed nothing when it printed nothing' {
+        $script:calls = 0
+        $script:fake = @(
+            [pscustomobject]@{ ExitCode = 2; ElapsedSecond = 8.7 }
+            [pscustomobject]@{ ExitCode = 0; ElapsedSecond = 1.1 }
+        )
+
+        $null = script:Invoke-StallRetry -Description 'a fake call' -Run { $script:fake[$script:calls++] }
+
+        Should -Invoke -CommandName Write-Warning -Exactly -Times 1 -Scope It -ParameterFilter { $Message -match 'First answer: \(nothing\)$' }
+    }
+
+    Context 'reading one round of concurrent guard calls' {
+        It 'gives a round the exit code 0 when one process was allowed' {
+            $results = @(2, 0, 2, 2 | ForEach-Object -Process { [pscustomobject]@{ ExitCode = $_; Output = '' } })
+
+            $round = script:New-GuardRound -Path 'grant.json' -Result $results -ElapsedSecond 1.5
+
+            $round.ExitCode | Should -BeOfType ([int])
+            $round.ExitCode | Should -Be 0
+        }
+
+        It 'gives a round the exit code 2 only when every process failed closed' {
+            $results = @(2, 2, 2, 2 | ForEach-Object -Process { [pscustomobject]@{ ExitCode = $_; Output = '' } })
+
+            $round = script:New-GuardRound -Path 'grant.json' -Result $results -ElapsedSecond 7.5
+
+            $round.ExitCode | Should -Be 2
+        }
+
+        It 'gives a round the lowest exit code, so that a process that ended otherwise keeps it from a retry' {
+            $results = @(2, 1, 2, 2 | ForEach-Object -Process { [pscustomobject]@{ ExitCode = $_; Output = '' } })
+
+            $round = script:New-GuardRound -Path 'grant.json' -Result $results -ElapsedSecond 7.5
+
+            $round.ExitCode | Should -Be 1
+        }
+
+        It 'keeps the path, the results, the elapsed time of the whole round and what every process printed' {
+            $outputs = 'a', 'b', 'c', 'd'
+            $exitCodes = 2, 0, 2, 2
+            $results = @(0..3 | ForEach-Object -Process { [pscustomobject]@{ ExitCode = $exitCodes[$_]; Output = $outputs[$_] } })
+
+            $round = script:New-GuardRound -Path 'grant.json' -Result $results -ElapsedSecond 7.5
+
+            $round.Path | Should -Be 'grant.json'
+            $round.Results.Count | Should -Be 4
+            $round.ElapsedSecond | Should -Be 7.5
+            $round.Output | Should -Be 'a | b | c | d'
+        }
+
+        It 'is read by Invoke-StallRetry as a stall when nobody was allowed after the stall time' {
+            $script:calls = 0
+            $script:stalled = script:New-GuardRound -Path 'grant.json' -Result @(2, 2, 2, 2 | ForEach-Object -Process { [pscustomobject]@{ ExitCode = $_; Output = '' } }) -ElapsedSecond 7.5
+            $script:settled = script:New-GuardRound -Path 'grant.json' -Result @(0, 2, 2, 2 | ForEach-Object -Process { [pscustomobject]@{ ExitCode = $_; Output = '' } }) -ElapsedSecond 1.5
+            $script:rounds = @($script:stalled, $script:settled)
+
+            $round = script:Invoke-StallRetry -Description 'a fake round' -Run { $script:rounds[$script:calls++] }
+
+            $script:calls | Should -Be 2
+            $round.ExitCode | Should -Be 0
+        }
+    }
+
+    Context 'through Invoke-Guard, with a stand-in for the guard' {
+        BeforeAll {
+            $script:savedGuardScript = $script:guardScript
+            $script:savedGuardStallSecond = $script:guardStallSecond
+        }
+
+        BeforeEach {
+            $script:standIn = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
+            $null = New-Item -ItemType Directory -Path $script:standIn
+
+            # A guard that takes one answer per call from plan.json and records what it was given in seen.jsonl.
+            $standInScript = @'
+param([string]$TimeLimitSecond, [string]$GrantRoot)
+$here = Split-Path -Parent $PSCommandPath
+$plan = @(Get-Content -LiteralPath (Join-Path $here 'plan.json') -Raw | ConvertFrom-Json)
+$counter = Join-Path $here 'calls.txt'
+$call = if (Test-Path -LiteralPath $counter) { [int](Get-Content -LiteralPath $counter -Raw) } else { 0 }
+Set-Content -LiteralPath $counter -Value ($call + 1)
+$step = $plan[[Math]::Min($call, $plan.Count - 1)]
+$seen = [pscustomobject]@{ Payload = [Console]::In.ReadToEnd(); TimeLimitSecond = $TimeLimitSecond; GrantRoot = $GrantRoot; Probe = $env:STAND_IN_PROBE; Edition = $PSVersionTable.PSEdition }
+Add-Content -LiteralPath (Join-Path $here 'seen.jsonl') -Value ($seen | ConvertTo-Json -Compress)
+Start-Sleep -Milliseconds $step.SleepMilliseconds
+[Console]::Out.Write('stand-in out')
+[Console]::Error.Write('stand-in err')
+exit $step.ExitCode
+'@
+            Set-Content -LiteralPath (Join-Path $script:standIn 'stand-in.ps1') -Value $standInScript
+            $script:guardScript = Join-Path -Path $script:standIn -ChildPath 'stand-in.ps1'
+            # The stand-in sleeps 2.3 seconds to stall and a stall counts from 2 seconds here, so these tests stay short.
+            $script:guardStallSecond = 2
+        }
+
+        AfterEach {
+            $script:guardScript = $script:savedGuardScript
+            $script:guardStallSecond = $script:savedGuardStallSecond
+        }
+
+        It 'runs the guard again when a stall made it fail closed, and returns the answer of the second run' {
+            Set-Content -LiteralPath (Join-Path $script:standIn 'plan.json') -Value '[{"SleepMilliseconds":2300,"ExitCode":2},{"SleepMilliseconds":0,"ExitCode":0}]'
+
+            $result = script:Invoke-Guard -Payload '{"tool_input":{"command":"stand-in"}}'
+
+            $result.ExitCode | Should -Be 0
+            (Get-Content -LiteralPath (Join-Path $script:standIn 'calls.txt') -Raw).Trim() | Should -Be '2'
+            $script:stallRetryCount | Should -Be 1
+            Should -Invoke -CommandName Write-Warning -Exactly -Times 1 -Scope It -ParameterFilter { $Message -match 'Stall retry 1 of 5 allowed: the guard call for \.\.\..*stand-in.*First answer: stand-in outstand-in err$' }
+        }
+
+        It 'does not run the guard again after an allowed call, however long it took' {
+            Set-Content -LiteralPath (Join-Path $script:standIn 'plan.json') -Value '[{"SleepMilliseconds":2300,"ExitCode":0}]'
+
+            $result = script:Invoke-Guard -Payload '{"tool_input":{"command":"stand-in"}}'
+
+            $result.ExitCode | Should -Be 0
+            (Get-Content -LiteralPath (Join-Path $script:standIn 'calls.txt') -Raw).Trim() | Should -Be '1'
+            $script:stallRetryCount | Should -Be 0
+        }
+
+        It 'hands the payload, the grant root and the environment to the guard, and returns what the guard printed' {
+            Set-Content -LiteralPath (Join-Path $script:standIn 'plan.json') -Value '[{"SleepMilliseconds":0,"ExitCode":0}]'
+            $grantRoot = Join-Path -Path $TestDrive -ChildPath 'grants'
+
+            $result = script:Invoke-Guard -Payload '{"tool_input":{"command":"stand-in"}}' -GrantRoot $grantRoot -Environment @{ STAND_IN_PROBE = 'probe-value' }
+
+            $seen = Get-Content -LiteralPath (Join-Path $script:standIn 'seen.jsonl') | ConvertFrom-Json
+            $seen.Payload | Should -Be '{"tool_input":{"command":"stand-in"}}'
+            $seen.TimeLimitSecond | Should -Be '10' -Because 'the suite gives every guard call the longest limit the guard accepts'
+            $seen.GrantRoot | Should -Be $grantRoot
+            $seen.Probe | Should -Be 'probe-value'
+            $result.ExitCode | Should -Be 0
+            $result.StdOut | Should -Be 'stand-in out'
+            $result.StdErr | Should -Be 'stand-in err'
+            $result.Output | Should -Be 'stand-in outstand-in err'
+            $result.ElapsedSecond | Should -BeGreaterThan 0
+        }
+
+        It 'runs the guard under the PowerShell it is given' -Skip:(-not $script:windowsPowerShellAvailable) {
+            Set-Content -LiteralPath (Join-Path $script:standIn 'plan.json') -Value '[{"SleepMilliseconds":0,"ExitCode":0}]'
+
+            $null = script:Invoke-Guard -Payload '{}'
+            $null = script:Invoke-Guard -Payload '{}' -PowerShellPath $script:windowsPowerShellPath
+
+            $seen = @(Get-Content -LiteralPath (Join-Path $script:standIn 'seen.jsonl') | ConvertFrom-Json)
+            $seen.Edition | Should -Be @('Core', 'Desktop')
         }
     }
 }
