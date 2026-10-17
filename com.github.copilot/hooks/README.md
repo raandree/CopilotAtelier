@@ -808,10 +808,14 @@ failure, which warns, like the other non-blocking events.
   `session_id`, or one without a single usable character, gets no grant.
 - Files older than a day are removed. Delete a file to revoke its grant.
 - The guard consumes a grant under an exclusive open, all of an operation's uses
-  or none, and deletes the file when they run out. It accepts only schema 1, its
-  own session key, a lifetime of one to 3,600 seconds that has not ended and
-  did not begin more than two minutes ahead, known operations, and whole counts
-  from 0 to 20; anything else is no grant.
+  or none. When they run out it empties the file while it holds the lock, then
+  deletes it. On Windows the delete fails when another process has the file open
+  at that moment, as a second guard call of the same session can, and the file
+  then stays, empty and therefore no grant, until the session's next prompt
+  removes it or it is a day old. It accepts only schema 1, its own session key, a
+  lifetime of one to 3,600 seconds that has not ended and did not begin more
+  than two minutes ahead, known operations, and whole counts from 0 to 20;
+  anything else is no grant.
 - The grantable operations are listed in both scripts. They must stay identical,
   and a test compares them.
 
