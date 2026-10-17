@@ -124,15 +124,15 @@ commands and record each raw result and exit code in the controller ledger:
   the pinned controls, the binding of the running identity to its role, and the
   standard-account check of its token (`IdentityPrivilege`) have passed; require
   exit codes 0, 2, and 2. The verifier runs that command through
-  `cmd.exe /d /c` on Windows, while the documented hosts wrap it in PowerShell,
-  so that is not a measurement under a host: the verifier accepts only command
-  text of one plain shape that `cmd.exe`, PowerShell and a POSIX shell are
-  expected to read alike (bare words, non-empty double-quoted words, and at most
-  the one pinned exit statement; a test parses generated lines, and no check
-  runs the pinned line under a host), and says in its evidence when the program
-  path is quoted, which a PowerShell host cannot run: record that in the report
-  as a limitation, because the hook is then not shown to run under a PowerShell
-  host. The command must
+  `cmd.exe /d /c` and, on Windows, under Windows PowerShell 5.1 and PowerShell 7
+  started the way the hooks README gives for VS Code and the Copilot SDK host,
+  and requires 0, 2, and 2 under each; a quoted program path, which a PowerShell
+  host cannot run, fails there. That rebuilds the two spawns and runs no host, so
+  record in the report that the line was not run in a host itself. It accepts
+  only command text of one plain shape (bare words, non-empty double-quoted
+  words, and at most the one pinned exit statement), shows each wrapper program
+  closed to the run identity before it runs anything, and does not run the
+  wrappers when the line already failed under `cmd.exe`. The command must
   start with the absolute path of
   PowerShell (`powershell` or `pwsh`; the verifier refuses any other program),
   and the verifier requires that interpreter to be closed to the run identity
