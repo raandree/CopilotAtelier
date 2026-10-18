@@ -388,14 +388,18 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Why = 'a quoted NT path to a share'; Line = '"\??\UNC\server\share\powershell.exe" -NoProfile -Command exit'; Match = 'drive letter' }
         @{ Why = 'a quoted path with a single question mark'; Line = '"\?\C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit'; Match = 'drive letter' }
         @{ Why = 'an unquoted NT path'; Line = '\??\C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command exit'; Match = 'drive letter' }
-        # S-33: only an unquoted program word is held to the program-word shape, so a colon after the drive got through the
-        # drive rule in a quoted one. Windows rejects such a name as invalid or reads it as a stream of a file, so none of
-        # these names the file it appears to, and the colon is refused whether the word is quoted or not.
-        @{ Why = 'a quoted program path with a colon right after the drive'; Line = '"C:\:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit'; Match = 'colon' }
-        @{ Why = 'a quoted program path with a colon in a folder name'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0:x\powershell.exe" -NoProfile -Command exit'; Match = 'colon' }
-        @{ Why = 'a quoted program path with a colon in a folder name, written with forward slashes'; Line = '"C:/Windows/System32:x/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -Command exit'; Match = 'colon' }
-        @{ Why = 'a quoted program path with a colon that names a stream of the program'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe:x" -NoProfile -Command exit'; Match = 'colon' }
-        @{ Why = 'an unquoted program path with a colon right after the drive'; Line = 'C:\:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command exit'; Match = 'colon' }
+        # S-33: only an unquoted program word is held to the program-word shape, so a second colon, after the one that ends the
+        # drive letter, got through the drive rule in a quoted word. Windows rejects such a name as invalid or reads it as a
+        # stream of a file, so none of these names the file it appears to, and the colon is refused whether the word is quoted
+        # or not. The match is the phrase of the reason, because "colon" is also a part of "semicolon", and the drive letters
+        # differ so that a rule that narrows the letter (upper case only, or C only) is seen.
+        @{ Why = 'a quoted program path with a colon right after the drive'; Line = '"C:\:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit'; Match = 'second colon' }
+        @{ Why = 'a quoted program path with a colon in a folder name'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0:x\powershell.exe" -NoProfile -Command exit'; Match = 'second colon' }
+        @{ Why = 'a quoted program path with a colon in a folder name, written with forward slashes'; Line = '"C:/Windows/System32:x/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -Command exit'; Match = 'second colon' }
+        @{ Why = 'a quoted program path with a colon that names a stream of the program'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe:x" -NoProfile -Command exit'; Match = 'second colon' }
+        @{ Why = 'an unquoted program path with a colon right after the drive'; Line = 'C:\:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command exit'; Match = 'second colon' }
+        @{ Why = 'a quoted program path with a colon right after a lower-case drive letter'; Line = '"c:\:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command exit'; Match = 'second colon' }
+        @{ Why = 'a quoted program path with a colon in a folder name on another drive'; Line = '"D:\Tools\a:b\powershell.exe" -NoProfile -Command exit'; Match = 'second colon' }
         # S-31: the Windows PowerShell 5.1 wrapper drops an empty quoted argument that cmd.exe and the PowerShell 7
         # wrapper pass on, so the shape does not read an empty quoted word.
         @{ Why = 'an empty quoted word'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File x.ps1 ""'; Match = 'shape' }

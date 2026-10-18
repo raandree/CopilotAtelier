@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-16
+last-verified: 2026-10-18
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -19,12 +19,12 @@ PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
 ## Recent milestones
 
 - **2026-10-18**: S-33 (`software-engineer`, `review: on`), the next P5 follow-up, built on
-  `ai/s33-quoted-drive-colon` after #43 and #44 merged: `Get-HookInterpreter` refuses a program
-  path with a colon after the drive letter, quoted or not (a quoted one passed the drive rule and
-  failed closed only later). Five rows of the refused-lines table were red first, 11 deliberate
-  defects are caught, and 200,000 generated lines against the earlier function changed only where
-  the path holds that colon (17,111 lines, accepted then refused). Not pushed; also carries the
-  records of #43 and #44.
+  `ai/s33-quoted-drive-colon` after #43 and #44 merged: `Get-HookInterpreter` refuses a program path
+  with a second colon, after the one of the drive letter, quoted or not (a quoted one passed the drive
+  rule and ended at "could not be measured"). Seven rows were red first, 15 deliberate defects are
+  caught, and 200,000 generated lines against the earlier function changed only where the path holds
+  that colon (17,111 lines). One review (built-in `security-review` agent): Approve with changes, no
+  vulnerability, 6 findings fixed; gate 5,374 passed. Not pushed; carries the records of #43 and #44.
 - **2026-10-17**: The Remote grant tests (`software-engineer`, `review: on`), merged as #44 (squash
   `ab01e51`, `6.1.0-preview0015`): 3 of the 4 red Windows legs in 14 since 13 October, both attempts of
   #43 among them, were a runner stall that made the guard fail closed and a harmless empty grant file

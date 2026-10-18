@@ -2239,10 +2239,10 @@ function Get-HookInterpreter {
         a textual normalization does not, and may not start with two separators in any mix (a network
         or device path). On Windows it has to start with a drive letter and a separator, because the
         call that measures the rights opens a path such as \??\UNC\server\share as the NT path it
-        names and reads its access list over the network, and it may hold no colon after the drive
-        letter, quoted or not, because Windows rejects such a name as invalid or reads it as a
-        stream of a file, so it does not name the file it appears to. An unquoted program word holds
-        only letters, digits and . _ - / \ :.
+        names and reads its access list over the network, and it may hold no second colon, after the
+        one that ends the drive letter, quoted or not, because Windows rejects such a name as invalid
+        or reads it as a stream of a file, so it does not name the file it appears to. An unquoted
+        program word holds only letters, digits and . _ - / \ :.
 
         After the program the line is words separated by spaces or tabs. A word is bare, of letters,
         digits and . _ : \ / -, and a bare word that starts with a dash is an option name of letters
@@ -2344,10 +2344,11 @@ function Get-HookInterpreter {
         return [pscustomobject]@{ Path = $null; Problem = "the program '$word' does not start with a drive letter and a separator, so it may be a network, device or NT path (\??\ is opened as the NT path it names, and a share is read over the network as the identity of the verifier), which this check does not read" }
     }
 
-    # A colon after the drive letter is a stream of a file or an invalid name, never part of a folder path: CreateFileW rejects "C:\:\x"
-    # and "C:\a:b\x", so the word does not name the file it appears to. The program-word shape holds an unquoted word to this; a quoted one is not.
+    # A second colon, after the one that ends the drive letter, is a stream of a file or an invalid name, never part of a folder path:
+    # CreateFileW rejects "C:\:\x" and "C:\a:b\x", so the word does not name the file it appears to. The program-word shape holds an
+    # unquoted word to this; a quoted one is not.
     if ($script:OnWindows -and $word -cmatch '\A[A-Za-z]:[\\/].*:') {
-        return [pscustomobject]@{ Path = $null; Problem = "the program '$word' has a colon after the drive letter, which Windows rejects as an invalid name or reads as a stream of a file, so it is not the file the text appears to name" }
+        return [pscustomobject]@{ Path = $null; Problem = "the program '$word' has a second colon, after the one of the drive letter, which Windows rejects as an invalid name or reads as a stream of a file, so it is not the file the text appears to name" }
     }
 
     if (-not $quoted -and $word -cnotmatch $script:HookProgramWord) {

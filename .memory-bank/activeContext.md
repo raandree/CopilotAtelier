@@ -9,10 +9,11 @@ source: current task evidence
 
 ## Current focus
 
-**S-33, a colon after the drive letter of the program path, is built on `ai/s33-quoted-drive-colon`
-(local; the owner pushes it).** `Get-HookInterpreter` refuses such a path, quoted or not; a quoted one
-passed the drive rule and failed closed only later (`docs/SECURITY-REVIEW.md`). The verifier digest
-changes again, so re-pin it after this merges. The change also carries the records of #43 and #44.
+**S-33, a second colon in the program path, is built and reviewed on `ai/s33-quoted-drive-colon`
+(local; the owner pushes it).** `Get-HookInterpreter` refuses a program path with a second colon,
+after the one of the drive letter, quoted or not (`docs/SECURITY-REVIEW.md`: Approve with changes,
+no vulnerability, 6 findings fixed). The verifier digest changes again, so re-pin it after this
+merges; the change also carries the records of #43 and #44.
 
 **#43 and #44 are merged** (2026-10-17). #43 (squash `1de0c04`, `6.1.0-preview0016`): `HookContract`
 also runs the pinned line under Windows PowerShell 5.1 and the PowerShell that runs the verifier and
