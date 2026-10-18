@@ -9,19 +9,19 @@ source: current task evidence
 
 ## Current focus
 
-**S-33, a second colon in the program path, is built and reviewed on `ai/s33-quoted-drive-colon`
-(local; the owner pushes it).** `Get-HookInterpreter` refuses a program path with a second colon,
-after the one of the drive letter, quoted or not (`docs/SECURITY-REVIEW.md`: Approve with changes,
-no vulnerability, 6 findings fixed). The verifier digest changes again, so re-pin it after this
-merges; the change also carries the records of #43 and #44.
+**The property test of the hook-line shape also runs on a fresh seed on CI; it is built, gated and
+reviewed on `ai/property-test-fresh-seed` (local; the owner pushes it).** On CI (`CI=true`) the
+seeded test of `ContainmentVerifier.HookContract.Tests.ps1` runs once more on a seed it draws and
+prints with the PowerShell version, and `CONTAINMENT_PROPERTY_SEED=N` runs one again (a bad value
+fails and never falls back to another). The review found the comparison, the draw width and the
+wiring unpinned; 78 tests pin them. Test-only: the verifier and its digest do not change.
 
-**#43 and #44 are merged** (2026-10-17). #43 (squash `1de0c04`, `6.1.0-preview0016`): `HookContract`
-also runs the pinned line under Windows PowerShell 5.1 and the PowerShell that runs the verifier and
-needs 0, 2, 2 under all three; a quoted program path now fails; no host ran the line (decision 0025,
-revision 2026-10-16). #44 (squash `ab01e51`, `6.1.0-preview0015`): the Remote grant tests retry a call
-once after a runner stall and assert what the guard promises about a leftover grant file. `main` CI
-passed for both. The owner refreshes `~/.copilot` (it has no verifier yet), re-pins the digest, and
-says whether a profile pins a quoted program path (it now fails).
+**S-33 is merged** as #45 (squash `a481c9d`, `6.1.0-preview0017`; Windows CI 5,332 passed): a second
+colon in the program path is refused, quoted or not (`docs/SECURITY-REVIEW.md`, 2026-10-18). With #43
+(`1de0c04`: the pinned line also runs under Windows PowerShell 5.1 and the PowerShell that runs the
+verifier, and a quoted program path fails) and #44 (`ab01e51`: the Remote grant tests retry after a
+runner stall) it is on `main`. The owner re-pins the verifier digest once (sha256 `dd415737…2415`),
+refreshes `~/.copilot` (it has no verifier yet), and says whether a profile pins a quoted program path.
 
 **R-04 is merged** as #42 (`6.1.0-preview0014`): `IdentityPrivilege` reads the verifier's access
 token and refuses one that is not a standard account's; the Pass runs only through a seam (decision
@@ -158,13 +158,12 @@ unproven — train reached 100 % while validation fell.
    no dialog (P3 and P8 are deployed with P2; `./Setup-CopilotSettings.ps1` after a
    `git pull --ff-only origin main` only refreshes the record). Agents cannot push; the
    deployed copy under `~/.copilot` is the owner's to refresh.
-3. The S-33 branch (`ai/s33-quoted-drive-colon`, local) waits for the owner: push, pull request and
-   squash merge (the commands are in the chat), then delete the merged branches on `origin`. Then
-   the P5 follow-ups (`docs/SECURITY-REVIEW.md`: the property test once in CI with a fresh seed,
-   S-20, the escape set of `WritableRoots`, S-19, the run id of `-Revalidate`), P1, the 06c choices
-   (E-08, E-09), the P6 labels and the P8 assumptions (Desktop `LEDGER.md`). The closing test of
-   R-04 (a throwaway local account read through `LogonUser`, expecting a Pass) needs the owner's yes
-   on a development host.
+3. The property-seed branch (`ai/property-test-fresh-seed`, local) waits for the owner: push, pull
+   request and squash merge (the commands are in the chat), then delete the merged branches on
+   `origin`. Then the P5 follow-ups (`docs/SECURITY-REVIEW.md`: S-20, the escape set of
+   `WritableRoots`, S-19, the run id of `-Revalidate`), P1, the 06c choices (E-08, E-09), the P6
+   labels and the P8 assumptions (Desktop `LEDGER.md`). The closing test of R-04 (a throwaway local
+   account read through `LogonUser`, expecting a Pass) needs the owner's yes on a development host.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.
