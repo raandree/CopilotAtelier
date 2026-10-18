@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-16
+last-verified: 2026-10-18
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -12,62 +12,62 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
 `6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0014` (`3481536`, 2026-10-16) to GitHub Releases and the
-PowerShell Gallery (verified 2026-10-16). Incremental work is tracked under
+`6.1.0-preview0016` (`1de0c04`, 2026-10-17) to GitHub Releases and the
+PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-18**: S-33 (`software-engineer`, `review: on`), the next P5 follow-up, built on
+  `ai/s33-quoted-drive-colon` after #43 and #44 merged: `Get-HookInterpreter` refuses a program path
+  with a second colon, after the one of the drive letter, quoted or not (a quoted one passed the drive
+  rule and ended at "could not be measured"). Seven rows were red first, 15 deliberate defects are
+  caught, and 200,000 generated lines against the earlier function changed only where the path holds
+  that colon (17,111 lines). One review (built-in `security-review` agent): Approve with changes, no
+  vulnerability, 6 findings fixed; gate 5,374 passed. Not pushed; carries the records of #43 and #44.
+- **2026-10-17**: The Remote grant tests (`software-engineer`, `review: on`), merged as #44 (squash
+  `ab01e51`, `6.1.0-preview0015`): 3 of the 4 red Windows legs in 14 since 13 October, both attempts of
+  #43 among them, were a runner stall that made the guard fail closed and a harmless empty grant file
+  that stays on Windows when another guard process holds it at the delete. `Invoke-Guard` retries a
+  call once after exit 2 at 5 s or more (at most 5 per run, warned); the concurrent-push test asserts
+  what the guard promises. Test-only, the guard unchanged: 28 tests, 39 mutants caught, one review
+  (Approve with changes, then Approve), gate 5,304 passed.
 - **2026-10-16**: The pinned hook line under the PowerShell hosts (`software-engineer`, `review: on`),
-  the first follow-up after R-04 that the owner chose (option A of a design note), built on
-  `ai/hook-line-under-hosts` after #42 merged: `HookContract` also runs the line under Windows
-  PowerShell 5.1 and the PowerShell that runs the verifier, built from the README's table of hosts,
-  and needs 0, 2, 2 under all three; each wrapper is shown closed to the run identity first, and a
-  quoted program path now fails (1, 1, 1 under both wrappers; the old check passed it). Three reviews
-  (Approve with changes, Approve with changes, Approve; 16 findings, mostly wording that claimed more
-  than was run), 95 mutation checks none of which survived, gates of 5,328, 5,341 and 5,341 passed.
-  No host ran the line (decision 0025, revision 2026-10-16). Not pushed.
-- **2026-10-15**: R-04 (`software-engineer`, `review: on`), the first P5 follow-up, built on
-  `ai/r04-run-identity-token` after #41 merged (`0145cbf`, `6.1.0-preview0013`): the required
-  check `IdentityPrivilege` reads the access token of the verifier process and refuses one that
-  is not a standard account's (elevated, split administrator token, above Medium integrity, the
-  Administrators group in any state, or a privilege outside five; a thread that impersonates
-  is unmeasured), and gates the hook probe, git and the appender. One review said Approve with
-  changes (no Blocker or Major, 10 Minors, 2 Nits); the fixes are test first with 109 mutation
-  checks, none survived. Full gate on `840a438`: 5,276 passed, 0 failed, 147 skipped, 90.84 %.
-  A delta check said Approve with changes (2 Minors, 4 Nits, none fixed in code). The Pass is
-  tested through a seam (decision 0025, revision 2026-10-15). Merged as #42 on 2026-10-16
-  (squash `3481536`, `6.1.0-preview0014`; CI 5,232, 4,298 and 4,296 passed, none failed).
-- **2026-10-12 to 2026-10-15**: P5 (`software-engineer`, `review: on`) rebuilt the containment
-  verifier `Test-RunContainment.ps1` and the ledger appender `Invoke-LedgerAppender.ps1` after
-  a first review that said Block (13 findings). Nine independent reviews in all; each fix round
-  but the last found something new in the code the previous one added, the two Majors
-  (S-21, S-25) in `Get-HookInterpreter`, whose hook-line check became a plain shape held to
-  the PowerShell parser by a seeded test; the last, part F, said Approve. The claims shrank
-  where a reviewer showed them too large (decision 0025). Final gate on `d8eddb4`: 5,063
-  passed, 0 failed, 146 skipped, 90.84 %. Written down as not done: the pinned line run under
-  the PowerShell hosts, S-33, a two-account test (R-04 and the hook line followed, above). Merged as #40 on
-  2026-10-15 (squash `0531814`, `6.1.0-preview0012`; `main` CI 5,020, 4,145 and 4,143 passed,
-  none failed); `systemPatterns.md` has the patterns CI found.
-- **2026-10-13 to 2026-10-14**: P2 (`software-engineer`, `review: on`) built the Remote grant
-  on `ai/hook-ask-remote-approval`: a Grant marker the user types in their own prompt, such
-  as `[[allow-remote: git push, gh pr create]]`, makes the new `UserPromptSubmit` hook
-  `Add-RemoteGrant.ps1` record a short-lived, session-bound grant that
-  `Block-RemoteMutation.ps1` consumes, the same in the Agent Host, VS Code Local, and Copilot
-  CLI. A hook `ask` was disproved live (the Agent Host approves it under auto-approve),
-  `COPILOT_ATELIER_ALLOW_REMOTE` is removed, and the guard reads PowerShell as a syntax tree,
-  so a string that only mentions a blocked command passes. Seven independent review passes
-  (three rejections, an approval with changes, three more the owner asked for, and a bounded
-  delta check) left no Blocker or Major, each finding a test that failed first; live
-  acceptance passed on 2026-10-13. Merged as #38 (squash `1c1327e`, 2026-10-14 09:29 UTC;
-  `6.1.0-preview0011`) after one CI fix: a Windows runner stall made the guard name its time
-  limit, so the two new suites run it with the longest limit it accepts. Decision 0016 holds
-  the evidence; `activeContext.md` the state.
-- **2026-10-12**: Merged #32 to #36 into `main` one at a time (`6.1.0-preview0005` to `0009`):
-  #34 corrects the `automatedlab-deployment` Skill (P7), #35 hands a command the user runs
-  over in its own fenced code block (P3), #36 adds the task ledger and `/migrate-handoff-sequence`
-  to `subagent-dispatch` (P8; no external eval ran). The review of the hand-merged hook scripts
-  approved with changes (M-01 to M-06; M-04, a `.familiarity` name collision, stays open).
+  the first follow-up after R-04 that the owner chose: `HookContract` also runs the line under Windows
+  PowerShell 5.1 and the PowerShell that runs the verifier, built from the README's table of hosts, and
+  needs 0, 2, 2 under all three; each wrapper is shown closed to the run identity first, and a quoted
+  program path now fails (1, 1, 1 under both wrappers; the old check passed it). Three reviews (16
+  findings, mostly wording that claimed more than was run), 95 mutation checks none of which survived,
+  final gate 5,341 passed. No host ran the line (decision 0025, revision 2026-10-16). Merged as #43 on
+  2026-10-17 (squash `1de0c04`, `6.1.0-preview0016`; `main` CI 5,325 passed on Windows, none failed).
+- **2026-10-15**: R-04 (`software-engineer`, `review: on`), the first P5 follow-up: the required check
+  `IdentityPrivilege` reads the access token of the verifier process and refuses one that is not a
+  standard account's (elevated, split administrator token, above Medium integrity, the Administrators
+  group in any state, or a privilege outside five; a thread that impersonates is unmeasured), and gates
+  the hook probe, git and the appender. One review and a delta check said Approve with changes (no
+  Blocker or Major); the fixes are test first with 109 mutation checks, none survived, final gate 5,276
+  passed. The Pass is tested through a seam (decision 0025, revision 2026-10-15). Merged as #42 on
+  2026-10-16 (squash `3481536`, `6.1.0-preview0014`).
+- **2026-10-12 to 2026-10-15**: P5 (`software-engineer`, `review: on`) rebuilt the containment verifier
+  `Test-RunContainment.ps1` and the ledger appender `Invoke-LedgerAppender.ps1` after a first review
+  that said Block (13 findings). Nine independent reviews in all; each fix round but the last found
+  something new in the code the previous one added, the two Majors (S-21, S-25) in
+  `Get-HookInterpreter`, whose hook-line check became a plain shape held to the PowerShell parser by a
+  seeded test; the last said Approve. The claims shrank where a reviewer showed them too large
+  (decision 0025). Final gate on `d8eddb4`: 5,063 passed. Not done: a two-account test (R-04, the hook
+  line and S-33 followed, above). Merged as #40 on 2026-10-15 (squash `0531814`, `6.1.0-preview0012`);
+  `systemPatterns.md` has the patterns CI found.
+- **2026-10-13 to 2026-10-14**: P2 (`software-engineer`, `review: on`) built the Remote grant: a Grant
+  marker the user types in their own prompt, such as `[[allow-remote: git push, gh pr create]]`, makes
+  the new `UserPromptSubmit` hook `Add-RemoteGrant.ps1` record a short-lived, session-bound grant that
+  `Block-RemoteMutation.ps1` consumes, the same in the Agent Host, VS Code Local, and Copilot CLI. A hook
+  `ask` was disproved live (the Agent Host approves it under auto-approve),
+  `COPILOT_ATELIER_ALLOW_REMOTE` is removed, and the guard reads PowerShell as a syntax tree. Seven
+  independent review passes left no Blocker or Major; live acceptance passed on 2026-10-13. Merged as
+  #38 (squash `1c1327e`, `6.1.0-preview0011`). Decision 0016 holds the evidence.
+- **2026-10-12**: Merged #32 to #36 one at a time (`6.1.0-preview0005` to `0009`): P7, P3 (a command the
+  user runs comes in its own fenced block) and P8 (the task ledger). The review of the hand-merged hook
+  scripts approved with changes (M-01 to M-06; M-04, a `.familiarity` name collision, stays open).
 
 ## Stable capabilities
 

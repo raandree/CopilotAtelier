@@ -4,6 +4,105 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-10-18: a second colon in the program path, S-33 (follow-up of prompt P5)
+
+The built-in `security-review` agent reviewed the change that closes S-33, the Nit that the
+review of 2026-10-14 left open: `Get-HookInterpreter` of `Test-RunContainment.ps1` refuses a
+program path that holds a second colon, after the one that ends the drive letter. The Custom
+`security-reviewer` agent could not start (the model its definition names is not available in
+this runtime), so, as for the change of 2026-10-16, the built-in agent took it. The reviewer
+read the commit `d4aa90b` (`git diff 1de0c04..d4aa90b`), read-only and in a fresh context, ran 111
+program words (196 lines, quoted and not) through the old and the new function in separate
+processes, compared what `CreateFileW` opens for the raw word and for the normalized path, and
+said **Approve with changes**: no vulnerability, one Minor (Z-03) and five Nits (Z-01, Z-02,
+Z-04 to Z-06). Every finding was fixed in the same change. No second review pass was asked
+for: the fixes change two test rows, one reason string, comments and records, and not the
+logic of the rule.
+
+### Scope
+
+- Can a program word pass `Get-HookInterpreter` whose measured path (`GetFullPath`, later opened
+  with `CreateFileW`) is not the file the word appears to name, other than the documented residual
+  of a mapped drive or a `subst`?
+- Does the new rule refuse anything that a legitimate deployment needs, change another message
+  that a test or a consumer reads, or sit in the wrong place among the other rules?
+- Do the new test rows fail without the rule, and for the right reason, and are they enough?
+- Do the README, the CHANGELOG, decision 0025 and the Memory Bank claim more than the code and
+  the measurements show?
+
+### Verdict
+
+**Approve with changes.** The reviewer found no security vulnerability. The rule only removes
+lines from the accepted set: in its samples nothing went from refused to accepted, and no
+returned path changed. It sits after the `IsPathFullyQualified`, dot-segment and drive rules and
+before the program-word and name rules, it cannot refuse a real Windows program path (a file name
+has no colon there), it is linear (39 ms on 4,000,000 characters without a colon), and no
+accepted program word it could build opens a file other than the one the text names. What it
+found was an inaccurate sentence about what the old spellings did, an over-broad claim, two
+missing test rows, three stale places in this file, and a wording that read literally forbade
+the drive's own colon.
+
+### Findings
+
+| ID | Severity | Where | Finding | Resolution |
+|---|---|---|---|---|
+| Z-01 | Nit | CHANGELOG, commit message | They said that the two old quoted spellings "failed closed later, at 'the interpreter does not exist'". Measured: `File.GetAttributes` throws an IOException with HRESULT 0x8007007B (error 123) for both, and `Get-ObjectRight` maps only a file-not-found and a directory-not-found error to Absent, so both end as Unknown and `HookContract` ends at "could not be shown to be closed" (Unavailable), never at "does not exist". Only a stream on the program itself (`powershell.exe:x`) is a file-not-found, and the name rule already refused that. I re-checked the three `GetAttributes` results. Decision 0025 and the S-33 row said "or could not be measured", which is the right half | Fixed: the CHANGELOG, decision 0025 and the commit message say that the check ended at "could not be measured" (Unavailable) |
+| Z-02 | Nit | the five rows | All five used an upper-case `C:`, so the drive-letter class of the rule was untested: two changes that narrow it (`[A-Z]` only, and `C` only) survived all five rows and would let `"c:\:\...` and `"D:\Tools\a:b\..."` through. `Match = 'colon'` is also a part of "semicolon" | Fixed: two rows (a lower-case drive letter, and a folder name on drive D), and every row now matches the phrase `second colon`. The changes S12 (upper case only), S13 (`C` only) and S14 (lower case only) are caught, S12 by the lower-case row alone and S13 by the two new rows, and S15 (the reason says "colon" without "second") is caught too |
+| Z-03 | Minor | decision 0025, commit message | "The drive rule now closes every spelling of a program path that starts on a local drive" is stronger than the change shows. The function still accepts, with `Problem = $null`, quoted spellings that name no file or another folder than the one shown: a folder name with a trailing space or made of a dot and a space (error 3), a wildcard, a pipe or a tab (error 123), `C:\\?\UNC\server\share\...` (it collapses to `C:\?\UNC\...`, error 123, no network access), and an unquoted `...\v1.0\...\powershell.exe` (error 3). The reviewer measured 39 such lines among 76 accepted ones, and the other 37 open the file the text names (volume and file index compared for the raw word and the normalized path, 0 mismatches). They fail closed at the measure, and a quoted program path cannot pass the wrapper runs anyway, so there is no security impact | Fixed in the claim: decision 0025, the CHANGELOG and this entry say that the rule closes the spellings with a second colon, and the other spellings are recorded as the same Nit |
+| Z-04 | Nit | this file | Three places still called S-33 open (the 2026-10-16 entry: "stays a recorded Nit"; the S-33 row: "Not fixed, a recorded follow-up"; a remaining risk of the 2026-10-14 entry: "a follow-up with a one-line fix and two test rows"), and the row described another fix than the one built: `\A[A-Za-z]:[\\/][^:]*\z` in the drive rule, where the built one is a separate rule with its own reason | Fixed: the three places point to this entry, and the row says what was built |
+| Z-05 | Nit | the comments and the reason in the verifier, README, CHANGELOG, decision 0025 | "No colon after the drive letter" read literally forbids the drive's own colon, since `C:` is a colon right after the drive letter. The texts also said that the old rule "read only the first two characters", where it read three (`C:\`) | Fixed: "a second colon, after the one that ends the drive letter" everywhere (the reason of the check now says "has a second colon, after the one of the drive letter"), and "three characters" |
+| Z-06 | Nit | `progress.md` | The front matter `last-verified` was not bumped | Fixed |
+
+### Tests
+
+- Test first: the five rows of the first build were red against the old function (5 failed, 105
+  passed) and green with the rule (110 passed). For the fixes the seven rows were red on the old
+  reason (7 failed, 105 passed) and green with the new one (112 passed).
+- Mutation checks: 15 changes of `Get-HookInterpreter`, applied one at a time to the verifier,
+  each in a child process over the `Hook interpreter` tests, the file restored byte for byte
+  after each. The rule never fires, fires only for a quoted word, fires only for an unquoted
+  word, needs a separator after the colon, looks at the last component only, looks right after
+  the drive only, takes a backslash after the drive only, needs a character before the colon,
+  counts the colon of the drive, loses the second colon in the reason (two ways), still returns
+  the path with the problem, and three changes that narrow the drive letter. All 15 were
+  caught and none survived; the first 11 were run and caught before the review.
+- Differential run: 200,000 generated lines (seed 20261018) through the function of
+  `origin/main` and the new one: 90,498 accepted by both, 92,391 refused by both, 17,111
+  accepted and then refused, every one with a colon after the drive letter, 0 refused and then
+  accepted, 0 with another path, 0 thrown, and 0 words with a colon after the drive that the
+  new function still accepts. The reviewer repeated it on a sample of 20,000 lines (1,700
+  changed, the same pattern) and on 7,000 random edits of a real path (10,240 lines): 820 fewer
+  accepted, exactly the lines with a colon after the drive, and none that opens another file.
+- Full `build,test` gate on `d4aa90b` (the first build): 5,374 passed, 0 failed, 147 skipped,
+  90.84 % coverage against a threshold of 65 %, 21 build tasks and no error, 48 minutes, and the
+  same 16 warnings as in earlier gates. The fixes after it change two table rows, one reason
+  string, comments and records, so the owner ruled a focused run and no second full gate (CI runs
+  the whole suite again on the pull request): the 13 `ContainmentVerifier*` suites, the four
+  Memory Bank suites, `SharedLifecycle`, `CiAdmission`, `PluginManifest`, `PluginManifestRollover`,
+  `SoftwareEngineerAgent` and `DevelopmentCycle`, 23 files in all: 1,060 passed, 0 failed, 2
+  skipped. The `Hook interpreter` tests alone: 112 passed.
+- PSScriptAnalyzer 1.24.0 was clean at every severity on the verifier and the suite.
+- Nothing could run on Ubuntu or macOS here. The `Hook interpreter` tests are skipped there.
+
+### Remaining risks
+
+- Quoted spellings that name no file still pass the text rules and fail closed at the measure
+  (Z-03): a wildcard, a pipe, a tab, a folder name with a trailing space or made of a dot and a
+  space, and `C:\\?\UNC\...`. Refusing the characters that Windows rejects in a name would make
+  the rule complete for them; no verdict depends on it.
+- A drive letter that is a mapped network drive or a `subst` cannot be seen textually, and
+  measuring it needs the mappings of the verifier's own logon session. The reviewer's host maps
+  `Z:` to a network share, which is exactly this residual; no `Z:` path and no UNC path was
+  opened.
+- Not run: the wrapper runs for the accepted quoted spellings (a quoted program path cannot pass
+  them), Windows PowerShell 5.1 and POSIX, and a second review pass of the fixes.
+- The Custom `security-reviewer` agent cannot start in this runtime until the first entry of its
+  `model` array resolves or the dispatch falls back.
+- The remaining risks of the 2026-10-14, 2026-10-15 and 2026-10-16 entries that this change does
+  not touch stay open: S-19, S-20, the escape set of `WritableRoots`, the run id of
+  `-Revalidate`, the second Windows account, the property test with a fresh seed in CI, and the
+  unrelayed exception texts.
+
 ## 2026-10-16: the pinned hook line under the wrappers of the documented hosts (follow-up of prompt P5)
 
 The built-in `security-review` agent reviewed the change that runs the pinned hook line
@@ -268,7 +367,8 @@ Ubuntu and macOS; and the costs of about 85 and 7 seconds.
 - The wrapper programs are the verifier's choice, by absolute path. VS Code starts Windows
   PowerShell from `%SystemRoot%\System32` and the SDK host starts `pwsh` by name, so both
   depend on an environment that the launcher owns.
-- S-33 stays a recorded Nit: its two spellings fail closed before the wrappers.
+- S-33 stayed a recorded Nit: its two spellings fail closed before the wrappers. Closed on
+  2026-10-18; see the entry of that date.
 - Four `$($_.Exception.Message)` texts of `Test-HookContract` and the two closure details of
   the interpreter (the access check's reason, which is localized .NET text) still reach the
   evidence unrelayed (V-05, W-03). They are older than this change (the same lines exist at
@@ -597,7 +697,7 @@ Pass 3, part F (a bounded delta check of `f6cd56a` and `d8eddb4`): **Approve, wi
 
 | ID | Severity | Area | Finding | Resolution |
 |---|---|---|---|---|
-| S-33 | Nit | Verifier | A quoted program path may carry a colon after the drive. `"C:\:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"` and `"C:\Windows\System32\WindowsPowerShell\v1.0:x\powershell.exe"` pass the drive rule. The unquoted spellings are refused, because the program-word rule allows `:` only as the drive's, and that rule does not apply to a quoted word. `CreateFileW` returns error 123 (invalid name) for both, so they name no file, and the verifier then fails closed at "the interpreter does not exist" or "could not be measured". A colon on the file itself is refused by the name rule. Only the claim that the drive rule closes every spelling falls short. I reproduced it against the verbatim function: both are accepted and `File.Exists` is false for both; the unquoted spellings and the NT path are refused (and `File.Exists` is true for the NT path, which is what made S-30 matter). | **Not fixed, a recorded follow-up**, which is also the reviewer's classification ("before merge: nothing"). The fix is one line, `\A[A-Za-z]:[\\/][^:]*\z` for the drive rule, with two quoted rows (`C:\:\...` and `...v1.0:x\...`) in the `refuses <Why>` table that must fail without it. I left it, because the fix would put a code change on the commit after the last approval and restart the final gate for a path that fails closed; it is the first item to take together with the wrapper measurement. |
+| S-33 | Nit | Verifier | A quoted program path may carry a colon after the drive. `"C:\:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"` and `"C:\Windows\System32\WindowsPowerShell\v1.0:x\powershell.exe"` pass the drive rule. The unquoted spellings are refused, because the program-word rule allows `:` only as the drive's, and that rule does not apply to a quoted word. `CreateFileW` returns error 123 (invalid name) for both, so they name no file, and the verifier then fails closed at "the interpreter does not exist" or "could not be measured". A colon on the file itself is refused by the name rule. Only the claim that the drive rule closes every spelling falls short. I reproduced it against the verbatim function: both are accepted and `File.Exists` is false for both; the unquoted spellings and the NT path are refused (and `File.Exists` is true for the NT path, which is what made S-30 matter). | **Fixed on 2026-10-18** (see the entry of that date): a separate rule after the drive rule, with its own reason and seven rows in the `refuses <Why>` table, and not the form proposed below; the "fails closed at 'the interpreter does not exist'" of the finding is corrected there too (the two spellings end at "could not be measured"). Before that: **Not fixed, a recorded follow-up**, which is also the reviewer's classification ("before merge: nothing"). The fix is one line, `\A[A-Za-z]:[\\/][^:]*\z` for the drive rule, with two quoted rows (`C:\:\...` and `...v1.0:x\...`) in the `refuses <Why>` table that must fail without it. I left it, because the fix would put a code change on the commit after the last approval and restart the final gate for a path that fails closed; it is the first item to take together with the wrapper measurement. |
 
 Recorded as a residual, not a finding: a drive letter that is a mapped network drive or a `subst` cannot be seen textually, and measuring it needs the mappings of the verifier's own logon session. The reviewer accepted every deferred item again: the wrapper measurement, S-24 as Unavailable or Fail, the fresh printed seed for the property test in CI, S-20, the escape-set addition, the S-19 hardening and R-04. Not assessed by part F: the POSIX probe branch and macOS, the off-Windows tests and the Pester suite itself (it ran only the property test body), the network side of S-30, how VS Code and the SDK host spawn the command beyond the README's table, two-account behaviour, WFP, the unsigned chain and R-04.
 
@@ -678,7 +778,8 @@ change. Nothing could run on Ubuntu or macOS here.
 - On Windows the program path has to start with a drive letter and a separator. A
   quoted path with a colon after the drive (`"C:\:\...\powershell.exe"`,
   `"C:\...\v1.0:x\powershell.exe"`) passes that text rule and names no file, so the
-  verifier fails closed (S-33, a follow-up with a one-line fix and two test rows). A
+  verifier fails closed (S-33, a follow-up with a one-line fix and two test rows; closed on
+  2026-10-18, see the entry of that date). A
   drive letter that is a mapped network drive or a `subst` cannot be seen textually;
   measuring it needs the mappings of the verifier's own logon session.
 - A server that replays the earlier acknowledgement of a record identical to one

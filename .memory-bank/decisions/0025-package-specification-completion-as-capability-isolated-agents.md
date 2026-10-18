@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-09-02
-last-verified: 2026-10-15
+last-verified: 2026-10-18
 owner: software-engineer
 source: user request and specification-completion package evidence
 ---
@@ -295,3 +295,27 @@ passed, and both run even if the first one fails.
   spawn wrote is never relayed, only its exit code.
 - **Cost.** About 7 seconds more for each verify run (three payloads under each
   wrapper, warm, one host) and about 85 seconds more for the `HookContract` suite.
+
+## Revision, 2026-10-18: a second colon in the program path is refused (S-33)
+
+`Get-HookInterpreter` refuses a program path that holds a second colon, after the one that
+ends the drive letter, quoted or not, with a reason that names it. Until then the drive rule
+read only the first three characters of the path (the letter, its colon and a separator),
+and only an unquoted program word was held to the program-word shape, so a quoted
+`"C:\:\Windows\...\powershell.exe"` or `"C:\Windows\...\v1.0:x\powershell.exe"` passed that
+rule. Windows rejects such a name as invalid or reads it as a stream of a file (`CreateFileW`
+gave error 123 in the review of 2026-10-14), so neither named a file, and the check ended at
+"could not be measured", an Unavailable verdict; the review of 2026-10-18 showed that it never
+reached "does not exist", which needs a file-not-found error. No verdict changes; the claim
+does: the rule now closes every spelling that holds a second colon, and the sentence of the
+revision of 2026-10-16 that S-33 stays a recorded Nit is superseded. It does not close every
+quoted spelling that names no file. A wildcard, a pipe, a tab, a folder name with a trailing
+space or made of a dot and a space, and `C:\\?\UNC\...` still pass the text rules and fail
+closed at the measure (the reviewer measured 39 of 76 accepted lines of that kind, with no
+security impact, because a quoted program path cannot pass the wrapper runs anyway); they are
+recorded as the same Nit. A drive letter that is a mapped network drive or a `subst` still
+cannot be seen textually; measuring it needs the mappings of the verifier's own logon
+session, and it stays a residual. A differential run of 200,000 generated lines against the
+earlier function found 17,111 lines that changed from accepted to refused, every one with a
+colon after the drive letter, and none that changed the other way. The verifier digest
+changes with this revision.
