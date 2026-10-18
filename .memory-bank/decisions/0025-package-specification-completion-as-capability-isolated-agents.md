@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-09-02
-last-verified: 2026-10-15
+last-verified: 2026-10-18
 owner: software-engineer
 source: user request and specification-completion package evidence
 ---
@@ -295,3 +295,21 @@ passed, and both run even if the first one fails.
   spawn wrote is never relayed, only its exit code.
 - **Cost.** About 7 seconds more for each verify run (three payloads under each
   wrapper, warm, one host) and about 85 seconds more for the `HookContract` suite.
+
+## Revision, 2026-10-18: a colon after the drive letter is refused (S-33)
+
+`Get-HookInterpreter` refuses a program path that holds a colon after the drive letter,
+quoted or not, with a reason that names the colon. Until then the drive rule read only the
+first two characters of the path, and only an unquoted program word was held to the
+program-word shape, so a quoted `"C:\:\Windows\...\powershell.exe"` or
+`"C:\Windows\...\v1.0:x\powershell.exe"` passed that rule. Windows rejects such a name as
+invalid or reads it as a stream of a file (`CreateFileW` gave error 123 in the review of
+2026-10-14), so neither named a file and the check failed closed later, at "the interpreter
+does not exist" or "could not be measured". No verdict changes; the claim does: the drive
+rule now closes every spelling of a program path that starts on a local drive, and the
+sentence of the revision of 2026-10-16 that S-33 stays a recorded Nit is superseded. A drive
+letter that is a mapped network drive or a `subst` still cannot be seen textually; measuring
+it needs the mappings of the verifier's own logon session, and it stays a residual. A
+differential run of 200,000 generated lines against the earlier function found 17,111
+lines that changed from accepted to refused, every one with a colon after the drive letter,
+and none that changed the other way. The verifier digest changes with this revision.
