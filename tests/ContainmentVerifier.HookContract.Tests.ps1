@@ -189,6 +189,292 @@ BeforeAll {
             [System.Environment]::SetEnvironmentVariable($Name, $previous)
         }
     }
+
+    # The seed of the property test of the hook-line shape. A seed that is asked for in Requested wins, on CI and off it, and a
+    # request that is not a whole number from 0 to 2147483647 is an error, so a mistyped replay never runs another seed in
+    # silence. Without a request, CI (the variable CI is true, as on GitHub Actions) draws a seed. Otherwise nothing asks for
+    # one and the result is $null, which is not the seed 0.
+    function script:Resolve-PropertySeed {
+        [CmdletBinding()]
+        [OutputType([int])]
+        param(
+            [Parameter()]
+            [AllowNull()]
+            [AllowEmptyString()]
+            [string]$Ci,
+
+            [Parameter()]
+            [AllowNull()]
+            [AllowEmptyString()]
+            [string]$Requested
+        )
+
+        if (-not [string]::IsNullOrWhiteSpace($Requested)) {
+            $seed = 0
+
+            if (-not [int]::TryParse($Requested.Trim(), [System.Globalization.NumberStyles]::None, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$seed)) {
+                throw "CONTAINMENT_PROPERTY_SEED has to be a whole number from 0 to 2147483647, and it is '$Requested'."
+            }
+
+            return $seed
+        }
+
+        if ($Ci -eq 'true') {
+            return Get-Random -Minimum 0 -Maximum ([int]::MaxValue)
+        }
+
+        return $null
+    }
+
+    # True when the parser of this host reads Text as one command whose elements are exactly the words in Expected, with no parse
+    # error and no redirection, and, when Closed, as that command followed by the closing statement that the shipped hook command
+    # ends with. Anything else is a deviation: PowerShell reads the line as other words than the shape saw.
+    function script:Test-ShapeReading {
+        [CmdletBinding()]
+        [OutputType([bool])]
+        param(
+            [Parameter(Mandatory)]
+            [string]$Text,
+
+            [Parameter(Mandatory)]
+            [string[]]$Expected,
+
+            [Parameter()]
+            [switch]$Closed
+        )
+
+        $errors = $null
+        $tokens = $null
+        $ast = [System.Management.Automation.Language.Parser]::ParseInput($Text, [ref]$tokens, [ref]$errors)
+        $statement = @($ast.EndBlock.Statements)
+        $command = $null
+
+        if ($statement.Count -eq $(if ($Closed) { 2 } else { 1 }) -and $statement[0] -is [System.Management.Automation.Language.PipelineAst] -and $statement[0].PipelineElements.Count -eq 1) {
+            $command = $statement[0].PipelineElements[0]
+        }
+
+        $same = $errors.Count -eq 0 -and $command -is [System.Management.Automation.Language.CommandAst] -and
+            $command.Redirections.Count -eq 0 -and $command.CommandElements.Count -eq $Expected.Count
+
+        for ($element = 0; $same -and $element -lt $Expected.Count; $element++) {
+            $same = [string]::Equals($command.CommandElements[$element].Extent.Text, $Expected[$element], [System.StringComparison]::Ordinal)
+        }
+
+        if ($same -and $Closed) {
+            $same = [string]::Equals($statement[1].Extent.Text, $script:HookExitTail, [System.StringComparison]::Ordinal)
+        }
+
+        return $same
+    }
+
+    # Generates hook command lines, keeps those that the interpreter accepts, and checks with Test-ShapeReading that the parser of
+    # this host reads each of them as one command whose words are the words that were generated. The same seed gives the same
+    # lines. The result lists the accepted lines too, so that a test can see what the property reached. The interpreter is a
+    # parameter so that a test can give it one that accepts everything and see that a deviation is reported.
+    function script:Invoke-ShapeProperty {
+        [CmdletBinding()]
+        [OutputType([pscustomobject])]
+        param(
+            [Parameter(Mandatory)]
+            [int]$Seed,
+
+            [Parameter()]
+            [ValidateRange(1, 1000000)]
+            [int]$LineCount = 4000,
+
+            [Parameter()]
+            [scriptblock]$Interpreter = { param($CommandLine) Get-HookInterpreter -CommandLine $CommandLine }
+        )
+
+        $random = [System.Random]::new($Seed)
+        $program = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
+        $bareAlphabet = [char[]]'abcdefXYZ019_.:\/-'
+        $quotedAlphabet = [char[]](' #&''()*+,-./0123456789:;<=>?@ABCXYZ[]\^_{|}~abcxyz' + "`t")
+        $pick = {
+            param([char[]]$Alphabet, [int]$Length)
+
+            $builder = [System.Text.StringBuilder]::new()
+            for ($index = 0; $index -lt $Length; $index++) {
+                $null = $builder.Append($Alphabet[$random.Next(0, $Alphabet.Length)])
+            }
+
+            $builder.ToString()
+        }
+        $accepted = 0
+        $acceptedLine = [System.Collections.Generic.List[string]]::new()
+        $deviation = [System.Collections.Generic.List[string]]::new()
+
+        for ($line = 0; $line -lt $LineCount; $line++) {
+            $word = [System.Collections.Generic.List[string]]::new()
+
+            for ($count = $random.Next(1, 6); $count -gt 0; $count--) {
+                if ($random.Next(0, 10) -lt 6) {
+                    $text = & $pick $bareAlphabet $random.Next(1, 8)
+                    if ($random.Next(0, 3) -eq 0) { $text = '-' + $text }
+                    if ($random.Next(0, 3) -eq 0) { $text += ':.'[$random.Next(0, 2)] }
+                    $word.Add($text)
+                } else {
+                    $word.Add('"' + (& $pick $quotedAlphabet $random.Next(0, 10)) + '"')
+                }
+            }
+
+            $expected = @($program, '-NoProfile', @('-Command', '-File')[$random.Next(0, 2)]) + $word
+            $text = $expected -join @(' ', "`t", '  ')[$random.Next(0, 3)]
+            $closed = $random.Next(0, 4) -eq 0
+
+            if ($closed) {
+                $text += '; ' + $script:HookExitTail
+            }
+
+            if ($null -ne (& $Interpreter $text).Problem) {
+                continue
+            }
+
+            $accepted++
+            $acceptedLine.Add($text)
+
+            if (-not (Test-ShapeReading -Text $text -Expected $expected -Closed:$closed)) {
+                $deviation.Add($text)
+            }
+        }
+
+        return [pscustomobject]@{
+            Seed = $Seed
+            LineCount = $LineCount
+            Accepted = $accepted
+            AcceptedLine = @($acceptedLine)
+            Deviation = @($deviation)
+        }
+    }
+
+    # Runs the property on the seed that Resolve-PropertySeed gives and returns the result, which names that seed, or returns
+    # $null when nothing asks for a seed. OnSeed is called with the seed before anything runs, so a run that crashes still
+    # names the seed it was on.
+    function script:Invoke-PropertyOnAskedSeed {
+        [CmdletBinding()]
+        [OutputType([pscustomobject])]
+        param(
+            [Parameter()]
+            [AllowNull()]
+            [AllowEmptyString()]
+            [string]$Ci,
+
+            [Parameter()]
+            [AllowNull()]
+            [AllowEmptyString()]
+            [string]$Requested,
+
+            [Parameter()]
+            [ValidateRange(1, 1000000)]
+            [int]$LineCount = 4000,
+
+            [Parameter()]
+            [scriptblock]$OnSeed = {},
+
+            [Parameter()]
+            [scriptblock]$Interpreter
+        )
+
+        $seed = Resolve-PropertySeed -Ci $Ci -Requested $Requested
+
+        if ($null -eq $seed) {
+            return $null
+        }
+
+        & $OnSeed $seed
+
+        $run = @{ Seed = $seed; LineCount = $LineCount }
+
+        if ($PSBoundParameters.ContainsKey('Interpreter')) {
+            $run.Interpreter = $Interpreter
+        }
+
+        return Invoke-ShapeProperty @run
+    }
+
+    # The line that names the seed a run is on, the PowerShell version and how to run the seed again. The version is part of it
+    # because whether PowerShell reads a line as other words depends on its parser.
+    function script:Format-PropertySeedLine {
+        [CmdletBinding()]
+        [OutputType([string])]
+        param(
+            [Parameter(Mandatory)]
+            [int]$Seed,
+
+            [Parameter()]
+            [ValidateNotNullOrEmpty()]
+            [string]$Version = $PSVersionTable.PSVersion.ToString()
+        )
+
+        return 'Property test of the hook-line shape: seed {0}, PowerShell {1}. Replay it with CONTAINMENT_PROPERTY_SEED={0}.' -f $Seed, $Version
+    }
+
+    # Runs the property on the seed that the environment asks for: CONTAINMENT_PROPERTY_SEED to run one again, or CI to draw one.
+    # The line that names the seed goes to the information stream before the run. Returns the result, or $null when nothing asks.
+    function script:Invoke-PropertyFromEnvironment {
+        [CmdletBinding()]
+        [OutputType([pscustomobject])]
+        param(
+            [Parameter()]
+            [ValidateRange(1, 1000000)]
+            [int]$LineCount = 4000
+        )
+
+        $announce = { param($Seed) Write-Information -MessageData (Format-PropertySeedLine -Seed $Seed) -InformationAction Continue }
+
+        return Invoke-PropertyOnAskedSeed -Ci $env:CI -Requested $env:CONTAINMENT_PROPERTY_SEED -LineCount $LineCount -OnSeed $announce
+    }
+
+    # Sets an environment variable of this process, or removes it when the value is null or empty. A null that is passed on to a
+    # .NET method arrives as an empty string, which leaves the variable set to nothing; only a NullString removes it.
+    function script:Set-ProcessEnvironmentVariable {
+        param(
+            [Parameter(Mandatory)]
+            [string]$Name,
+
+            [Parameter()]
+            [AllowNull()]
+            [AllowEmptyString()]
+            [string]$Value
+        )
+
+        [System.Environment]::SetEnvironmentVariable($Name, $(if ([string]::IsNullOrEmpty($Value)) { [NullString]::Value } else { $Value }))
+    }
+
+    # Runs Invoke-PropertyFromEnvironment over 40 lines with CI and CONTAINMENT_PROPERTY_SEED set to these values, and puts both
+    # variables back as they were. A null or empty value removes the variable for the time of the call. It tells what the call
+    # returned from what it wrote to the information stream.
+    function script:Invoke-PropertyWithEnvironment {
+        [CmdletBinding()]
+        param(
+            [Parameter()]
+            [AllowNull()]
+            [AllowEmptyString()]
+            [string]$Ci,
+
+            [Parameter()]
+            [AllowNull()]
+            [AllowEmptyString()]
+            [string]$Seed
+        )
+
+        $previousCi = [System.Environment]::GetEnvironmentVariable('CI')
+        $previousSeed = [System.Environment]::GetEnvironmentVariable('CONTAINMENT_PROPERTY_SEED')
+
+        try {
+            Set-ProcessEnvironmentVariable -Name 'CI' -Value $Ci
+            Set-ProcessEnvironmentVariable -Name 'CONTAINMENT_PROPERTY_SEED' -Value $Seed
+            $output = @(Invoke-PropertyFromEnvironment -LineCount 40 6>&1)
+        } finally {
+            Set-ProcessEnvironmentVariable -Name 'CI' -Value $previousCi
+            Set-ProcessEnvironmentVariable -Name 'CONTAINMENT_PROPERTY_SEED' -Value $previousSeed
+        }
+
+        return [pscustomobject]@{
+            Result = @($output | Where-Object -FilterScript { $_ -isnot [System.Management.Automation.InformationRecord] })[0]
+            Printed = @($output | Where-Object -FilterScript { $_ -is [System.Management.Automation.InformationRecord] })
+        }
+    }
 }
 
 Describe 'Hook root binding' -Tag 'Unit' {
@@ -543,78 +829,330 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
     # quoted word, uses -File as well as -Command, and ends some lines with the pinned statement. It checks the
     # structure PowerShell reads, not what a wrapper hands on to the program it starts, so it cannot see S-31.
     It 'reads every accepted line as one command whose words are the words the shape saw' {
-        $random = [System.Random]::new(20261014)
-        $program = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
-        $bareAlphabet = [char[]]'abcdefXYZ019_.:\/-'
-        $quotedAlphabet = [char[]](' #&''()*+,-./0123456789:;<=>?@ABCXYZ[]\^_{|}~abcxyz' + "`t")
-        $pick = {
-            param([char[]]$Alphabet, [int]$Length)
+        $result = Invoke-ShapeProperty -Seed 20261014
 
-            $builder = [System.Text.StringBuilder]::new()
-            for ($index = 0; $index -lt $Length; $index++) {
-                $null = $builder.Append($Alphabet[$random.Next(0, $Alphabet.Length)])
-            }
+        $result.Accepted | Should -BeGreaterThan 500 -Because 'the generator has to reach lines that the shape accepts, or this test proves nothing'
+        $result.Deviation.Count | Should -Be 0 -Because ('PowerShell read these accepted lines as other words than the shape did: ' + (($result.Deviation | Select-Object -First 5) -join ' || '))
+    }
 
-            $builder.ToString()
-        }
-        $accepted = 0
-        $deviation = [System.Collections.Generic.List[string]]::new()
+    # The fixed seed above makes a failure repeat, and it shows the same lines on every run. On CI the same property runs once
+    # more on a seed that is drawn then and printed, so a deviation that only some seed finds can be found by the pipeline. The
+    # printed seed, given in CONTAINMENT_PROPERTY_SEED, runs it again on a Windows machine; whether PowerShell reads a line as
+    # other words depends on its parser, so the printed line names the version too. The seed is chosen at run time and not at
+    # discovery, so that Resolve-PropertySeed can be tested; the test skips itself when nothing asks for a seed.
+    It 'reads every accepted line as one command on a seed that is drawn on CI or given' {
+        $result = Invoke-PropertyFromEnvironment
 
-        for ($line = 0; $line -lt 4000; $line++) {
-            $word = [System.Collections.Generic.List[string]]::new()
-
-            for ($count = $random.Next(1, 6); $count -gt 0; $count--) {
-                if ($random.Next(0, 10) -lt 6) {
-                    $text = & $pick $bareAlphabet $random.Next(1, 8)
-                    if ($random.Next(0, 3) -eq 0) { $text = '-' + $text }
-                    if ($random.Next(0, 3) -eq 0) { $text += ':.'[$random.Next(0, 2)] }
-                    $word.Add($text)
-                } else {
-                    $word.Add('"' + (& $pick $quotedAlphabet $random.Next(0, 10)) + '"')
-                }
-            }
-
-            $expected = @($program, '-NoProfile', @('-Command', '-File')[$random.Next(0, 2)]) + $word
-            $text = $expected -join @(' ', "`t", '  ')[$random.Next(0, 3)]
-            $closed = $random.Next(0, 4) -eq 0
-
-            if ($closed) {
-                $text += '; ' + $script:HookExitTail
-            }
-
-            if ($null -ne (Get-HookInterpreter -CommandLine $text).Problem) {
-                continue
-            }
-
-            $accepted++
-            $errors = $null
-            $tokens = $null
-            $ast = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$errors)
-            $statement = @($ast.EndBlock.Statements)
-            $command = $null
-
-            if ($statement.Count -eq $(if ($closed) { 2 } else { 1 }) -and $statement[0] -is [System.Management.Automation.Language.PipelineAst] -and $statement[0].PipelineElements.Count -eq 1) {
-                $command = $statement[0].PipelineElements[0]
-            }
-
-            $same = $errors.Count -eq 0 -and $command -is [System.Management.Automation.Language.CommandAst] -and
-                $command.Redirections.Count -eq 0 -and $command.CommandElements.Count -eq $expected.Count
-
-            for ($element = 0; $same -and $element -lt $expected.Count; $element++) {
-                $same = [string]::Equals($command.CommandElements[$element].Extent.Text, $expected[$element], [System.StringComparison]::Ordinal)
-            }
-
-            if ($same -and $closed) {
-                $same = [string]::Equals($statement[1].Extent.Text, $script:HookExitTail, [System.StringComparison]::Ordinal)
-            }
-
-            if (-not $same) {
-                $deviation.Add($text)
-            }
+        if ($null -eq $result) {
+            Set-ItResult -Skipped -Because 'neither CI nor CONTAINMENT_PROPERTY_SEED asks for a seed that is not fixed'
+            return
         }
 
-        $accepted | Should -BeGreaterThan 500 -Because 'the generator has to reach lines that the shape accepts, or this test proves nothing'
-        $deviation.Count | Should -Be 0 -Because ('PowerShell read these accepted lines as other words than the shape did: ' + (($deviation | Select-Object -First 5) -join ' || '))
+        $result.Accepted | Should -BeGreaterThan 500 -Because ('the generator has to reach lines that the shape accepts, or this test proves nothing (seed {0})' -f $result.Seed)
+        $result.Deviation.Count | Should -Be 0 -Because ('PowerShell {0} read these accepted lines as other words than the shape did, on the seed {1}; replay it with CONTAINMENT_PROPERTY_SEED={1}: {2}' -f $PSVersionTable.PSVersion, $result.Seed, (($result.Deviation | Select-Object -First 5) -join ' || '))
+    }
+
+    It 'draws no seed when neither CI nor a seed to replay asks for one' -ForEach @(
+        @{ Ci = $null; Requested = $null }
+        @{ Ci = ''; Requested = '' }
+        @{ Ci = 'false'; Requested = '   ' }
+        @{ Ci = '1'; Requested = $null }
+        @{ Ci = 'yes'; Requested = $null }
+    ) {
+        Resolve-PropertySeed -Ci $Ci -Requested $Requested | Should -BeNullOrEmpty
+    }
+
+    It 'draws a seed on CI, whatever the letter case of true: <Ci>' -ForEach @(
+        @{ Ci = 'true' }
+        @{ Ci = 'True' }
+        @{ Ci = 'TRUE' }
+    ) {
+        $seed = Resolve-PropertySeed -Ci $Ci -Requested $null
+
+        $seed | Should -BeOfType ([int])
+        $seed | Should -BeGreaterOrEqual 0
+    }
+
+    It 'draws a different seed each time' {
+        $seeds = 1..20 | ForEach-Object -Process { Resolve-PropertySeed -Ci 'true' -Requested $null }
+
+        @($seeds | Select-Object -Unique).Count | Should -BeGreaterThan 1
+    }
+
+    It 'draws seeds from the whole range and not from a narrow one' {
+        $seeds = 1..50 | ForEach-Object -Process { Resolve-PropertySeed -Ci 'true' -Requested $null }
+
+        ($seeds | Measure-Object -Maximum).Maximum | Should -BeGreaterThan 1000000000 -Because 'a draw from a small range would run a seed that has run before'
+    }
+
+    It 'replays the seed that is asked for, on CI and off it: <Requested>' -ForEach @(
+        @{ Requested = '0'; Expected = 0 }
+        @{ Requested = '20261018'; Expected = 20261018 }
+        @{ Requested = ' 42 '; Expected = 42 }
+        @{ Requested = '2147483647'; Expected = 2147483647 }
+    ) {
+        Resolve-PropertySeed -Ci 'true' -Requested $Requested | Should -Be $Expected
+        Resolve-PropertySeed -Ci $null -Requested $Requested | Should -Be $Expected
+    }
+
+    It 'refuses a seed to replay that is not a whole number from 0 to 2147483647, and draws no other: <Requested>' -ForEach @(
+        @{ Requested = 'abc' }
+        @{ Requested = '-1' }
+        @{ Requested = '1.5' }
+        @{ Requested = '2147483648' }
+        @{ Requested = '+5' }
+        @{ Requested = '1e3' }
+        @{ Requested = '0x10' }
+    ) {
+        { Resolve-PropertySeed -Ci 'true' -Requested $Requested } | Should -Throw -ExpectedMessage '*CONTAINMENT_PROPERTY_SEED*'
+    }
+
+    It 'runs the property on the seed that is asked for, and says which seed it ran' {
+        $result = Invoke-PropertyOnAskedSeed -Ci $null -Requested '77' -LineCount 40
+
+        $result.Seed | Should -Be 77
+        $result.LineCount | Should -Be 40
+        $result.Deviation.Count | Should -Be 0
+    }
+
+    It 'runs the property on a drawn seed on CI, and says which seed it ran' {
+        $result = Invoke-PropertyOnAskedSeed -Ci 'true' -Requested $null -LineCount 40
+
+        $result.Seed | Should -BeOfType ([int])
+        $result.Seed | Should -BeGreaterOrEqual 0
+        $result.LineCount | Should -Be 40
+    }
+
+    It 'runs nothing when neither CI nor a seed to replay asks for it' {
+        Invoke-PropertyOnAskedSeed -Ci $null -Requested $null -LineCount 40 | Should -BeNullOrEmpty
+    }
+
+    It 'runs the same lines again from the seed that it printed' {
+        $first = Invoke-PropertyOnAskedSeed -Ci 'true' -Requested $null -LineCount 60
+        $again = Invoke-PropertyOnAskedSeed -Ci $null -Requested ([string]$first.Seed) -LineCount 60
+
+        $again.Seed | Should -Be $first.Seed
+        $again.Accepted | Should -Be $first.Accepted
+    }
+
+    It 'announces the seed before it runs the property, so that a crash still names it' {
+        $announced = [System.Collections.Generic.List[int]]::new()
+        $record = { param($Seed) $announced.Add($Seed) }.GetNewClosure()
+        $crash = { throw 'the interpreter crashed' }
+
+        { Invoke-PropertyOnAskedSeed -Ci $null -Requested '77' -LineCount 40 -OnSeed $record -Interpreter $crash } | Should -Throw -ExpectedMessage '*the interpreter crashed*'
+
+        $announced.Count | Should -Be 1
+        $announced[0] | Should -Be 77
+    }
+
+    It 'announces no seed when nothing asks for one' {
+        $announced = [System.Collections.Generic.List[int]]::new()
+        $record = { param($Seed) $announced.Add($Seed) }.GetNewClosure()
+
+        $null = Invoke-PropertyOnAskedSeed -Ci $null -Requested $null -LineCount 40 -OnSeed $record
+
+        $announced.Count | Should -Be 0
+    }
+
+    It 'generates the same lines from the same seed, and other lines from another seed' {
+        $linesOf = {
+            param([int]$Seed)
+
+            $seen = [System.Collections.Generic.List[string]]::new()
+            $recorder = { param($CommandLine) $seen.Add($CommandLine); [pscustomobject]@{ Problem = 'recorded'; Path = $null } }.GetNewClosure()
+            $null = Invoke-ShapeProperty -Seed $Seed -LineCount 200 -Interpreter $recorder
+
+            $seen -join "`n"
+        }
+
+        $first = & $linesOf 7
+        $again = & $linesOf 7
+        $other = & $linesOf 8
+
+        $first | Should -Not -BeNullOrEmpty
+        $again | Should -BeExactly $first
+        $other | Should -Not -BeExactly $first
+    }
+
+    It 'reports a line that the interpreter accepts and PowerShell reads as other words' {
+        $acceptsEverything = { [pscustomobject]@{ Problem = $null; Path = 'C:\x' } }
+
+        $result = Invoke-ShapeProperty -Seed 20261014 -LineCount 400 -Interpreter $acceptsEverything
+
+        $result.Accepted | Should -Be 400
+        $result.Deviation.Count | Should -BeGreaterThan 0
+    }
+
+    It 'reports the seed and the number of lines it ran' {
+        $result = Invoke-ShapeProperty -Seed 31 -LineCount 50
+
+        $result.Seed | Should -Be 31
+        $result.LineCount | Should -Be 50
+    }
+
+    # Every check of Test-ShapeReading has a row below that fails that check and no other, so that a check which is removed or
+    # weakened is found here and not by a CI run that goes on passing. {tail} in a row stands for the pinned closing statement,
+    # and {TAIL} for the same statement in capital letters.
+    It 'reads <Why> as the words that were written' -ForEach @(
+        @{ Why = 'a plain command'; Text = 'p -NoProfile -Command a'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $false }
+        @{ Why = 'an option name of letters only'; Text = 'p -NoProfile -Command -Y'; Expected = @('p', '-NoProfile', '-Command', '-Y'); Closed = $false }
+        @{ Why = 'two spaces between the words'; Text = 'p  -NoProfile  -Command  a'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $false }
+        @{ Why = 'a quoted word with a space in it'; Text = 'p -NoProfile -Command "a b"'; Expected = @('p', '-NoProfile', '-Command', '"a b"'); Closed = $false }
+        @{ Why = 'a command and the pinned closing statement'; Text = 'p -NoProfile -Command a; {tail}'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $true }
+    ) {
+        $line = $Text.Replace('{tail}', $script:HookExitTail)
+
+        Test-ShapeReading -Text $line -Expected $Expected -Closed:$Closed | Should -BeTrue
+    }
+
+    It 'does not read <Why> as the words that were written' -ForEach @(
+        @{ Why = 'a dash word that ends in a colon'; Text = 'p -NoProfile -Command -a: b'; Expected = @('p', '-NoProfile', '-Command', '-a:', 'b'); Closed = $false }
+        @{ Why = 'a dash word that splits at a dot'; Text = 'p -NoProfile -Command -Z.7'; Expected = @('p', '-NoProfile', '-Command', '-Z.7'); Closed = $false }
+        @{ Why = 'a parse error that leaves the words as they were'; Text = 'p -NoProfile -Command )'; Expected = @('p', '-NoProfile', '-Command'); Closed = $false }
+        @{ Why = 'a redirection'; Text = 'p -NoProfile -Command a >b'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $false }
+        @{ Why = 'one word more than was written'; Text = 'p -NoProfile -Command a b'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $false }
+        @{ Why = 'a first word that differs'; Text = 'q -NoProfile -Command a'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $false }
+        @{ Why = 'a later word that differs'; Text = 'p -NoProfile -Command a b'; Expected = @('p', '-NoProfile', '-Command', 'a', 'c'); Closed = $false }
+        @{ Why = 'a word that differs only in letter case'; Text = 'p -NoProfile -Command A'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $false }
+        @{ Why = 'a pipeline of two commands'; Text = 'p -NoProfile -Command a | q'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $false }
+        @{ Why = 'a second statement that was not written'; Text = 'p -NoProfile -Command a; b'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $false }
+        @{ Why = 'a closing statement that was not written'; Text = 'p -NoProfile -Command a; {tail}'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $false }
+        @{ Why = 'a closing statement that is not the pinned one'; Text = 'p -NoProfile -Command a; exit 7'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $true }
+        @{ Why = 'the pinned closing statement in capital letters'; Text = 'p -NoProfile -Command a; {TAIL}'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $true }
+        @{ Why = 'a closing statement that is missing'; Text = 'p -NoProfile -Command a'; Expected = @('p', '-NoProfile', '-Command', 'a'); Closed = $true }
+    ) {
+        $line = $Text.Replace('{tail}', $script:HookExitTail).Replace('{TAIL}', $script:HookExitTail.ToUpperInvariant())
+
+        Test-ShapeReading -Text $line -Expected $Expected -Closed:$Closed | Should -BeFalse
+    }
+
+    It 'lists the accepted lines in the result, and the same lines for the same seed' {
+        $result = Invoke-ShapeProperty -Seed 31 -LineCount 50
+
+        $result.AcceptedLine.Count | Should -Be $result.Accepted
+        $result.Accepted | Should -BeGreaterThan 0
+
+        $again = Invoke-ShapeProperty -Seed 31 -LineCount 50
+        $again.AcceptedLine -join "`n" | Should -BeExactly ($result.AcceptedLine -join "`n")
+    }
+
+    # The property only means something on lines of the kinds that the reviews asked it to reach: the quoted word, the tab inside
+    # it, -File as well as -Command, both separators, the closing statement, and the dash words that PowerShell reads as other
+    # words. A feature the shape refuses (the dash words) is in the generated lines and in no accepted one.
+    Context 'what the generated lines reach' {
+        BeforeAll {
+            $script:reachGenerated = [System.Collections.Generic.List[string]]::new()
+            $recorder = { param($CommandLine) $script:reachGenerated.Add($CommandLine); [pscustomobject]@{ Problem = 'recorded'; Path = $null } }
+
+            $null = Invoke-ShapeProperty -Seed 20261014 -LineCount 400 -Interpreter $recorder
+            $script:reachAccepted = @((Invoke-ShapeProperty -Seed 20261014 -LineCount 400).AcceptedLine)
+        }
+
+        # Least is how many of the 400 generated lines of the fixed seed have to carry the feature: about a third of what the
+        # generator gives. A step of the generator that is dropped shows up in it, and not only a feature that is gone, because a
+        # word has the same shape by chance, though much less often: the dash in front of a word and the colon or dot that ends
+        # one are steps of their own. The pattern for the tab walks the line word by word, so that the tab between two quoted
+        # words is not read as a tab inside one.
+        $feature = @(
+            @{ Feature = 'a quoted word'; Pattern = '"[^"]*"'; Least = 100; Accepted = $true }
+            @{ Feature = 'a tab inside a quoted word'; Pattern = '^(?:[^"]|"[^"]*")*"[^"]*\t[^"]*"'; Least = 10; Accepted = $true }
+            @{ Feature = 'the option -Command'; Pattern = ' -Command[ \t]'; Least = 50; Accepted = $true }
+            @{ Feature = 'the option -File'; Pattern = ' -File[ \t]'; Least = 50; Accepted = $true }
+            @{ Feature = 'a tab between the words'; Pattern = '^\S+\t-NoProfile\t'; Least = 40; Accepted = $true }
+            @{ Feature = 'two spaces between the words'; Pattern = '^\S+  -NoProfile  '; Least = 40; Accepted = $true }
+            @{ Feature = 'the pinned closing statement'; Pattern = '; exit \(.*\)\[0\]$'; Least = 40; Accepted = $true }
+            @{ Feature = 'a dash word that ends in a colon'; Pattern = '(^|\s)-[^\s"]*:(\s|;|$)'; Least = 20; Accepted = $false }
+            @{ Feature = 'a dash word that ends in a dot'; Pattern = '(^|\s)-[^\s"]*\.(\s|;|$)'; Least = 20; Accepted = $false }
+            @{ Feature = 'a dash word with a dot inside'; Pattern = '(^|\s)-[^\s".]+\.[^\s".]'; Least = 10; Accepted = $false }
+        )
+
+        It 'generates at least <Least> lines with <Feature>' -ForEach $feature {
+            @($script:reachGenerated | Where-Object -FilterScript { $_ -cmatch $Pattern }).Count | Should -BeGreaterOrEqual $Least -Because 'the generator has to keep reaching this kind of line, or the property stops testing it'
+        }
+
+        It 'accepts lines with <Feature>' -ForEach @($feature | Where-Object -FilterScript { $_.Accepted }) {
+            @($script:reachAccepted | Where-Object -FilterScript { $_ -cmatch $Pattern }).Count | Should -BeGreaterThan 0
+        }
+    }
+
+    It 'writes the line that names the seed, the PowerShell version and the way to run the seed again' {
+        Format-PropertySeedLine -Seed 77 -Version '7.6.7' | Should -BeExactly 'Property test of the hook-line shape: seed 77, PowerShell 7.6.7. Replay it with CONTAINMENT_PROPERTY_SEED=77.'
+    }
+
+    It 'names the PowerShell version of this host unless it is given another' {
+        Format-PropertySeedLine -Seed 5 | Should -BeExactly ('Property test of the hook-line shape: seed 5, PowerShell {0}. Replay it with CONTAINMENT_PROPERTY_SEED=5.' -f $PSVersionTable.PSVersion)
+    }
+
+    # The wiring of the CI test: which two variables it reads, and what it writes before the run.
+    It 'runs on a drawn seed and prints it when CI is true and no seed is given' {
+        $run = Invoke-PropertyWithEnvironment -Ci 'true' -Seed $null
+
+        $run.Result.LineCount | Should -Be 40
+        $run.Printed.Count | Should -Be 1
+        $run.Printed[0].MessageData | Should -BeExactly (Format-PropertySeedLine -Seed $run.Result.Seed)
+    }
+
+    It 'runs on the seed that is given and prints it, whatever CI says: <Ci>' -ForEach @(
+        @{ Ci = 'true' }
+        @{ Ci = 'false' }
+        @{ Ci = $null }
+    ) {
+        $run = Invoke-PropertyWithEnvironment -Ci $Ci -Seed '77'
+
+        $run.Result.Seed | Should -Be 77
+        $run.Printed.Count | Should -Be 1
+        $run.Printed[0].MessageData | Should -BeExactly (Format-PropertySeedLine -Seed 77)
+    }
+
+    It 'runs nothing and prints nothing when neither CI nor a seed asks for it' {
+        $run = Invoke-PropertyWithEnvironment -Ci $null -Seed $null
+
+        $run.Result | Should -BeNullOrEmpty
+        $run.Printed.Count | Should -Be 0
+    }
+
+    It 'fails on a seed to replay that is not a whole number, and does not run another' {
+        { Invoke-PropertyWithEnvironment -Ci 'true' -Seed 'abc' } | Should -Throw -ExpectedMessage '*CONTAINMENT_PROPERTY_SEED*'
+    }
+
+    # Each of the two tests sets the state that it needs and puts the process back as it found it, so that a defect in the helper
+    # that an earlier test left behind cannot make the tests that follow it start from a changed state and pass.
+    It 'puts CI and the seed variable back, and an unset one unset and not empty' {
+        $ciBefore = [System.Environment]::GetEnvironmentVariable('CI')
+        $seedBefore = [System.Environment]::GetEnvironmentVariable('CONTAINMENT_PROPERTY_SEED')
+
+        try {
+            Set-ProcessEnvironmentVariable -Name 'CI' -Value $null
+            Set-ProcessEnvironmentVariable -Name 'CONTAINMENT_PROPERTY_SEED' -Value $null
+
+            { Invoke-PropertyWithEnvironment -Ci 'false' -Seed 'abc' } | Should -Throw
+            $null = Invoke-PropertyWithEnvironment -Ci 'true' -Seed '77'
+
+            $null -eq [System.Environment]::GetEnvironmentVariable('CI') | Should -BeTrue
+            $null -eq [System.Environment]::GetEnvironmentVariable('CONTAINMENT_PROPERTY_SEED') | Should -BeTrue
+        } finally {
+            Set-ProcessEnvironmentVariable -Name 'CI' -Value $ciBefore
+            Set-ProcessEnvironmentVariable -Name 'CONTAINMENT_PROPERTY_SEED' -Value $seedBefore
+        }
+    }
+
+    It 'puts CI and the seed variable back to the values they had' {
+        $ciBefore = [System.Environment]::GetEnvironmentVariable('CI')
+        $seedBefore = [System.Environment]::GetEnvironmentVariable('CONTAINMENT_PROPERTY_SEED')
+
+        try {
+            Set-ProcessEnvironmentVariable -Name 'CI' -Value 'yes'
+            Set-ProcessEnvironmentVariable -Name 'CONTAINMENT_PROPERTY_SEED' -Value '5'
+
+            $null = Invoke-PropertyWithEnvironment -Ci 'true' -Seed '77'
+
+            [System.Environment]::GetEnvironmentVariable('CI') | Should -BeExactly 'yes'
+            [System.Environment]::GetEnvironmentVariable('CONTAINMENT_PROPERTY_SEED') | Should -BeExactly '5'
+        } finally {
+            Set-ProcessEnvironmentVariable -Name 'CI' -Value $ciBefore
+            Set-ProcessEnvironmentVariable -Name 'CONTAINMENT_PROPERTY_SEED' -Value $seedBefore
+        }
     }
 }
 

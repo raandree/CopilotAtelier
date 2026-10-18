@@ -12,42 +12,41 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
 `6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0016` (`1de0c04`, 2026-10-17) to GitHub Releases and the
+`6.1.0-preview0017` (`a481c9d`, 2026-10-18) to GitHub Releases and the
 PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-10-18**: S-33 (`software-engineer`, `review: on`), the next P5 follow-up, built on
-  `ai/s33-quoted-drive-colon` after #43 and #44 merged: `Get-HookInterpreter` refuses a program path
-  with a second colon, after the one of the drive letter, quoted or not (a quoted one passed the drive
-  rule and ended at "could not be measured"). Seven rows were red first, 15 deliberate defects are
-  caught, and 200,000 generated lines against the earlier function changed only where the path holds
-  that colon (17,111 lines). One review (built-in `security-review` agent): Approve with changes, no
-  vulnerability, 6 findings fixed; gate 5,374 passed. Not pushed; carries the records of #43 and #44.
+- **2026-10-18**: The property test of the hook-line shape on a fresh seed (`software-engineer`,
+  `review: on`), the next P5 follow-up, built on `ai/property-test-fresh-seed`: on CI the seeded test
+  runs once more on a seed it draws and prints with the PowerShell version, and
+  `CONTAINMENT_PROPERTY_SEED=N` runs one again (a bad value fails). Generator and comparison moved
+  into helpers with the same random stream (same results for 11 seeds); one review (`code-review`
+  agent) found them unpinned: 78 tests, 65 mutants caught, gate 5,405 passed. Test-only. Not pushed.
+- **2026-10-18**: S-33 (`software-engineer`, `review: on`), the next P5 follow-up: `Get-HookInterpreter`
+  refuses a program path with a second colon, after the one of the drive letter, quoted or not (a quoted
+  one passed the drive rule and ended at "could not be measured"). Seven rows red first, 15 mutants
+  caught, a 200,000-line differential changed only colon paths. One review (built-in `security-review`
+  agent): Approve with changes, no vulnerability, 6 findings fixed; gate 5,374 passed. Merged as #45
+  (squash `a481c9d`, `6.1.0-preview0017`; Windows CI 5,332 passed); carries the records of #43 and #44.
 - **2026-10-17**: The Remote grant tests (`software-engineer`, `review: on`), merged as #44 (squash
-  `ab01e51`, `6.1.0-preview0015`): 3 of the 4 red Windows legs in 14 since 13 October, both attempts of
-  #43 among them, were a runner stall that made the guard fail closed and a harmless empty grant file
-  that stays on Windows when another guard process holds it at the delete. `Invoke-Guard` retries a
-  call once after exit 2 at 5 s or more (at most 5 per run, warned); the concurrent-push test asserts
-  what the guard promises. Test-only, the guard unchanged: 28 tests, 39 mutants caught, one review
-  (Approve with changes, then Approve), gate 5,304 passed.
-- **2026-10-16**: The pinned hook line under the PowerShell hosts (`software-engineer`, `review: on`),
-  the first follow-up after R-04 that the owner chose: `HookContract` also runs the line under Windows
-  PowerShell 5.1 and the PowerShell that runs the verifier, built from the README's table of hosts, and
-  needs 0, 2, 2 under all three; each wrapper is shown closed to the run identity first, and a quoted
-  program path now fails (1, 1, 1 under both wrappers; the old check passed it). Three reviews (16
-  findings, mostly wording that claimed more than was run), 95 mutation checks none of which survived,
-  final gate 5,341 passed. No host ran the line (decision 0025, revision 2026-10-16). Merged as #43 on
-  2026-10-17 (squash `1de0c04`, `6.1.0-preview0016`; `main` CI 5,325 passed on Windows, none failed).
-- **2026-10-15**: R-04 (`software-engineer`, `review: on`), the first P5 follow-up: the required check
-  `IdentityPrivilege` reads the access token of the verifier process and refuses one that is not a
-  standard account's (elevated, split administrator token, above Medium integrity, the Administrators
-  group in any state, or a privilege outside five; a thread that impersonates is unmeasured), and gates
-  the hook probe, git and the appender. One review and a delta check said Approve with changes (no
-  Blocker or Major); the fixes are test first with 109 mutation checks, none survived, final gate 5,276
-  passed. The Pass is tested through a seam (decision 0025, revision 2026-10-15). Merged as #42 on
-  2026-10-16 (squash `3481536`, `6.1.0-preview0014`).
+  `ab01e51`, `6.1.0-preview0015`): 3 of the 4 red Windows legs in 14 since 13 October were a runner stall
+  that made the guard fail closed and a harmless empty grant file that stays on Windows. `Invoke-Guard`
+  retries a call once after exit 2 at 5 s or more (at most 5 per run, warned); the concurrent-push test
+  asserts what the guard promises. Test-only: 28 tests, 39 mutants caught, one review, gate 5,304 passed.
+- **2026-10-16**: The pinned hook line under the PowerShell hosts (`software-engineer`, `review: on`):
+  `HookContract` also runs the line under Windows PowerShell 5.1 and the PowerShell that runs the
+  verifier, built from the README's table of hosts, and needs 0, 2, 2 under all three; each wrapper is
+  shown closed to the run identity first, and a quoted program path now fails. Three reviews (16 findings,
+  mostly wording), 95 mutants caught, gate 5,341 passed; no host ran the line (decision 0025, revision
+  2026-10-16). Merged as #43 (squash `1de0c04`, `6.1.0-preview0016`; Windows CI 5,325 passed).
+- **2026-10-15**: R-04 (`software-engineer`, `review: on`): the required check `IdentityPrivilege` reads
+  the verifier's access token and refuses one that is not a standard account's (elevated, split
+  administrator token, above Medium integrity, the Administrators group, or a privilege outside five;
+  an impersonating thread is unmeasured), and gates the hook probe, git and the appender. One review and a
+  delta check (Approve with changes), 109 mutants caught, gate 5,276 passed; the Pass is tested through a
+  seam (decision 0025, revision 2026-10-15). Merged as #42 (squash `3481536`, `6.1.0-preview0014`).
 - **2026-10-12 to 2026-10-15**: P5 (`software-engineer`, `review: on`) rebuilt the containment verifier
   `Test-RunContainment.ps1` and the ledger appender `Invoke-LedgerAppender.ps1` after a first review
   that said Block (13 findings). Nine independent reviews in all; each fix round but the last found
