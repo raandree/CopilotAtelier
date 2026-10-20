@@ -112,6 +112,25 @@
             "durableWrite": false
         },
         {
+            "id": "session-general-glob-etymology",
+            "source": "session:4be9b209-5062-4c5d-a6dc-e9e80e4497ea",
+            "prompt": "where does the word glob come from?",
+            "routes": ["general"],
+            "requiredFiles": ["index.md"],
+            "allowHistory": false,
+            "durableWrite": false
+        },
+        {
+            "id": "session-run-security-review-handoff",
+            "source": "session:8c2d2e86-8f04-4916-b794-f444eb2d5e73",
+            "prompt": "Review the code changes above for security vulnerabilities, quality issues, and compliance.",
+            "routes": ["role", "implementation"],
+            "roleFiles": ["assessment-log.md"],
+            "requiredFiles": ["assessment-log.md", "techContext.md", "activeContext.md"],
+            "allowHistory": false,
+            "durableWrite": true
+        },
+        {
             "id": "git-glossary-and-cross-platform-setup",
             "source": "git:cbeda52",
             "prompt": "Establish the Glossary and enhance the Setup script for cross-platform compatibility.",

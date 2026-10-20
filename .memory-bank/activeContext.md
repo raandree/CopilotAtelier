@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-18
+last-verified: 2026-10-20
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,12 +9,13 @@ source: current task evidence
 
 ## Current focus
 
-**The property test of the hook-line shape also runs on a fresh seed on CI; it is built, gated and
-reviewed on `ai/property-test-fresh-seed` (local; the owner pushes it).** On CI (`CI=true`) the
-seeded test of `ContainmentVerifier.HookContract.Tests.ps1` runs once more on a seed it draws and
-prints with the PowerShell version, and `CONTAINMENT_PROPERTY_SEED=N` runs one again (a bad value
-fails and never falls back to another). The review found the comparison, the draw width and the
-wiring unpinned; 78 tests pin them. Test-only: the verifier and its digest do not change.
+**P6, the routing-coverage ratchet, is rebuilt on `main` and committed on
+`ai/memory-bank-route-coverage-v2` (local; the owner pushes it).** `Test-MemoryBankRouting.ps1`
+reports the routes no real case covers, counts a `role` case without `roleFiles`, keeps role files
+in the Full-read fallback, and gates the 50 % floor on the average without `general`-only cases
+(ruling of 2026-10-20). Two owner-labelled cases now cover `general` and `role`, the last routes without one.
+
+**The property-seed test is merged** as #46 (squash `12b8f44`, `6.1.0-preview0018`); test-only.
 
 **S-33 is merged** as #45 (squash `a481c9d`, `6.1.0-preview0017`; Windows CI 5,332 passed): a second
 colon in the program path is refused, quoted or not (`docs/SECURITY-REVIEW.md`, 2026-10-18). With #43
@@ -158,12 +159,11 @@ unproven — train reached 100 % while validation fell.
    no dialog (P3 and P8 are deployed with P2; `./Setup-CopilotSettings.ps1` after a
    `git pull --ff-only origin main` only refreshes the record). Agents cannot push; the
    deployed copy under `~/.copilot` is the owner's to refresh.
-3. The property-seed branch (`ai/property-test-fresh-seed`, local) waits for the owner: push, pull
-   request and squash merge (the commands are in the chat), then delete the merged branches on
-   `origin`. Then the P5 follow-ups (`docs/SECURITY-REVIEW.md`: S-20, the escape set of
-   `WritableRoots`, S-19, the run id of `-Revalidate`), P1, the 06c choices (E-08, E-09), the P6
-   labels and the P8 assumptions (Desktop `LEDGER.md`). The closing test of R-04 (a throwaway local
-   account read through `LogonUser`, expecting a Pass) needs the owner's yes on a development host.
+3. P6 waits for the owner: push `ai/memory-bank-route-coverage-v2`, open the pull request and
+   squash-merge it (the commands are in the chat). Then the P8 checks and the P5 follow-ups
+   (`docs/SECURITY-REVIEW.md`: S-20, the escape set of `WritableRoots`, S-19, the run id of
+   `-Revalidate`; Desktop `LEDGER.md`). The closing test of R-04 (a throwaway local account read
+   through `LogonUser`, expecting a Pass) needs the owner's yes on a development host.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.

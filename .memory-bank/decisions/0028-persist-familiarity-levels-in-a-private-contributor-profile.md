@@ -2500,6 +2500,15 @@ Open, in `docs/SECURITY-REVIEW.md`: E-08, E-09, E-15, and E-16 (Minor), and the
 runner's Run mode, the labeller, and the freeze writer were never run for real
 after the fixes. The record keeps findings, resolutions, and numbers only.
 
+**Update, 2026-10-20: the owner ruled on the 06c items.** E-08 (block the
+high-precision subset of the advisories and print counts) and E-09 (accept
+ShellPilot 0.4.0 or later, called by the module's exact command name) are
+ruled, and of the fixer's eight design choices three are bound before the next
+freeze: the calibration cache path, a comparison without a freeze, and a
+missing ledger. The details are in `docs/SECURITY-REVIEW.md`. E-15 and E-16 stay
+open, and nothing else changes: TBD-11 is still UNVERIFIED and no further run
+is authorized (A34).
+
 ## Signed-off Design Concept
 
 Signed off by the repository owner in chat on 2026-10-06, after an interview
