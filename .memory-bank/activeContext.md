@@ -161,7 +161,7 @@ unproven — train reached 100 % while validation fell.
 3. The property-seed branch (`ai/property-test-fresh-seed`, local) waits for the owner: push, pull
    request and squash merge (the commands are in the chat), then delete the merged branches on
    `origin`. Then the P5 follow-ups (`docs/SECURITY-REVIEW.md`: S-20, the escape set of
-   `WritableRoots`, S-19, the run id of `-Revalidate`), P1, the 06c choices (E-08, E-09), the P6
+   `WritableRoots`, S-19, the run id of `-Revalidate`), the 06c choices (E-08, E-09), the P6
    labels and the P8 assumptions (Desktop `LEDGER.md`). The closing test of R-04 (a throwaway local
    account read through `LogonUser`, expecting a Pass) needs the owner's yes on a development host.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
