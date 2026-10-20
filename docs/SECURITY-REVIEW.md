@@ -878,7 +878,8 @@ and a regression (E-14), the third round fixed them, and the fourth found no
 Blocker and no unconditional Major. Nothing found blocks a further paid run if it
 starts as `pwsh -NoProfile -File … -RequireFreeze`, and the reviewer lists what
 must happen before the next freeze under *Before the next freeze*. The minors
-E-08, E-09, E-15, and E-16 stay open. The kit is a seatbelt against accidents and
+E-15 and E-16 stay open, and the owner ruled on E-08 and E-09 on 2026-10-20
+(see the findings). The kit is a seatbelt against accidents and
 kit defects, not a boundary against the owner's own account: the freeze ledger
 lives in the kit, so only a freeze digest recorded outside it makes the freeze
 tamper-evident against the same user.
@@ -894,8 +895,8 @@ tamper-evident against the same user.
 | E-05 | Major | Integrity | Neither the lock nor the freeze hashed the reply files that labels reference, or the item list. | Closed. The lock carries a manifest of the referenced files' digests, and the freeze lists them and the item list. |
 | E-06 | Major | Path handling | The labeller joined an item's sample path to the kit folder without a containment check, so a parent-relative path was read and sent. | Closed. The labeller and the calibration command resolve the path, links included, and refuse one outside the kit; the two joins of the list builder that the first fix missed use the same resolver since round 3. A check-then-read race and the symlink branch (no elevation here to test it) remain. |
 | E-07 | Major | Leak checks | The owner's term list, the control for names and addresses, is required nowhere: a missing file was skipped silently, and nothing asserted a non-empty scan context. | Closed. An empty scan context is refused centrally, the runner and the labeller print its counts, and a freeze requires the file and pins the candidate and seed files. The file does not exist today, so the next freeze stops until it does. |
-| E-08 | Minor | Leak checks | Advisories (an e-mail, a token, a hex id, a path) are computed and dropped by every caller, and a provenance digest goes out on the judge path. | Open. What to block is the owner's decision. |
-| E-09 | Minor | Backend check | The guard encodes ShellPilot 0.4.0's resolution order, but the scripts accept a later module by name, and a session function of the same name shadows it. | Open. Which versions to accept is the owner's decision. |
+| E-08 | Minor | Leak checks | Advisories (an e-mail, a token, a hex id, a path) are computed and dropped by every caller, and a provenance digest goes out on the judge path. | Ruled by the owner on 2026-10-20: block the high-precision subset (a non-example e-mail, secret prefixes, any provenance digest, UNC and profile paths) and print per-run counts by rule. Not built; it binds the next freeze. |
+| E-09 | Minor | Backend check | The guard encodes ShellPilot 0.4.0's resolution order, but the scripts accept a later module by name, and a session function of the same name shadows it. | Ruled by the owner on 2026-10-20: accept 0.4.0 or later and call the module's own command by exact name, `& (Get-Command Invoke-ShpBatch -Module ShellPilot)`. Not built; it binds the next freeze. Residual: a newer version that changes the destination setting is not detected, because the reviewer's version and `.psm1` SHA-256 pin was not chosen. |
 | E-10 | Minor | Held-out check | The header claimed that the selection depends on no reply's content, but eligibility reads the reply, and the independence test mutated a property the function never reads. | Closed. The claim is corrected and the test replaced by checks that mutate reply content. |
 | E-11 | Nit | Output | The calibration command printed the judge's quote and label text to the host, where a transcript keeps it. | Closed. It prints ids and counts; the text sits behind an explicit switch. |
 | E-12 | Major | Egress (found in round 2) | A session default for `-ErrorAction`, also by wildcard, turned an uncaught `throw` in a guard into a statement that the caller continued past when the guard was a bare call, which silenced every guard, the E-01 refusal included. | Closed in round 3 by three independent layers: the runner and the labeller read the incoming defaults and exit with code 2 when they would bind the batch; nine scripts shadow the session defaults with a disabled table before anything else runs; and the 28 advanced functions that throw set a stopping error preference first. A session alias named like a guard, or a script trace, is ambient code of the E-09 class; `pwsh -NoProfile` closes both. |
@@ -928,13 +929,17 @@ arm of the labeller's prompt check, and the advisories that no caller acts on.
 4. Treat the pre-fix held-out set and the freezes of 2026-10-10 as unverifiable,
    since they have no anchor, and redo them.
 5. Start the kit as `pwsh -NoProfile -File … -RequireFreeze`.
-6. Optionally close E-15 and E-16, bind the calibration command's cache path,
-   refuse a comparison without a freeze, and switch script tracing and strict
-   mode off in the shadow block.
+6. Bind the three choices the reviewer disputed, as the owner ruled on
+   2026-10-20: the calibration command's cache path, a comparison without a
+   freeze, and a missing ledger that reads as unfrozen. Build the blocking
+   subset of E-08 and the exact-name call of E-09.
+7. Optionally close E-15 and E-16, and switch script tracing and strict mode
+   off in the shadow block.
 
 ### Remaining risks
 
-- E-08, E-09, E-15, and E-16 stay open until the owner rules on or closes them.
+- E-15 and E-16 stay open until the owner closes them; E-08 and E-09 are ruled
+  (2026-10-20) and bind the next freeze, and the owner accepted E-09's residual.
   The kit is a seatbelt against accidents and kit defects, not a boundary against
   an operator or an agent that can run a shell.
 - The runner's Run mode, the labeller, and the freeze writer were checked with

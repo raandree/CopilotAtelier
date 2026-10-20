@@ -97,6 +97,7 @@ PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
 
 - Desktop `CopilotAtelier New\LEDGER.md` owns the local queue: 01-08 and P2-P9.
   It keeps Decision 0028 gates, dependencies, and duplicate/superseded references.
+  The owner ruled on 06c, P6, and P8 on 2026-10-20; the P6 rebuild and the P8 checks run next.
 - Confirm the clock pin live in a new VS Code agent-host chat and in VS Code Local
   (the Copilot CLI runtime stood in for them when it was redeployed on
   2026-10-11; `main` is pushed and `origin/ai/session-clock-path` is gone).
