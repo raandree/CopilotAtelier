@@ -81,7 +81,7 @@ suite covers deterministic planner and applicator mechanics.
 
 ## Route-selection evaluation
 
-[`evals/routing-cases.json`](evals/routing-cases.json) contains 25 real,
+[`evals/routing-cases.json`](evals/routing-cases.json) contains 27 real,
 provenance-labelled tasks. The two routing checks answer different questions:
 
 - `Test-MemoryBankRouting.ps1` consumes the human labels and proves that the
@@ -91,6 +91,24 @@ provenance-labelled tasks. The two routing checks answer different questions:
    Bank index to a fresh model. Prepare mode emits isolated prompts; Grade mode
    compares strict JSON replies with the hidden route labels and reports pass@k
    and pass^k.
+
+The deterministic check also guards the case set. `UncoveredRoutes` lists every
+route in the index that no real case exercises; a case that expects the
+Full-read fallback exercises none. `tests/MemoryBankRouting.Tests.ps1` requires
+each uncovered route to sit on a baseline with a stated reason, so a new route
+without a case fails and the baseline can only shrink; every route has a real
+case today, so the baseline is empty. A case names `roleFiles` exactly when it
+routes to `role`: the index row names no file, so a hollow `role` case would
+resolve to the index only and pass, and `RoleFileFailures` counts it. The
+Full-read fallback keeps a case's role files beside the full base, because the
+active Custom agent reads its role files in every loading mode.
+
+The 50 % floor gates on `AverageContextReductionPercentExcludingGeneralOnly`,
+the average without the cases whose only route is `general`. Such a case loads
+the index alone, so each one raises `AverageContextReductionPercent`, the
+average over every case, however well the other routes select; both averages
+are reported. The gated average is empty when no other case is left, so a set
+of general questions cannot pass the floor on its own.
 
 Grading separates safety from cost. A reply is safe when it misses no labelled
 route, so a superset loses no context and is not scored as a miss. Because a

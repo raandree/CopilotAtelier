@@ -7,6 +7,20 @@
     Parses the routing table from .memory-bank/index.md, resolves the files for
     each inert task case, and compares routed context with the full-read
     fallback. Prompt text is never executed or treated as instructions.
+
+    UncoveredRoutes lists the Memory Bank routes that no case exercises; a case
+    expected to fall back exercises none, and the report never fails the run.
+    A case must name roleFiles exactly when it routes to role, because the
+    index row names no file. Every violation counts in RoleFileFailures and
+    fails the run. The Full-read fallback keeps a case's existing role files
+    beside the full base: the active Custom agent reads them in every
+    loading mode.
+
+    AverageContextReductionPercent averages every case.
+    AverageContextReductionPercentExcludingGeneralOnly leaves out the cases
+    that name no route other than general, counted in GeneralOnlyCaseCount:
+    they load the index alone, so adding them would raise the average however
+    well the other routes select. It is empty when no other case is left.
 .PARAMETER Path
     Repository root containing .memory-bank.
 .PARAMETER EvalFile
@@ -175,7 +189,11 @@ $routingTable = Get-MemoryBankRoutingTable -IndexPath $indexPath
 $coverageMisses = 0
 $unexpectedHistoryLoads = 0
 $fallbackFailures = 0
+$roleFileFailures = 0
+$coveredRoutes = [Collections.Generic.HashSet[string]]::new()
+$generalOnlyCaseCount = 0
 $routedCharacters = 0
+$routedCharactersExcludingGeneralOnly = 0
 $selectedLocalHistoryCharacters = 0
 $details = @()
 $stopwatch = [Diagnostics.Stopwatch]::StartNew()
@@ -193,6 +211,40 @@ foreach ($case in @($evalSet.cases)) {
         (Test-CaseProperty -Case $case -Name 'durableWrite') -and
         [bool]$case.durableWrite
     )
+    $caseRoutes = @($case.routes | ForEach-Object { [string]$_ })
+    $caseRoleFiles = @(
+        if (Test-CaseProperty -Case $case -Name 'roleFiles') {
+            @($case.roleFiles) | Where-Object {
+                -not [string]::IsNullOrWhiteSpace([string]$_)
+            }
+        }
+    )
+
+    # The index row for role names no file, so a role case without roleFiles
+    # would silently resolve to the index only and pass. Role files are the
+    # other half of the contract: they belong to a role case alone.
+    if (('role' -in $caseRoutes) -ne ($caseRoleFiles.Count -gt 0)) {
+        $roleFileFailures++
+    }
+
+    # A case expected to fall back loads the full base whatever its routes
+    # say, so it exercises none of them.
+    if (-not $expectFallback) {
+        foreach ($caseRoute in $caseRoutes) {
+            if ($routingTable.ContainsKey($caseRoute)) {
+                [void]$coveredRoutes.Add($caseRoute)
+            }
+        }
+    }
+
+    # A case that names no route other than general loads the index alone,
+    # the smallest read there is, so it stays out of the gated average.
+    $generalOnly = @(
+        $caseRoutes | Where-Object { $_ -ne 'general' }
+    ).Count -eq 0
+    if ($generalOnly) {
+        $generalOnlyCaseCount++
+    }
 
     $selectedFiles = [Collections.Generic.List[string]]::new()
     [void]$selectedFiles.Add('index.md')
@@ -270,6 +322,16 @@ foreach ($case in @($evalSet.cases)) {
         foreach ($fileName in $fullFileNames) {
             [void]$selectedFiles.Add($fileName)
         }
+
+        # The full base names no role file, but the active Custom agent reads
+        # its declared role files at the start of its workflow in every
+        # loading mode, so the Full-read fallback keeps the ones that exist.
+        foreach ($roleFile in $caseRoleFiles) {
+            $roleFilePath = Join-Path $memoryBankPath ([string]$roleFile)
+            if (Test-Path -LiteralPath $roleFilePath -PathType Leaf) {
+                [void]$selectedFiles.Add([string]$roleFile)
+            }
+        }
     }
 
     $uniqueFiles = @($selectedFiles | Select-Object -Unique)
@@ -322,6 +384,9 @@ foreach ($case in @($evalSet.cases)) {
         $caseCharacters += $metric.Characters
     }
     $routedCharacters += $caseCharacters
+    if (-not $generalOnly) {
+        $routedCharactersExcludingGeneralOnly += $caseCharacters
+    }
 
     $details += [PSCustomObject]@{
         Id = $case.id
@@ -342,19 +407,42 @@ $reductionPercent = if ($effectiveMode -eq 'full') {
         2
     )
 }
+$caseCountExcludingGeneralOnly = $caseCount - $generalOnlyCaseCount
+$reductionPercentExcludingGeneralOnly = if ($caseCountExcludingGeneralOnly -eq 0) {
+    $null
+} elseif ($effectiveMode -eq 'full') {
+    0
+} else {
+    [Math]::Round(
+        (1 - (
+            $routedCharactersExcludingGeneralOnly /
+            ($fullCharacters * $caseCountExcludingGeneralOnly)
+        )) * 100,
+        2
+    )
+}
 $passed = (
     $coverageMisses -eq 0 -and
     $unexpectedHistoryLoads -eq 0 -and
-    $fallbackFailures -eq 0
+    $fallbackFailures -eq 0 -and
+    $roleFileFailures -eq 0
+)
+$indexRoutes = @($routingTable.Keys | Sort-Object)
+$uncoveredRoutes = @(
+    $indexRoutes | Where-Object { -not $coveredRoutes.Contains($_) }
 )
 
 [PSCustomObject]@{
     Passed = $passed
     Mode = $effectiveMode
     CaseCount = $caseCount
+    GeneralOnlyCaseCount = $generalOnlyCaseCount
     CoverageMisses = $coverageMisses
     UnexpectedHistoryLoads = $unexpectedHistoryLoads
     FallbackFailures = $fallbackFailures
+    RoleFileFailures = $roleFileFailures
+    IndexRoutes = $indexRoutes
+    UncoveredRoutes = $uncoveredRoutes
     FullDecisionRecordCount = $fullDecisionFiles.Count
     LocalPromptHistoryPresent = $localPromptHistoryPresent
     BaselineApproximateTokens = [Math]::Ceiling($fullCharacters / 4)
@@ -362,6 +450,9 @@ $passed = (
         ($routedCharacters / $caseCount) / 4
     )
     AverageContextReductionPercent = $reductionPercent
+    AverageContextReductionPercentExcludingGeneralOnly = (
+        $reductionPercentExcludingGeneralOnly
+    )
     AverageSelectedLocalHistoryApproximateTokens = [Math]::Ceiling(
         ($selectedLocalHistoryCharacters / $caseCount) / 4
     )

@@ -6,6 +6,9 @@ BeforeAll {
     $script:evaluatorPath = Join-Path $script:repoRoot (
         'skills/memory-bank/scripts/Test-MemoryBankRouting.ps1'
     )
+    $script:initializerPath = Join-Path $script:repoRoot (
+        'skills/memory-bank/scripts/Initialize-MemoryBank.ps1'
+    )
     $script:indexPath = Join-Path $script:repoRoot '.memory-bank/index.md'
     $script:decisionsPath = Join-Path $script:repoRoot '.memory-bank/decisions'
     $script:systemPatternsPath = Join-Path $script:repoRoot (
@@ -57,7 +60,16 @@ Describe 'Memory Bank routing evaluation' {
         $result.CoverageMisses | Should -Be 0
         $result.UnexpectedHistoryLoads | Should -Be 0
         $result.FallbackFailures | Should -Be 0
-        $result.AverageContextReductionPercent | Should -BeGreaterOrEqual 50
+        $result.RoleFileFailures | Should -Be 0
+
+        # Both averages are reported; the floor gates on the one without the
+        # cases whose only route is general, which load the index alone.
+        $result.PSObject.Properties.Name |
+            Should -Contain 'AverageContextReductionPercent'
+        $result.PSObject.Properties.Name |
+            Should -Contain 'AverageContextReductionPercentExcludingGeneralOnly'
+        $result.AverageContextReductionPercentExcludingGeneralOnly |
+            Should -BeGreaterOrEqual 50
     }
 
     It 'retains full loading as a tested rollback' {
@@ -70,6 +82,7 @@ Describe 'Memory Bank routing evaluation' {
         $result.Mode | Should -Be 'full'
         $result.CoverageMisses | Should -Be 0
         $result.FallbackFailures | Should -Be 0
+        $result.RoleFileFailures | Should -Be 0
         $result.FullDecisionRecordCount | Should -BeGreaterThan 0
         foreach ($detail in $result.Details) {
             @($detail.Files | Where-Object { $_ -like 'decisions/*.md' }).Count |
@@ -139,6 +152,7 @@ Describe 'Memory Bank routing evaluation' {
         $result.Passed | Should -BeTrue
         $result.CoverageMisses | Should -Be 0
         $result.FallbackFailures | Should -Be 0
+        $result.RoleFileFailures | Should -Be 0
         $result.LocalPromptHistoryPresent | Should -BeFalse
         $result.Details |
             Where-Object Id -eq 'language-without-glossary' |
@@ -222,6 +236,335 @@ Describe 'Memory Bank routing evaluation' {
                 -Because $fileName
             $content | Should -Match '(?m)^owner: [a-z0-9-]+\r?$' -Because $fileName
             $content | Should -Match '(?m)^source: .+\r?$' -Because $fileName
+        }
+    }
+}
+
+Describe 'Memory Bank route coverage' {
+    BeforeAll {
+        <#
+            Memory Bank routes that no real case exercises yet, each with the
+            reason no real task covers it. Every route the index defines has a
+            real case today, so the baseline is empty. A route the index gains
+            without a real case fails the coverage test until it gains one or
+            an entry here, and an entry whose route gains a real case fails the
+            baseline test until it is removed, so the list can only shrink. A
+            fixture case is never real coverage, but a reason may cite one.
+        #>
+        $script:uncoveredRouteBaseline = [ordered]@{}
+
+        $script:fixtureRepository = Join-Path $TestDrive 'route-coverage'
+        New-Item -ItemType Directory -Path $script:fixtureRepository -Force |
+            Out-Null
+        & $script:initializerPath -Path $script:fixtureRepository -Confirm:$false |
+            Out-Null
+        Set-Content -LiteralPath (
+            Join-Path $script:fixtureRepository '.memory-bank/legal-case.md'
+        ) -Value '# Legal case'
+
+        function Invoke-RoutingFixture {
+            [CmdletBinding()]
+            [OutputType([PSCustomObject])]
+            param(
+                [Parameter(Mandatory)]
+                [hashtable[]]$Case,
+
+                [Parameter()]
+                [ValidateSet('routed', 'full')]
+                [string]$LoadingMode
+            )
+
+            $cases = @(
+                for ($index = 0; $index -lt $Case.Count; $index++) {
+                    $merged = @{
+                        id = "fixture-$index"
+                        source = "session:fixture:$index"
+                        prompt = 'Fixture task.'
+                        requiredFiles = @('index.md')
+                        allowHistory = $false
+                        durableWrite = $false
+                    }
+                    foreach ($key in $Case[$index].Keys) {
+                        $merged[$key] = $Case[$index][$key]
+                    }
+                    $merged
+                }
+            )
+            $evalPath = Join-Path $script:fixtureRepository (
+                'cases-{0}.json' -f [guid]::NewGuid().ToString('N')
+            )
+            @{ schemaVersion = 1; cases = $cases } |
+                ConvertTo-Json -Depth 10 |
+                Set-Content -LiteralPath $evalPath
+
+            $evaluatorArguments = @{
+                Path = $script:fixtureRepository
+                EvalFile = $evalPath
+            }
+            if ($PSBoundParameters.ContainsKey('LoadingMode')) {
+                $evaluatorArguments.LoadingMode = $LoadingMode
+            }
+            & $script:evaluatorPath @evaluatorArguments
+        }
+
+        $script:realCoverage = & $script:evaluatorPath -Path $script:repoRoot -EvalFile $script:evalFile
+    }
+
+    Context 'When the real task cases are evaluated' {
+        It 'reports the routes the index defines' {
+            $script:realCoverage.PSObject.Properties.Name |
+                Should -Contain 'IndexRoutes'
+            $script:realCoverage.PSObject.Properties.Name |
+                Should -Contain 'UncoveredRoutes'
+            @($script:realCoverage.IndexRoutes).Count |
+                Should -BeGreaterThan 0 -Because (
+                    'a parser that finds no route would report every route covered'
+                )
+        }
+
+        It 'gives every route a real case or a baseline entry' {
+            $script:realCoverage.PSObject.Properties.Name |
+                Should -Contain 'UncoveredRoutes'
+
+            $unbaselined = @(
+                $script:realCoverage.UncoveredRoutes |
+                    Where-Object { $_ -notin $script:uncoveredRouteBaseline.Keys }
+            )
+
+            $unbaselined | Should -BeNullOrEmpty -Because (
+                'no real case exercises: ' + ($unbaselined -join ', ')
+            )
+        }
+
+        It 'keeps every baselined route uncovered so the baseline can only shrink' {
+            $covered = @(
+                $script:uncoveredRouteBaseline.Keys |
+                    Where-Object { $_ -notin $script:realCoverage.UncoveredRoutes }
+            )
+
+            $covered | Should -BeNullOrEmpty -Because (
+                'a real case now covers these routes, or the index no longer defines ' +
+                'them, so remove them from the baseline: ' + ($covered -join ', ')
+            )
+        }
+
+        It 'baselines only routes the index defines' {
+            $unknown = @(
+                $script:uncoveredRouteBaseline.Keys |
+                    Where-Object { $_ -notin $script:realCoverage.IndexRoutes }
+            )
+
+            $unknown | Should -BeNullOrEmpty -Because (
+                'the index no longer defines: ' + ($unknown -join ', ')
+            )
+        }
+
+        It 'states a reason for every baselined route' {
+            foreach ($route in $script:uncoveredRouteBaseline.Keys) {
+                [string]::IsNullOrWhiteSpace($script:uncoveredRouteBaseline[$route]) |
+                    Should -Be $false -Because "the baseline needs a reason for $route"
+            }
+        }
+    }
+
+    Context 'When the evaluator reports coverage for a fixture checkout' {
+        It 'splits the index routes into covered and uncovered routes' {
+            $result = Invoke-RoutingFixture -Case @(
+                @{ routes = @('status') }
+                @{ routes = @('scope', 'status') }
+            )
+
+            $result.UncoveredRoutes | Should -Not -Contain 'status'
+            $result.UncoveredRoutes | Should -Not -Contain 'scope'
+            $result.UncoveredRoutes | Should -Contain 'general'
+            $result.UncoveredRoutes | Should -Contain 'role'
+            @($result.UncoveredRoutes + @('status', 'scope') | Sort-Object) |
+                Should -Be @($result.IndexRoutes | Sort-Object)
+        }
+
+        It 'does not count a route that only an expected fallback case names' {
+            $result = Invoke-RoutingFixture -Case @(
+                @{ routes = @('unknown', 'language'); expectFallback = $true }
+            )
+
+            $result.FallbackFailures | Should -Be 0
+            $result.IndexRoutes | Should -Not -Contain 'unknown'
+            $result.UncoveredRoutes | Should -Contain 'language'
+        }
+
+        It 'reports the same uncovered routes in full loading mode' {
+            $cases = @(@{ routes = @('status') })
+
+            $routed = Invoke-RoutingFixture -Case $cases
+            $full = Invoke-RoutingFixture -Case $cases -LoadingMode full
+
+            $routed.UncoveredRoutes | Should -Not -BeNullOrEmpty
+            $full.UncoveredRoutes | Should -Be $routed.UncoveredRoutes
+        }
+    }
+
+    Context 'When a case names role files' {
+        It 'reports <Name>' -ForEach @(
+            @{
+                Name = 'a role case without roleFiles'
+                Case = @{ routes = @('role') }
+            }
+            @{
+                Name = 'a role case with an empty roleFiles list'
+                Case = @{ routes = @('role'); roleFiles = @() }
+            }
+            @{
+                Name = 'a role case whose roleFiles are blank'
+                Case = @{ routes = @('role'); roleFiles = @(' ') }
+            }
+            @{
+                Name = 'roleFiles on a case that does not route to role'
+                Case = @{ routes = @('status'); roleFiles = @('legal-case.md') }
+            }
+        ) {
+            $result = Invoke-RoutingFixture -Case @($Case)
+
+            $result.RoleFileFailures | Should -Be 1
+            $result.Passed | Should -Be $false
+        }
+
+        It 'accepts a role case that names a role file' {
+            $result = Invoke-RoutingFixture -Case @(
+                @{
+                    routes = @('role')
+                    roleFiles = @('legal-case.md')
+                    requiredFiles = @('index.md', 'legal-case.md')
+                }
+            )
+
+            $result.RoleFileFailures | Should -Be 0
+            $result.Passed | Should -Be $true
+        }
+
+        It 'counts every inconsistent case once' {
+            $result = Invoke-RoutingFixture -Case @(
+                @{ routes = @('role') }
+                @{ routes = @('status'); roleFiles = @('legal-case.md') }
+                @{
+                    routes = @('role')
+                    roleFiles = @('legal-case.md')
+                    requiredFiles = @('index.md', 'legal-case.md')
+                }
+            )
+
+            $result.RoleFileFailures | Should -Be 2
+        }
+
+        It 'applies in full loading mode as well' {
+            $result = Invoke-RoutingFixture -Case @(
+                @{ routes = @('role') }
+            ) -LoadingMode full
+
+            $result.RoleFileFailures | Should -Be 1
+            $result.Passed | Should -Be $false
+        }
+
+        It 'loads the role files of a role case in full loading mode' {
+            $result = Invoke-RoutingFixture -Case @(
+                @{
+                    routes = @('role')
+                    roleFiles = @('legal-case.md')
+                    requiredFiles = @('index.md', 'legal-case.md')
+                }
+            ) -LoadingMode full
+
+            $result.Details[0].Files | Should -Contain 'legal-case.md' -Because (
+                'the active Custom agent reads its role files in every loading mode, ' +
+                'and the full base names none'
+            )
+            $result.CoverageMisses | Should -Be 0
+            $result.Passed | Should -Be $true
+        }
+
+        It 'loads the role files of a role case that falls back' {
+            $result = Invoke-RoutingFixture -Case @(
+                @{
+                    routes = @('role', 'unknown')
+                    roleFiles = @('legal-case.md')
+                    requiredFiles = @('index.md', 'legal-case.md')
+                    expectFallback = $true
+                }
+            )
+
+            $result.Details[0].UsedFallback | Should -Be $true
+            $result.Details[0].Files | Should -Contain 'legal-case.md'
+            $result.CoverageMisses | Should -Be 0
+            $result.Passed | Should -Be $true
+        }
+    }
+
+    Context 'When the context reduction is averaged' {
+        It 'leaves a case whose only route is general out of the gated average' {
+            $mixed = Invoke-RoutingFixture -Case @(
+                @{ routes = @('general') }
+                @{ routes = @('status') }
+            )
+            $statusOnly = Invoke-RoutingFixture -Case @(
+                @{ routes = @('status') }
+            )
+
+            $mixed.GeneralOnlyCaseCount | Should -Be 1
+            $mixed.AverageContextReductionPercentExcludingGeneralOnly |
+                Should -Be $statusOnly.AverageContextReductionPercent
+            $mixed.AverageContextReductionPercent |
+                Should -BeGreaterThan $mixed.AverageContextReductionPercentExcludingGeneralOnly -Because (
+                    'a case that loads only the index raises the average over all cases'
+                )
+        }
+
+        It 'keeps a case that routes to general and another route in the gated average' {
+            $result = Invoke-RoutingFixture -Case @(
+                @{ routes = @('general', 'status') }
+            )
+
+            $result.GeneralOnlyCaseCount | Should -Be 0
+            $result.AverageContextReductionPercentExcludingGeneralOnly |
+                Should -Be $result.AverageContextReductionPercent
+        }
+
+        It 'leaves a case that names no route out of the gated average as well' {
+            $result = Invoke-RoutingFixture -Case @(
+                @{ routes = @() }
+                @{ routes = @('status') }
+            )
+            $statusOnly = Invoke-RoutingFixture -Case @(
+                @{ routes = @('status') }
+            )
+
+            $result.GeneralOnlyCaseCount | Should -Be 1 -Because (
+                'a case without a route loads only the index, like a general one'
+            )
+            $result.AverageContextReductionPercentExcludingGeneralOnly |
+                Should -Be $statusOnly.AverageContextReductionPercent
+        }
+
+        It 'reports no gated average when every case is general-only' {
+            $result = Invoke-RoutingFixture -Case @(
+                @{ routes = @('general') }
+            )
+
+            $result.GeneralOnlyCaseCount | Should -Be 1
+            $result.AverageContextReductionPercent | Should -BeGreaterThan 0
+            $result.AverageContextReductionPercentExcludingGeneralOnly |
+                Should -BeNullOrEmpty -Because (
+                    'no case is left to average, so the floor cannot pass on general questions alone'
+                )
+        }
+
+        It 'reports both averages as zero in full loading mode' {
+            $result = Invoke-RoutingFixture -Case @(
+                @{ routes = @('general') }
+                @{ routes = @('status') }
+            ) -LoadingMode full
+
+            $result.GeneralOnlyCaseCount | Should -Be 1
+            $result.AverageContextReductionPercent | Should -Be 0
+            $result.AverageContextReductionPercentExcludingGeneralOnly | Should -Be 0
         }
     }
 }

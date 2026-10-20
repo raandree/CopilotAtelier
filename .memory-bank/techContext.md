@@ -156,8 +156,8 @@ request.
   contaminating their JSON output through merged streams.
 - Workflow step `shell` forbids expressions; matrix shells belong in
   `jobs.<job_id>.defaults.run`, enforced by `tests/Workflows.Tests.ps1`.
-- `tests/` owns suite coverage. Routing requires 50% average context reduction;
-  Memory Bank health enforces line budgets; Skill bodies use shrink-only bounds.
+- `tests/` owns suite coverage: 50% average routing context reduction without
+  `general`-only cases, Memory Bank line budgets, shrink-only Skill body bounds.
 - PowerShell changes require AST, focused Pester, and available PSScriptAnalyzer;
   Markdown Customizations need frontmatter checks and clean lint diagnostics.
 - Pester 5.7.1 result serialization stores file/provider references as paths or

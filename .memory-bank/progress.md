@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-18
+last-verified: 2026-10-20
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -12,18 +12,24 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
 `6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0017` (`a481c9d`, 2026-10-18) to GitHub Releases and the
+`6.1.0-preview0018` (`12b8f44`, 2026-10-18) to GitHub Releases and the
 PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-10-20**: P6, the routing-coverage ratchet (`software-engineer`), rebuilt by hand on `main` from
+  the uncommitted work of 2026-10-12. Every route needs a real case or a baseline entry with a reason, a
+  `role` case needs `roleFiles`, and the Full-read fallback keeps role files. Two owner-labelled cases
+  cover `general` and `role`; the floor gates on 87.01 % without the `general`-only case (87.47 % over all
+  27). Red first (20 of 28, then 3 of 30 for the fallback), 13 mutants caught; gate 5,475 passed. Not pushed.
 - **2026-10-18**: The property test of the hook-line shape on a fresh seed (`software-engineer`,
   `review: on`), the next P5 follow-up, built on `ai/property-test-fresh-seed`: on CI the seeded test
   runs once more on a seed it draws and prints with the PowerShell version, and
   `CONTAINMENT_PROPERTY_SEED=N` runs one again (a bad value fails). Generator and comparison moved
   into helpers with the same random stream (same results for 11 seeds); one review (`code-review`
-  agent) found them unpinned: 78 tests, 65 mutants caught, gate 5,405 passed. Test-only. Not pushed.
+  agent) found them unpinned: 78 tests, 65 mutants caught, gate 5,405 passed. Test-only. Merged as #46
+  (squash `12b8f44`, `6.1.0-preview0018`; the build on `main` is green).
 - **2026-10-18**: S-33 (`software-engineer`, `review: on`), the next P5 follow-up: `Get-HookInterpreter`
   refuses a program path with a second colon, after the one of the drive letter, quoted or not (a quoted
   one passed the drive rule and ended at "could not be measured"). Seven rows red first, 15 mutants
@@ -57,16 +63,10 @@ PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
   line and S-33 followed, above). Merged as #40 on 2026-10-15 (squash `0531814`, `6.1.0-preview0012`);
   `systemPatterns.md` has the patterns CI found.
 - **2026-10-13 to 2026-10-14**: P2 (`software-engineer`, `review: on`) built the Remote grant: a Grant
-  marker the user types in their own prompt, such as `[[allow-remote: git push, gh pr create]]`, makes
-  the new `UserPromptSubmit` hook `Add-RemoteGrant.ps1` record a short-lived, session-bound grant that
-  `Block-RemoteMutation.ps1` consumes, the same in the Agent Host, VS Code Local, and Copilot CLI. A hook
-  `ask` was disproved live (the Agent Host approves it under auto-approve),
-  `COPILOT_ATELIER_ALLOW_REMOTE` is removed, and the guard reads PowerShell as a syntax tree. Seven
-  independent review passes left no Blocker or Major; live acceptance passed on 2026-10-13. Merged as
-  #38 (squash `1c1327e`, `6.1.0-preview0011`). Decision 0016 holds the evidence.
-- **2026-10-12**: Merged #32 to #36 one at a time (`6.1.0-preview0005` to `0009`): P7, P3 (a command the
-  user runs comes in its own fenced block) and P8 (the task ledger). The review of the hand-merged hook
-  scripts approved with changes (M-01 to M-06; M-04, a `.familiarity` name collision, stays open).
+  marker the user types in their own prompt makes `Add-RemoteGrant.ps1` record a short-lived,
+  session-bound grant that `Block-RemoteMutation.ps1` consumes; `COPILOT_ATELIER_ALLOW_REMOTE` is gone.
+  Seven review passes, live acceptance 2026-10-13. Merged as #38 (squash `1c1327e`,
+  `6.1.0-preview0011`); decision 0016 holds the evidence.
 
 ## Stable capabilities
 
@@ -91,13 +91,13 @@ PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
   Short runs have a bounded async result waiter; longer runs keep heartbeat ticks.
   Test-first behavior changes, regression guards, risk-scaled review, and
   agentic-security checks. Routed Memory Bank loading with deterministic
-  non-inferiority, health, provenance, compactness, and rollback checks.
+  non-inferiority, health, provenance, route-coverage, compactness, and rollback checks.
 
 ## Open work
 
 - Desktop `CopilotAtelier New\LEDGER.md` owns the local queue: 01-08 and P2-P9.
   It keeps Decision 0028 gates, dependencies, and duplicate/superseded references.
-  The owner ruled on 06c, P6, and P8 on 2026-10-20; the P6 rebuild and the P8 checks run next.
+  The owner ruled on 06c, P6, and P8 on 2026-10-20; P6 is rebuilt and committed locally, the P8 checks run next.
 - Confirm the clock pin live in a new VS Code agent-host chat and in VS Code Local
   (the Copilot CLI runtime stood in for them when it was redeployed on
   2026-10-11; `main` is pushed and `origin/ai/session-clock-path` is gone).

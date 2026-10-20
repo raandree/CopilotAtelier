@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-07-24
-last-verified: 2026-08-13
+last-verified: 2026-10-20
 owner: software-engineer
 source: .memory-bank/index.md
 supersedes: full-base-only-loading
@@ -36,7 +36,21 @@ authoritative. Full mode includes every extracted Decision record.
 Run `tests/MemoryBankRouting.Tests.ps1`; require zero independently labeled
 critical-file misses, zero routine prompt-history loads, a complete Full-read
 fallback, and at least 50 percent average version-controlled context reduction
-across the real-task baseline.
+across the real-task baseline. Since 2026-10-20 that average leaves out the
+cases whose only route is `general`, by the owner's ruling: they load the index
+alone, so each one raised the average whatever the other routes selected. The
+average over every case is reported beside it.
+
+The same test keeps the case set honest in two ways. Every Memory Bank route in
+the index, as the evaluator's own parser reads it, needs at least one real case
+or an entry on a coverage baseline that states a reason and may only shrink; a
+fixture case never counts as coverage, and a case that expects the Full-read
+fallback exercises no route. A case names `roleFiles` exactly when it routes to
+`role`, and `RoleFileFailures` stays zero: the `role` row names no file, so a
+hollow `role` case would otherwise resolve to the index only and pass. The
+Full-read fallback keeps a case's role files, because the active Custom agent
+reads them in every loading mode. Since 2026-10-20 two owner-labelled cases
+cover `general` and `role`, the last uncovered routes, and the baseline is empty.
 
 Then run `Invoke-MemoryBankRouteSelectionEval.ps1` in `Prepare` and `Grade`
 modes with at least three fresh-context repetitions. A reply is safe when it
