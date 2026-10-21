@@ -27,7 +27,6 @@ $script:longDescriptionBaseline = @{
     'datum-configuration'            = 1010
     'windows-gui-screenshot-capture' = 1009
     'automatedlab-deployment'        = 1004
-    'subagent-dispatch'              = 1002
 }
 
 # Built during discovery so -ForEach expands. Building it in BeforeAll would

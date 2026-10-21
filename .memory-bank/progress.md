@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-20
+last-verified: 2026-10-21
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -18,11 +18,16 @@ PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-10-21**: The P8 checks (`software-engineer`; spending approved 2026-10-20). A new 20-query set
+  measured the `subagent-dispatch` description; the new one names prompts run one per chat, briefs, the
+  task ledger, and folder migration (`claude-opus-5.5` train 10 to 12 of 12, validation 7 to 8 of 8;
+  `claude-haiku-4.5` train 7 to 10, validation 7 of 8). Five runs per version: E cases 27 against 9 of 35,
+  decoys 20 of 20 in both; a fresh-subagent migration passed every E7 line. On `ai/subagent-dispatch-evals`.
 - **2026-10-20**: P6, the routing-coverage ratchet (`software-engineer`), rebuilt by hand on `main` from
   the uncommitted work of 2026-10-12. Every route needs a real case or a baseline entry with a reason, a
   `role` case needs `roleFiles`, and the Full-read fallback keeps role files. Two owner-labelled cases
-  cover `general` and `role`; the floor gates on 87.01 % without the `general`-only case (87.47 % over all
-  27). Red first (20 of 28, then 3 of 30 for the fallback), 13 mutants caught; gate 5,475 passed. Not pushed.
+  cover `general` and `role`; the floor gates on 87.01 % without the `general`-only case (87.47 % over
+  all 27). Red first, 13 mutants caught; gate 5,475 passed. Merged as #47 (`247a826`).
 - **2026-10-18**: The property test of the hook-line shape on a fresh seed (`software-engineer`,
   `review: on`), the next P5 follow-up, built on `ai/property-test-fresh-seed`: on CI the seeded test
   runs once more on a seed it draws and prints with the PowerShell version, and
@@ -62,11 +67,6 @@ PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
   (decision 0025). Final gate on `d8eddb4`: 5,063 passed. Not done: a two-account test (R-04, the hook
   line and S-33 followed, above). Merged as #40 on 2026-10-15 (squash `0531814`, `6.1.0-preview0012`);
   `systemPatterns.md` has the patterns CI found.
-- **2026-10-13 to 2026-10-14**: P2 (`software-engineer`, `review: on`) built the Remote grant: a Grant
-  marker the user types in their own prompt makes `Add-RemoteGrant.ps1` record a short-lived,
-  session-bound grant that `Block-RemoteMutation.ps1` consumes; `COPILOT_ATELIER_ALLOW_REMOTE` is gone.
-  Seven review passes, live acceptance 2026-10-13. Merged as #38 (squash `1c1327e`,
-  `6.1.0-preview0011`); decision 0016 holds the evidence.
 
 ## Stable capabilities
 
@@ -97,7 +97,7 @@ PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
 
 - Desktop `CopilotAtelier New\LEDGER.md` owns the local queue: 01-08 and P2-P9.
   It keeps Decision 0028 gates, dependencies, and duplicate/superseded references.
-  The owner ruled on 06c, P6, and P8 on 2026-10-20; P6 is rebuilt and committed locally, the P8 checks run next.
+  The owner ruled on 06c, P6, and P8 on 2026-10-20; P6 is merged as #47, and the P8 checks ran on 2026-10-21.
 - Confirm the clock pin live in a new VS Code agent-host chat and in VS Code Local
   (the Copilot CLI runtime stood in for them when it was redeployed on
   2026-10-11; `main` is pushed and `origin/ai/session-clock-path` is gone).
@@ -148,11 +148,11 @@ PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
   `MoveFile` path (review F-03), and needs the `ci.yml` `shell: pwsh` steps
   distinguished from `powershell.exe`. The hook tests' process helpers use
   .NET-only `ProcessStartInfo.ArgumentList` and `Kill($true)`; port or skip them.
-- Run the eleven shipped trigger-query sets, then cover the 37 Skills still on
-  the `SkillTriggerCoverage` uncovered baseline. Every set is authored but
-  unmeasured. ShellPilot now reports ready with the existing Copilot backend;
-  the wiki case completed ten paired requests, but no Skill loaded. Native
-  discovery and a graded post-load comparison are still needed.
+- Run the eleven other trigger-query sets, then cover the 36 Skills still on
+  the `SkillTriggerCoverage` uncovered baseline; only `subagent-dispatch`'s set
+  has run (2026-10-21). ShellPilot reads a folded `>-` description as `>-`,
+  which likely explains why no Skill loaded in the wiki case; give it one-line
+  copies. Native discovery is still unmeasured.
 - Split the nine Skills on the `SkillFrontmatter` over-budget baseline into
   bodies under 500 lines plus one-level references, one per change, removing
   each from the baseline as it lands; `german-legal-research` at 780 is worst.

@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-20
+last-verified: 2026-10-21
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,13 +9,13 @@ source: current task evidence
 
 ## Current focus
 
-**P6, the routing-coverage ratchet, is rebuilt on `main` and committed on
-`ai/memory-bank-route-coverage-v2` (local; the owner pushes it).** `Test-MemoryBankRouting.ps1`
-reports the routes no real case covers, counts a `role` case without `roleFiles`, keeps role files
-in the Full-read fallback, and gates the 50 % floor on the average without `general`-only cases
-(ruling of 2026-10-20). Two owner-labelled cases now cover `general` and `role`, the last routes without one.
-
-**The property-seed test is merged** as #46 (squash `12b8f44`, `6.1.0-preview0018`); test-only.
+**P8's paid checks ran on 2026-10-21 and are committed on `ai/subagent-dispatch-evals` (local; the
+owner pushes).** The `subagent-dispatch` description now names prompts run one per chat, briefs, the
+task ledger, and folder migration, measured with a new 20-query set (`claude-opus-5.5`: train 12 of 12,
+validation 8 of 8). Against the version before #36 (five runs each) the E cases passed 27 of 35 runs
+against 9, the decoys 20 of 20 in both; a fresh subagent migrated the legacy fixture, a second changed
+nothing (`skills/subagent-dispatch/notes-evals.md`). P6 is merged as #47 (`247a826`), and the
+property-seed test as #46 (`12b8f44`, `6.1.0-preview0018`; test-only).
 
 **S-33 is merged** as #45 (squash `a481c9d`, `6.1.0-preview0017`; Windows CI 5,332 passed): a second
 colon in the program path is refused, quoted or not (`docs/SECURITY-REVIEW.md`, 2026-10-18). With #43
@@ -101,7 +101,8 @@ pilot made no Skill loads, writes, or shell calls. Waza and its native extension
 are absent; the earlier Copilot CLI check also reported it unavailable.
 No graded body comparison exists. The bundled matcher aggregates independent
 reviewer verdicts, not investigative actions or candidate-authored PASS text.
-Earlier route-selection and trigger-query sets remain unmeasured.
+Earlier route-selection and trigger-query sets remain unmeasured. ShellPilot's
+`-SkillPath` reads a folded `>-` description as `>-`: give it one-line copies.
 
 ## Open findings
 
@@ -159,8 +160,8 @@ unproven — train reached 100 % while validation fell.
    no dialog (P3 and P8 are deployed with P2; `./Setup-CopilotSettings.ps1` after a
    `git pull --ff-only origin main` only refreshes the record). Agents cannot push; the
    deployed copy under `~/.copilot` is the owner's to refresh.
-3. P6 waits for the owner: push `ai/memory-bank-route-coverage-v2`, open the pull request and
-   squash-merge it (the commands are in the chat). Then the P8 checks and the P5 follow-ups
+3. P8 waits for the owner: push `ai/subagent-dispatch-evals`, open the pull request and
+   squash-merge it (the commands are in the chat). Then the P5 follow-ups
    (`docs/SECURITY-REVIEW.md`: S-20, the escape set of `WritableRoots`, S-19, the run id of
    `-Revalidate`; Desktop `LEDGER.md`). The closing test of R-04 (a throwaway local account read
    through `LogonUser`, expecting a Pass) needs the owner's yes on a development host.

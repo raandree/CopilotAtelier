@@ -1,21 +1,21 @@
 ---
 name: subagent-dispatch
 description: >-
-  Protocol for delegating work to subagents: picking the model per role,
-  writing a dispatch prompt that carries the task instead of the session
-  history, handing artifacts over as files, keeping a durable ledger that
-  survives context compaction, handling the four report statuses, and capping
-  the fix loop before it turns into churn.
-  USE FOR: dispatch a subagent, delegate to a subagent, subagent prompt, which
-  model for a subagent, subagent model selection, subagent context, subagent
-  report, task brief, review package, subagent ledger, resume after compaction,
-  parallel subagents, fix loop, re-review, blind re-performance, independent
-  recomputation, the agent said it was done, verify a subagent's work,
-  runSubagent, controller context.
+  Protocol for handing work to subagents or to prompts the user runs one per
+  chat: the model per role, a brief that carries the task instead of the
+  session history, artifacts as files, a task ledger each run checks before
+  building on another's, the four report statuses, and a capped fix loop.
+  Load it whenever work is split or delegated, even with no subagent.
+  USE FOR: dispatch a subagent, which model for a subagent, verify a
+  subagent's work, the agent said it was done, re-review, fix loop, blind
+  re-performance, resume after compaction, handoff prompts for separate
+  chats, run the next brief, task ledger, migrate a prompt folder.
   DO NOT USE FOR: the review rubric itself (use code-review-and-quality),
-  authoring a Custom agent definition or a Skill (use skill-creator), measuring
-  whether a Customization works (use agent-evals), monitoring a long-running
-  process (use long-running-job-monitor).
+  authoring a Custom agent or Skill (skill-creator), measuring a
+  Customization (agent-evals), monitoring a job (long-running-job-monitor),
+  a single handoff document (session-handoff prompt), durable project
+  knowledge (memory-bank), unattended spec completion
+  (spec-completion-controller).
 compatibility: >-
   Requires a harness that can dispatch subagents and select their model
   explicitly, such as the VS Code Copilot chat agent surface or the GitHub

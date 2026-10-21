@@ -1,0 +1,138 @@
+[
+  {
+    "id": "pos-01",
+    "query": "Split the database migration into five prompts I can paste into separate chats over the week, so no chat redoes or skips another one's work",
+    "should_trigger": true,
+    "split": "train",
+    "note": "user-run sequence: briefs, ledger, README"
+  },
+  {
+    "id": "pos-02",
+    "query": "Write handoff prompts for the remaining refactoring steps; I will run each one in a fresh chat tomorrow",
+    "should_trigger": true,
+    "split": "train",
+    "note": "request to write handoff prompts"
+  },
+  {
+    "id": "pos-03",
+    "query": "Run brief 03 from the handoff folder. LEDGER.md says brief 02 is Done, so you can build on it",
+    "should_trigger": true,
+    "split": "train",
+    "note": "check another run's row before building on it"
+  },
+  {
+    "id": "pos-04",
+    "query": "Convert this folder of old prompt files into a numbered prompt sequence with a README and a status ledger",
+    "should_trigger": true,
+    "split": "train",
+    "note": "folder migration"
+  },
+  {
+    "id": "pos-05",
+    "query": "Which model should the reviewer subagent run on for a 40-line config change?",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-06",
+    "query": "The subagent reports the refactor is complete. How do I confirm that before I accept it?",
+    "should_trigger": true,
+    "split": "train"
+  },
+  {
+    "id": "pos-07",
+    "query": "I lose track of which of my chat prompts already ran. Set up a tracking file so each prompt checks the previous prompt's commits before it starts",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "ledger and row check without the word ledger"
+  },
+  {
+    "id": "pos-08",
+    "query": "Prepare four briefs for parallel chats, plus a table that tracks each brief's status and who made each decision",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "ledger rows and the Rulings table"
+  },
+  {
+    "id": "pos-09",
+    "query": "Hand the log search to a subagent, but don't paste our whole conversation into its prompt",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "pos-10",
+    "query": "We are on the fifth review-and-fix round with the subagent and it still has open findings. What now?",
+    "should_trigger": true,
+    "split": "validation"
+  },
+  {
+    "id": "neg-01",
+    "query": "Write a handoff note so the next chat can pick up this same task exactly where we stopped",
+    "should_trigger": false,
+    "split": "train",
+    "note": "one cross-session handoff document: the session-handoff prompt"
+  },
+  {
+    "id": "neg-02",
+    "query": "Record in the project's memory bank that we now target PowerShell 7 only",
+    "should_trigger": false,
+    "split": "train",
+    "note": "durable project knowledge: memory-bank"
+  },
+  {
+    "id": "neg-03",
+    "query": "Work through every unmet requirement in the specs folder unattended and keep the controller's audit ledger of each work item",
+    "should_trigger": false,
+    "split": "train",
+    "note": "audit ledger of unattended specification completion: the spec-completion-controller agent"
+  },
+  {
+    "id": "neg-04",
+    "query": "Review this diff and label every finding Blocker, Major, Minor, or Nit",
+    "should_trigger": false,
+    "split": "train",
+    "note": "the review rubric itself: code-review-and-quality"
+  },
+  {
+    "id": "neg-05",
+    "query": "Check whether my new skill's description actually gets it selected: run its trigger queries three times each",
+    "should_trigger": false,
+    "split": "train",
+    "note": "measuring a Customization: agent-evals"
+  },
+  {
+    "id": "neg-06",
+    "query": "Create a custom agent file for a read-only reviewer subagent with a restricted tools list",
+    "should_trigger": false,
+    "split": "train",
+    "note": "authoring a Custom agent definition"
+  },
+  {
+    "id": "neg-07",
+    "query": "The background build has printed nothing for ten minutes. Is it stuck or still working?",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "long-running-job-monitor"
+  },
+  {
+    "id": "neg-08",
+    "query": "Before this chat is compacted, write one document that tells my next session where this task stands",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "one cross-session handoff document: the session-handoff prompt"
+  },
+  {
+    "id": "neg-09",
+    "query": "Set up a memory bank for this repository so future sessions know the architecture",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "memory-bank"
+  },
+  {
+    "id": "neg-10",
+    "query": "Tighten the wording of the prompt files in this folder without changing what they ask for",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "copy edit of existing prompts"
+  }
+]
