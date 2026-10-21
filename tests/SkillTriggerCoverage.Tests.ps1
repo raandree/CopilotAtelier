@@ -45,7 +45,6 @@ $script:uncoveredSkillBaseline = @(
     'pswritehtml-reporting'
     'send-outlook-email'
     'social-signal-sweep'
-    'subagent-dispatch'
     'whisper-pyannote-transcription'
     'windows-gui-screenshot-capture'
     'winrm-troubleshooting'
