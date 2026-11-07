@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-21
+last-verified: 2026-11-07
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,13 +9,13 @@ source: current task evidence
 
 ## Current focus
 
-**P8's paid checks ran on 2026-10-21 and are committed on `ai/subagent-dispatch-evals` (local; the
-owner pushes).** The `subagent-dispatch` description now names prompts run one per chat, briefs, the
-task ledger, and folder migration, measured with a new 20-query set (`claude-opus-5.5`: train 12 of 12,
-validation 8 of 8). Against the version before #36 (five runs each) the E cases passed 27 of 35 runs
-against 9, the decoys 20 of 20 in both; a fresh subagent migrated the legacy fixture, a second changed
-nothing (`skills/subagent-dispatch/notes-evals.md`). P6 is merged as #47 (`247a826`), and the
-property-seed test as #46 (`12b8f44`, `6.1.0-preview0018`; test-only).
+**The Skill index is on `ai/skill-index` (local; the owner pushes), 2026-11-07.** Copilot CLI 1.0.103
+lists Skill descriptions only up to 30,000 characters (VS Code chat 15,000), VS Code's 20 synced Skills
+first; so 30 of our 50 Skills reached the model by name only, and `subagent-dispatch` never loaded for
+"write handoff prompts" in the DeskPilot and ShellPilot chats of 2026-11-07. The always-applied
+`skill-index.instructions.md` names every Skill in one row; `Get-CopilotAtelierFootprint` estimates the
+cut (`SkillCatalog`). P8 is merged as #48 (`ae8684d`); `~/.copilot` still runs the pre-#48 description
+until the owner redeploys, and a live check in a fresh CLI chat after redeploying is open.
 
 **S-33 is merged** as #45 (squash `a481c9d`, `6.1.0-preview0017`; Windows CI 5,332 passed): a second
 colon in the program path is refused, quoted or not (`docs/SECURITY-REVIEW.md`, 2026-10-18). With #43

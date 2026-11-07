@@ -51,7 +51,7 @@ Customization directories listed in `build.yaml` into the built module at
 | `Update-CopilotAtelier` | Compare against the Gallery, install a newer version, redeploy |
 | `Get-CopilotAtelierVersion` | Report installed version, deployed version, and currency |
 | `Get-CopilotAtelierProfile` | Read-only report of each installation profile and the Skills it deploys |
-| `Get-CopilotAtelierFootprint` | Read-only footprint report of the Customization collection with loading-reduction opportunities |
+| `Get-CopilotAtelierFootprint` | Read-only footprint report of the Customization collection with loading-reduction opportunities and the Skills a host lists by name only (`SkillCatalog`) |
 | `Get-CopilotAtelierClientAdapter` | Read-only report of how a Custom agent profile is composed per Copilot client, and what that client cannot do |
 | `Test-CopilotAtelier` | Read-only deployment, hash, link, hook, and settings diagnostics |
 | `Uninstall-CopilotAtelier` | Remove unchanged owned files; preserve personal content and configuration |

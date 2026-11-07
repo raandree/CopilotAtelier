@@ -96,4 +96,37 @@ Describe 'Get-CopilotAtelierFootprint' -Tag 'Unit' {
         $result.TotalByte | Should -BeGreaterThan 0
         @($result.Directories | Where-Object { $_.DeployedDirectory -eq 'skills' -and $_.FileCount -gt 0 }) | Should -Not -BeNullOrEmpty
     }
+
+    It 'Should estimate the Skill catalog against a 30,000-character host budget by default' {
+        $result = Get-CopilotAtelierFootprint -ContentPath $script:content
+
+        $result.SkillCatalog.BudgetCharacter | Should -Be 30000
+        $result.SkillCatalog.OffsetCharacter | Should -Be 0
+        $result.SkillCatalog.DescribedCount | Should -Be 1
+    }
+
+    It 'Should apply the Skill catalog budget and offset it is given' {
+        $result = Get-CopilotAtelierFootprint -ContentPath $script:content -SkillCatalogBudget 50 -SkillCatalogOffset 10
+
+        $result.SkillCatalog.BudgetCharacter | Should -Be 50
+        $result.SkillCatalog.OffsetCharacter | Should -Be 10
+        $result.SkillCatalog.NameOnlySkill | Should -Be @('demo')
+    }
+
+    It 'Should reject a Skill catalog budget below one character' {
+        { Get-CopilotAtelierFootprint -ContentPath $script:content -SkillCatalogBudget 0 } |
+            Should -Throw -ErrorId 'ParameterArgumentValidationError,Get-CopilotAtelierFootprint'
+    }
+
+    It 'Should reject a negative Skill catalog offset' {
+        { Get-CopilotAtelierFootprint -ContentPath $script:content -SkillCatalogOffset -1 } |
+            Should -Throw -ErrorId 'ParameterArgumentValidationError,Get-CopilotAtelierFootprint'
+    }
+
+    It 'Should name the Skills a host lists by name only in the text summary' {
+        $text = Get-CopilotAtelierFootprint -ContentPath $script:content -SkillCatalogBudget 50 -AsText
+
+        $text | Should -Match 'Skill catalog against a host budget'
+        $text | Should -Match 'Name only: demo'
+    }
 }

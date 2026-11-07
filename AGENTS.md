@@ -83,7 +83,11 @@ disagreeing with each other, and only some of that drift is caught by CI.
    in [`tests/SkillTriggerCoverage.Tests.ps1`](tests/SkillTriggerCoverage.Tests.ps1)
    instead, and say why.
 3. `README.md` — a row in the *Available Skills* table.
-4. `CHANGELOG.md` — an entry under `[Unreleased]`.
+4. [`com.github.copilot/rules/skill-index.instructions.md`](com.github.copilot/rules/skill-index.instructions.md)
+   — one short row, in name order, naming the Skill and the requests it
+   serves. Hosts show Skill descriptions only up to a size budget, so for a
+   Skill past it this row is all the model sees.
+5. `CHANGELOG.md` — an entry under `[Unreleased]`.
 
 **Adding a Custom agent:**
 
@@ -102,6 +106,7 @@ disagreeing with each other, and only some of that drift is caught by CI.
 | Skill conformance against the open specification | [`tests/SkillsRefValidate.Tests.ps1`](tests/SkillsRefValidate.Tests.ps1) |
 | Trigger coverage, query schema, orphaned query sets | [`tests/SkillTriggerCoverage.Tests.ps1`](tests/SkillTriggerCoverage.Tests.ps1) |
 | README catalogue rows against shipped Skills | [`tests/SkillCatalogue.Tests.ps1`](tests/SkillCatalogue.Tests.ps1) |
+| Skill index rows against shipped Skills, index size | [`tests/SkillIndex.Tests.ps1`](tests/SkillIndex.Tests.ps1) |
 | Agent, Instruction, and Prompt frontmatter | [`tests/CustomizationFrontmatter.Tests.ps1`](tests/CustomizationFrontmatter.Tests.ps1) |
 | Plugin manifest shape and version | [`tests/PluginManifest.Tests.ps1`](tests/PluginManifest.Tests.ps1) |
 | Committed credentials | [`tests/SecretScan.Tests.ps1`](tests/SecretScan.Tests.ps1) |

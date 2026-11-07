@@ -34,10 +34,28 @@ function Get-CopilotAtelierFootprint
             result. Use Test-CopilotAtelier for deployment, hash, and Discovery
             link health.
 
+            The report also estimates the Skill catalog a host lists for the
+            model: one entry per Skill with its description, in name order,
+            until a character budget, and every remaining Skill by name only. A
+            Skill listed by name only can still be loaded, but nothing tells the
+            model what it is for. The SkillCatalog property and the
+            SkillCatalogOverBudget opportunity name those Skills.
+
         .PARAMETER ContentPath
             The directory that holds the customization directories. Defaults to
             the module base, or the repository root when the source files are
             dot-sourced during development.
+
+        .PARAMETER SkillCatalogBudget
+            The character budget a host gives Skill descriptions before it lists
+            the remaining Skills by name only. Defaults to 30000, the budget
+            Copilot CLI 1.0.103 uses. VS Code chat and some Copilot CLI versions
+            use 15000.
+
+        .PARAMETER SkillCatalogOffset
+            The characters of that budget already used by Skills the host lists
+            before this collection, such as the VS Code Skills a Copilot CLI
+            session lists ahead of personal Skills. Defaults to 0.
 
         .PARAMETER AsText
             Returns a deterministic, human-readable summary string instead of the
@@ -62,6 +80,12 @@ function Get-CopilotAtelierFootprint
 
             Lists the concrete opportunities to reduce unnecessary loading.
 
+        .EXAMPLE
+            (Get-CopilotAtelierFootprint -SkillCatalogOffset 8000).SkillCatalog.NameOnlySkill
+
+            Lists the Skills a host with a 30,000-character budget shows by name
+            only when other Skills already use 8,000 characters of it.
+
         .LINK
             https://github.com/raandree/CopilotAtelier
     #>
@@ -73,6 +97,16 @@ function Get-CopilotAtelierFootprint
         [ValidateNotNullOrEmpty()]
         [System.String]
         $ContentPath,
+
+        [Parameter()]
+        [ValidateRange(1, [System.Int32]::MaxValue)]
+        [System.Int32]
+        $SkillCatalogBudget = 30000,
+
+        [Parameter()]
+        [ValidateRange(0, [System.Int32]::MaxValue)]
+        [System.Int32]
+        $SkillCatalogOffset = 0,
 
         [Parameter()]
         [System.Management.Automation.SwitchParameter]
@@ -93,7 +127,7 @@ function Get-CopilotAtelierFootprint
         throw "The customization content path '$ContentPath' does not exist or is not a directory."
     }
 
-    $footprint = Measure-CopilotAtelierFootprint -ContentPath $ContentPath -DirectoryMap (Get-CopilotAtelierDirectoryMap)
+    $footprint = Measure-CopilotAtelierFootprint -ContentPath $ContentPath -DirectoryMap (Get-CopilotAtelierDirectoryMap) -SkillCatalogBudget $SkillCatalogBudget -SkillCatalogOffset $SkillCatalogOffset
 
     if (-not $AsText)
     {
@@ -119,6 +153,14 @@ function Get-CopilotAtelierFootprint
     $line.Add("  Unknown applicability      : $(& $formatByte $footprint.Loading.UnknownApplicabilityByte)")
     $line.Add("  Executed, not loaded (hooks): $(& $formatByte $footprint.Loading.ExecutedNotLoadedByte)")
     $line.Add("  Disk footprint (not context): $(& $formatByte $footprint.Loading.DiskFootprintByte)")
+    $line.Add('')
+    $catalog = $footprint.SkillCatalog
+    $nameOnly = @($catalog.NameOnlySkill)
+    $line.Add('Skill catalog against a host budget (estimate of one host listing format):')
+    $line.Add(('  Budget          : {0} characters, {1} already used by Skills listed first' -f $catalog.BudgetCharacter, $catalog.OffsetCharacter))
+    $line.Add(('  This collection : {0} characters for {1} Skills' -f $catalog.EstimatedCharacter, @($catalog.Skills).Count))
+    $line.Add(('  Described       : {0}; listed by name only: {1}' -f $catalog.DescribedCount, $nameOnly.Count))
+    $line.Add("  Name only: $(if ($nameOnly.Count -gt 0) { $nameOnly -join ', ' } else { '(none)' })")
     $line.Add('')
     $line.Add('Directories:')
     foreach ($directory in $footprint.Directories)

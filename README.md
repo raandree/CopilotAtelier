@@ -47,6 +47,7 @@ well-known `~/.copilot/` folders that VS Code and the Copilot CLI both read.
   - [YAML Frontmatter Is Required](#yaml-frontmatter-is-required)
   - [Blank Line After Frontmatter](#blank-line-after-frontmatter)
   - [Reload Required](#reload-required)
+  - [Skills Listed by Name Only](#skills-listed-by-name-only)
   - [Verifying Skills Are Loaded](#verifying-skills-are-loaded)
 - [Useful Chat Shortcuts](#useful-chat-shortcuts)
 - [Reference](#reference)
@@ -228,6 +229,8 @@ words. The independent security review of this feature is in
 [docs/SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md).
 
 ## Available Skills
+
+Every Skill also has one row in the always-applied [Skill index](com.github.copilot/rules/skill-index.instructions.md), because hosts show only some Skill descriptions; see [Skills Listed by Name Only](#skills-listed-by-name-only).
 
 | Skill | Description |
 |---|---|
@@ -634,7 +637,7 @@ The module ships `Agents`, `Instructions`, `Skills`, `Prompts`, `Hooks`, and `Ke
 | `Update-CopilotAtelier` | Checks the Gallery for a newer version, installs it, and redeploys. `-Force` redeploys the current version; `-SkipDeployment` stages the update for later. |
 | `Get-CopilotAtelierVersion` | Reports the installed module version, the deployed version, and whether the deployment is current. |
 | `Get-CopilotAtelierProfile` | Lists the opt-in installation profiles and the Skills each one deploys from the payload. See [choosing what gets installed](#choosing-what-gets-installed). |
-| `Get-CopilotAtelierFootprint` | Reports the read-only loading footprint of the customization collection and concrete opportunities to reduce unnecessary loading. |
+| `Get-CopilotAtelierFootprint` | Reports the read-only loading footprint of the customization collection and concrete opportunities to reduce unnecessary loading, including the Skills a host lists by name only once its Skill catalog budget is used up. |
 | `Get-CopilotAtelierSkillHealth` | Reports read-only Skill maintenance evidence — usage, discoverability, evaluation, quality, freshness, and overlap kept apart — and suggests what a human should look at. See [Skill health](#skill-health). |
 | `Get-CopilotAtelierClientAdapter` | Reports how a Custom agent profile is composed for each supported Copilot client and what that client cannot do. See [client-specific adapters](#client-specific-adapters). |
 
@@ -1167,6 +1170,20 @@ description: >-
 ### Reload Required
 
 After adding or fixing a skill file, you must **reload VS Code** (or start a new chat session) for the skill to be discovered.
+
+### Skills Listed by Name Only
+
+A Skill can be installed and still never load on its own. Hosts show the model each Skill's description only up to a character budget, and list every remaining Skill by name only. Copilot CLI 1.0.103 uses 30,000 characters; VS Code chat and some Copilot CLI versions use 15,000. Entries go in name order, after Skills from other sources, such as the ones VS Code shares with a Copilot CLI session. A name like `subagent-dispatch` does not tell the model that the Skill writes handoff prompts, so a request such as "write handoff prompts" goes unmatched.
+
+This collection's descriptions need about 51,000 characters, so on such a host roughly half of its Skills are listed by name only. The always-applied [Skill index](com.github.copilot/rules/skill-index.instructions.md) names every Skill and the requests it serves in one short row, so the model still finds a Skill the host lists by name only. Any Skill named in an always-applied Instruction loads the same way, as `memory-bank` does through the pre-flight Instruction.
+
+To see which Skills a host lists by name only, run:
+
+```powershell
+(Get-CopilotAtelierFootprint -SkillCatalogOffset 8000).SkillCatalog.NameOnlySkill
+```
+
+`-SkillCatalogOffset` is the part of the budget that Skills listed first already use, about 8,000 characters when VS Code shares 20 Skills of its own with a Copilot CLI session; `-SkillCatalogBudget` sets the budget. The trigger evals in `agent-evals` give every Skill its full description, so they cannot show this cut.
 
 ### Verifying Skills Are Loaded
 

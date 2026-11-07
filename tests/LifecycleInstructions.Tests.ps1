@@ -29,6 +29,11 @@ Describe 'Pre-flight Instruction' {
         $script:preflightContent | Should -Match 'full body is already supplied'
     }
 
+    It 'matches Skills the host lists by name only through the Skill index' {
+        $script:preflightContent | Should -Match 'skill-index\.instructions\.md'
+        $script:preflightContent | Should -Match '(?i)by name only'
+    }
+
     It 'routes Memory Bank reads through a compact index' {
         $script:preflightContent | Should -Match 'index\.md`'
         $script:preflightContent | Should -Match '(?i)only unconditional.*read'

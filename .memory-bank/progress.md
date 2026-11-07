@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-10-21
+last-verified: 2026-11-07
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -18,6 +18,12 @@ PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-11-07**: The Skill index (`software-engineer`). The logs of two Copilot CLI chats (DeskPilot,
+  ShellPilot) showed `subagent-dispatch` never loaded for "write handoff prompts": runtime 1.0.103 lists
+  Skill descriptions only to 30,000 characters, VS Code's 20 synced Skills first and ours by name, so 30
+  of 50 Skills reached the model as a bare name (66 logged sessions agree; VS Code chat uses 15,000).
+  Added the always-applied `skill-index.instructions.md` (4,932 characters), a pre-flight pointer, and a
+  `SkillCatalog` estimate in `Get-CopilotAtelierFootprint`; red first, gate 5,652 passed. On `ai/skill-index`.
 - **2026-10-21**: The P8 checks (`software-engineer`; spending approved 2026-10-20). A new 20-query set
   measured the `subagent-dispatch` description; the new one names prompts run one per chat, briefs, the
   task ledger, and folder migration (`claude-opus-5.5` train 10 to 12 of 12, validation 7 to 8 of 8;
@@ -57,16 +63,7 @@ PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
   administrator token, above Medium integrity, the Administrators group, or a privilege outside five;
   an impersonating thread is unmeasured), and gates the hook probe, git and the appender. One review and a
   delta check (Approve with changes), 109 mutants caught, gate 5,276 passed; the Pass is tested through a
-  seam (decision 0025, revision 2026-10-15). Merged as #42 (squash `3481536`, `6.1.0-preview0014`).
-- **2026-10-12 to 2026-10-15**: P5 (`software-engineer`, `review: on`) rebuilt the containment verifier
-  `Test-RunContainment.ps1` and the ledger appender `Invoke-LedgerAppender.ps1` after a first review
-  that said Block (13 findings). Nine independent reviews in all; each fix round but the last found
-  something new in the code the previous one added, the two Majors (S-21, S-25) in
-  `Get-HookInterpreter`, whose hook-line check became a plain shape held to the PowerShell parser by a
-  seeded test; the last said Approve. The claims shrank where a reviewer showed them too large
-  (decision 0025). Final gate on `d8eddb4`: 5,063 passed. Not done: a two-account test (R-04, the hook
-  line and S-33 followed, above). Merged as #40 on 2026-10-15 (squash `0531814`, `6.1.0-preview0012`);
-  `systemPatterns.md` has the patterns CI found.
+  seam   (decision 0025, revision 2026-10-15). Merged as #42 (squash `3481536`, `6.1.0-preview0014`).
 
 ## Stable capabilities
 

@@ -493,4 +493,118 @@ Describe 'Measure-CopilotAtelierFootprint' -Tag 'Unit' {
             $opportunity[0].Message | Should -Match 'potential|contingent|may be carried'
         }
     }
+
+    Context 'Skill catalog against a host budget' {
+        BeforeAll {
+            # The entry a host lists for one Skill, plus the line break that
+            # separates it from the next entry.
+            function Get-CatalogEntryLength
+            {
+                param
+                (
+                    [Parameter(Mandatory = $true)] [System.String] $Name,
+                    [Parameter(Mandatory = $true)] [System.String] $ListedDescription
+                )
+
+                return ("<skill>`n  <name>$Name</name>`n  <description>$ListedDescription</description>`n  <location>user</location>`n</skill>").Length + 1
+            }
+
+            function Add-CatalogSkill
+            {
+                param
+                (
+                    [Parameter(Mandatory = $true)] [System.String] $SkillRoot,
+                    [Parameter(Mandatory = $true)] [System.String] $Name,
+                    [Parameter(Mandatory = $true)] [AllowEmptyString()] [System.String[]] $Frontmatter
+                )
+
+                $folder = New-Item -ItemType Directory -Path (Join-Path $SkillRoot $Name) -Force
+                Set-Content -LiteralPath (Join-Path $folder.FullName 'SKILL.md') -Encoding utf8 -Value (@('---') + $Frontmatter + @('---', '', 'Body.'))
+            }
+        }
+
+        It 'Should charge each Skill the entry a host lists plus a separator' {
+            $result = InModuleScope CopilotAtelier -Parameters @{ Root = $script:root; DirectoryMap = $script:directoryMap } {
+                Measure-CopilotAtelierFootprint -ContentPath $Root -DirectoryMap $DirectoryMap
+            }
+
+            $result.SkillCatalog.BudgetCharacter | Should -Be 30000
+            $result.SkillCatalog.OffsetCharacter | Should -Be 0
+            $result.SkillCatalog.EstimatedCharacter | Should -Be (Get-CatalogEntryLength -Name 'demo' -ListedDescription 'A demo skill for footprint measurement.')
+            $result.SkillCatalog.DescribedCount | Should -Be 1
+            @($result.SkillCatalog.NameOnlySkill) | Should -HaveCount 0
+            @($result.Opportunities | Where-Object { $_.Code -eq 'SkillCatalogOverBudget' }) | Should -HaveCount 0
+        }
+
+        It 'Should decode a folded description and escape markup the way the host lists it' {
+            Add-CatalogSkill -SkillRoot $script:map.skills -Name 'folded' -Frontmatter @(
+                'name: folded'
+                'description: >-'
+                "  Reads the user's notes"
+                '  & lists them.'
+                'compatibility: >-'
+                '  Not part of the listed entry.'
+            )
+
+            $result = InModuleScope CopilotAtelier -Parameters @{ Root = $script:root; DirectoryMap = $script:directoryMap } {
+                Measure-CopilotAtelierFootprint -ContentPath $Root -DirectoryMap $DirectoryMap
+            }
+
+            $entry = @($result.SkillCatalog.Skills | Where-Object { $_.Name -eq 'folded' })
+            $entry | Should -HaveCount 1
+            $entry[0].Character | Should -Be (Get-CatalogEntryLength -Name 'folded' -ListedDescription 'Reads the user&apos;s notes &amp; lists them.')
+        }
+
+        It 'Should keep a blank line inside a folded description as one line break' {
+            Add-CatalogSkill -SkillRoot $script:map.skills -Name 'paragraphs' -Frontmatter @(
+                'name: paragraphs'
+                'description: >-'
+                '  First paragraph'
+                '  continues.'
+                ''
+                '  Second paragraph.'
+            )
+
+            $result = InModuleScope CopilotAtelier -Parameters @{ Root = $script:root; DirectoryMap = $script:directoryMap } {
+                Measure-CopilotAtelierFootprint -ContentPath $Root -DirectoryMap $DirectoryMap
+            }
+
+            $entry = @($result.SkillCatalog.Skills | Where-Object { $_.Name -eq 'paragraphs' })
+            $entry[0].Character | Should -Be (Get-CatalogEntryLength -Name 'paragraphs' -ListedDescription "First paragraph continues.`nSecond paragraph.")
+        }
+
+        It 'Should list descriptions in name order until the budget and name every later Skill only' {
+            Add-CatalogSkill -SkillRoot $script:map.skills -Name 'alpha' -Frontmatter @('name: alpha', 'description: "Short."')
+            Add-CatalogSkill -SkillRoot $script:map.skills -Name 'beta' -Frontmatter @('name: beta', ('description: "' + ('b' * 200) + '"'))
+            Add-CatalogSkill -SkillRoot $script:map.skills -Name 'gamma' -Frontmatter @('name: gamma', 'description: "Short."')
+            $budget = (Get-CatalogEntryLength -Name 'alpha' -ListedDescription 'Short.') + (Get-CatalogEntryLength -Name 'beta' -ListedDescription ('b' * 200)) - 1
+
+            $result = InModuleScope CopilotAtelier -Parameters @{ Root = $script:root; DirectoryMap = $script:directoryMap; Budget = $budget } {
+                Measure-CopilotAtelierFootprint -ContentPath $Root -DirectoryMap $DirectoryMap -SkillCatalogBudget $Budget
+            }
+
+            $result.SkillCatalog.DescribedCount | Should -Be 1
+            $result.SkillCatalog.NameOnlySkill | Should -Be @('beta', 'demo', 'gamma') -Because 'a host stops at the first entry that does not fit, so a short Skill after it is cut as well'
+            $opportunity = @($result.Opportunities | Where-Object { $_.Code -eq 'SkillCatalogOverBudget' })
+            $opportunity | Should -HaveCount 1
+            $opportunity[0].Severity | Should -Be 'Warning'
+            $opportunity[0].Paths | Should -Be @('skills/beta/SKILL.md', 'skills/demo/SKILL.md', 'skills/gamma/SKILL.md')
+            $opportunity[0].Message | Should -Match 'name only'
+        }
+
+        It 'Should start the budget after the characters that Skills listed first already use' {
+            $budget = Get-CatalogEntryLength -Name 'demo' -ListedDescription 'A demo skill for footprint measurement.'
+
+            $fits = InModuleScope CopilotAtelier -Parameters @{ Root = $script:root; DirectoryMap = $script:directoryMap; Budget = $budget } {
+                Measure-CopilotAtelierFootprint -ContentPath $Root -DirectoryMap $DirectoryMap -SkillCatalogBudget $Budget -SkillCatalogOffset 0
+            }
+            $cut = InModuleScope CopilotAtelier -Parameters @{ Root = $script:root; DirectoryMap = $script:directoryMap; Budget = $budget } {
+                Measure-CopilotAtelierFootprint -ContentPath $Root -DirectoryMap $DirectoryMap -SkillCatalogBudget $Budget -SkillCatalogOffset 1
+            }
+
+            $fits.SkillCatalog.DescribedCount | Should -Be 1
+            $cut.SkillCatalog.OffsetCharacter | Should -Be 1
+            $cut.SkillCatalog.NameOnlySkill | Should -Be @('demo')
+        }
+    }
 }

@@ -36,12 +36,24 @@ function Measure-CopilotAtelierFootprint
             environment, executes a hook, or contacts the network, and repeated
             runs over the same tree return the same result.
 
+            It also estimates the Skill catalog a host lists, through
+            Measure-CopilotAtelierSkillCatalog, and reports the Skills that fall
+            past the catalog budget as listed by name only.
+
         .PARAMETER ContentPath
             The content root that holds the customization source directories.
 
         .PARAMETER DirectoryMap
             The deployed directory name to source relative path map, as returned
             by Get-CopilotAtelierDirectoryMap.
+
+        .PARAMETER SkillCatalogBudget
+            The character budget a host gives Skill descriptions before it lists
+            the remaining Skills by name only.
+
+        .PARAMETER SkillCatalogOffset
+            The characters of that budget already used by Skills the host lists
+            before this collection.
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject
@@ -62,7 +74,17 @@ function Measure-CopilotAtelierFootprint
 
         [Parameter(Mandatory = $true)]
         [System.Collections.IDictionary]
-        $DirectoryMap
+        $DirectoryMap,
+
+        [Parameter()]
+        [ValidateRange(1, [System.Int32]::MaxValue)]
+        [System.Int32]
+        $SkillCatalogBudget = 30000,
+
+        [Parameter()]
+        [ValidateRange(0, [System.Int32]::MaxValue)]
+        [System.Int32]
+        $SkillCatalogOffset = 0
     )
 
     # Advisory thresholds in bytes. They flag contributors worth review; they do
@@ -88,6 +110,7 @@ function Measure-CopilotAtelierFootprint
     $items = [System.Collections.Generic.List[object]]::new()
     $directorySummary = [System.Collections.Generic.List[object]]::new()
     $unsafeEntries = [System.Collections.Generic.List[object]]::new()
+    $catalogSkill = [System.Collections.Generic.List[object]]::new()
 
     $contentRootFull = [System.IO.Path]::GetFullPath($ContentPath).TrimEnd([char[]] '\/')
 
@@ -184,6 +207,17 @@ function Measure-CopilotAtelierFootprint
                         if ($match.Success -and $match.Index -eq 0)
                         {
                             $frontmatterByte = [long] $utf8.GetByteCount($match.Value)
+
+                            # A host lists only a Skill folder's own SKILL.md, and
+                            # only when its frontmatter loads.
+                            if ($relativePath -match '^skills/[^/]+/SKILL\.md$')
+                            {
+                                $catalogSkill.Add([pscustomobject] @{
+                                        FolderName   = $file.Directory.Name
+                                        RelativePath = $relativePath
+                                        Frontmatter  = $match.Groups[1].Value
+                                    })
+                            }
 
                             # Conservative supported-metadata contract: trust only
                             # a closed block of simple single-line scalars. A block
@@ -482,6 +516,18 @@ function Measure-CopilotAtelierFootprint
                 Message  = "This Skill's discovery metadata is $($item.DiscoveryMetadataByte) bytes and may be carried in the catalog for discovery each session, contingent on the client. Tighten the frontmatter description to shrink the potential always-present footprint."
             })
     }
+    $skillCatalog = Measure-CopilotAtelierSkillCatalog -Skill $catalogSkill.ToArray() -Budget $SkillCatalogBudget -Offset $SkillCatalogOffset
+    $nameOnlyEntry = @($skillCatalog.Skills | Where-Object -FilterScript { -not $_.Described })
+    if ($nameOnlyEntry.Count -gt 0)
+    {
+        $opportunity.Add([pscustomobject] @{
+                Code     = 'SkillCatalogOverBudget'
+                Severity = 'Warning'
+                Byte     = [long] ($nameOnlyEntry | Measure-Object -Property Byte -Sum).Sum
+                Paths    = @($nameOnlyEntry | ForEach-Object -Process { $_.RelativePath })
+                Message  = "An estimated $($nameOnlyEntry.Count) of $(@($skillCatalog.Skills).Count) Skills fall past a $SkillCatalogBudget-character Skill catalog budget, so a host that lists descriptions in name order until that budget lists them by name only, without a description. Name them in an always-applied Instruction, such as a Skill index, or shorten the descriptions listed before them."
+            })
+    }
     foreach ($group in $duplicateGroup)
     {
         $opportunity.Add([pscustomobject] @{
@@ -519,9 +565,10 @@ function Measure-CopilotAtelierFootprint
         LargestContributors    = $largestContributor
         DuplicateContentGroups = $duplicateGroup
         Opportunities          = @($opportunity)
+        SkillCatalog           = $skillCatalog
         MalformedFrontmatter   = $malformedPath
         UnsupportedMetadata    = $unsupportedMetadataPath
         UnsafeEntries          = $orderedUnsafe
-        Disclaimer             = 'Byte figures are file-size estimates, not measured session loading, remaining context, or billing. Broad Instructions and Skill discovery metadata are potential automatic loading, not observed injection. On-demand, unknown, and ancillary content is reported by applicability, not proven activation. Identical hashes are duplicate content, not duplicate runtime injection. Reparse-point and out-of-boundary entries are reported and never followed.'
+        Disclaimer             = 'Byte figures are file-size estimates, not measured session loading, remaining context, or billing. Broad Instructions and Skill discovery metadata are potential automatic loading, not observed injection. On-demand, unknown, and ancillary content is reported by applicability, not proven activation. Identical hashes are duplicate content, not duplicate runtime injection. Reparse-point and out-of-boundary entries are reported and never followed. The Skill catalog figure estimates one host listing format, descriptions in name order until a character budget and the remaining Skills by name only; other clients and versions differ.'
     }
 }
