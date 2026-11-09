@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-09-02
-last-verified: 2026-10-18
+last-verified: 2026-11-09
 owner: software-engineer
 source: user request and specification-completion package evidence
 ---
@@ -319,3 +319,15 @@ session, and it stays a residual. A differential run of 200,000 generated lines 
 earlier function found 17,111 lines that changed from accepted to refused, every one with a
 colon after the drive letter, and none that changed the other way. The verifier digest
 changes with this revision.
+
+## Revision, 2026-11-09: the Pass is measured on a standard account's token
+
+The closing test that the revision of 2026-10-15 left open ran once, on the owner's yes, on
+Windows Server 2025, build 26100. A throwaway local account in `Users` only, logged on with
+`LogonUser` (interactive) and read by handle with the verifier's own reader, passed the
+unchanged `IdentityPrivilege` check: not elevated, elevation type Default, Medium integrity,
+no Administrators group, and two of the five privileges. Apart from the integrity label,
+every group was enabled. The account was removed in the same run. A client edition, another
+build, a batch or service logon, and an account in more groups stay unmeasured, and the test
+is not part of the suites, because it creates an account (`docs/SECURITY-REVIEW.md`, the
+entry of 2026-11-09). The verifier and its digest do not change.

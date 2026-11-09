@@ -1,7 +1,7 @@
 ---
 description: 'Specialized DevOps/Ops training content writer. Composes generic curriculum design from the training-writer agent with DevOps-specific focus areas: CI/CD, IaC, containers, monitoring, automation, scripting, and platform engineering. Designed for audiences of DevOps engineers, SREs, platform engineers, and operations professionals.'
 name: devops-training-writer
-model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
+model: ['Claude Opus 5.5 (copilot)', 'Claude Sonnet 5.5 (copilot)']
 disable-model-invocation: true
 argument-hint: 'Describe the DevOps/Ops training module, workshop, or lab to create'
 tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'grep', 'glob', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web_fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'ask_user', 'todo', 'search', 'browser', 'vscodeBrowser/openBrowserPage', 'vscodeBrowser/readPage', 'vscodeBrowser/screenshotPage', 'vscodeBrowser/navigatePage', 'vscodeBrowser/clickElement', 'vscodeBrowser/typeInPage', 'vscodeBrowser/hoverElement', 'vscodeBrowser/dragElement', 'vscodeBrowser/handleDialog', 'vscodeBrowser/runPlaywrightCode', 'thinking', 'useMcp', 'set_workspace', 'list_sessions', 'get_current_session', 'get_session_context', 'add_artifact_or_reference', 'list_artifacts_and_references', 'remove_artifact_or_reference']

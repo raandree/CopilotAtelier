@@ -1,6 +1,6 @@
 # Copilot CLI — Model Selection Instructions
 
-> **Note on model lineup (updated 2026-07-28):** This document is kept current incrementally; a full rewrite is planned post-1.1.0. Current defaults: **Claude Opus 5** (with Opus 4.8 as the GA fallback declared in every agent `model:` array), **Claude Sonnet 5**, **Claude Haiku 4.5**, and **GPT-5.5**. GPT-5.2 and GPT-5.2-Codex were retired 2026-06-01; use **GPT-5.5** and **GPT-5.3-Codex**. Gemini 3 Pro was retired 2026-03-26; use **Gemini 3.1 Pro**. Remaining entries are left unchanged pending the full rewrite.
+> **Note on model lineup (updated 2026-11-09):** This document is kept current incrementally; a full rewrite is planned post-1.1.0. Custom agents now declare **Claude Opus 5.5** with **Claude Sonnet 5.5** as the fallback in their `model:` array (Decision record 0029). The tier defaults below date from 2026-07-28 (**Claude Opus 5**, **Claude Sonnet 5**, **Claude Haiku 4.5**, and **GPT-5.5**); which models you get depends on your Copilot plan and policy, so check that a model is offered before relying on it. GPT-5.2 and GPT-5.2-Codex were retired 2026-06-01; use **GPT-5.5** and **GPT-5.3-Codex**. Gemini 3 Pro was retired 2026-03-26; use **Gemini 3.1 Pro**. Remaining entries are left unchanged pending the full rewrite.
 
 You are an AI agent running in the GitHub Copilot CLI. You have access to several model tiers. **You MUST select the right model for every task.** Do not default to the most powerful model. Do not waste premium capacity on trivial work.
 

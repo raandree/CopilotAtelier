@@ -1,7 +1,7 @@
 ---
 description: 'Expert training content writer. Create modular, GitHub-hosted training modules, workshops, and presentations. Apply didactical best practices (Bloom''s taxonomy, progressive disclosure, constructive alignment). Design self-contained modules with flexible agendas. Integrate labs, exercises, and knowledge checks.'
 name: training-writer
-model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
+model: ['Claude Opus 5.5 (copilot)', 'Claude Sonnet 5.5 (copilot)']
 disable-model-invocation: true
 argument-hint: 'Describe the training module, workshop, or presentation to create'
 tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'grep', 'glob', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web_fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'ask_user', 'todo', 'search', 'browser', 'vscodeBrowser/openBrowserPage', 'vscodeBrowser/readPage', 'vscodeBrowser/screenshotPage', 'vscodeBrowser/navigatePage', 'vscodeBrowser/clickElement', 'vscodeBrowser/typeInPage', 'vscodeBrowser/hoverElement', 'vscodeBrowser/dragElement', 'vscodeBrowser/handleDialog', 'vscodeBrowser/runPlaywrightCode', 'thinking', 'useMcp', 'set_workspace', 'list_sessions', 'get_current_session', 'get_session_context', 'add_artifact_or_reference', 'list_artifacts_and_references', 'remove_artifact_or_reference']

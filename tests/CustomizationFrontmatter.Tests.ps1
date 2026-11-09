@@ -67,6 +67,18 @@ BeforeAll {
 
         return $frontmatter
     }
+
+    <#
+        The models Custom agents may declare, set by Decision record 0029 from
+        the models the owner's Copilot offers. Availability depends on the plan
+        and on organization model policy, and the Copilot SDK host refuses to
+        start an agent none of whose entries is offered. Change it only
+        together with a Decision record.
+    #>
+    $script:currentModel = @(
+        'Claude Opus 5.5 (copilot)'
+        'Claude Sonnet 5.5 (copilot)'
+    )
 }
 
 Describe 'Custom agent frontmatter' -Tag 'Unit' {
@@ -110,6 +122,25 @@ Describe 'Custom agent frontmatter' -Tag 'Unit' {
 
         @([regex]::Matches($frontmatter['model'], "'[^']+'")).Count |
             Should -BeGreaterOrEqual 2 -Because 'the last entry is the fallback and must be a generally available model'
+    }
+
+    It '<FileName> declares only models of the current lineup' -ForEach $script:agentCase {
+        <#
+            Every agent named only Opus 5 and Opus 4.8 when the owner's Copilot
+            stopped offering both, and the Copilot SDK host then refused to start
+            the agent instead of falling back to a default model.
+        #>
+        $frontmatter = script:Get-CustomizationFrontmatter -Path $FilePath
+        $model = @([regex]::Matches($frontmatter['model'], "'([^']+)'") | ForEach-Object { $_.Groups[1].Value })
+
+        $model | Should -Not -BeNullOrEmpty
+
+        foreach ($entry in $model)
+        {
+            $entry | Should -BeIn $script:currentModel -Because 'an agent may name only models the lineup offers; change the list with a Decision record'
+        }
+
+        @($model | Sort-Object -Unique).Count | Should -Be $model.Count -Because 'a repeated entry is no fallback'
     }
 }
 

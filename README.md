@@ -597,13 +597,13 @@ Run `Setup-CopilotSettings.ps1 -IncludeClaudeCodeLinks` to additionally link `~/
 
 ### AI Model Preferences
 
-Every agent in [`com.github.copilot/agents/`](com.github.copilot/agents/) declares `model` as a priority array — `['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']` — so a model retirement degrades to the GA fallback instead of breaking every agent at once.
+Every agent in [`com.github.copilot/agents/`](com.github.copilot/agents/) declares `model` as a priority array — `['Claude Opus 5.5 (copilot)', 'Claude Sonnet 5.5 (copilot)']`, with Sonnet first for `spec-work-implementer` — so withdrawing one model degrades to the other instead of breaking every agent at once.
 
 | Setting | Value | What It Does |
 |---|---|---|
-| `gitlens.ai.vscode.model` | `copilot:claude-opus-5` | Use Claude Opus 5 for GitLens AI features (commit messages, explanations) |
+| `gitlens.ai.vscode.model` | `copilot:claude-opus-5.5` | Use Claude Opus 5.5 for GitLens AI features (commit messages, explanations) |
 
-> **Note on model availability**: Opus 5 requires Copilot Pro+, Business, or Enterprise. On other plans VS Code falls back to the next entry in the agent's `model` array, then to its default. Setup also removes the `github.copilot.advanced.model` key written by earlier releases: `github.copilot.advanced` is the completions bag and has no documented `model` member, so the value was never consumed.
+> **Note on model availability**: which models you get depends on your Copilot plan and on your organization's model policies. Use an agent only where your Copilot offers at least one model of its array: on 2026-10-23 the VS Code Copilot SDK host did not start an agent none of whose models was offered, instead of falling back to a default. Setup also removes the `github.copilot.advanced.model` key written by earlier releases: `github.copilot.advanced` is the completions bag and has no documented `model` member, so the value was never consumed.
 
 ## Keybindings Applied
 
@@ -1207,7 +1207,7 @@ If a skill doesn't appear, open the ellipsis (**…**) menu in the Chat view and
 
 ## Reference
 
-- [`reference/copilot-cli-model-routing.md`](reference/copilot-cli-model-routing.md) — 4-tier model-routing policy for the GitHub Copilot CLI (Executors / Implementers / Tech Leads / Architects). Reference-only; not auto-attached. The document was written against the early-2026 lineup; a banner at the top maps the older model IDs (Opus 4.5 / 4.6, GPT-5.1) to the current ones (Opus 4.8, GPT-5.4 / 5.5). A full rewrite is still outstanding.
+- [`reference/copilot-cli-model-routing.md`](reference/copilot-cli-model-routing.md) — 4-tier model-routing policy for the GitHub Copilot CLI (Executors / Implementers / Tech Leads / Architects). Reference-only; not auto-attached. The document was written against the early-2026 lineup; a banner at the top names the agents' current models and dates the tier defaults the body still uses. A full rewrite is still outstanding.
 - [`reference/howto-write-skills.md`](reference/howto-write-skills.md) — condensed two-page primer for authoring `skills/**/SKILL.md` files: the six-step frame (Name/Trigger/Outcome/Dependencies/Step-by-step/Edge cases), five high-leverage rules, hard limits (1024-char description, 500-line body), description shape, degrees of freedom, eval-driven development, anti-patterns, and links to the canonical Anthropic Agent Skills docs/PDF/engineering blog plus the `anthropics/skills` repo. Pairs with [`skills/skill-creator/SKILL.md`](skills/skill-creator/SKILL.md) (the full operating manual, auto-loaded when a skill-authoring task triggers).
 
 ## Featured In

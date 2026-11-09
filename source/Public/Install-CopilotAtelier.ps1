@@ -333,7 +333,7 @@ function Install-CopilotAtelier
         $settingValue = [ordered] @{
             'chat.includeApplyingInstructions'               = $true
             'chat.includeReferencedInstructions'             = $true
-            'gitlens.ai.vscode.model'                        = 'copilot:claude-opus-5'
+            'gitlens.ai.vscode.model'                        = 'copilot:claude-opus-5.5'
             'github.copilot.chat.agent.thinkingTool'         = $true
             'github.copilot.chat.search.semanticTextResults' = $true
             'github.copilot.chat.skillTool.enabled'          = $true

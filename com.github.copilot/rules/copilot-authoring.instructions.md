@@ -56,14 +56,14 @@ Each file type uses a distinct frontmatter shape. Values must be strings unless 
 - `name` (optional): slash-command name. Defaults to the file name.
 - `argument-hint` (optional): placeholder prompt shown to the user.
 - `tools` (optional): array of allowed tool names. Omit to inherit the caller's toolset. Prompt tools outrank the referenced agent's tools.
-- `model` (optional): model identifier, e.g. `Claude Opus 5 (copilot)`.
+- `model` (optional): model identifier, e.g. `Claude Opus 5.5 (copilot)`.
 - Prompts run only in the VS Code extension host. Agent Host, the Copilot CLI, and the cloud agent ignore them. Author a Skill instead when the workflow must be portable.
 
 ### Agents (`Agents/*.agent.md`)
 
 - `name` (required here): kebab-case identifier used for handoffs.
 - `description` (required here): one-line summary for the agent picker.
-- `model` (required here): array of model identifiers in priority order. The first available model wins, so always declare a GA fallback.
+- `model` (required here): array of model identifiers in priority order. The first available model wins, so always declare a GA fallback. Name only the models Decision record 0029 lists, which `tests/CustomizationFrontmatter.Tests.ps1` enforces: the Copilot SDK host refuses to start an agent none of whose entries the user's Copilot offers.
 - `argument-hint` (optional): placeholder prompt shown to the user.
 - `tools` (optional): array of allowed tool names, tool sets, or `<mcp-server>/*`.
 - VS Code agent-host (Copilot SDK) sessions pass `tools` to the runtime as a strict allow-list, and it drops VS Code names it cannot resolve ([github/copilot-cli#4594](https://github.com/github/copilot-cli/issues/4594)). Keep each VS Code name and add the runtime name next to it: `web/fetch` → `web_fetch`; any of `search`, `search/codebase`, `search/fileSearch`, `search/listDirectory`, `search/textSearch` → `grep`, `glob`; `vscode/askQuestions` → `ask_user`; `browser` → `vscodeBrowser/<tool>` for each browser tool. Non-contained agents also declare the agent-host session tools. A contained agent (no network tool by design) gets only the runtime names of VS Code names it already declares. Accept the faded *Unknown tool* hints; never add `target:` to hide them. `tests/AgentRuntimeToolNames.Tests.ps1` enforces the rules.

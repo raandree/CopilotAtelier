@@ -1,7 +1,7 @@
 ---
 description: 'Contoso-hardened software engineering agent. Carries the full software-engineer contract inline, then adds the controls of a regulated, data-classified environment: no outbound channel, internal-mirror-only dependencies, secrets by reference, separation of duties on release, and mandatory independent security review. Use for implementation work inside the Contoso trust boundary.'
 name: software-engineer-contoso
-model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
+model: ['Claude Opus 5.5 (copilot)', 'Claude Sonnet 5.5 (copilot)']
 disable-model-invocation: true
 argument-hint: 'Describe the feature, bug fix, or refactoring task inside the Contoso trust boundary'
 tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'grep', 'glob', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'edit/rename', 'edit/editNotebook', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'execute/runTask', 'execute/runNotebookCell', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/testFailure', 'read/viewImage', 'read/getNotebookSummary', 'read/readNotebookCellOutput', 'vscode/newWorkspace', 'vscode/vscodeAPI', 'vscode/runCommand', 'vscode/getProjectSetupInfo', 'vscode/askQuestions', 'ask_user', 'todo', 'runTests', 'search', 'thinking']

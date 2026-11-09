@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-07
+last-verified: 2026-11-09
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,24 +9,25 @@ source: current task evidence
 
 ## Current focus
 
-**The Skill index is on `ai/skill-index` (local; the owner pushes), 2026-11-07.** Copilot CLI 1.0.103
-lists Skill descriptions only up to 30,000 characters (VS Code chat 15,000), VS Code's 20 synced Skills
-first; so 30 of our 50 Skills reached the model by name only, and `subagent-dispatch` never loaded for
-"write handoff prompts" in the DeskPilot and ShellPilot chats of 2026-11-07. The always-applied
-`skill-index.instructions.md` names every Skill in one row; `Get-CopilotAtelierFootprint` estimates the
-cut (`SkillCatalog`). P8 is merged as #48 (`ae8684d`); `~/.copilot` still runs the pre-#48 description
-until the owner redeploys, and a live check in a fresh CLI chat after redeploying is open.
+**The agents' models are Claude Opus 5.5 and Sonnet 5.5 on `ai/agent-models-5-5` (local; the owner
+pushes), 2026-11-09** (Decision record 0029, which supersedes 0007). The owner's Copilot stopped offering
+Opus 5 and Opus 4.8, and the Copilot SDK host refused to start an agent that named only them; a test now
+fails an agent that names a model outside the list, and Setup writes `copilot:claude-opus-5.5` for
+GitLens. The R-04 closing test ran on the owner's yes: a throwaway standard account's token passed
+`IdentityPrivilege` (`docs/SECURITY-REVIEW.md`, 2026-11-09). The Skill index is on `main` (`661c30a`),
+P8 is merged as #48 (`ae8684d`), and `~/.copilot` matched `main` on 2026-11-09. A live check in a new
+chat (an agent starts; a prepared push ends with a code block) is the owner's.
 
 **S-33 is merged** as #45 (squash `a481c9d`, `6.1.0-preview0017`; Windows CI 5,332 passed): a second
 colon in the program path is refused, quoted or not (`docs/SECURITY-REVIEW.md`, 2026-10-18). With #43
 (`1de0c04`: the pinned line also runs under Windows PowerShell 5.1 and the PowerShell that runs the
 verifier, and a quoted program path fails) and #44 (`ab01e51`: the Remote grant tests retry after a
-runner stall) it is on `main`. The owner re-pins the verifier digest once (sha256 `dd415737…2415`),
-refreshes `~/.copilot` (it has no verifier yet), and says whether a profile pins a quoted program path.
+runner stall) it is on `main`. The deployed verifier hashed to `dd415737…2415` on 2026-11-09, and
+Prox1 holds no containment profile to re-pin; a profile elsewhere pins that digest.
 
 **R-04 is merged** as #42 (`6.1.0-preview0014`): `IdentityPrivilege` reads the verifier's access
-token and refuses one that is not a standard account's; the Pass runs only through a seam (decision
-0025, revision 2026-10-15) and its closing test needs the owner's yes (a throwaway local account).
+token and refuses one that is not a standard account's; the suites reach the Pass through a seam, and
+it was measured once on a real standard account's token on 2026-11-09 (decision 0025, revisions).
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
@@ -156,15 +157,13 @@ unproven — train reached 100 % while validation fell.
    `B6DFAD99…` (a push without a marker is denied; with `[[allow-remote: git push]]` one
    push runs). P5 removed the last mentions of `COPILOT_ATELIER_ALLOW_REMOTE` from the
    controller agent (the security lint names the rule `ObsoleteRemoteOverride`).
-2. The owner checks in a new chat that a prepared `git push` ends with a code block and
-   no dialog (P3 and P8 are deployed with P2; `./Setup-CopilotSettings.ps1` after a
-   `git pull --ff-only origin main` only refreshes the record). Agents cannot push; the
-   deployed copy under `~/.copilot` is the owner's to refresh.
-3. P8 waits for the owner: push `ai/subagent-dispatch-evals`, open the pull request and
-   squash-merge it (the commands are in the chat). Then the P5 follow-ups
-   (`docs/SECURITY-REVIEW.md`: S-20, the escape set of `WritableRoots`, S-19, the run id of
-   `-Revalidate`; Desktop `LEDGER.md`). The closing test of R-04 (a throwaway local account read
-   through `LogonUser`, expecting a Pass) needs the owner's yes on a development host.
+2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
+   dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
+3. The model switch waits for the owner: push `ai/agent-models-5-5`, open the pull request and
+   squash-merge it, then redeploy (the commands are in the chat). Then the travel work of
+   `.memory-bank/session/handoff-2026-10-23T1116Z.md` and the P5 follow-ups (`docs/SECURITY-REVIEW.md`:
+   S-20, the escape set of `WritableRoots`, S-19, the run id of `-Revalidate`; Desktop `LEDGER.md`).
+   The `ai/travel-photo-diary-skill` branch exists only on the other machine and is not on GitHub.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.

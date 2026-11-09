@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-07
+last-verified: 2026-11-09
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -12,23 +12,28 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
 `6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0018` (`12b8f44`, 2026-10-18) to GitHub Releases and the
-PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
+`6.1.0-preview0020` (`ae8684d`, 2026-10-21) to GitHub Releases and the
+PowerShell Gallery (verified 2026-10-21). Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-11-09**: The agents' models (`software-engineer`, owner ruling of 2026-11-09): every Custom agent
+  declares Claude Opus 5.5 and Sonnet 5.5 (`spec-work-implementer` Sonnet first), Setup writes
+  `copilot:claude-opus-5.5`, and a test fails a model outside the list (Decision record 0029 supersedes
+  0007); red first (17 of 182). The R-04 closing test passed on a throwaway standard account. On
+  `ai/agent-models-5-5`.
 - **2026-11-07**: The Skill index (`software-engineer`). The logs of two Copilot CLI chats (DeskPilot,
   ShellPilot) showed `subagent-dispatch` never loaded for "write handoff prompts": runtime 1.0.103 lists
   Skill descriptions only to 30,000 characters, VS Code's 20 synced Skills first and ours by name, so 30
   of 50 Skills reached the model as a bare name (66 logged sessions agree; VS Code chat uses 15,000).
   Added the always-applied `skill-index.instructions.md` (4,932 characters), a pre-flight pointer, and a
-  `SkillCatalog` estimate in `Get-CopilotAtelierFootprint`; red first, gate 5,652 passed. On `ai/skill-index`.
+  `SkillCatalog` estimate in `Get-CopilotAtelierFootprint`; red first, gate 5,652 passed. On `main` (`661c30a`).
 - **2026-10-21**: The P8 checks (`software-engineer`; spending approved 2026-10-20). A new 20-query set
   measured the `subagent-dispatch` description; the new one names prompts run one per chat, briefs, the
   task ledger, and folder migration (`claude-opus-5.5` train 10 to 12 of 12, validation 7 to 8 of 8;
   `claude-haiku-4.5` train 7 to 10, validation 7 of 8). Five runs per version: E cases 27 against 9 of 35,
-  decoys 20 of 20 in both; a fresh-subagent migration passed every E7 line. On `ai/subagent-dispatch-evals`.
+  decoys 20 of 20 in both; a fresh-subagent migration passed every E7 line. Merged as #48 (`ae8684d`).
 - **2026-10-20**: P6, the routing-coverage ratchet (`software-engineer`), rebuilt by hand on `main` from
   the uncommitted work of 2026-10-12. Every route needs a real case or a baseline entry with a reason, a
   `role` case needs `roleFiles`, and the Full-read fallback keeps role files. Two owner-labelled cases
@@ -58,12 +63,6 @@ PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
   shown closed to the run identity first, and a quoted program path now fails. Three reviews (16 findings,
   mostly wording), 95 mutants caught, gate 5,341 passed; no host ran the line (decision 0025, revision
   2026-10-16). Merged as #43 (squash `1de0c04`, `6.1.0-preview0016`; Windows CI 5,325 passed).
-- **2026-10-15**: R-04 (`software-engineer`, `review: on`): the required check `IdentityPrivilege` reads
-  the verifier's access token and refuses one that is not a standard account's (elevated, split
-  administrator token, above Medium integrity, the Administrators group, or a privilege outside five;
-  an impersonating thread is unmeasured), and gates the hook probe, git and the appender. One review and a
-  delta check (Approve with changes), 109 mutants caught, gate 5,276 passed; the Pass is tested through a
-  seam   (decision 0025, revision 2026-10-15). Merged as #42 (squash `3481536`, `6.1.0-preview0014`).
 
 ## Stable capabilities
 
@@ -94,7 +93,7 @@ PowerShell Gallery (verified 2026-10-18). Incremental work is tracked under
 
 - Desktop `CopilotAtelier New\LEDGER.md` owns the local queue: 01-08 and P2-P9.
   It keeps Decision 0028 gates, dependencies, and duplicate/superseded references.
-  The owner ruled on 06c, P6, and P8 on 2026-10-20; P6 is merged as #47, and the P8 checks ran on 2026-10-21.
+  The owner ruled on 06c, P6, and P8 on 2026-10-20; P6 is merged as #47, and P8's checks as #48.
 - Confirm the clock pin live in a new VS Code agent-host chat and in VS Code Local
   (the Copilot CLI runtime stood in for them when it was redeployed on
   2026-10-11; `main` is pushed and `origin/ai/session-clock-path` is gone).

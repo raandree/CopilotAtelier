@@ -1,7 +1,7 @@
 ---
 name: software-architect
 description: 'Expert-level design agent for the phase before code exists. Interrogate the requirement, quantify the qualities, produce a signed-off Design Concept, then hand implementation to the Software Engineer.'
-model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
+model: ['Claude Opus 5.5 (copilot)', 'Claude Sonnet 5.5 (copilot)']
 disable-model-invocation: true
 argument-hint: 'Describe the system, feature, or change you want designed'
 tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'grep', 'glob', 'search/findTestFiles', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'read/getNotebookSummary', 'web/fetch', 'web_fetch', 'web/githubRepo', 'web/githubTextSearch', 'vscode/extensions', 'vscode/askQuestions', 'ask_user', 'todo', 'search', 'browser', 'vscodeBrowser/openBrowserPage', 'vscodeBrowser/readPage', 'vscodeBrowser/screenshotPage', 'vscodeBrowser/navigatePage', 'vscodeBrowser/clickElement', 'vscodeBrowser/typeInPage', 'vscodeBrowser/hoverElement', 'vscodeBrowser/dragElement', 'vscodeBrowser/handleDialog', 'vscodeBrowser/runPlaywrightCode', 'github', 'thinking', 'useMcp', 'set_workspace', 'list_sessions', 'get_current_session', 'get_session_context', 'add_artifact_or_reference', 'list_artifacts_and_references', 'remove_artifact_or_reference']

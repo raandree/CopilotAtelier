@@ -113,4 +113,4 @@ disagreeing with each other, and only some of that drift is caught by CI.
 
 ## Model
 
-Agents declare `model` as a priority array: `['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']`. The first available model wins, so the last entry must always be a GA model. When bumping models, update every agent frontmatter and reflect the change in the Memory Bank.
+Agents declare `model` as a priority array: `['Claude Opus 5.5 (copilot)', 'Claude Sonnet 5.5 (copilot)']` (Decision record 0029; `spec-work-implementer` puts Sonnet first). The first available model wins, so the last entry must always be a GA model, and every entry must be one the Copilot offers: the Copilot SDK host does not start an agent none of whose entries is available. When bumping models, update every agent frontmatter and the list in `tests/CustomizationFrontmatter.Tests.ps1` together with a Decision record, and reflect the change in the Memory Bank.

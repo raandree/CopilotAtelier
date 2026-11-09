@@ -234,13 +234,14 @@ before each run, which the controller does once for each role.
 
 No test host here runs as a standard account, and a filtered administrator token
 is not one (its Administrators group is deny-only, so the check refuses it), so
-the Pass of this check is exercised through a seam that supplies the facts and
-has not been measured on a real standard token. Its refusal is exercised on real
-tokens: the elevated token of the host that runs the tests, and filtered ones the
-tests make. The test that closes this is still open: create a throwaway local
-account, log it on with `LogonUser`, read its token by handle with the same reader,
-and expect a Pass. A hosted CI runner is an administrator and could run it; on a
-development host it creates an account, which is the owner's decision.
+the suites exercise the Pass of this check through a seam that supplies the facts,
+and its refusal on real tokens: the elevated token of the host that runs the
+tests, and filtered ones the tests make. The Pass was measured once on a real
+standard token on 2026-11-09: a throwaway local account, logged on with
+`LogonUser` and read by handle with the same reader, passed on Windows Server
+2025, build 26100 (`docs/SECURITY-REVIEW.md`). That test is not part of the
+suites, because it creates an account; a hosted CI runner is an administrator and
+could run it.
 
 The check reads the token of the process, which every program the verifier starts
 inherits. The binding and the probes that ask for access answer for the thread, and

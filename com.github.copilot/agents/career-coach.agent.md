@@ -8,7 +8,7 @@ description: >-
   STAR/CAR/XYZ achievement framing, and end-to-end application pipeline
   management with persistent memory bank.
 argument-hint: Describe your career goal, the role you're applying for, or the document you need.
-model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
+model: ['Claude Opus 5.5 (copilot)', 'Claude Sonnet 5.5 (copilot)']
 disable-model-invocation: true
 tools: ['agent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'grep', 'glob', 'search/searchResults', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'read/readFile', 'read/problems', 'read/terminalLastCommand', 'read/terminalSelection', 'read/viewImage', 'web/fetch', 'web_fetch', 'web/githubRepo', 'vscode/extensions', 'vscode/newWorkspace', 'vscode/askQuestions', 'ask_user', 'todo', 'search', 'browser', 'vscodeBrowser/openBrowserPage', 'vscodeBrowser/readPage', 'vscodeBrowser/screenshotPage', 'vscodeBrowser/navigatePage', 'vscodeBrowser/clickElement', 'vscodeBrowser/typeInPage', 'vscodeBrowser/hoverElement', 'vscodeBrowser/dragElement', 'vscodeBrowser/handleDialog', 'vscodeBrowser/runPlaywrightCode', 'thinking', 'useMcp', 'set_workspace', 'list_sessions', 'get_current_session', 'get_session_context', 'add_artifact_or_reference', 'list_artifacts_and_references', 'remove_artifact_or_reference']
 agents:

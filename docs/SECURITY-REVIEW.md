@@ -4,6 +4,28 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-11-09: the R-04 closing test on a standard account's token
+
+Not a review: the measurement that the entry of 2026-10-15 left open, run on the owner's
+yes on Prox1 (Windows Server 2025 Datacenter, build 26100; PowerShell 7.6.9). A one-off
+script created a throwaway local account, added it to `Users` and no other group, logged it
+on with `LogonUser` (interactive logon), read the token by handle with the verifier's own
+reader (`ConvertTo-TokenFact` over `NativeToken.Read`, loaded from the verifier at digest
+`dd415737…2415` the way the Pester suites load it), and judged it with the unchanged
+`Test-IdentityPrivilege`. The same run removed the account, and no profile was created.
+
+- **Result: Pass.** Not elevated, elevation type Default, Medium integrity (`S-1-16-8192`),
+  no Administrators group, and two of the five privileges: `SeChangeNotifyPrivilege`
+  (enabled) and `SeIncreaseWorkingSetPrivilege` (disabled). Windows also answered that the
+  token is not in the Administrators role.
+- **Groups.** Apart from the integrity label `S-1-16-8192`, which equals the integrity
+  level, every group was enabled, and none was deny-only. So neither suggestion of the
+  2026-10-15 review (match the label against the level, and list the groups a process could
+  re-enable) would have refused this account.
+- **Still open.** One build and one logon type: a client edition, another build, a batch or
+  service logon, and an account in more groups were not measured. The test is not part of
+  the suites, because it creates an account.
+
 ## 2026-10-18: a second colon in the program path, S-33 (follow-up of prompt P5)
 
 The built-in `security-review` agent reviewed the change that closes S-33, the Nit that the

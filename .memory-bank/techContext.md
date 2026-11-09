@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-09-10
+last-verified: 2026-11-09
 owner: software-engineer
 source: build.yaml and source/
 ---
@@ -12,7 +12,7 @@ source: build.yaml and source/
 | Layer | Technology | Purpose |
 |---|---|---|
 | IDE | VS Code | Primary development environment |
-| AI assistant | GitHub Copilot with Claude Opus 5, Opus 4.8 fallback | Code, review, and documentation |
+| AI assistant | GitHub Copilot with Claude Opus 5.5, Sonnet 5.5 fallback | Code, review, and documentation |
 | Sync | OneDrive | Cross-machine Customization distribution |
 | Distribution | PowerShell Gallery module `CopilotAtelier` | Versioned install and update |
 | Build | Sampler, ModuleBuilder, InvokeBuild | Module build, package, and release |
@@ -125,13 +125,13 @@ expose `~/.copilot/{agents,instructions,skills,prompts,hooks}`.
 | `github.copilot.chat.search.semanticTextResults` | `true` | Improve semantic search |
 | `github.copilot.chat.skillTool.enabled` | `true` | Allow `context: fork` Skills |
 | `github.copilot.chat.agent.maxRequests` | `500` | Support long agent workflows |
-| `gitlens.ai.vscode.model` | `copilot:claude-opus-5` | GitLens model |
+| `gitlens.ai.vscode.model` | `copilot:claude-opus-5.5` | GitLens model |
 
 Setup removes the undocumented `github.copilot.advanced.model` key that earlier
 releases wrote; nothing ever consumed it.
 
-Custom agents declare `model` as a priority array. The last entry must be a GA
-model so a retirement degrades instead of breaking every agent.
+Custom agents declare `model` as a priority array. The last entry must be a GA model so a retirement degrades instead of breaking every agent,
+and every entry must be one the Copilot offers: the Copilot SDK host does not start an agent none of whose models is offered (Decision record 0029).
 
 ## Execution constraints
 

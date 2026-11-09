@@ -1,7 +1,7 @@
 ---
 description: 'Implement one immutable specification work item test-first in an isolated worktree, without delegation, remote mutation, or shared live actions.'
 name: spec-work-implementer
-model: ['Claude Sonnet 5 (copilot)', 'Claude Opus 4.8 (copilot)']
+model: ['Claude Sonnet 5.5 (copilot)', 'Claude Opus 5.5 (copilot)']
 argument-hint: 'Immutable brief path, isolated worktree path, report path, and command budget'
 tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'grep', 'glob', 'search/findTestFiles', 'search/usages', 'edit/editFiles', 'edit/createFile', 'edit/createDirectory', 'edit/rename', 'execute/runInTerminal', 'execute/getTerminalOutput', 'read/readFile', 'read/problems', 'read/testFailure', 'todo', 'thinking']
 agents: []

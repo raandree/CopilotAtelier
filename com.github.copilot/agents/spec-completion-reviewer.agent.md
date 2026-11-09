@@ -1,7 +1,7 @@
 ---
 description: 'Independently review one specification work item or completion matrix without editing, delegation, remote mutation, or shared live actions.'
 name: spec-completion-reviewer
-model: ['Claude Opus 5 (copilot)', 'Claude Opus 4.8 (copilot)']
+model: ['Claude Opus 5.5 (copilot)', 'Claude Sonnet 5.5 (copilot)']
 argument-hint: 'Immutable brief, review token, commit or diff, evidence paths, and review mode'
 tools: ['search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/textSearch', 'grep', 'glob', 'search/findTestFiles', 'search/usages', 'read/readFile', 'read/problems', 'read/testFailure', 'todo', 'thinking']
 agents: []

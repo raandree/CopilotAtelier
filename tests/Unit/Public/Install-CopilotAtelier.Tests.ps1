@@ -174,7 +174,7 @@ Describe 'Install-CopilotAtelier' -Tag 'Unit' {
             @{ Name = 'github.copilot.chat.search.semanticTextResults'; Value = $true }
             @{ Name = 'github.copilot.chat.skillTool.enabled'; Value = $true }
             @{ Name = 'github.copilot.chat.agent.maxRequests'; Value = 500 }
-            @{ Name = 'gitlens.ai.vscode.model'; Value = 'copilot:claude-opus-5' }
+            @{ Name = 'gitlens.ai.vscode.model'; Value = 'copilot:claude-opus-5.5' }
         ) {
             $script:settings.$Name | Should -Be $Value
         }
