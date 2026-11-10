@@ -1,0 +1,142 @@
+[
+  {
+    "id": "pos-01",
+    "query": "Plan a ten-day road trip for two with the rental car picked up on day two, mostly historic sites and one hiking day",
+    "should_trigger": true,
+    "split": "train",
+    "note": "new itinerary with car hire"
+  },
+  {
+    "id": "pos-02",
+    "query": "Is it better to fly back to the arrival city on the last evening or drive the six hours back? Just compare, don't change the plan yet",
+    "should_trigger": true,
+    "split": "train",
+    "note": "advice-only transport comparison"
+  },
+  {
+    "id": "pos-03",
+    "query": "We already visited the cathedral yesterday, update the itinerary",
+    "should_trigger": true,
+    "split": "train",
+    "note": "completed visit in a saved plan"
+  },
+  {
+    "id": "pos-04",
+    "query": "We can't leave before 10 tomorrow, adjust the saved day plan",
+    "should_trigger": true,
+    "split": "train",
+    "note": "later earliest start"
+  },
+  {
+    "id": "pos-05",
+    "query": "Our flight lands at 00:40, which hotel night do we need so the room is ready when we arrive?",
+    "should_trigger": true,
+    "split": "train",
+    "note": "arrival after midnight"
+  },
+  {
+    "id": "pos-06",
+    "query": "Wir essen nur Frühstück und Abendessen, bitte streicht die Mittagspausen aus dem Reiseplan",
+    "should_trigger": true,
+    "split": "train",
+    "note": "meal preference update, not in English"
+  },
+  {
+    "id": "pos-07",
+    "query": "Compare three hotels near the old town for nights four to six, our limit is 150 per room",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "hotel shortlist against a budget"
+  },
+  {
+    "id": "pos-08",
+    "query": "Move the car return to the airport branch a day earlier and fix everything that comes after it",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "earlier car-hire return"
+  },
+  {
+    "id": "pos-09",
+    "query": "Does the museum pass cover the night session at the palace, and does it expire at midnight or after 72 hours?",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "pass scope and expiry"
+  },
+  {
+    "id": "pos-10",
+    "query": "Add dinner in the harbour district tonight and work out how we get back to the hotel",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "stop added to today's plan"
+  },
+  {
+    "id": "neg-01",
+    "query": "Build a per-night temperature chart and a route map for our trek handbook",
+    "should_trigger": false,
+    "split": "train",
+    "note": "handbook visuals belong to travel-handbook"
+  },
+  {
+    "id": "neg-02",
+    "query": "Find freely licensed photos of six villages for the handbook and add a credits table",
+    "should_trigger": false,
+    "split": "train",
+    "note": "licensed photos belong to travel-handbook"
+  },
+  {
+    "id": "neg-03",
+    "query": "What have people said about the trail permits on Reddit and Hacker News in the last 30 days?",
+    "should_trigger": false,
+    "split": "train",
+    "note": "recency sweep belongs to social-signal-sweep"
+  },
+  {
+    "id": "neg-04",
+    "query": "Read these Reddit threads about the trail while signed in; the anonymous fetch gets a 403",
+    "should_trigger": false,
+    "split": "train",
+    "note": "signed-in reading belongs to authenticated-web-extraction"
+  },
+  {
+    "id": "neg-05",
+    "query": "Draft an Outlook email to the hotel asking them to confirm our late arrival",
+    "should_trigger": false,
+    "split": "train",
+    "note": "email draft belongs to create-outlook-draft"
+  },
+  {
+    "id": "neg-06",
+    "query": "Check every citation in my travel article against its source",
+    "should_trigger": false,
+    "split": "train",
+    "note": "citation check belongs to citation-integrity"
+  },
+  {
+    "id": "neg-07",
+    "query": "Turn the photos from our phones into a day-by-day travel diary with a map of where each one was taken",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "after-trip photo diary is out of scope"
+  },
+  {
+    "id": "neg-08",
+    "query": "Can I deduct the costs of my conference trip in my German income tax return?",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "travel-cost deduction belongs to german-tax-research"
+  },
+  {
+    "id": "neg-09",
+    "query": "Export my Outlook calendar entries for next week to Markdown",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "calendar export belongs to outlook-calendar-export"
+  },
+  {
+    "id": "neg-10",
+    "query": "Check that the links and anchors in both language versions of the handbook chapters still resolve",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "twin-document check belongs to travel-handbook"
+  }
+]
