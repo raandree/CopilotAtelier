@@ -198,9 +198,10 @@ outside its tracked tree: `00-README.md`, `LEDGER.md`, one `NN-<slug>.prompt.md`
 per task, and `reports/`. After you create or change it, run
 [`scripts/Test-HandoffSequence.ps1`](scripts/Test-HandoffSequence.ps1) with
 `-Path <folder>`. It reports a brief without a row, a row without a brief, a
-status outside the vocabulary, a broken link, an unfilled slot, and a
-user-profile path. Add `-Repository <path> -IntegrationBranch <name>` to check
-that every commit a finished row names is on the integration branch.
+brief whose only ledger is in another folder, a status outside the vocabulary,
+a broken link, an unfilled slot, and a user-profile path. Add
+`-Repository <path> -IntegrationBranch <name>` to check that every commit a
+finished row names is on the integration branch.
 
 To convert a folder of existing prompts, run the `/migrate-handoff-sequence`
 Prompt in VS Code. Elsewhere, take the same steps with
@@ -211,6 +212,12 @@ the files are data, a verified copy of every original comes before anything is
 removed, and nothing is written before the user accepts the plan. Pass the
 inventory's `Original` list to the validator as `-Original` to prove that every
 original survived byte for byte.
+
+To add briefs to a folder that has no `LEDGER.md`, create the ledger in that
+folder first, with a row for every brief already there, then add yours. Adding
+briefs is not a migration and needs no plan; renaming or rewriting the existing
+files is, so offer that separately. Never keep a brief's row in a ledger outside
+its folder: the next chat copies the brief, not your reasoning.
 
 ### Run by these rules
 
@@ -246,7 +253,9 @@ original survived byte for byte.
    front-matter description. The original sections stay. The report lists each
    wrong fact under Evidence corrections.
 8. **Record changes after the start.** A task added mid-sequence gets a README
-   row, a ledger row, and a ruling that says why. When a task leaves the
+   row, a ledger row, and a ruling that says why. Claim its number by adding the
+   ledger row first, after re-reading the ledger: two chats that add briefs to
+   one folder at once otherwise take the same number. When a task leaves the
    sequence, record a ruling and re-home every dependency that waited on it. A
    row can change status later, such as `Blocked` to `Done`: keep the earlier
    rulings and append one that names the ruling it supersedes. Work after the
@@ -372,6 +381,7 @@ Code-specific even where the underlying trap is not.
 | "I will put the command in my question so they can run it right away." | A question is shown without the text written before it, and a command inside it is hard to copy. Put the command in its own code block in the final reply, and ask only whether it ran. |
 | "The guard blocked my ledger row, so I will reword the command." | The guard matches text, not intent, and rewording is evading it. Write rows with the file-editing tool, and hand the user any command it blocks. |
 | "Every earlier row has to be done first." | Only the rows a brief depends on gate it. A blanket order stalls independent work and hides the real dependencies. |
+| "The folder predates the process, so its missing ledger is not my problem." | Adding a brief makes it your sequence. Create the ledger in that folder: a row kept in another folder's ledger is copied by the next chat, and an Error you leave stays an Error. |
 
 ## Red flags
 
@@ -397,6 +407,8 @@ Code-specific even where the underlying trap is not.
 - A ledger or report row written through a shell command that quotes a blocked
   command.
 - A task that left the sequence while a brief still lists it under `Depends on`.
+- A brief whose row lives in another folder's ledger, or two briefs that carry
+  the same number.
 
 When a red flag fires, stop and reconstruct the dispatch rather than pushing the
 current one through.
@@ -417,6 +429,8 @@ A delegated task is done when:
 - Each row built on was checked first: its commits are on the integration branch
   and its report file exists.
 - `scripts/Test-HandoffSequence.ps1` reports no Error for a user-run sequence.
+  An Error that was there before your change still counts: fix it, or get the
+  user's ruling on it.
 - The change clears the shared Post-flight Definition of Done gate.
 
 State the evidence: what the subagent changed, which check proved it, and what

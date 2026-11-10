@@ -18,6 +18,11 @@ PowerShell Gallery (verified 2026-10-21). Incremental work is tracked under
 
 ## Recent milestones
 
+- **2026-11-10**: The Task ledger stays in its Handoff sequence's folder (`software-engineer`). Briefs added
+  to a folder without `LEDGER.md` now get the ledger there first, never a row in another folder's ledger;
+  a Brief claims its number with its row; an Error found before a change still counts. The checker reports
+  `LedgerOutsideFolder`. 10 new tests (7 red first), 2 mutants caught, 1,157 focused passed. On
+  `ai/subagent-dispatch-folder-ledger`.
 - **2026-11-09**: The agents' models (`software-engineer`, owner ruling of 2026-11-09): every Custom agent
   declares Claude Opus 5.5 and Sonnet 5.5 (`spec-work-implementer` Sonnet first), Setup writes
   `copilot:claude-opus-5.5`, and a test fails a model outside the list (Decision record 0029 supersedes
@@ -57,12 +62,6 @@ PowerShell Gallery (verified 2026-10-21). Incremental work is tracked under
   that made the guard fail closed and a harmless empty grant file that stays on Windows. `Invoke-Guard`
   retries a call once after exit 2 at 5 s or more (at most 5 per run, warned); the concurrent-push test
   asserts what the guard promises. Test-only: 28 tests, 39 mutants caught, one review, gate 5,304 passed.
-- **2026-10-16**: The pinned hook line under the PowerShell hosts (`software-engineer`, `review: on`):
-  `HookContract` also runs the line under Windows PowerShell 5.1 and the PowerShell that runs the
-  verifier, built from the README's table of hosts, and needs 0, 2, 2 under all three; each wrapper is
-  shown closed to the run identity first, and a quoted program path now fails. Three reviews (16 findings,
-  mostly wording), 95 mutants caught, gate 5,341 passed; no host ran the line (decision 0025, revision
-  2026-10-16). Merged as #43 (squash `1de0c04`, `6.1.0-preview0016`; Windows CI 5,325 passed).
 
 ## Stable capabilities
 
