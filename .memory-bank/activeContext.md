@@ -9,14 +9,12 @@ source: current task evidence
 
 ## Current focus
 
-**The agents' models are Claude Opus 5.5 and Sonnet 5.5, on `main` since 2026-11-09** (`ea19ba4`,
-pushed directly without a pull request; `6.1.0-preview0022`; Decision record 0029, which supersedes
-0007). The owner's Copilot stopped offering Opus 5 and Opus 4.8, and the Copilot SDK host refused to
-start an agent that named only them; a test now fails an agent that names a model outside the list,
-and Setup writes `copilot:claude-opus-5.5` for GitLens. The R-04 closing test passed on a throwaway
-standard account (`docs/SECURITY-REVIEW.md`, 2026-11-09). The Skill index is on `main` (`661c30a`,
-`6.1.0-preview0021`), and `~/.copilot` matches `main` since the redeploy of 2026-11-10. The owner's
-queue is the Desktop folder `CopilotAtelier-handoffs` (start with `00-start-here.md`).
+**Brief 03, the travel work, is done on `ai/travel-work` and passed an independent security review** (`dc1dad0`,
+`5e9bb9b`, `15fb67e`, `bfd44f0`, `bc27c27`; not pushed): two Markdown rules, signed-in Reddit reading behind a
+GET-only allow-list and read only through the new file-reading-only `quarantined-reader` agent, and the Skills
+`travel-handbook` and `travel-planning`, each kept by the owner's with/without rule. All 17 review findings (3
+Major) were fixed test-first inside their commits; the pre-review history is `ai/travel-work-pre-review`. No owner
+trip is named in a shipped file; raw evidence stays in `D:\Git\_ca-work\travel-evals`. Queue: Desktop `CopilotAtelier-handoffs/00-README.md`.
 
 **S-33 is merged** as #45 (squash `a481c9d`, `6.1.0-preview0017`; Windows CI 5,332 passed): a second
 colon in the program path is refused, quoted or not (`docs/SECURITY-REVIEW.md`, 2026-10-18). With #43
@@ -57,6 +55,8 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
 
 ## Previous focuses
 
+- **The agents' models (2026-11-09).** Opus 5.5 and Sonnet 5.5 on `main` (`ea19ba4`, `6.1.0-preview0022`;
+  Decision record 0029); the Skill index on `main` (`661c30a`); the R-04 closing test passed.
 - **Prompts 04 to 06b and 05c (2026-10-09 to 2026-10-11).** The criterion 21 eval chain:
   Amendments 5 to 7, one fresh run (83.3 % at both Positions), and the record-only
   ruling that criterion 21 ships as not met (`progress.md`; the Decision's Confirmation).
@@ -160,10 +160,11 @@ unproven — train reached 100 % while validation fell.
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
 3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with
-   `00-start-here.md`): the live checks, the travel work (its brief moved there from
-   `.memory-bank/session/`), the P5 follow-ups (`docs/SECURITY-REVIEW.md`: S-20, the escape set of
-   `WritableRoots`, S-19, the run id of `-Revalidate`, and a CI retry for the Gallery bootstrap), and
-   more. The `ai/travel-photo-diary-skill` branch exists only on the other machine (Open work).
+   `00-README.md`): brief 03 waits on the owner to push and merge `ai/travel-work`, redeploy, delete any
+   leftover `extracted\all-cookies.json` (plaintext cookie values), and sign in to Reddit once for the live
+   `reddit-read` check; then the P5 follow-ups (`docs/SECURITY-REVIEW.md`:
+   S-20, the escape set of `WritableRoots`, S-19, the run id of `-Revalidate`, a CI retry for the Gallery
+   bootstrap) and more. The `ai/travel-photo-diary-skill` branch exists only on the other machine.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.
