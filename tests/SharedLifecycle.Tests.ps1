@@ -47,6 +47,12 @@ BeforeAll {
             MemoryHeading = '## Memory Bank'
             MemoryHash = '9C41851E9999FEDC'
         }
+        'quarantined-reader.agent.md' = @{
+            Tools = 1
+            ToolHash = 'B8423D3CF67BFAF4'
+            Handoffs = 0
+            HandoffHash = 'E3B0C44298FC1C14'
+        }
         'research-analyst.agent.md' = @{
             Tools = 59
             ToolHash = 'E31DA13C08F06954'

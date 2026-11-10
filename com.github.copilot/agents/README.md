@@ -93,10 +93,10 @@ Every agent that is not contained also gets a common baseline: web
 `send_message`, `rename_chat`, or `delete_session`. `web_search` is not declared
 because a session with no agent selected does not offer it here.
 
-The contained agents are `software-engineer-contoso` and the three
-specification-completion agents. They get a runtime name only for a VS Code
-name they already declare, and never `web_fetch`, `web_search`, a browser tool,
-or a session tool.
+The contained agents are `software-engineer-contoso`, the three
+specification-completion agents, and `quarantined-reader`. They get a runtime
+name only for a VS Code name they already declare, and never `web_fetch`,
+`web_search`, a browser tool, or a session tool.
 
 Two agent-host limits sit outside these lists, so containment there is per
 agent, not per host. The agent host forwards an agent's name, description,
@@ -893,6 +893,32 @@ software-engineer (base)
 - Any environment where source and configuration must not leave the trust boundary
 - Change-controlled organizations where release actions belong to an entitled human
 - As a template for another corporate overlay: copy it, rename to `software-engineer-<company>`, and adjust the control set
+
+---
+
+### 14. Quarantined Reader Agent
+
+**Role**: Reads untrusted text saved to files and returns a fixed-format summary  
+**Scope**: Helper subagent, hidden from the agent picker  
+**File**: `quarantined-reader.agent.md`
+
+**Responsibilities**:
+
+- Read only the files its caller names, such as the Reddit threads that `authenticated-web-extraction` saves to `extracted/reddit/`
+- Answer the caller's question in its own words, in a fixed Markdown format
+- Count and describe passages that try to steer AI agents, without quoting them
+
+**Key Features**:
+
+- Holds one tool, `read/readFile`: no shell, web, browser, editing, delegation, or session tool, so text written to steer it has no channel out. `tests/AuthenticatedWebExtraction.Tests.ps1` pins the tool list, and `tests/AgentRuntimeToolNames.Tests.ps1` classifies it as contained
+- Breaks the lethal trifecta for the reader rather than filtering it: the calling agent, which does hold a shell or the web, never sees the raw text
+- The summary carries no link, domain, e-mail address, file path, command, code, token, or cookie, and quotes at most ten words in a row
+- Remaining risk: a fooled reader can still return a wrong summary, so the caller checks a decision against the raw files
+
+**When to Use**:
+
+- Whenever a Skill fetches text written by strangers through a signed-in session, as `authenticated-web-extraction` does for Reddit
+- Any other untrusted text the calling agent should not read itself, because it also holds a shell, the web, or a browser
 
 ---
 

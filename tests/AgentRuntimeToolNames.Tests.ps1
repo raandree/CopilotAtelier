@@ -3,14 +3,17 @@ BeforeDiscovery {
 
     <#
         Contained Custom agents declare no network tool by design: the Contoso
-        overlay withholds every egress tool, and decision 0025 gives the three
-        specification-completion agents no network access. These checks cover
+        overlay withholds every egress tool, decision 0025 gives the three
+        specification-completion agents no network access, and the quarantined
+        reader holds file reading only, so untrusted text it reads has no
+        channel out. These checks cover
         tool names only; terminal and delegation paths are bounded by prose.
         Every other agent is open and gets the common baseline, so a new agent
         has to be classified here deliberately rather than inheriting either
         rule by accident.
     #>
     $containedName = @(
+        'quarantined-reader'
         'software-engineer-contoso'
         'spec-completion-controller'
         'spec-completion-reviewer'
