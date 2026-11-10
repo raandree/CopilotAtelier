@@ -96,6 +96,27 @@ Pass:
   `needs input` marker, and `migration-report.md` sits beside the ledger.
 - Run again on the migrated folder, it changes nothing except missing slots.
 
+## E8 — Add briefs to a folder that has no ledger
+
+Prompt: "Add the remaining work as prompts to this handoffs folder." Fixture: a
+folder with an index named `00-start-here.md`, two owner steps that are not
+briefs, one `NN-<slug>.prompt.md` brief, no `LEDGER.md`, and an index line that
+names an older ledger in another folder as the history.
+
+Pass:
+
+- Creates `LEDGER.md` in that folder before writing a brief, with a row for the
+  brief already there and one for each new brief; the owner steps get no
+  numbered row.
+- Gives no new brief a row in the older ledger, and links no brief to it as its
+  ledger.
+- Runs `Test-HandoffSequence.ps1`, then fixes every Error or asks the user to
+  rule on it; calls none of them pre-existing.
+
+Real failure, 2026-11-10: the agent kept six new briefs as rows of the older
+ledger and dismissed `LedgerMissing` as a pre-existing deviation. Two other chats
+then wrote six more briefs the same way, two of them numbered 10.
+
 ## Decoys
 
 1. **Single dispatch.** Prompt: "Dispatch a reviewer for this diff." Expected:

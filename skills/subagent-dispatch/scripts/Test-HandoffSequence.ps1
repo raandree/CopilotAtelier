@@ -6,11 +6,12 @@
 .DESCRIPTION
     Reads the sequence README (00-README.md), LEDGER.md, the NN-slug.prompt.md
     briefs, and reports/. Reports a brief without a ledger row, a row without a
-    brief, a status outside the vocabulary, a Rulings table that does not say who
-    decided, a dependency on an unknown row, a relative link that does not
-    resolve, a template slot left unfilled, a user-profile path, and a forbidden
-    term. With Repository and IntegrationBranch it also checks that every commit
-    a finished row names exists and is on the integration branch.
+    brief, a brief whose only ledger links leave its folder, a status outside the
+    vocabulary, a Rulings table that does not say who decided, a dependency on an
+    unknown row, a relative link that does not resolve, a template slot left
+    unfilled, a user-profile path, and a forbidden term. With Repository and
+    IntegrationBranch it also checks that every commit a finished row names
+    exists and is on the integration branch.
 
     The script is read-only and skips the originals folder. It does not read a
     file that is a link, and says so. It returns one summary object whose Passed
@@ -393,6 +394,41 @@ foreach ($entry in $brief) {
             $rule = $slotCode[$slot]
             Add-Finding -Severity $rule[0] -Code $rule[1] -File $entry.Name -Message $rule[2]
         }
+    }
+}
+
+# A brief's row lives in this folder's ledger. A brief whose only ledger links leave the folder sends its run
+# to another sequence's ledger, and the next brief written from it copies the mistake.
+$ownLedger = [IO.Path]::GetFullPath($ledgerPath)
+foreach ($entry in $brief) {
+    $outsideLink = $null
+    $linksOwnLedger = $false
+    foreach ($link in @(Get-HandoffLink -Text (Read-HandoffText -Path $entry.Path))) {
+        $target = ($link.Target -split '[#?]')[0]
+        if ([string]::IsNullOrWhiteSpace($target) -or ($target -match '^[A-Za-z][A-Za-z0-9+.-]+:' -and $target -notmatch '^[A-Za-z]:[\\/]')) {
+            continue
+        }
+
+        try {
+            $target = [Uri]::UnescapeDataString($target)
+            if ([IO.Path]::GetFileName($target) -ne 'LEDGER.md') {
+                continue
+            }
+
+            $resolved = [IO.Path]::GetFullPath([IO.Path]::Combine($root, $target))
+        } catch {
+            continue
+        }
+
+        if ($resolved -eq $ownLedger) {
+            $linksOwnLedger = $true
+        } elseif ($null -eq $outsideLink) {
+            $outsideLink = $link
+        }
+    }
+
+    if ($null -ne $outsideLink -and -not $linksOwnLedger) {
+        Add-Finding -Severity Error -Code 'LedgerOutsideFolder' -File $entry.Name -Line $outsideLink.Line -Message 'The brief links a ledger outside its folder and none inside it; its row belongs in this folder''s LEDGER.md.'
     }
 }
 

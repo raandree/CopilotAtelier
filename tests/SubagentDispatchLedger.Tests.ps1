@@ -58,6 +58,11 @@ $script:ruleCase = @(
     @{ Rule = 'names the boundary with the session-handoff prompt'; Pattern = '(?is)`session-handoff`' }
     @{ Rule = 'names the boundary with the spec-completion-controller ledger'; Pattern = '(?is)`spec-completion-controller`' }
     @{ Rule = 'runs the validator after creating or changing a sequence'; Pattern = '(?is)Test-HandoffSequence\.ps1' }
+    @{ Rule = 'creates the ledger in a folder that has none before adding a brief to it'; Pattern = '(?is)folder that has no `LEDGER\.md`.{0,120}create the ledger in that folder first' }
+    @{ Rule = 'never keeps a brief''s row in a ledger outside its folder'; Pattern = '(?is)never keep a brief''s row in a ledger outside its folder' }
+    @{ Rule = 'says that adding briefs is not a migration'; Pattern = '(?is)adding briefs is not a migration' }
+    @{ Rule = 'claims a brief number by adding its ledger row first'; Pattern = '(?is)claim its number by adding the ledger row first' }
+    @{ Rule = 'still counts an Error that predates the change'; Pattern = '(?is)an Error that was there before your change still counts' }
 )
 
 BeforeAll {
@@ -397,6 +402,16 @@ Describe 'subagent-dispatch ledger guidance' -Tag 'Unit' {
         $flag | Should -Match '(?i)no ledger row'
         $flag | Should -Match '(?i)question'
         $flag | Should -Match '(?i)Depends on|dependenc'
+    }
+
+    It 'adds the folder-ledger rows of the anti-rationalization table and the red flags' {
+        $text = script:Read-RepositoryText -Path $script:skillPath
+        $table = [regex]::Match($text, '(?s)## Anti-rationalization table(?<body>.+?)\n## ').Groups['body'].Value
+        $flag = [regex]::Match($text, '(?s)## Red flags(?<body>.+?)\n## ').Groups['body'].Value
+
+        $table | Should -Match '(?i)predates\s+the\s+process' -Because 'calling a missing ledger pre-existing is the shortcut that put rows in another folder''s ledger'
+        $flag | Should -Match '(?i)another\s+folder''s\s+ledger'
+        $flag | Should -Match '(?i)same\s+number'
     }
 
     It 'closes the Verification section on the ledger' {
@@ -908,6 +923,61 @@ Describe 'Test-HandoffSequence' -Tag 'Unit' {
             }
 
             (script:Get-Finding -Result $result -Code $Code).Severity | Should -Be 'Warning'
+            $result.Passed | Should -Be $true
+        }
+
+        It 'reports a brief whose only ledger link leaves its folder' {
+            $result = script:Test-Sequence -Name 'outside-ledger' -Mutate {
+                param($root)
+                $history = Join-Path (Split-Path -Parent $root) 'outside-ledger-history'
+                New-Item -ItemType Directory -Path $history -Force | Out-Null
+                script:Set-FixtureText -Path (Join-Path $history 'LEDGER.md') -Text "# Ledger`n"
+                Add-Content -LiteralPath (Join-Path $root '01-example.prompt.md') -Value "`nYour ledger row is P10 in [LEDGER.md](../outside-ledger-history/LEDGER.md).`n"
+            }
+
+            $finding = script:Get-Finding -Result $result -Code 'LedgerOutsideFolder'
+            $finding | Should -HaveCount 1
+            $finding[0].Severity | Should -Be 'Error'
+            $finding[0].File | Should -Be '01-example.prompt.md'
+            $result.Passed | Should -Be $false
+        }
+
+        It 'accepts a brief that links its own ledger beside one outside its folder' {
+            $result = script:Test-Sequence -Name 'own-and-outside-ledger' -Mutate {
+                param($root)
+                $history = Join-Path (Split-Path -Parent $root) 'own-and-outside-history'
+                New-Item -ItemType Directory -Path $history -Force | Out-Null
+                script:Set-FixtureText -Path (Join-Path $history 'LEDGER.md') -Text "# Ledger`n"
+                Add-Content -LiteralPath (Join-Path $root '01-example.prompt.md') -Value "`nRow P10 of [the old ledger](../own-and-outside-history/LEDGER.md) is now row 01 of [LEDGER.md](LEDGER.md).`n"
+            }
+
+            script:Get-Finding -Result $result -Code 'LedgerOutsideFolder' | Should -BeNullOrEmpty
+            $result.Passed | Should -Be $true
+        }
+
+        It 'leaves a README that links a ledger outside its folder alone' {
+            $result = script:Test-Sequence -Name 'readme-outside-ledger' -Mutate {
+                param($root)
+                $history = Join-Path (Split-Path -Parent $root) 'readme-outside-history'
+                New-Item -ItemType Directory -Path $history -Force | Out-Null
+                script:Set-FixtureText -Path (Join-Path $history 'LEDGER.md') -Text "# Ledger`n"
+                Add-Content -LiteralPath (Join-Path $root '00-README.md') -Value "`nEarlier work is in [the old ledger](../readme-outside-history/LEDGER.md).`n"
+            }
+
+            script:Get-Finding -Result $result -Code 'LedgerOutsideFolder' | Should -BeNullOrEmpty
+            $result.Passed | Should -Be $true
+        }
+
+        It 'does not count a brief link to an outside file that is not a ledger' {
+            $result = script:Test-Sequence -Name 'outside-source' -Mutate {
+                param($root)
+                $source = Join-Path (Split-Path -Parent $root) 'outside-source-briefs'
+                New-Item -ItemType Directory -Path $source -Force | Out-Null
+                script:Set-FixtureText -Path (Join-Path $source '06-original-task.md') -Text "# Original task`n"
+                Add-Content -LiteralPath (Join-Path $root '01-example.prompt.md') -Value "`nThe original requirements are in [the task brief](../outside-source-briefs/06-original-task.md).`n"
+            }
+
+            script:Get-Finding -Result $result -Code 'LedgerOutsideFolder' | Should -BeNullOrEmpty
             $result.Passed | Should -Be $true
         }
     }
