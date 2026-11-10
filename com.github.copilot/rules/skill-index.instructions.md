@@ -11,7 +11,7 @@ A host shows Skill descriptions only up to a size budget and lists the remaining
 |---|---|
 | `agent-evals` | measuring a Skill, Prompt, or agent: trigger rates, regression evals, pass@k |
 | `agent-security-review` | security of agents, LLM features, MCP servers: prompt injection, OWASP LLM |
-| `authenticated-web-extraction` | data from sites behind a login, through a persistent Edge profile |
+| `authenticated-web-extraction` | data from sites behind a login, signed-in Reddit included, through a persistent Edge profile |
 | `automatedlab-deployment` | Hyper-V labs with AutomatedLab: definitions, roles, networking, teardown |
 | `automatedlab-proxmox` | AutomatedLab on Proxmox/QEMU: Windows setup, Sysprep, WinRM failures |
 | `brand-logo-system` | logos, app icons, favicons, and brand variants as SVG and PNG |

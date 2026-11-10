@@ -1,6 +1,10 @@
-// Dump all cookies across all domains in the profile.
+// List the names, domains, and expiry dates of all cookies in the profile.
+// Values are never written or printed: the file only answers which cookie a
+// site uses for its sign-in.
 import fs from 'node:fs';
 import path from 'node:path';
+
+const LISTED_FIELDS = ['name', 'domain', 'path', 'expires', 'httpOnly', 'secure', 'sameSite'];
 
 export default async function dumpAllCookies({ context, outDir }) {
   const all = await context.cookies();
@@ -24,6 +28,7 @@ export default async function dumpAllCookies({ context, outDir }) {
   }
 
   const outPath = path.join(outDir, 'all-cookies.json');
-  fs.writeFileSync(outPath, JSON.stringify(all, null, 2), 'utf8');
+  const listed = all.map(cookie => Object.fromEntries(LISTED_FIELDS.map(field => [field, cookie[field]])));
+  fs.writeFileSync(outPath, JSON.stringify(listed, null, 2), 'utf8');
   console.log(`\nWrote ${outPath}`);
 }

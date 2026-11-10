@@ -37,6 +37,12 @@ const TARGETS = [
     url: 'https://www.meetup.com/',
     cookieDomain: 'https://www.meetup.com',
     cookieName: 'MEETUP_MEMBER'
+  },
+  {
+    name: 'Reddit',
+    url: 'https://www.reddit.com/',
+    cookieDomain: 'https://www.reddit.com',
+    cookieName: 'reddit_session'
   }
 ];
 

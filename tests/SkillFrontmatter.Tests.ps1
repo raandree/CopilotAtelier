@@ -20,7 +20,6 @@ $script:oversizedBodyBaseline = @{
 # length. The cap itself is 1024 and a description that passes it is dropped
 # silently, so these have almost no headroom and no entry may grow.
 $script:longDescriptionBaseline = @{
-    'authenticated-web-extraction'   = 1024
     'marp-slide-overflow'            = 1022
     'evidence-package-assembly'      = 1016
     'pandoc-docx-export'             = 1013
