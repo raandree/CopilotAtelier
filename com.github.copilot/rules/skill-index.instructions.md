@@ -55,6 +55,7 @@ A host shows Skill descriptions only up to a size budget and lists the remaining
 | `social-signal-sweep` | what people say about a topic in the last N days |
 | `subagent-dispatch` | splitting work into subagents or handoff prompts run one per chat, with a task ledger |
 | `test-driven-development` | test-first PowerShell and DSC changes: red, green, refactor |
+| `travel-handbook` | maps, climate charts, licensed photos, and twin checks for a two-language trip handbook |
 | `whisper-pyannote-transcription` | transcribing audio or video with speaker labels |
 | `windows-gui-screenshot-capture` | screenshots of Windows applications and screenshot manuals |
 | `winrm-troubleshooting` | WinRM and PowerShell remoting failures |
