@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-09
+last-verified: 2026-11-10
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,14 +9,14 @@ source: current task evidence
 
 ## Current focus
 
-**The agents' models are Claude Opus 5.5 and Sonnet 5.5 on `ai/agent-models-5-5` (local; the owner
-pushes), 2026-11-09** (Decision record 0029, which supersedes 0007). The owner's Copilot stopped offering
-Opus 5 and Opus 4.8, and the Copilot SDK host refused to start an agent that named only them; a test now
-fails an agent that names a model outside the list, and Setup writes `copilot:claude-opus-5.5` for
-GitLens. The R-04 closing test ran on the owner's yes: a throwaway standard account's token passed
-`IdentityPrivilege` (`docs/SECURITY-REVIEW.md`, 2026-11-09). The Skill index is on `main` (`661c30a`),
-P8 is merged as #48 (`ae8684d`), and `~/.copilot` matched `main` on 2026-11-09. A live check in a new
-chat (an agent starts; a prepared push ends with a code block) is the owner's.
+**The agents' models are Claude Opus 5.5 and Sonnet 5.5, on `main` since 2026-11-09** (`ea19ba4`,
+pushed directly without a pull request; `6.1.0-preview0022`; Decision record 0029, which supersedes
+0007). The owner's Copilot stopped offering Opus 5 and Opus 4.8, and the Copilot SDK host refused to
+start an agent that named only them; a test now fails an agent that names a model outside the list,
+and Setup writes `copilot:claude-opus-5.5` for GitLens. The R-04 closing test passed on a throwaway
+standard account (`docs/SECURITY-REVIEW.md`, 2026-11-09). The Skill index is on `main` (`661c30a`,
+`6.1.0-preview0021`), and `~/.copilot` matches `main` since the redeploy of 2026-11-10. The owner's
+queue is the Desktop folder `CopilotAtelier-handoffs` (start with `00-start-here.md`).
 
 **S-33 is merged** as #45 (squash `a481c9d`, `6.1.0-preview0017`; Windows CI 5,332 passed): a second
 colon in the program path is refused, quoted or not (`docs/SECURITY-REVIEW.md`, 2026-10-18). With #43
@@ -159,11 +159,11 @@ unproven — train reached 100 % while validation fell.
    controller agent (the security lint names the rule `ObsoleteRemoteOverride`).
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
-3. The model switch waits for the owner: push `ai/agent-models-5-5`, open the pull request and
-   squash-merge it, then redeploy (the commands are in the chat). Then the travel work of
-   `.memory-bank/session/handoff-2026-10-23T1116Z.md` and the P5 follow-ups (`docs/SECURITY-REVIEW.md`:
-   S-20, the escape set of `WritableRoots`, S-19, the run id of `-Revalidate`; Desktop `LEDGER.md`).
-   The `ai/travel-photo-diary-skill` branch exists only on the other machine and is not on GitHub.
+3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with
+   `00-start-here.md`): the live checks, the travel work (its brief moved there from
+   `.memory-bank/session/`), the P5 follow-ups (`docs/SECURITY-REVIEW.md`: S-20, the escape set of
+   `WritableRoots`, S-19, the run id of `-Revalidate`, and a CI retry for the Gallery bootstrap), and
+   more. The `ai/travel-photo-diary-skill` branch exists only on the other machine (Open work).
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.

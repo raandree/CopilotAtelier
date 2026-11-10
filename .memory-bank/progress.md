@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-09
+last-verified: 2026-11-10
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -12,8 +12,8 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
 `6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0020` (`ae8684d`, 2026-10-21) to GitHub Releases and the
-PowerShell Gallery (verified 2026-10-21). Incremental work is tracked under
+`6.1.0-preview0022` (`ea19ba4`, 2026-11-09) to GitHub Releases and the
+PowerShell Gallery (verified 2026-11-10). Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
@@ -22,13 +22,13 @@ PowerShell Gallery (verified 2026-10-21). Incremental work is tracked under
   declares Claude Opus 5.5 and Sonnet 5.5 (`spec-work-implementer` Sonnet first), Setup writes
   `copilot:claude-opus-5.5`, and a test fails a model outside the list (Decision record 0029 supersedes
   0007); red first (17 of 182). The R-04 closing test passed on a throwaway standard account. On
-  `ai/agent-models-5-5`.
+  `main` (`ea19ba4`, pushed without a pull request; `6.1.0-preview0022`), redeployed 2026-11-10.
 - **2026-11-07**: The Skill index (`software-engineer`). The logs of two Copilot CLI chats (DeskPilot,
   ShellPilot) showed `subagent-dispatch` never loaded for "write handoff prompts": runtime 1.0.103 lists
   Skill descriptions only to 30,000 characters, VS Code's 20 synced Skills first and ours by name, so 30
   of 50 Skills reached the model as a bare name (66 logged sessions agree; VS Code chat uses 15,000).
   Added the always-applied `skill-index.instructions.md` (4,932 characters), a pre-flight pointer, and a
-  `SkillCatalog` estimate in `Get-CopilotAtelierFootprint`; red first, gate 5,652 passed. On `main` (`661c30a`).
+  `SkillCatalog` estimate in `Get-CopilotAtelierFootprint`; red first, gate 5,652 passed. On `main` (`661c30a`, `6.1.0-preview0021`).
 - **2026-10-21**: The P8 checks (`software-engineer`; spending approved 2026-10-20). A new 20-query set
   measured the `subagent-dispatch` description; the new one names prompts run one per chat, briefs, the
   task ledger, and folder migration (`claude-opus-5.5` train 10 to 12 of 12, validation 7 to 8 of 8;
@@ -91,9 +91,12 @@ PowerShell Gallery (verified 2026-10-21). Incremental work is tracked under
 
 ## Open work
 
-- Desktop `CopilotAtelier New\LEDGER.md` owns the local queue: 01-08 and P2-P9.
-  It keeps Decision 0028 gates, dependencies, and duplicate/superseded references.
-  The owner ruled on 06c, P6, and P8 on 2026-10-20; P6 is merged as #47, and P8's checks as #48.
+- Desktop `CopilotAtelier New\LEDGER.md` keeps the queue's history (01-08 and P2-P20) with
+  Decision 0028 gates, dependencies, and duplicate/superseded references; the open prompts
+  are in Desktop `CopilotAtelier-handoffs` (start with `00-start-here.md`).
+- Push `ai/travel-photo-diary-skill` from the other machine (`C:\Git\CopilotAtelier`, worktree
+  `C:\Git\CopilotAtelier-travel-photo-diary`); it is not on GitHub (checked 2026-11-10). Until it
+  is, the boundary between it and the planned `travel-handbook` Skill stays provisional.
 - Confirm the clock pin live in a new VS Code agent-host chat and in VS Code Local
   (the Copilot CLI runtime stood in for them when it was redeployed on
   2026-10-11; `main` is pushed and `origin/ai/session-clock-path` is gone).
