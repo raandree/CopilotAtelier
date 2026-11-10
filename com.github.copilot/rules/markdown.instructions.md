@@ -66,6 +66,7 @@ More content.
 ## Character Line Limit
 
 - Keep lines at or under 80 characters when practical
+- Count length in UTF-16 code units, as markdownlint MD013 does: a character outside the Basic Multilingual Plane, such as the emoji 💡, counts as two
 - **Exceptions** (these may exceed the limit):
   - Links and image references
   - Tables
@@ -823,7 +824,9 @@ Many processors support custom heading IDs or auto-generate them from heading te
 [Link to heading](#custom-id)
 ```
 
-GitHub's algorithm: lowercase → remove punctuation → spaces to dashes → URI-encode.
+GitHub's algorithm: lowercase → remove punctuation and symbols, emoji included → keep letters of every script (Cyrillic stays) → spaces to dashes → URI-encode. It keeps an emoji's variation selector U+FE0F, so `# 🗺️ Route` gets an anchor that starts with an invisible U+FE0F followed by `-route`.
+
+- Keep emoji out of headings that are link targets
 
 ### Highlight, Subscript, and Superscript
 Not universally supported; check your processor:
