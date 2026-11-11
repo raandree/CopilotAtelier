@@ -8,7 +8,10 @@ function Test-CopilotAtelier
             Checks the Deployment record, file hashes, loaded version, Discovery
             links, required hook scripts, and VS Code settings. Reports legacy
             trees, including distinct capitalized directories on case-sensitive
-            targets, and duplicate skill Discovery links as warnings. The result
+            targets, duplicate skill Discovery links, and a Canonical target
+            that is also a git working tree as warnings. The loaded and the
+            deployed version are compared with their prerelease labels, so two
+            previews of one version count as drift. The result
             contains structured Checks with Code, Severity, Path, and Message.
             IsHealthy means no Error was found; warnings still need review.
 
@@ -117,8 +120,8 @@ function Test-CopilotAtelier
         $checks.Add([pscustomobject]@{ Code = 'InvalidDeploymentRecord'; Severity = 'Error'; Path = $path.DeploymentManifestPath; Message = $_.Exception.Message })
     }
 
-    $moduleVersion = if ($ExecutionContext.SessionState.Module) { [string] $ExecutionContext.SessionState.Module.Version } else { $null }
-    if ($record.Version -and $moduleVersion -and $record.Version -ne $moduleVersion)
+    $moduleVersion = Get-CopilotAtelierModuleVersion
+    if ($record.Version -and $moduleVersion -and [string] $record.Version -cne $moduleVersion)
     {
         $checks.Add([pscustomobject]@{ Code = 'VersionDrift'; Severity = 'Warning'; Path = $path.DeploymentManifestPath; Message = "Loaded version $moduleVersion differs from deployed version $($record.Version)." })
     }
@@ -283,6 +286,10 @@ function Test-CopilotAtelier
     catch
     {
         $checks.Add([pscustomobject]@{ Code = 'LegacyInspectionFailed'; Severity = 'Warning'; Path = $path.TargetPath; Message = $_.Exception.Message })
+    }
+    if (Test-Path -LiteralPath (Join-Path -Path $path.TargetPath -ChildPath '.git'))
+    {
+        $checks.Add([pscustomobject]@{ Code = 'GitWorkingTreeTarget'; Severity = 'Warning'; Path = $path.TargetPath; Message = 'The Canonical target is also a git working tree. Installation deploys only the agents, instructions, skills, prompts, and hooks folders and the Deployment record there, never repository files such as CHANGELOG.md or .memory-bank. Move a repository clone outside the Canonical target.' })
     }
     foreach ($otherRoot in @('.claude', '.agents'))
     {

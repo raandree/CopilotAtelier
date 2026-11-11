@@ -11,12 +11,29 @@ function Update-CopilotAtelier
             Install-CopilotAtelier so the ~/.copilot discovery folders match the
             module that is now installed.
 
+            Without AllowPrerelease the command considers stable releases only
+            and names a newer preview, such as 6.1.0-preview0024, without
+            installing it. Versions are ordered with their prerelease labels, so
+            a later preview follows an earlier one and a release follows its
+            previews. The result reports PreviousVersion and Version with their
+            labels in PreviousPrerelease and Prerelease, and NewerPrerelease
+            names a newer preview that was not considered.
+
+            The command updates the module and the deployed customizations only,
+            never repository files such as CHANGELOG.md or .memory-bank.
+
             The command requires the module to be installed from a repository.
             When the commands were dot-sourced from a repository clone, update
             the clone with git and run Install-CopilotAtelier instead.
 
         .PARAMETER Repository
             The PowerShell repository to check. Defaults to PSGallery.
+
+        .PARAMETER AllowPrerelease
+            Also considers preview versions and installs the newest version,
+            preview or release. Needs PowerShellGet 2 or later: the
+            PowerShellGet 1.0.0.1 that Windows PowerShell 5.1 ships with cannot
+            list previews.
 
         .PARAMETER TargetPath
             Explicit Canonical target passed to installation. Ambiguous OneDrive
@@ -69,6 +86,11 @@ function Update-CopilotAtelier
             Redeploys the current version even when no newer version exists.
 
         .EXAMPLE
+            Update-CopilotAtelier -AllowPrerelease -InformationAction Continue
+
+            Updates to the newest version, previews included, and redeploys the customizations.
+
+        .EXAMPLE
             Update-CopilotAtelier -TargetPath ~/CopilotAtelier -Repair -WhatIf
 
             Previews an update and repair at an explicitly selected destination.
@@ -84,6 +106,10 @@ function Update-CopilotAtelier
         [ValidateNotNullOrEmpty()]
         [System.String]
         $Repository = 'PSGallery',
+
+        [Parameter()]
+        [System.Management.Automation.SwitchParameter]
+        $AllowPrerelease,
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
@@ -135,7 +161,8 @@ function Update-CopilotAtelier
         throw 'Update-CopilotAtelier requires the module to be imported from an installed copy. Running from a repository clone? Update the clone with git and run Install-CopilotAtelier.'
     }
 
-    $installedVersion = $module.Version
+    $installedVersion = Get-CopilotAtelierModuleVersion
+    $installed = ConvertFrom-CopilotAtelierVersion -Version $installedVersion
 
     $deploymentTarget = $null
     if (-not $SkipDeployment)
@@ -148,29 +175,78 @@ function Update-CopilotAtelier
         $deploymentTarget = (Get-CopilotAtelierPath @pathParameters).TargetPath
     }
 
+    $findParameters = @{
+        Name       = $module.Name
+        Repository = $Repository
+    }
+
+    # Named only when requested: PowerShellGet 1.0.0.1 rejects the parameter even as -AllowPrerelease:$false.
+    if ($AllowPrerelease)
+    {
+        $findParameters.AllowPrerelease = $true
+    }
+
     try
     {
-        $availableModule = Find-Module -Name $module.Name -Repository $Repository
+        $availableModule = Find-Module @findParameters
     }
     catch
     {
+        if ($AllowPrerelease -and $_.Exception -is [System.Management.Automation.ParameterBindingException])
+        {
+            throw "-AllowPrerelease needs PowerShellGet 2 or later to list previews; this session loads an older one, such as the PowerShellGet 1.0.0.1 that Windows PowerShell 5.1 ships with. Run 'Install-Module -Name PowerShellGet -Scope CurrentUser -Force -AllowClobber', then start a new session. Reported error: $($_.Exception.Message)"
+        }
+
         throw "Unable to query repository '$Repository' for '$($module.Name)': $($_.Exception.Message)"
     }
 
-    $availableVersion = [System.Version] $availableModule.Version
+    $availableVersion = [System.String] $availableModule.Version
+    $available = ConvertFrom-CopilotAtelierVersion -Version $availableVersion
+
+    $newerPrerelease = $null
+    if (-not $AllowPrerelease)
+    {
+        try
+        {
+            $previewVersion = [System.String] (Find-Module @findParameters -AllowPrerelease).Version
+
+            if ((ConvertFrom-CopilotAtelierVersion -Version $previewVersion).Prerelease -and
+                (Compare-CopilotAtelierVersion -Version $previewVersion -OtherVersion $installedVersion) -gt 0 -and
+                (Compare-CopilotAtelierVersion -Version $previewVersion -OtherVersion $availableVersion) -gt 0)
+            {
+                $newerPrerelease = $previewVersion
+            }
+        }
+        catch
+        {
+            # Only a hint: an older PowerShellGet or a failed query must not stop a stable update.
+            Write-Verbose -Message "Unable to check '$Repository' for a newer preview: $($_.Exception.Message)"
+        }
+    }
 
     Write-Information -MessageData "Installed version: $installedVersion"
     Write-Information -MessageData "Available version: $availableVersion ($Repository)"
 
     $updated = $false
 
-    if ($availableVersion -gt $installedVersion)
+    if ((Compare-CopilotAtelierVersion -Version $availableVersion -OtherVersion $installedVersion) -gt 0)
     {
         if ($PSCmdlet.ShouldProcess($module.Name, "Update to version $availableVersion from '$Repository'"))
         {
+            $updateParameters = @{
+                Name            = $module.Name
+                RequiredVersion = $availableVersion
+                Force           = $true
+            }
+
+            if ($available.Prerelease)
+            {
+                $updateParameters.AllowPrerelease = $true
+            }
+
             try
             {
-                Update-Module -Name $module.Name -RequiredVersion $availableVersion -Force
+                Update-Module @updateParameters
             }
             catch
             {
@@ -182,9 +258,18 @@ function Update-CopilotAtelier
             Write-Information -MessageData "Updated to version $availableVersion."
         }
     }
+    elseif ($AllowPrerelease)
+    {
+        Write-Information -MessageData 'Already at the newest published version, previews included.'
+    }
     else
     {
-        Write-Information -MessageData 'Already at the newest published version.'
+        Write-Information -MessageData 'Already at the newest stable version.'
+    }
+
+    if ($newerPrerelease)
+    {
+        Write-Information -MessageData "A newer preview is published: $newerPrerelease. Run Update-CopilotAtelier -AllowPrerelease to install it."
     }
 
     $deployment = $null
@@ -195,11 +280,12 @@ function Update-CopilotAtelier
     }
     elseif ($updated -or $Force -or $Repair)
     {
-        $targetVersion = $installedVersion
+        # Import-Module takes the numeric version only; a preview is installed under it.
+        $targetVersion = $installed.Version
 
         if ($updated)
         {
-            $targetVersion = $availableVersion
+            $targetVersion = $available.Version
         }
 
         $updatedModule = Import-Module -Name $module.Name -RequiredVersion $targetVersion -Force -PassThru
@@ -239,11 +325,15 @@ function Update-CopilotAtelier
         Write-Information -MessageData 'Nothing to deploy. Use -Force to redeploy the current version.'
     }
 
+    # Version and PreviousVersion stay System.Version for existing callers; the labels are additive.
     return [PSCustomObject] @{
-        Name            = $module.Name
-        PreviousVersion = $installedVersion
-        Version         = $availableVersion
-        Updated         = $updated
-        Deployment      = $deployment
+        Name               = $module.Name
+        PreviousVersion    = $installed.Version
+        PreviousPrerelease = $installed.Prerelease
+        Version            = $available.Version
+        Prerelease         = $available.Prerelease
+        Updated            = $updated
+        NewerPrerelease    = $newerPrerelease
+        Deployment         = $deployment
     }
 }

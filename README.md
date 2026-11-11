@@ -636,7 +636,7 @@ The module ships `Agents`, `Instructions`, `Skills`, `Prompts`, `Hooks`, and `Ke
 | Command | Purpose |
 |---|---|
 | `Install-CopilotAtelier` | Deploys the customizations to the canonical target, links the `~/.copilot` discovery folders, and merges the VS Code settings and keybindings. |
-| `Update-CopilotAtelier` | Checks the Gallery for a newer version, installs it, and redeploys. `-Force` redeploys the current version; `-SkipDeployment` stages the update for later. |
+| `Update-CopilotAtelier` | Checks the Gallery for a newer stable version, installs it, and redeploys. `-AllowPrerelease` includes previews; `-Force` redeploys the current version; `-SkipDeployment` stages the update for later. |
 | `Get-CopilotAtelierVersion` | Reports the installed module version, the deployed version, and whether the deployment is current. |
 | `Get-CopilotAtelierProfile` | Lists the opt-in installation profiles and the Skills each one deploys from the payload. See [choosing what gets installed](#choosing-what-gets-installed). |
 | `Get-CopilotAtelierFootprint` | Reports the read-only loading footprint of the customization collection and concrete opportunities to reduce unnecessary loading, including the Skills a host lists by name only once its Skill catalog budget is used up. |
@@ -675,17 +675,46 @@ deployment cannot be combined. Pass the same `-TargetPath` on later commands
 when using a nondefault destination; destination selection is not persisted in
 the profile.
 
+Copilot Atelier is published on two channels:
+
+| Channel | Versions | How to get it |
+|---|---|---|
+| Stable | Releases such as `6.0.0` | `Update-CopilotAtelier`, the default |
+| Preview | Every change merged to `main`, such as `6.1.0-preview0025` | `Update-CopilotAtelier -AllowPrerelease` |
+
+Without `-AllowPrerelease` the command considers stable releases only and names
+a newer preview when one is published. With it, the command installs the newest
+version, preview or release. Versions are ordered with their labels, so
+`6.1.0-preview0025` follows `6.1.0-preview0024`, and the release `6.1.0` follows
+both. On Windows PowerShell 5.1, `-AllowPrerelease` needs PowerShellGet 2 or
+later; the inbox PowerShellGet 1.0.0.1 cannot list previews. A version without
+the switch, such as `6.0.0`, gets its first preview with
+`Update-Module -Name CopilotAtelier -AllowPrerelease`, followed by
+`Install-CopilotAtelier` in a new session.
+
+```powershell
+Update-CopilotAtelier -AllowPrerelease -InformationAction Continue
+```
+
+An update covers the module and the deployed Customizations: the agents,
+instructions, skills, prompts, and hooks folders and the Deployment record.
+Repository files such as `CHANGELOG.md` or `.memory-bank` are never deployed.
+When they appear in the Canonical target, it is also a repository clone, which
+`Install-CopilotAtelier` and `Test-CopilotAtelier` report as a warning; read the
+[changelog](CHANGELOG.md) in the repository instead.
+
 `Get-CopilotAtelierVersion` answers "is what I have actually deployed?":
 
 ```text
 Version         : 4.0.0
+Prerelease      :
 DeployedVersion : 4.0.0
 DeployedOn      : 2026-08-26 10:12:44
 TargetPath      : C:\Users\you\OneDrive\CopilotAtelier
 IsCurrent       : True
 ```
 
-`IsCurrent : False` means the module was updated but the customizations on disk still come from an older version — run `Install-CopilotAtelier` to catch them up. The values come from `<target>/.copilotatelier.json`, which every deployment rewrites.
+`IsCurrent : False` means the module was updated but the customizations on disk still come from an older version — run `Install-CopilotAtelier` to catch them up. The values come from `<target>/.copilotatelier.json`, which every deployment rewrites. For a preview, `Prerelease` carries its label, such as `preview0025`, and `DeployedVersion` the full version, such as `6.1.0-preview0025`, so another preview of the same version is not current.
 
 #### More than one machine
 
@@ -709,7 +738,10 @@ When a configured OneDrive root is selected, the Canonical target lives inside i
 Keep the clone outside the Canonical target. Overlapping source and deployment
 trees are rejected before writing, including during `-WhatIf`. Move an existing
 clone that sits at `~/OneDrive/CopilotAtelier/` — for example to
-`~/OneDrive/CopilotAtelier-src/` — before installing.
+`~/OneDrive/CopilotAtelier-src/` — before installing. A module installation
+into a Canonical target that is itself a clone is not rejected, but
+`Install-CopilotAtelier` and `Test-CopilotAtelier` warn about it: the clone's
+own files, such as `CHANGELOG.md`, are never updated there.
 
 3. Restart VS Code.
 
@@ -888,7 +920,9 @@ Diagnostics check file hashes, version drift, Discovery targets, required hook
 scripts, hook configuration, and VS Code settings without executing hooks or
 changing the profile. `IsHealthy` and `-Quiet` mean no error was found; inspect
 warnings for modified non-hook files, duplicate skill links, and legacy
-deployments, including separately retained capitalized directories. Modified
+deployments, including separately retained capitalized directories, and for a
+Canonical target that is also a git working tree. Version drift compares the
+loaded and the deployed version with their prerelease labels. Modified
 hook scripts or hook configuration are errors. Event commands, overrides, and
 command properties must match the loaded module's shipped hook definition;
 event-key presence alone is not sufficient. These comparisons do not execute

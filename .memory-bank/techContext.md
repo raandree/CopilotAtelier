@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-09
+last-verified: 2026-11-11
 owner: software-engineer
 source: build.yaml and source/
 ---
@@ -32,9 +32,9 @@ its Playwright checks drive installed Microsoft Edge (`msedge` channel).
 
 ## Module layout
 
-`source/` holds the manifest, the empty root module that ModuleBuilder fills,
-five public commands, and private deployment, path, link, JSONC, and keybinding
-helpers. `.build/Copy_Customizations_To_Output.build.ps1` copies the root
+`source/` holds the manifest, the empty root module that ModuleBuilder fills, the
+public commands, and private deployment, path, link, JSONC, keybinding, and version
+helpers; versions keep their prerelease label and are never cast to `[System.Version]`. `.build/Copy_Customizations_To_Output.build.ps1` copies the root
 Customization directories listed in `build.yaml` into the built module at
 `output/module/CopilotAtelier/<version>/`.
 
@@ -48,8 +48,8 @@ Customization directories listed in `build.yaml` into the built module at
 | Command | Purpose |
 |---|---|
 | `Install-CopilotAtelier` | Deploy the Customizations, link `~/.copilot`, merge settings and keybindings, write the Deployment record |
-| `Update-CopilotAtelier` | Compare against the Gallery, install a newer version, redeploy |
-| `Get-CopilotAtelierVersion` | Report installed version, deployed version, and currency |
+| `Update-CopilotAtelier` | Compare against the Gallery (stable; previews with `-AllowPrerelease`), install a newer version, redeploy |
+| `Get-CopilotAtelierVersion` | Report installed version and preview label, deployed version, and currency |
 | `Get-CopilotAtelierProfile` | Read-only report of each installation profile and the Skills it deploys |
 | `Get-CopilotAtelierFootprint` | Read-only footprint report of the Customization collection with loading-reduction opportunities and the Skills a host lists by name only (`SkillCatalog`) |
 | `Get-CopilotAtelierClientAdapter` | Read-only report of how a Custom agent profile is composed per Copilot client, and what that client cannot do |

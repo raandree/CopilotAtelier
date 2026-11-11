@@ -148,7 +148,15 @@ Describe 'Install-CopilotAtelier' -Tag 'Unit' {
             $manifestText = Get-Content -LiteralPath $manifestPath -Raw
             $deployment = $manifestText | ConvertFrom-Json
 
-            $deployment.Version | Should -Be (Get-Module -Name $script:moduleName).Version.ToString()
+            # A build can label the module as a preview; the record keeps the label.
+            $module = Get-Module -Name $script:moduleName
+            $expectedVersion = $module.Version.ToString()
+            if ($module.PrivateData.PSData.Prerelease)
+            {
+                $expectedVersion = '{0}-{1}' -f $expectedVersion, $module.PrivateData.PSData.Prerelease
+            }
+
+            $deployment.Version | Should -Be $expectedVersion
             $deployment.ContentPath | Should -Be $script:contentPath
             $manifestText | Should -Match '"InstalledOn":\s*"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"'
         }
@@ -563,6 +571,79 @@ Describe 'Install-CopilotAtelier' -Tag 'Unit' {
             $targetPath = Join-Path -Path $whatIfHomePath -ChildPath 'CopilotAtelier'
 
             Test-Path -LiteralPath $targetPath | Should -BeFalse
+        }
+    }
+
+    Context 'When the loaded module is a preview' {
+        BeforeAll {
+            $script:previewContentPath = Join-Path -Path $TestDrive -ChildPath 'preview-content'
+            $script:previewHomePath = Join-Path -Path $TestDrive -ChildPath 'preview-home'
+            $previewConfigPath = Join-Path -Path $TestDrive -ChildPath 'preview-config'
+
+            Initialize-CustomizationContent -Path $script:previewContentPath
+
+            Mock -CommandName Get-CopilotAtelierModuleVersion -ModuleName $script:moduleName -MockWith { '9.8.7-preview0042' }
+
+            $original = Enter-Sandbox -HomePath $script:previewHomePath -ConfigPath $previewConfigPath
+
+            try
+            {
+                $script:previewResult = Install-CopilotAtelier -ContentPath $script:previewContentPath -SkipCopilotCliEnvironment -WarningVariable previewWarning -WarningAction SilentlyContinue
+                $script:previewWarning = @($previewWarning)
+            }
+            finally
+            {
+                Exit-Sandbox -Original $original
+            }
+        }
+
+        It 'Should record the version with its prerelease label' {
+            $deployment = Get-Content -LiteralPath (Join-Path -Path $script:previewHomePath -ChildPath 'CopilotAtelier/.copilotatelier.json') -Raw |
+                ConvertFrom-Json
+
+            $deployment.Version | Should -BeExactly '9.8.7-preview0042'
+            $script:previewResult.Version | Should -BeExactly '9.8.7-preview0042'
+        }
+
+        It 'Should not warn about a git working tree where there is none' {
+            ($script:previewWarning.Message -join "`n") | Should -Not -BeLike '*git working tree*'
+        }
+    }
+
+    Context 'When the Canonical target is also a git working tree' {
+        BeforeAll {
+            $cloneContentPath = Join-Path -Path $TestDrive -ChildPath 'clone-content'
+            $script:cloneHomePath = Join-Path -Path $TestDrive -ChildPath 'clone-home'
+            $cloneConfigPath = Join-Path -Path $TestDrive -ChildPath 'clone-config'
+
+            Initialize-CustomizationContent -Path $cloneContentPath
+
+            # A repository clone that sits where the Canonical target is resolved.
+            New-Item -ItemType Directory -Path (Join-Path -Path $script:cloneHomePath -ChildPath 'CopilotAtelier/.git') -Force | Out-Null
+
+            $original = Enter-Sandbox -HomePath $script:cloneHomePath -ConfigPath $cloneConfigPath
+
+            try
+            {
+                Install-CopilotAtelier -ContentPath $cloneContentPath -SkipCopilotCliEnvironment -WarningVariable cloneWarning -WarningAction SilentlyContinue | Out-Null
+                $script:cloneWarning = @($cloneWarning)
+            }
+            finally
+            {
+                Exit-Sandbox -Original $original
+            }
+        }
+
+        It 'Should warn that only the Customization folders are deployed there' {
+            $warning = @($script:cloneWarning | Where-Object -FilterScript { $_.Message -like '*git working tree*' })
+
+            $warning.Count | Should -Be 1
+            $warning[0].Message | Should -BeLike '*CHANGELOG.md*.memory-bank*'
+        }
+
+        It 'Should still deploy the Customizations' {
+            Test-Path -LiteralPath (Join-Path -Path $script:cloneHomePath -ChildPath 'CopilotAtelier/agents/marker.md') -PathType Leaf |
+                Should -BeTrue
         }
     }
 }

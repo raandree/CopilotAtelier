@@ -10,7 +10,11 @@ function Install-CopilotAtelier
             ~/.copilot discovery folders to that target, merges the VS Code
             settings and keybindings, and records the deployed version and
             SHA-256 of each owned file. Updates preserve user-added files and
-            refuse conflicts with locally changed files before writing.
+            refuse conflicts with locally changed files before writing. The
+            recorded version carries a preview's prerelease label, such as
+            6.1.0-preview0024. A canonical target that is also a git working
+            tree is reported with a warning: deployment never updates
+            repository files such as CHANGELOG.md or .memory-bank.
 
             The canonical target is ~/OneDrive/CopilotAtelier when OneDrive is
             available and ~/CopilotAtelier otherwise. The command is idempotent:
@@ -206,6 +210,12 @@ function Install-CopilotAtelier
     }
     $path = Get-CopilotAtelierPath @pathParameters
 
+    # Warned before planning, so a deployment conflict with the clone's files still shows the cause.
+    if (Test-Path -LiteralPath (Join-Path -Path $path.TargetPath -ChildPath '.git'))
+    {
+        Write-Warning -Message "The Canonical target '$($path.TargetPath)' is also a git working tree. Installation deploys only the agents, instructions, skills, prompts, and hooks folders and the Deployment record there, never repository files such as CHANGELOG.md or .memory-bank. Move a repository clone outside the Canonical target."
+    }
+
     <#
         Resolve and validate the Skill selection before anything is written, so
         an invalid explicit request never creates an artefact. This resolution
@@ -230,7 +240,7 @@ function Install-CopilotAtelier
     {
         Write-Warning -Message "Preserved $($deploymentPlan.UnownedFiles.Count) matching untracked file(s) without claiming ownership. Uninstall will leave them untouched."
     }
-    $deployedVersion = [string] $ExecutionContext.SessionState.Module.Version
+    $deployedVersion = [string] (Get-CopilotAtelierModuleVersion)
     if (-not $PSCmdlet.ShouldProcess($path.TargetPath, 'Apply Deployment plan and configure the client'))
     {
         return [pscustomobject]@{

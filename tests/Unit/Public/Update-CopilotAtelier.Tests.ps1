@@ -24,6 +24,11 @@ Describe 'Update-CopilotAtelier' -Tag 'Unit' {
         $script:selectionProfile = New-CopilotAtelierTestProfile -Root (Join-Path $TestDrive 'update-profile') -ProjectPath $script:projectPath
         Mock -CommandName Update-Module -ModuleName $script:moduleName
 
+        # A build can label the module as a preview; unless a case says otherwise, the installation is stable.
+        Mock -CommandName Get-CopilotAtelierModuleVersion -ModuleName $script:moduleName -MockWith {
+            (Get-Module -Name 'CopilotAtelier').Version.ToString()
+        }
+
         Mock -CommandName Import-Module -ModuleName $script:moduleName -MockWith {
             Get-Module -Name 'CopilotAtelier'
         }
@@ -200,6 +205,126 @@ Describe 'Update-CopilotAtelier' -Tag 'Unit' {
         It 'Should throw a directed error' {
             { Update-CopilotAtelier } |
                 Should -Throw -ExpectedMessage "*Unable to query repository 'PSGallery'*"
+        }
+    }
+
+    Context 'When previews are published' {
+        BeforeEach {
+            # A stable query sees the release; a query that allows previews sees a preview of the next minor version.
+            Mock -CommandName Find-Module -ModuleName $script:moduleName -MockWith {
+                [PSCustomObject] @{
+                    Name    = 'CopilotAtelier'
+                    Version = (Get-Module -Name 'CopilotAtelier').Version.ToString()
+                }
+            }
+
+            Mock -CommandName Find-Module -ModuleName $script:moduleName -ParameterFilter { $AllowPrerelease } -MockWith {
+                $current = (Get-Module -Name 'CopilotAtelier').Version
+
+                [PSCustomObject] @{
+                    Name    = 'CopilotAtelier'
+                    Version = '{0}.{1}.0-preview0004' -f $current.Major, ($current.Minor + 1)
+                }
+            }
+
+            $current = (Get-Module -Name 'CopilotAtelier').Version
+            $script:nextPreview = '{0}.{1}.0-preview0004' -f $current.Major, ($current.Minor + 1)
+        }
+
+        It 'Should consider stable versions only without -AllowPrerelease and name the newer preview' {
+            $result = Update-CopilotAtelier -InformationVariable information
+
+            $result.NewerPrerelease | Should -BeExactly $script:nextPreview
+            ($information.MessageData -join "`n") | Should -BeLike "*$script:nextPreview*-AllowPrerelease*"
+            $result.Updated | Should -BeFalse
+
+            Should -Invoke -CommandName Update-Module -ModuleName $script:moduleName -Times 0 -Exactly -Scope It
+        }
+
+        It 'Should find and install the newer preview with -AllowPrerelease' {
+            $result = Update-CopilotAtelier -AllowPrerelease
+
+            $result.Updated | Should -BeTrue
+            $result.Version | Should -Be ([System.Version] ($script:nextPreview -split '-')[0])
+            $result.Prerelease | Should -BeExactly 'preview0004'
+            $result.NewerPrerelease | Should -BeNullOrEmpty
+
+            Should -Invoke -CommandName Update-Module -ModuleName $script:moduleName -Times 1 -Exactly -Scope It -ParameterFilter {
+                $RequiredVersion -eq $script:nextPreview -and $AllowPrerelease
+            }
+            Should -Invoke -CommandName Install-CopilotAtelier -ModuleName $script:moduleName -Times 1 -Exactly -Scope It
+        }
+
+        It 'Should order the installed <Installed> against the published <Published> of one version by label and update: <Expected>' -ForEach @(
+            @{ Installed = 'preview0018'; Published = 'preview0022'; Expected = $true }
+            @{ Installed = 'preview0024'; Published = 'preview0022'; Expected = $false }
+            @{ Installed = 'preview0022'; Published = 'preview0022'; Expected = $false }
+        ) {
+            $version = (Get-Module -Name 'CopilotAtelier').Version.ToString()
+            $script:installedPreview = '{0}-{1}' -f $version, $Installed
+            $script:publishedPreview = '{0}-{1}' -f $version, $Published
+
+            Mock -CommandName Get-CopilotAtelierModuleVersion -ModuleName $script:moduleName -MockWith { $script:installedPreview }
+            Mock -CommandName Find-Module -ModuleName $script:moduleName -ParameterFilter { $AllowPrerelease } -MockWith {
+                [PSCustomObject] @{
+                    Name    = 'CopilotAtelier'
+                    Version = $script:publishedPreview
+                }
+            }
+
+            $result = Update-CopilotAtelier -AllowPrerelease
+
+            $result.PreviousPrerelease | Should -BeExactly $Installed
+            $result.Updated | Should -Be $Expected
+        }
+
+        It 'Should update an installed preview to the release of the same version' {
+            $script:installedPreview = '{0}-preview0025' -f (Get-Module -Name 'CopilotAtelier').Version
+            Mock -CommandName Get-CopilotAtelierModuleVersion -ModuleName $script:moduleName -MockWith { $script:installedPreview }
+            Mock -CommandName Find-Module -ModuleName $script:moduleName -ParameterFilter { $AllowPrerelease } -MockWith {
+                [PSCustomObject] @{
+                    Name    = 'CopilotAtelier'
+                    Version = (Get-Module -Name 'CopilotAtelier').Version.ToString()
+                }
+            }
+
+            $result = Update-CopilotAtelier
+
+            $result.Updated | Should -BeTrue
+            $result.Prerelease | Should -BeNullOrEmpty
+
+            Should -Invoke -CommandName Update-Module -ModuleName $script:moduleName -Times 1 -Exactly -Scope It -ParameterFilter {
+                $RequiredVersion -eq (Get-Module -Name 'CopilotAtelier').Version.ToString() -and -not $AllowPrerelease
+            }
+        }
+    }
+
+    Context 'When PowerShellGet cannot list previews' {
+        BeforeAll {
+            Mock -CommandName Find-Module -ModuleName $script:moduleName -MockWith {
+                [PSCustomObject] @{
+                    Name    = 'CopilotAtelier'
+                    Version = (Get-Module -Name 'CopilotAtelier').Version.ToString()
+                }
+            }
+
+            # PowerShellGet 1.0.0.1, which Windows PowerShell 5.1 ships with, has no AllowPrerelease parameter.
+            Mock -CommandName Find-Module -ModuleName $script:moduleName -ParameterFilter { $AllowPrerelease } -MockWith {
+                throw [System.Management.Automation.ParameterBindingException]::new("A parameter cannot be found that matches parameter name 'AllowPrerelease'.")
+            }
+        }
+
+        It 'Should name PowerShellGet 2 when -AllowPrerelease is requested' {
+            { Update-CopilotAtelier -AllowPrerelease } | Should -Throw -ExpectedMessage '*PowerShellGet 2*'
+
+            Should -Invoke -CommandName Update-Module -ModuleName $script:moduleName -Times 0 -Exactly -Scope It
+        }
+
+        It 'Should still compare stable versions without -AllowPrerelease' {
+            $result = Update-CopilotAtelier
+
+            $result.Updated | Should -BeFalse
+            $result.NewerPrerelease | Should -BeNullOrEmpty
         }
     }
 }
