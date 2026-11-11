@@ -9,12 +9,12 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 10, GitHub issue #49, is done on `ai/update-release-channel`** (not pushed). `Update-CopilotAtelier` gains
-the opt-in `-AllowPrerelease` the owner ruled; without it the command names a newer preview (`NewerPrerelease`).
-Versions keep and compare their prerelease labels through `Get-CopilotAtelierModuleVersion` and
-`Compare-CopilotAtelierVersion` in Windows PowerShell 5.1 and 7; the Deployment record, `IsCurrent`, and `VersionDrift`
-follow, and Install and Test warn about a Canonical target that is a git working tree. The owner approved a stable
-6.1.0: its tag follows the merge. Report and German reply draft: Desktop `CopilotAtelier-handoffs/reports/10-*`.
+**Brief 10, GitHub issue #49, is done on `ai/update-release-channel`** (not pushed; independent review fixed: B1 PowerShellGet 3
+labels, M1 updates that did not land). `Update-CopilotAtelier` gains the opt-in `-AllowPrerelease` the owner ruled; without it the
+command names a newer preview (`NewerPrerelease`). Versions keep and compare their prerelease labels through
+`Get-CopilotAtelierModuleVersion` and `Compare-CopilotAtelierVersion` in Windows PowerShell 5.1 and 7; the Deployment record,
+`IsCurrent`, and `VersionDrift` follow, and Install and Test warn about a Canonical target that is a git working tree. The owner
+approved a stable 6.1.0: its tag follows the merge. Report and German reply draft: Desktop `CopilotAtelier-handoffs/reports/10-*`.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can

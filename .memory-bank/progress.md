@@ -19,11 +19,11 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-11-11**: Brief 10, GitHub issue #49 (`software-engineer`), on `ai/update-release-channel`: the owner-ruled
-  `Update-CopilotAtelier -AllowPrerelease` installs previews, and without it the command names a newer preview. Versions
-  keep and compare their prerelease labels through `Get-CopilotAtelierModuleVersion` and `Compare-CopilotAtelierVersion`,
-  also in Windows PowerShell 5.1, which has no `SemanticVersion`; the Deployment record, `IsCurrent`, and `VersionDrift`
-  follow, and Install and Test warn about a Canonical target that is a git working tree. Red first (17 + 14 tests).
+- **2026-11-11**: Brief 10, GitHub issue #49 (`software-engineer`), on `ai/update-release-channel`: the owner-ruled `Update-CopilotAtelier
+  -AllowPrerelease` installs previews, and without it the command names a newer preview. Versions keep and compare their prerelease labels
+  through `Get-CopilotAtelierModuleVersion` and `Compare-CopilotAtelierVersion`, also in Windows PowerShell 5.1 (no `SemanticVersion`); the
+  Deployment record, `IsCurrent`, and `VersionDrift` follow; Install and Test warn about a git working tree as Canonical target. Red first;
+  an independent review's Blocker (PowerShellGet 3 reports the label separately) and Major (an update that did not land) fixed test-first.
 - **2026-11-10**: Brief 03, the travel work (`software-engineer`), merged as #53 (`dc714ba`, `6.1.0-preview0025`): the Markdown
   Instruction counts MD013 in UTF-16 units and keeps emoji out of linked headings (`dc1dad0`); the contained
   `quarantined-reader` agent reads untrusted text with file reading only (`5e9bb9b`);

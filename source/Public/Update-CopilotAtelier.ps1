@@ -13,11 +13,17 @@ function Update-CopilotAtelier
 
             Without AllowPrerelease the command considers stable releases only
             and names a newer preview, such as 6.1.0-preview0024, without
-            installing it. Versions are ordered with their prerelease labels, so
-            a later preview follows an earlier one and a release follows its
-            previews. The result reports PreviousVersion and Version with their
-            labels in PreviousPrerelease and Prerelease, and NewerPrerelease
-            names a newer preview that was not considered.
+            installing it; when PowerShellGet cannot list previews, as the
+            PowerShellGet 1.0.0.1 of Windows PowerShell 5.1 cannot, it says that
+            previews were not checked. Versions are ordered with their prerelease
+            labels, so a later preview follows an earlier one and a release
+            follows its previews. The result reports PreviousVersion and Version
+            with their labels in PreviousPrerelease and Prerelease, and
+            NewerPrerelease names a newer preview that was not considered.
+
+            Previews of one version share its module folder, so after an update
+            the command checks that the imported module reports the version it
+            asked for, and stops before deploying when it does not.
 
             The command updates the module and the deployed customizations only,
             never repository files such as CHANGELOG.md or .memory-bank.
@@ -186,9 +192,11 @@ function Update-CopilotAtelier
         $findParameters.AllowPrerelease = $true
     }
 
+    # PowerShellGet writes most failures as non-terminating errors, and this function's
+    # ErrorActionPreference does not reach into another module, so each call names -ErrorAction.
     try
     {
-        $availableModule = Find-Module @findParameters
+        $availableModule = Find-Module @findParameters -ErrorAction Stop
     }
     catch
     {
@@ -200,27 +208,53 @@ function Update-CopilotAtelier
         throw "Unable to query repository '$Repository' for '$($module.Name)': $($_.Exception.Message)"
     }
 
-    $availableVersion = [System.String] $availableModule.Version
+    if (-not $availableModule)
+    {
+        throw "Unable to query repository '$Repository' for '$($module.Name)': the repository returned no version."
+    }
+
+    $availableVersion = Get-CopilotAtelierPublishedVersion -InputObject $availableModule
     $available = ConvertFrom-CopilotAtelierVersion -Version $availableVersion
 
     $newerPrerelease = $null
     if (-not $AllowPrerelease)
     {
+        # Only a hint: an older PowerShellGet or a failed query must not stop a stable update.
+        $previewModule = $null
+
         try
         {
-            $previewVersion = [System.String] (Find-Module @findParameters -AllowPrerelease).Version
-
-            if ((ConvertFrom-CopilotAtelierVersion -Version $previewVersion).Prerelease -and
-                (Compare-CopilotAtelierVersion -Version $previewVersion -OtherVersion $installedVersion) -gt 0 -and
-                (Compare-CopilotAtelierVersion -Version $previewVersion -OtherVersion $availableVersion) -gt 0)
-            {
-                $newerPrerelease = $previewVersion
-            }
+            $previewModule = Find-Module @findParameters -AllowPrerelease -ErrorAction Stop
         }
         catch
         {
-            # Only a hint: an older PowerShellGet or a failed query must not stop a stable update.
-            Write-Verbose -Message "Unable to check '$Repository' for a newer preview: $($_.Exception.Message)"
+            if ($_.Exception -is [System.Management.Automation.ParameterBindingException])
+            {
+                Write-Information -MessageData 'Previews were not checked: this PowerShellGet cannot list them. PowerShellGet 2 or later can.'
+            }
+            else
+            {
+                Write-Verbose -Message "Unable to check '$Repository' for a newer preview: $($_.Exception.Message)"
+            }
+        }
+
+        if ($previewModule)
+        {
+            try
+            {
+                $previewVersion = Get-CopilotAtelierPublishedVersion -InputObject $previewModule
+
+                if ((ConvertFrom-CopilotAtelierVersion -Version $previewVersion).Prerelease -and
+                    (Compare-CopilotAtelierVersion -Version $previewVersion -OtherVersion $installedVersion) -gt 0 -and
+                    (Compare-CopilotAtelierVersion -Version $previewVersion -OtherVersion $availableVersion) -gt 0)
+                {
+                    $newerPrerelease = $previewVersion
+                }
+            }
+            catch
+            {
+                Write-Verbose -Message "Unable to read the newest preview of '$Repository': $($_.Exception.Message)"
+            }
         }
     }
 
@@ -246,7 +280,7 @@ function Update-CopilotAtelier
 
             try
             {
-                Update-Module @updateParameters
+                Update-Module @updateParameters -ErrorAction Stop
             }
             catch
             {
@@ -264,7 +298,7 @@ function Update-CopilotAtelier
     }
     else
     {
-        Write-Information -MessageData 'Already at the newest stable version.'
+        Write-Information -MessageData 'No newer stable version is published.'
     }
 
     if ($newerPrerelease)
@@ -289,6 +323,16 @@ function Update-CopilotAtelier
         }
 
         $updatedModule = Import-Module -Name $module.Name -RequiredVersion $targetVersion -Force -PassThru
+
+        if ($updated)
+        {
+            # Previews of one version share its folder, so only the label shows whether the update landed.
+            $importedVersion = Get-CopilotAtelierModuleVersion -Module $updatedModule
+            if ($importedVersion -cne $availableVersion)
+            {
+                throw "Update-Module did not install $($availableVersion): '$($updatedModule.ModuleBase)' still holds $importedVersion. Close editors and other PowerShell sessions that use files there, then run Update-CopilotAtelier again."
+            }
+        }
 
         $installParameter = @{
             IncludeClaudeCodeLinks = $IncludeClaudeCodeLinks

@@ -289,7 +289,7 @@ function Test-CopilotAtelier
     }
     if (Test-Path -LiteralPath (Join-Path -Path $path.TargetPath -ChildPath '.git'))
     {
-        $checks.Add([pscustomobject]@{ Code = 'GitWorkingTreeTarget'; Severity = 'Warning'; Path = $path.TargetPath; Message = 'The Canonical target is also a git working tree. Installation deploys only the agents, instructions, skills, prompts, and hooks folders and the Deployment record there, never repository files such as CHANGELOG.md or .memory-bank. Move a repository clone outside the Canonical target.' })
+        $checks.Add([pscustomobject]@{ Code = 'GitWorkingTreeTarget'; Severity = 'Warning'; Path = $path.TargetPath; Message = 'The Canonical target is also a git working tree. Installation writes the agents, instructions, skills, prompts, and hooks folders and the Deployment record into it and never updates any other file there, such as CHANGELOG.md or .memory-bank. If it is a clone of CopilotAtelier, move the clone outside the Canonical target: its skills folder is also the deployed one, so a later update can stop with a Deployment conflict.' })
     }
     foreach ($otherRoot in @('.claude', '.agents'))
     {

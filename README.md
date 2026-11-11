@@ -683,14 +683,20 @@ Copilot Atelier is published on two channels:
 | Preview | Every change merged to `main`, such as `6.1.0-preview0025` | `Update-CopilotAtelier -AllowPrerelease` |
 
 Without `-AllowPrerelease` the command considers stable releases only and names
-a newer preview when one is published. With it, the command installs the newest
-version, preview or release. Versions are ordered with their labels, so
-`6.1.0-preview0025` follows `6.1.0-preview0024`, and the release `6.1.0` follows
-both. On Windows PowerShell 5.1, `-AllowPrerelease` needs PowerShellGet 2 or
-later; the inbox PowerShellGet 1.0.0.1 cannot list previews. A version without
-the switch, such as `6.0.0`, gets its first preview with
+a newer preview when one is published; with the inbox PowerShellGet 1.0.0.1 of
+Windows PowerShell 5.1, which cannot list previews, it says that previews were
+not checked. With the switch, the command installs the newest version, preview
+or release. Versions are ordered with their labels, so `6.1.0-preview0025`
+follows `6.1.0-preview0024`, and the release `6.1.0` follows both.
+`-AllowPrerelease` needs PowerShellGet 2 or later. A version without the switch,
+such as `6.0.0`, gets its first preview with
 `Update-Module -Name CopilotAtelier -AllowPrerelease`, followed by
-`Install-CopilotAtelier` in a new session.
+`Install-CopilotAtelier` in a new session. A `6.1.0` preview whose
+`Update-CopilotAtelier` has no `-AllowPrerelease` cannot see the `6.1.0` release
+by itself, because it reads both as `6.1.0`: run
+`Update-Module -Name CopilotAtelier` there, then `Install-CopilotAtelier` in a
+new session. Previews are published from every change merged to `main`, before
+a commit is chosen for a release.
 
 ```powershell
 Update-CopilotAtelier -AllowPrerelease -InformationAction Continue
@@ -741,7 +747,9 @@ clone that sits at `~/OneDrive/CopilotAtelier/` — for example to
 `~/OneDrive/CopilotAtelier-src/` — before installing. A module installation
 into a Canonical target that is itself a clone is not rejected, but
 `Install-CopilotAtelier` and `Test-CopilotAtelier` warn about it: the clone's
-own files, such as `CHANGELOG.md`, are never updated there.
+own files, such as `CHANGELOG.md`, are never updated there, and because the
+clone's `skills` folder is also the deployed one, a later update can stop with a
+Deployment conflict.
 
 3. Restart VS Code.
 

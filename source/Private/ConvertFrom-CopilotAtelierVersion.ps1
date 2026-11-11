@@ -36,7 +36,7 @@ function ConvertFrom-CopilotAtelierVersion
 
     $match = [System.Text.RegularExpressions.Regex]::Match(
         $Version.Trim(),
-        '\A(?<number>\d+(?:\.\d+){1,3})(?:-(?<label>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z.-]+)?\z'
+        '\A(?<number>[0-9]+(?:\.[0-9]+){1,3})(?:-(?<label>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z.-]+)?\z'
     )
 
     if (-not $match.Success)

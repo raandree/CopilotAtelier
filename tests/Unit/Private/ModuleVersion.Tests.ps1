@@ -37,6 +37,8 @@ Describe 'ConvertFrom-CopilotAtelierVersion' -Tag 'Unit' {
         @{ Text = 'preview0024' }
         @{ Text = '6' }
         @{ Text = '6.1.0-' }
+        # ARABIC-INDIC DIGIT SIX: a Unicode digit that System.Version does not accept.
+        @{ Text = ('{0}.1.0' -f [char] 0x0666) }
     ) {
         {
             InModuleScope -ModuleName $script:moduleName -Parameters @{ Text = $Text } -ScriptBlock {

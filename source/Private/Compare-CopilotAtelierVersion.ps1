@@ -15,6 +15,10 @@ function Compare-CopilotAtelierVersion
             System.Version cannot hold a label, so the comparison is implemented
             here and behaves the same in Windows PowerShell 5.1 and PowerShell 7.
 
+            Labels are compared ordinally, as Semantic Versioning prescribes.
+            NuGet and PowerShellGet ignore case instead, which matters only for
+            labels that differ in case alone; GitVersion writes lower-case labels.
+
             Returns 1 when Version is newer than OtherVersion, -1 when it is
             older, and 0 when both have the same precedence.
 

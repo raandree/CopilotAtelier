@@ -13,8 +13,9 @@ function Install-CopilotAtelier
             refuse conflicts with locally changed files before writing. The
             recorded version carries a preview's prerelease label, such as
             6.1.0-preview0024. A canonical target that is also a git working
-            tree is reported with a warning: deployment never updates
-            repository files such as CHANGELOG.md or .memory-bank.
+            tree is reported with a warning: deployment never updates files
+            outside the five deployed folders there, such as CHANGELOG.md or
+            .memory-bank.
 
             The canonical target is ~/OneDrive/CopilotAtelier when OneDrive is
             available and ~/CopilotAtelier otherwise. The command is idempotent:
@@ -213,7 +214,7 @@ function Install-CopilotAtelier
     # Warned before planning, so a deployment conflict with the clone's files still shows the cause.
     if (Test-Path -LiteralPath (Join-Path -Path $path.TargetPath -ChildPath '.git'))
     {
-        Write-Warning -Message "The Canonical target '$($path.TargetPath)' is also a git working tree. Installation deploys only the agents, instructions, skills, prompts, and hooks folders and the Deployment record there, never repository files such as CHANGELOG.md or .memory-bank. Move a repository clone outside the Canonical target."
+        Write-Warning -Message "The Canonical target '$($path.TargetPath)' is also a git working tree. Installation writes the agents, instructions, skills, prompts, and hooks folders and the Deployment record into it and never updates any other file there, such as CHANGELOG.md or .memory-bank. If it is a clone of CopilotAtelier, move the clone outside the Canonical target: its skills folder is also the deployed one, so a later update can stop with a Deployment conflict."
     }
 
     <#

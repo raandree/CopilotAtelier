@@ -243,6 +243,7 @@ Describe 'Test-CopilotAtelier' -Tag 'Unit' {
         $check[0].Severity | Should -Be 'Warning'
         $check[0].Path | Should -Be $script:profile.TargetPath
         $check[0].Message | Should -BeLike '*CHANGELOG.md*.memory-bank*'
+        $check[0].Message | Should -BeLike '*Deployment conflict*'
         $result.IsHealthy | Should -BeTrue
     }
 

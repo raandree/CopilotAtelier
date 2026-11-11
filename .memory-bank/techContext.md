@@ -34,7 +34,7 @@ its Playwright checks drive installed Microsoft Edge (`msedge` channel).
 
 `source/` holds the manifest, the empty root module that ModuleBuilder fills, the
 public commands, and private deployment, path, link, JSONC, keybinding, and version
-helpers; versions keep their prerelease label and are never cast to `[System.Version]`. `.build/Copy_Customizations_To_Output.build.ps1` copies the root
+helpers; a version string with its prerelease label is never cast to `[System.Version]`. `.build/Copy_Customizations_To_Output.build.ps1` copies the root
 Customization directories listed in `build.yaml` into the built module at
 `output/module/CopilotAtelier/<version>/`.
 

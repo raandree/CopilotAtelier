@@ -639,6 +639,7 @@ Describe 'Install-CopilotAtelier' -Tag 'Unit' {
 
             $warning.Count | Should -Be 1
             $warning[0].Message | Should -BeLike '*CHANGELOG.md*.memory-bank*'
+            $warning[0].Message | Should -BeLike '*Deployment conflict*'
         }
 
         It 'Should still deploy the Customizations' {
