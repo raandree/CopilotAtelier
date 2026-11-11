@@ -11,7 +11,7 @@ A host shows Skill descriptions only up to a size budget and lists the remaining
 |---|---|
 | `agent-evals` | measuring a Skill, Prompt, or agent: trigger rates, regression evals, pass@k |
 | `agent-security-review` | security of agents, LLM features, MCP servers: prompt injection, OWASP LLM |
-| `authenticated-web-extraction` | data from sites behind a login, through a persistent Edge profile |
+| `authenticated-web-extraction` | data from sites behind a login, signed-in Reddit included, through a persistent Edge profile |
 | `automatedlab-deployment` | Hyper-V labs with AutomatedLab: definitions, roles, networking, teardown |
 | `automatedlab-proxmox` | AutomatedLab on Proxmox/QEMU: Windows setup, Sysprep, WinRM failures |
 | `brand-logo-system` | logos, app icons, favicons, and brand variants as SVG and PNG |
@@ -55,6 +55,8 @@ A host shows Skill descriptions only up to a size budget and lists the remaining
 | `social-signal-sweep` | what people say about a topic in the last N days |
 | `subagent-dispatch` | splitting work into subagents or handoff prompts run one per chat, with a task ledger |
 | `test-driven-development` | test-first PowerShell and DSC changes: red, green, refactor |
+| `travel-handbook` | maps, climate charts, licensed photos, and twin checks for a two-language trip handbook |
+| `travel-planning` | planning trips and updating a saved itinerary: flights, car hire, tickets, hotels |
 | `whisper-pyannote-transcription` | transcribing audio or video with speaker labels |
 | `windows-gui-screenshot-capture` | screenshots of Windows applications and screenshot manuals |
 | `winrm-troubleshooting` | WinRM and PowerShell remoting failures |

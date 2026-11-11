@@ -1,0 +1,142 @@
+[
+  {
+    "id": "pos-01",
+    "query": "Add a per-night temperature chart for our route to the weather chapter, in English and German",
+    "should_trigger": true,
+    "split": "train",
+    "note": "climate chart in two languages"
+  },
+  {
+    "id": "pos-02",
+    "query": "Make a route map with an elevation profile and a GPX file for the hiking app",
+    "should_trigger": true,
+    "split": "train",
+    "note": "route map, profile, GPX"
+  },
+  {
+    "id": "pos-03",
+    "query": "Find freely licensed photos for six places in the highlights chapter and add a credits table",
+    "should_trigger": true,
+    "split": "train",
+    "note": "licensed photos with credits"
+  },
+  {
+    "id": "pos-04",
+    "query": "Draw a calendar chart of the trip with its phases, the decision dates, and the days our permits are valid",
+    "should_trigger": true,
+    "split": "train",
+    "note": "trip calendar"
+  },
+  {
+    "id": "pos-05",
+    "query": "The place labels overlap on the German version of the map, fix it",
+    "should_trigger": true,
+    "split": "train",
+    "note": "label overlap per language"
+  },
+  {
+    "id": "pos-06",
+    "query": "Show sunrise, sunset, and usable daylight for every night of the trek",
+    "should_trigger": true,
+    "split": "train",
+    "note": "daylight chart"
+  },
+  {
+    "id": "pos-07",
+    "query": "Check that both language versions of the handbook chapters have the same headings, tables, and links",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "twin-document check"
+  },
+  {
+    "id": "pos-08",
+    "query": "Draw a Plan B map showing which regions are open, limited, or closed this season",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "Plan B regions map"
+  },
+  {
+    "id": "pos-09",
+    "query": "Open-Meteo keeps answering 429 while I build the climate chart for the weather chapter, what now?",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "rate limit on the climate archive"
+  },
+  {
+    "id": "pos-10",
+    "query": "The handbook needs coordinates and altitudes for every overnight stop, each with its source",
+    "should_trigger": true,
+    "split": "validation",
+    "note": "sourced place coordinates"
+  },
+  {
+    "id": "neg-01",
+    "query": "Plan a two-week trek itinerary with rest days and transport to the trailhead",
+    "should_trigger": false,
+    "split": "train",
+    "note": "itinerary belongs to travel-planning"
+  },
+  {
+    "id": "neg-02",
+    "query": "We finished the lake hike yesterday, update the trip plan",
+    "should_trigger": false,
+    "split": "train",
+    "note": "plan update belongs to travel-planning"
+  },
+  {
+    "id": "neg-03",
+    "query": "Convert this PDF of the park rules to Markdown",
+    "should_trigger": false,
+    "split": "train",
+    "note": "PDF conversion belongs to pdf-to-markdown"
+  },
+  {
+    "id": "neg-04",
+    "query": "Design a logo and a social preview for our trip handbook repository",
+    "should_trigger": false,
+    "split": "train",
+    "note": "logo belongs to brand-logo-system"
+  },
+  {
+    "id": "neg-05",
+    "query": "Export the handbook chapters to a Word document for printing",
+    "should_trigger": false,
+    "split": "train",
+    "note": "Word export belongs to pandoc-docx-export"
+  },
+  {
+    "id": "neg-06",
+    "query": "What are people saying about the trail conditions in the last week?",
+    "should_trigger": false,
+    "split": "train",
+    "note": "recency sweep belongs to social-signal-sweep"
+  },
+  {
+    "id": "neg-07",
+    "query": "Proofread the English chapter for grammar and flow",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "proofreading belongs to grammar-check"
+  },
+  {
+    "id": "neg-08",
+    "query": "Put the scanned tickets and insurance papers into one paginated PDF with a cover page",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "document bundle belongs to evidence-package-assembly"
+  },
+  {
+    "id": "neg-09",
+    "query": "Compare a flight with a night bus between the two cities for day five",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "transport comparison belongs to travel-planning"
+  },
+  {
+    "id": "neg-10",
+    "query": "Make HTML charts of our expense spreadsheet with PowerShell",
+    "should_trigger": false,
+    "split": "validation",
+    "note": "HTML report belongs to pswritehtml-reporting"
+  }
+]

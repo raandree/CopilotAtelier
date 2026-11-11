@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic My Maps export: placemarks out of order, one unnumbered. -->
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Synthetic route</name>
+    <Placemark>
+      <name>Synthetic track (2)</name>
+      <LineString>
+        <coordinates>
+          7.124,45.928,2310 7.138,45.937,2590 7.152,45.946,2870
+        </coordinates>
+      </LineString>
+    </Placemark>
+    <Placemark>
+      <name>Synthetic track</name>
+      <LineString>
+        <coordinates>
+          7.080,45.905,1420 7.095,45.912,1650 7.110,45.920,1980 7.124,45.928,2310
+        </coordinates>
+      </LineString>
+    </Placemark>
+    <Placemark>
+      <name>Alpha Village</name>
+      <Point>
+        <coordinates>7.080,45.905,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Synthetic track (3)</name>
+      <LineString>
+        <coordinates>
+          7.152,45.946,2870 7.130,45.955,2400 7.108,45.962,2120
+        </coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>

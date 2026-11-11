@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic track for assets/trip.example.yaml: three segments around 45.9 N, 7.1 E. -->
+<gpx version="1.1" creator="travel-handbook tests" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Synthetic example track</name>
+    <trkseg>
+      <trkpt lat="45.90500" lon="7.08000"><ele>1420</ele></trkpt>
+      <trkpt lat="45.90788" lon="7.08550"><ele>1531</ele></trkpt>
+      <trkpt lat="45.91075" lon="7.09100"><ele>1643</ele></trkpt>
+      <trkpt lat="45.91363" lon="7.09650"><ele>1754</ele></trkpt>
+      <trkpt lat="45.91650" lon="7.10200"><ele>1865</ele></trkpt>
+      <trkpt lat="45.91938" lon="7.10750"><ele>1976</ele></trkpt>
+      <trkpt lat="45.92225" lon="7.11300"><ele>2088</ele></trkpt>
+      <trkpt lat="45.92513" lon="7.11850"><ele>2199</ele></trkpt>
+      <trkpt lat="45.92800" lon="7.12400"><ele>2310</ele></trkpt>
+    </trkseg>
+    <trkseg>
+      <trkpt lat="45.92800" lon="7.12400"><ele>2310</ele></trkpt>
+      <trkpt lat="45.93100" lon="7.12867"><ele>2403</ele></trkpt>
+      <trkpt lat="45.93400" lon="7.13333"><ele>2497</ele></trkpt>
+      <trkpt lat="45.93700" lon="7.13800"><ele>2590</ele></trkpt>
+      <trkpt lat="45.94000" lon="7.14267"><ele>2683</ele></trkpt>
+      <trkpt lat="45.94300" lon="7.14733"><ele>2777</ele></trkpt>
+      <trkpt lat="45.94600" lon="7.15200"><ele>2870</ele></trkpt>
+      <trkpt lat="45.94867" lon="7.14467"><ele>2745</ele></trkpt>
+      <trkpt lat="45.95133" lon="7.13733"><ele>2620</ele></trkpt>
+      <trkpt lat="45.95400" lon="7.13000"><ele>2495</ele></trkpt>
+      <trkpt lat="45.95667" lon="7.12267"><ele>2370</ele></trkpt>
+      <trkpt lat="45.95933" lon="7.11533"><ele>2245</ele></trkpt>
+      <trkpt lat="45.96200" lon="7.10800"><ele>2120</ele></trkpt>
+    </trkseg>
+    <trkseg>
+      <trkpt lat="45.96200" lon="7.10800"><ele>2120</ele></trkpt>
+      <trkpt lat="45.94250" lon="7.09250"><ele>1890</ele></trkpt>
+      <trkpt lat="45.92300" lon="7.07700"><ele>1660</ele></trkpt>
+      <trkpt lat="45.90350" lon="7.06150"><ele>1420</ele></trkpt>
+      <trkpt lat="45.88400" lon="7.04600"><ele>1180</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

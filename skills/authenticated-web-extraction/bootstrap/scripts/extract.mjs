@@ -1,6 +1,6 @@
 // Generic extraction harness.
 // Usage:  node scripts/extract.mjs <taskName> [--headless] [extra args...]
-// Loads tasks/<taskName>.mjs which must export `default async ({ context, page, args, outDir })`.
+// Loads tasks/<taskName>.mjs which must export `default async ({ context, page, args, outDir, headless })`.
 // Output is written by the task itself into ../extracted/.
 import { chromium } from 'playwright';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -75,7 +75,7 @@ try {
   if (typeof mod.default !== 'function') {
     throw new Error(`Task ${taskName} must export a default async function.`);
   }
-  await mod.default({ context, page, args: taskArgs, outDir: OUT_DIR });
+  await mod.default({ context, page, args: taskArgs, outDir: OUT_DIR, headless });
 } catch (err) {
   console.error(`Task '${taskName}' failed:`, err);
   exitCode = 1;

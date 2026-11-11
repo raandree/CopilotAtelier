@@ -12,17 +12,25 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
 `6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0022` (`ea19ba4`, 2026-11-09) to GitHub Releases and the
+`6.1.0-preview0024` (`4c4fbd3`, 2026-11-10) to GitHub Releases and the
 PowerShell Gallery (verified 2026-11-10). Incremental work is tracked under
 `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-11-10**: Brief 03, the travel work (`software-engineer`), on `ai/travel-work`: the Markdown
+  Instruction counts MD013 in UTF-16 units and keeps emoji out of linked headings (`dc1dad0`); the contained
+  `quarantined-reader` agent reads untrusted text with file reading only (`5e9bb9b`);
+  `authenticated-web-extraction` reads Reddit signed in through a GET-only allow-list and hands the files to
+  that reader (`15fb67e`); new Skills `travel-handbook` (`bfd44f0`, uv-run Python scripts, 215 offline tests)
+  and `travel-planning` (`bc27c27`), each kept by the owner's with/without rule (planning 0 vs 2 corrections;
+  handbook kept on an approved rerun). An independent security review found 17 issues (3 Major); all were
+  fixed test-first inside their commits. No trip is named in any shipped file. Report in the handoff folder.
 - **2026-11-10**: The Task ledger stays in its Handoff sequence's folder (`software-engineer`). Briefs added
   to a folder without `LEDGER.md` now get the ledger there first, never a row in another folder's ledger;
   a Brief claims its number with its row; an Error found before a change still counts. The checker reports
-  `LedgerOutsideFolder`. 10 new tests (7 red first), 2 mutants caught, 1,157 focused passed. On
-  `ai/subagent-dispatch-folder-ledger`.
+  `LedgerOutsideFolder`. 10 new tests (7 red first), 2 mutants caught, 1,157 focused passed. Merged as
+  #51 (`4c4fbd3`, `6.1.0-preview0024`).
 - **2026-11-09**: The agents' models (`software-engineer`, owner ruling of 2026-11-09): every Custom agent
   declares Claude Opus 5.5 and Sonnet 5.5 (`spec-work-implementer` Sonnet first), Setup writes
   `copilot:claude-opus-5.5`, and a test fails a model outside the list (Decision record 0029 supersedes
@@ -44,24 +52,6 @@ PowerShell Gallery (verified 2026-11-10). Incremental work is tracked under
   `role` case needs `roleFiles`, and the Full-read fallback keeps role files. Two owner-labelled cases
   cover `general` and `role`; the floor gates on 87.01 % without the `general`-only case (87.47 % over
   all 27). Red first, 13 mutants caught; gate 5,475 passed. Merged as #47 (`247a826`).
-- **2026-10-18**: The property test of the hook-line shape on a fresh seed (`software-engineer`,
-  `review: on`), the next P5 follow-up, built on `ai/property-test-fresh-seed`: on CI the seeded test
-  runs once more on a seed it draws and prints with the PowerShell version, and
-  `CONTAINMENT_PROPERTY_SEED=N` runs one again (a bad value fails). Generator and comparison moved
-  into helpers with the same random stream (same results for 11 seeds); one review (`code-review`
-  agent) found them unpinned: 78 tests, 65 mutants caught, gate 5,405 passed. Test-only. Merged as #46
-  (squash `12b8f44`, `6.1.0-preview0018`; the build on `main` is green).
-- **2026-10-18**: S-33 (`software-engineer`, `review: on`), the next P5 follow-up: `Get-HookInterpreter`
-  refuses a program path with a second colon, after the one of the drive letter, quoted or not (a quoted
-  one passed the drive rule and ended at "could not be measured"). Seven rows red first, 15 mutants
-  caught, a 200,000-line differential changed only colon paths. One review (built-in `security-review`
-  agent): Approve with changes, no vulnerability, 6 findings fixed; gate 5,374 passed. Merged as #45
-  (squash `a481c9d`, `6.1.0-preview0017`; Windows CI 5,332 passed); carries the records of #43 and #44.
-- **2026-10-17**: The Remote grant tests (`software-engineer`, `review: on`), merged as #44 (squash
-  `ab01e51`, `6.1.0-preview0015`): 3 of the 4 red Windows legs in 14 since 13 October were a runner stall
-  that made the guard fail closed and a harmless empty grant file that stays on Windows. `Invoke-Guard`
-  retries a call once after exit 2 at 5 s or more (at most 5 per run, warned); the concurrent-push test
-  asserts what the guard promises. Test-only: 28 tests, 39 mutants caught, one review, gate 5,304 passed.
 
 ## Stable capabilities
 
@@ -95,7 +85,13 @@ PowerShell Gallery (verified 2026-11-10). Incremental work is tracked under
   are in Desktop `CopilotAtelier-handoffs` (start with `00-start-here.md`).
 - Push `ai/travel-photo-diary-skill` from the other machine (`C:\Git\CopilotAtelier`, worktree
   `C:\Git\CopilotAtelier-travel-photo-diary`); it is not on GitHub (checked 2026-11-10). Until it
-  is, the boundary between it and the planned `travel-handbook` Skill stays provisional.
+  is, the boundary between it and the `travel-handbook` Skill stays provisional.
+- Sign in to Reddit once in the CareerAuthBrowser profile and run `reddit-read` live: the task is
+  tested against a fake browser only, so its refusal of redirects is unverified against live Reddit.
+- Delete any `extracted\all-cookies.json` that a `dump-cookies` run before brief 03 left in
+  `%LOCALAPPDATA%\CareerAuthBrowser`: it holds cookie values in plaintext.
+- `auth-state/` of `authenticated-web-extraction` keeps other sites' session cookies in plaintext for any
+  agent with a shell. It predates brief 03; the review's quarantine covers Reddit text only.
 - Confirm the clock pin live in a new VS Code agent-host chat and in VS Code Local
   (the Copilot CLI runtime stood in for them when it was redeployed on
   2026-10-11; `main` is pushed and `origin/ai/session-clock-path` is gone).
@@ -146,7 +142,7 @@ PowerShell Gallery (verified 2026-11-10). Incremental work is tracked under
   `MoveFile` path (review F-03), and needs the `ci.yml` `shell: pwsh` steps
   distinguished from `powershell.exe`. The hook tests' process helpers use
   .NET-only `ProcessStartInfo.ArgumentList` and `Kill($true)`; port or skip them.
-- Run the eleven other trigger-query sets, then cover the 36 Skills still on
+- Run the thirteen other trigger-query sets (the two travel sets of 2026-11-10 included), then cover the 36 Skills still on
   the `SkillTriggerCoverage` uncovered baseline; only `subagent-dispatch`'s set
   has run (2026-10-21). ShellPilot reads a folded `>-` description as `>-`,
   which likely explains why no Skill loaded in the wiki case; give it one-line

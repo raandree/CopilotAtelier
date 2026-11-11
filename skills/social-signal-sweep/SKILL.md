@@ -121,6 +121,11 @@ fetch tool allows; otherwise fall back to `openSimpleBrowser` on the equivalent
 `old.reddit.com/search` URL and scan visually. Expand to category-peer subreddits,
 not just the brand subreddit, or you miss cross-product discussion.
 
+From a cloud or data-centre network, Reddit refuses anonymous reads even in a
+real browser, so that fallback fails too: record Reddit as a gap, or, when the
+user wants the threads read signed in, hand over to
+`authenticated-web-extraction`.
+
 ### Stack Overflow / Stack Exchange — public API (throttled)
 
 ```text
@@ -195,7 +200,8 @@ filter the returned `created_utc` against `$cutoff` for sub-bucket precision.
 - **Ambiguous entity** (same name, different thing) — add a qualifying term and
   note the disambiguation in the sheet's caveats.
 - **Blocked platform** (403/429) — fall back to the browser, else record the gap.
-  Do not invent rows.
+  Do not invent rows. When the web search tool failed, DuckDuckGo in VS Code's
+  integrated browser has still answered; Bing showed a bot check.
 - **Zero results** — report it honestly; widen the window or add synonyms. A thin
   sweep is itself a finding, not a failure.
 

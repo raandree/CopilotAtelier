@@ -1,0 +1,271 @@
+# Trip handbook configuration: a synthetic example.
+#
+# Every name, date, and coordinate in this file is invented (around 45.9 N,
+# 7.1 E). Copy it next to your handbook, replace the values, and run, from the
+# repository root:
+#   uv run skills/travel-handbook/scripts/build_map.py path/to/trip.yaml
+# Paths are relative to this file. The schema is in references/trip-config.md.
+
+# Languages of the handbook; the first is the primary one. Outputs follow the
+# twin documents: route-map.png for English, route-map.de.png for German.
+languages: [en, de]
+
+# Tile servers, Nominatim, Open-Meteo, and Wikimedia Commons refuse anonymous
+# clients: name the tool and give a contact. Every request carries it, so prefer
+# the project's URL; a personal e-mail address only with its owner's consent.
+user_agent: "travel-handbook-example/1.0 (https://example.org/my-trip-handbook)"
+
+# IANA time zone of the trip: sunrise, sunset, and Open-Meteo days use it.
+timezone: Europe/Zurich
+
+# Optional title, written into the GPX file.
+title:
+  en: Example loop around Charlie Lake
+  de: Beispielrunde um den Charliesee
+
+# Country outline for the locator inset and the Plan B map: any name or code
+# that Nominatim knows. YAML 1.2 keeps an unquoted NO (Norway) a string.
+country: Switzerland
+
+paths:
+  images: docs/images            # maps, charts, and the temperature tables
+  gpx: docs/maps/route.gpx       # GPX export for OsmAnd or Organic Maps
+  photos: docs/images/photos     # photo crops and the credits tables
+  docs: [README.md, docs]        # what check_docs.py checks
+  cache: .cache/travel-handbook  # every download; delete it to refresh
+
+places:
+  gateway:
+    name: {en: Gateway Town, de: Torstadt}
+    lat: 45.842
+    lon: 6.985
+    elevation: 610
+    source: Synthetic example
+  alpha:
+    name: {en: Alpha Village, de: Alphadorf}
+    lat: 45.905
+    lon: 7.080
+    elevation: 1420
+    source: Synthetic example
+    label: {dx: -12, dy: -20, align: right}  # display pixels; +dy is up
+  bravo_hut:
+    name: {en: Bravo Hut, de: Bravohütte}
+    lat: 45.928
+    lon: 7.124
+    elevation: 2310
+    source: Synthetic GPS track
+  bravo_pass:
+    name: {en: Bravo Pass, de: Bravopass}
+    lat: 45.946
+    lon: 7.152
+    elevation: 2870
+    source: Synthetic GPS track
+  charlie_lake:
+    name: {en: Charlie Lake, de: Charliesee}
+    lat: 45.962
+    lon: 7.108
+    # No elevation: the climate step fills it from the Copernicus GLO-90
+    # elevation model and says so; the elevation profile skips the place.
+    source: Synthetic example
+  echo_view:
+    name: {en: Echo Viewpoint, de: Echo-Aussichtspunkt}
+    lat: 45.975
+    lon: 7.135
+    elevation: 2640
+    source: Synthetic example
+    label: {dx: -16, dy: 10, align: right}  # left of the marker, clear of the locator inset
+  delta:
+    name: {en: Delta Village, de: Deltadorf}
+    lat: 45.884
+    lon: 7.046
+    elevation: 1180
+    source: Synthetic example
+
+# Night by night, in date order. The map numbers the nights from 1.
+nights:
+  - {date: 2027-07-01, place: gateway}
+  - {date: 2027-07-02, place: alpha}
+  - {date: 2027-07-03, place: bravo_hut}
+  - {date: 2027-07-04, place: charlie_lake}
+  - {date: 2027-07-05, place: charlie_lake}
+  - {date: 2027-07-06, place: delta}
+  - {date: "2027-07-07", place: gateway}  # a quoted ISO date works too
+
+# The highest point reached on a day, drawn on the map and the profile.
+high_points:
+  - {date: 2027-07-04, place: bravo_pass}
+  - {date: 2027-07-05, place: echo_view}
+
+route:
+  gpx: tracks/example-route.gpx  # track segments are numbered 1, 2, ... in file order
+  # my_maps: <map id>            # or a Google My Maps id, read as KML
+  segments: [1, 2]               # default: every segment
+  credit: {en: "Track: synthetic example", de: "Track: synthetisches Beispiel"}
+  variants: [[charlie_lake, delta]]       # planned, not on the track: dashed
+  day_hikes: [[charlie_lake, echo_view]]  # dotted
+  transfers: [[gateway, alpha], [delta, gateway]]  # grey, also on the locator
+
+map:
+  exclude: [gateway]  # places kept off the main map; the locator shows them
+  # zoom: 13          # default: from the extent and the map size
+  # lat: [45.86, 46.00]
+  # lon_center: 7.10
+  # margin: 0.12
+  locator:
+    # extent: [5.8, 45.7, 10.6, 47.9]  # default: the country outline
+    labels:
+      - {text: {en: LAKE REGION, de: SEENGEBIET}, lat: 46.35, lon: 6.7}
+
+calendar:
+  start: 2027-06-29
+  end: 2027-07-09
+  phases:
+    - {start: 2027-07-01, end: 2027-07-01, label: {en: Arrival, de: Anreise}, color: "#95a5a6"}
+    - {start: 2027-07-02, end: 2027-07-03, label: {en: Valley stages, de: Taletappen},
+       color: "#52be80"}
+    - {start: 2027-07-04, end: 2027-07-04, label: {en: Bravo Pass, de: Bravopass},
+       color: "#e67e22"}
+    - {start: 2027-07-05, end: 2027-07-05, label: {en: Lake day, de: Seetag}, color: "#3498db"}
+    - {start: 2027-07-06, end: 2027-07-07, label: {en: Descent and return, de: Abstieg und Rückreise},
+       color: "#7f8c8d"}
+    - {start: 2027-07-08, end: 2027-07-08, label: {en: Spare day, de: Reservetag}, color: "#d5dbdb"}
+  markers:  # numbered diamonds, explained under the chart
+    - date: 2027-07-03
+      label: {en: "Bravo Hut: cross the pass or wait a day",
+              de: "Bravohütte: über den Pass oder einen Tag warten"}
+    - date: 2027-07-05
+      label: {en: "Charlie Lake: day hike or early descent",
+              de: "Charliesee: Tagestour oder früher Abstieg"}
+  windows:  # one row each; clipped to the calendar
+    - start: 2027-06-15
+      end: 2027-09-15
+      label: {en: Cable car running, de: Seilbahn in Betrieb}
+      note: {en: "15 Jun – 15 Sep", de: "15. Juni – 15. Sept."}
+      color: "#2e86c1"
+    - start: 2027-07-01
+      end: 2027-09-30
+      label: {en: Pass usually snow-free, de: Pass meist schneefrei}
+      color: "#a569bd"
+
+plan_b:
+  # extent: [6.0, 45.6, 8.3, 46.6]  # default: the country outline
+  regions:
+    - name: {en: Foxtrot Valley, de: Foxtrottal}
+      lat: 46.05
+      lon: 7.30
+      status: open
+      note: {en: trails open, de: Wege offen}
+    - name: {en: Golf Ridge, de: Golfgrat}
+      lat: 45.84
+      lon: 7.33
+      status: limited
+      note: {en: upper huts closed, de: obere Hütten geschlossen}
+      dx: -16  # label offset in points
+      dy: -14
+    - name: {en: Kilo Glacier, de: Kilogletscher}
+      lat: 45.99
+      lon: 7.42
+      status: closed
+      note: {en: closed after rockfall, de: nach Felssturz gesperrt}
+
+climate:
+  window: ["07-01", "07-07"]  # month-day, inclusive; one request per year and place
+  years: 10
+  # last_year: 2026  # default: the latest year whose window ended a week ago
+  # places: [alpha, bravo_hut]  # default: every night's place
+  chapter: docs/weather.md  # its table is re-checked on every run; twin: weather.de.md
+
+photos:
+  - name: banner
+    file: "File:Example valley panorama (synthetic).jpg"
+    focus: 0.45   # vertical focus: 0 keeps the top, 1 the bottom
+    banner: true  # 8:3 banner, 1600 x 600; otherwise 3:2, 960 x 640
+    caption: {en: The valley above Alpha Village, de: Das Tal oberhalb von Alphadorf}
+  - place: charlie_lake  # the output name defaults to the place key
+    file: "File:Charlie Lake at dawn (synthetic).jpg"
+    focus: [0.5, 0.6]    # horizontal and vertical focus
+    caption: {en: Charlie Lake at dawn, de: Der Charliesee im Morgenlicht}
+  - place: bravo_pass
+    file: "File:Bravo Pass cairn (synthetic).jpg"
+    caption: {en: The cairn on Bravo Pass, de: Der Steinmann auf dem Bravopass}
+
+# Subjects for fetch_photos.py --candidates: one numbered contact sheet each.
+photo_candidates:
+  - {subject: charlie-lake, category: "Category:Charlie Lake (synthetic)", limit: 12}
+  - {subject: echo-view, search: Echo viewpoint panorama, limit: 8}
+
+# English labels are built in; every other language needs all labels of the
+# features this file uses. Placeholders in braces are filled in by the scripts.
+labels:
+  de:
+    months: [Jan., Feb., März, Apr., Mai, Juni, Juli, Aug., Sept., Okt., Nov., Dez.]
+    date_format: "{day}. {month}"
+    unit_m: m
+    unit_c: °C
+    map_title: Wo wir übernachten, Nacht für Nacht
+    map_track: Route (GPS-Track)
+    map_variant: Geplante Variante (ungefähr)
+    map_day_hike: Tagestour
+    map_transfer: Transfer per Straße oder Bahn
+    map_stop: Übernachtung mit Nummer der Nacht
+    map_high: Höchster Punkt des Tages
+    map_area: Kartenausschnitt
+    map_panel: Nacht für Nacht
+    profile_title: "Höhe je Nacht: wo wir schlafen und der höchste Punkt jedes Tages"
+    profile_axis: Höhe (m)
+    profile_sleep: Schlafhöhe
+    profile_note: Höhen aus der Reisekonfiguration; jeder Ort nennt seine Quelle.
+    daylight_title: Tageslicht dort, wo wir übernachten
+    daylight_note: >-
+      Ortszeit ({timezone}), berechnet mit der Bibliothek astral für einen ebenen
+      Horizont; in tiefen Tälern geht die Sonne hinter den Bergen später auf und
+      früher unter.
+    daylight_axis: Ortszeit
+    daylight_day: Tageslicht
+    daylight_twilight: Bürgerliche Dämmerung
+    daylight_night: Nacht
+    daylight_length: "{hours} h {minutes} min"
+    temperature_title: Temperaturen dort, wo wir übernachten, Nacht für Nacht
+    temperature_note: >-
+      ERA5-Reanalyse über Open-Meteo für {window} der Jahre {first_year}–{last_year},
+      auf die Höhe jeder Übernachtung korrigiert. Nächte im Tal können kälter sein
+      als das Modell.
+    temperature_axis: Temperatur (°C)
+    temperature_below: Bereich unter 0 °C
+    temperature_above: Bereich über 0 °C
+    temperature_cold: Kalte Nacht (1 von 10)
+    table_date: Datum
+    table_place: Ort
+    table_elevation: Höhe (m)
+    table_night: Nacht, Mittel (°C)
+    table_day: Tag, Mittel (°C)
+    table_cold: Kalte Nacht, 1 von 10 (°C)
+    table_lowest: Tiefstwert (°C)
+    table_dem_note: >-
+      DEM: Höhe aus dem Geländemodell Copernicus GLO-90 über die Höhen-API von
+      Open-Meteo.
+    calendar_title: "Reisekalender: Plan, Entscheidungspunkte und Gültigkeitszeiträume"
+    calendar_plan: Unser Plan
+    calendar_marker: Entscheidungspunkt
+    calendar_markers_note: "Entscheidungspunkte: {items}"
+    plan_b_title: Regionen für Plan B und ihr Zustand
+    plan_b_note: >-
+      Zustand wie in der Reisekonfiguration festgehalten. Umriss: © OpenStreetMap-Mitwirkende,
+      über Nominatim.
+    plan_b_route: Unsere Route
+    status_open: Offen
+    status_limited: Eingeschränkt offen
+    status_closed: Gesperrt
+    credits_title: Bildnachweise
+    credits_note: >-
+      Alle Fotos stammen von Wikimedia Commons. Sie wurden zugeschnitten und
+      verkleinert; jeder Zuschnitt behält die Lizenz seines Originals (ShareAlike,
+      wo sie gilt).
+    credits_photo: Foto
+    credits_author: Urheber
+    credits_license: Lizenz
+    credits_file: Dateiseite
+
+# Number formats are built in for en, de, and ru; replace any part here.
+# numbers:
+#   de: {group_min_digits: 5}  # write 2870 rather than 2.870
