@@ -205,6 +205,48 @@ Describe 'Test-CopilotAtelier' -Tag 'Unit' {
         $result.Checks.Code | Should -Contain 'InvalidSettings'
     }
 
+    It 'Should report drift between two previews of one version with both labels' {
+        Mock -CommandName Get-CopilotAtelierModuleVersion -ModuleName CopilotAtelier -MockWith { '6.1.0-preview0025' }
+        $recordPath = Join-Path $script:profile.TargetPath '.copilotatelier.json'
+        $record = Get-Content -LiteralPath $recordPath -Raw | ConvertFrom-Json
+        $record.Version = '6.1.0-preview0022'
+        $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $recordPath
+
+        $result = Test-CopilotAtelier
+
+        $drift = @($result.Checks | Where-Object -FilterScript { $_.Code -eq 'VersionDrift' })
+        $drift.Count | Should -Be 1
+        $drift[0].Message | Should -BeLike '*6.1.0-preview0025*6.1.0-preview0022*'
+    }
+
+    It 'Should report no drift when the loaded preview is the deployed one' {
+        Mock -CommandName Get-CopilotAtelierModuleVersion -ModuleName CopilotAtelier -MockWith { '6.1.0-preview0025' }
+        $recordPath = Join-Path $script:profile.TargetPath '.copilotatelier.json'
+        $record = Get-Content -LiteralPath $recordPath -Raw | ConvertFrom-Json
+        $record.Version = '6.1.0-preview0025'
+        $record | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $recordPath
+
+        $result = Test-CopilotAtelier
+
+        $result.Checks.Code | Should -Not -Contain 'VersionDrift'
+        $result.Version | Should -BeExactly '6.1.0-preview0025'
+    }
+
+    It 'Should warn when the Canonical target is also a git working tree' {
+        (Test-CopilotAtelier).Checks.Code | Should -Not -Contain 'GitWorkingTreeTarget'
+        New-Item -ItemType Directory -Path (Join-Path $script:profile.TargetPath '.git') -Force | Out-Null
+
+        $result = Test-CopilotAtelier
+
+        $check = @($result.Checks | Where-Object -FilterScript { $_.Code -eq 'GitWorkingTreeTarget' })
+        $check.Count | Should -Be 1
+        $check[0].Severity | Should -Be 'Warning'
+        $check[0].Path | Should -Be $script:profile.TargetPath
+        $check[0].Message | Should -BeLike '*CHANGELOG.md*.memory-bank*'
+        $check[0].Message | Should -BeLike '*Deployment conflict*'
+        $result.IsHealthy | Should -BeTrue
+    }
+
     It 'Should reject a settings root that is <Text>' -ForEach @(
         @{ Text = 'null' }
         @{ Text = '[]' }

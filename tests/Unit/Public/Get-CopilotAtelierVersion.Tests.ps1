@@ -114,7 +114,13 @@ Describe 'Get-CopilotAtelierVersion' -Tag 'Unit' {
 
             New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
 
-            $script:moduleVersion = (Get-Module -Name $script:moduleName).Version.ToString()
+            # A build can label the module as a preview; the record keeps the label.
+            $module = Get-Module -Name $script:moduleName
+            $script:moduleVersion = $module.Version.ToString()
+            if ($module.PrivateData.PSData.Prerelease)
+            {
+                $script:moduleVersion = '{0}-{1}' -f $script:moduleVersion, $module.PrivateData.PSData.Prerelease
+            }
 
             [ordered] @{
                 Version     = $script:moduleVersion
@@ -179,6 +185,47 @@ Describe 'Get-CopilotAtelierVersion' -Tag 'Unit' {
 
         It 'Should report the deployment as stale' {
             $script:result.IsCurrent | Should -BeFalse
+        }
+    }
+
+    Context 'When the loaded module is a preview' {
+        BeforeAll {
+            Mock -CommandName Get-CopilotAtelierModuleVersion -ModuleName $script:moduleName -MockWith { '6.1.0-preview0025' }
+        }
+
+        It 'Should report IsCurrent <Expected> when <Deployed> is deployed' -ForEach @(
+            @{ Deployed = '6.1.0-preview0025'; Expected = $true }
+            @{ Deployed = '6.1.0-preview0022'; Expected = $false }
+        ) {
+            $homePath = Join-Path -Path $TestDrive -ChildPath "preview-home-$Deployed"
+            $configPath = Join-Path -Path $TestDrive -ChildPath "preview-config-$Deployed"
+            $targetPath = Join-Path -Path $homePath -ChildPath 'CopilotAtelier'
+
+            New-Item -ItemType Directory -Path $targetPath -Force | Out-Null
+
+            [ordered] @{
+                Version     = $Deployed
+                InstalledOn = '2026-11-11T10:00:00Z'
+                ContentPath = 'C:\somewhere'
+            } |
+                ConvertTo-Json |
+                Set-Content -LiteralPath (Join-Path -Path $targetPath -ChildPath '.copilotatelier.json')
+
+            $original = Enter-Sandbox -HomePath $homePath -ConfigPath $configPath
+
+            try
+            {
+                $result = Get-CopilotAtelierVersion
+            }
+            finally
+            {
+                Exit-Sandbox -Original $original
+            }
+
+            $result.Prerelease | Should -BeExactly 'preview0025'
+            $result.Version | Should -Be ([System.Version] '6.1.0')
+            $result.DeployedVersion | Should -BeExactly $Deployed
+            $result.IsCurrent | Should -Be $Expected
         }
     }
 }

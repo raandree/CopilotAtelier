@@ -14,6 +14,11 @@ function Get-CopilotAtelierVersion
             Version is null when the commands were dot-sourced from a repository
             clone instead of imported as a module.
 
+            Prerelease is the label of a preview, such as preview0024, and empty
+            for a release. DeployedVersion keeps the label it was deployed with,
+            such as 6.1.0-preview0024, so IsCurrent is false when another preview
+            of the same version is deployed.
+
         .OUTPUTS
             System.Management.Automation.PSCustomObject
 
@@ -32,10 +37,14 @@ function Get-CopilotAtelierVersion
     $path = Get-CopilotAtelierPath
 
     $moduleVersion = $null
+    $prerelease = $null
+    $loadedVersion = Get-CopilotAtelierModuleVersion
 
-    if ($ExecutionContext.SessionState.Module)
+    if ($loadedVersion)
     {
-        $moduleVersion = $ExecutionContext.SessionState.Module.Version
+        $parsedVersion = ConvertFrom-CopilotAtelierVersion -Version $loadedVersion
+        $moduleVersion = $parsedVersion.Version
+        $prerelease = $parsedVersion.Prerelease
     }
 
     $deployedVersion = $null
@@ -64,13 +73,14 @@ function Get-CopilotAtelierVersion
 
     $isCurrent = $null
 
-    if ($moduleVersion -and $deployedVersion)
+    if ($loadedVersion -and $deployedVersion)
     {
-        $isCurrent = [System.String] $moduleVersion -eq [System.String] $deployedVersion
+        $isCurrent = $loadedVersion -ceq [System.String] $deployedVersion
     }
 
     return [PSCustomObject] @{
         Version         = $moduleVersion
+        Prerelease      = $prerelease
         DeployedVersion = $deployedVersion
         DeployedOn      = $deployedOn
         TargetPath      = $path.TargetPath

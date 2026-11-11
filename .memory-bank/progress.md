@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-10
+last-verified: 2026-11-11
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -12,13 +12,19 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
 from `a592832`. CI on `main` has since published the prereleases
 `6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0024` (`4c4fbd3`, 2026-11-10) to GitHub Releases and the
-PowerShell Gallery (verified 2026-11-10). Incremental work is tracked under
-`[Unreleased]` in `CHANGELOG.md`.
+`6.1.0-preview0025` (`dc714ba`, 2026-11-11) to GitHub Releases and the
+PowerShell Gallery (verified 2026-11-11). The owner approved a stable `6.1.0` on
+2026-11-11; its `v6.1.0` tag waits for brief 10 to merge. Incremental work is
+tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-11-10**: Brief 03, the travel work (`software-engineer`), on `ai/travel-work`: the Markdown
+- **2026-11-11**: Brief 10, GitHub issue #49 (`software-engineer`), on `ai/update-release-channel`: the owner-ruled `Update-CopilotAtelier
+  -AllowPrerelease` installs previews, and without it the command names a newer preview. Versions keep and compare their prerelease labels
+  through `Get-CopilotAtelierModuleVersion` and `Compare-CopilotAtelierVersion`, also in Windows PowerShell 5.1 (no `SemanticVersion`); the
+  Deployment record, `IsCurrent`, and `VersionDrift` follow; Install and Test warn about a git working tree as Canonical target. Red first;
+  an independent review's Blocker (PowerShellGet 3 reports the label separately) and Major (an update that did not land) fixed test-first.
+- **2026-11-10**: Brief 03, the travel work (`software-engineer`), merged as #53 (`dc714ba`, `6.1.0-preview0025`): the Markdown
   Instruction counts MD013 in UTF-16 units and keeps emoji out of linked headings (`dc1dad0`); the contained
   `quarantined-reader` agent reads untrusted text with file reading only (`5e9bb9b`);
   `authenticated-web-extraction` reads Reddit signed in through a GET-only allow-list and hands the files to
@@ -47,11 +53,6 @@ PowerShell Gallery (verified 2026-11-10). Incremental work is tracked under
   task ledger, and folder migration (`claude-opus-5.5` train 10 to 12 of 12, validation 7 to 8 of 8;
   `claude-haiku-4.5` train 7 to 10, validation 7 of 8). Five runs per version: E cases 27 against 9 of 35,
   decoys 20 of 20 in both; a fresh-subagent migration passed every E7 line. Merged as #48 (`ae8684d`).
-- **2026-10-20**: P6, the routing-coverage ratchet (`software-engineer`), rebuilt by hand on `main` from
-  the uncommitted work of 2026-10-12. Every route needs a real case or a baseline entry with a reason, a
-  `role` case needs `roleFiles`, and the Full-read fallback keeps role files. Two owner-labelled cases
-  cover `general` and `role`; the floor gates on 87.01 % without the `general`-only case (87.47 % over
-  all 27). Red first, 13 mutants caught; gate 5,475 passed. Merged as #47 (`247a826`).
 
 ## Stable capabilities
 
@@ -82,7 +83,12 @@ PowerShell Gallery (verified 2026-11-10). Incremental work is tracked under
 
 - Desktop `CopilotAtelier New\LEDGER.md` keeps the queue's history (01-08 and P2-P20) with
   Decision 0028 gates, dependencies, and duplicate/superseded references; the open prompts
-  are in Desktop `CopilotAtelier-handoffs` (start with `00-start-here.md`).
+  are in Desktop `CopilotAtelier-handoffs` (start with `00-README.md`).
+- Release the owner-approved stable `6.1.0` once brief 10 is merged: tag `v6.1.0` on the merge commit after
+  CI has published its preview, merge the changelog pull request the release opens, then post the issue #49
+  reply. The commands and the reply draft are in the brief 10 report.
+- The VS Code update of 2026-11-11 (bundled Copilot SDK runtime 1.0.30-preview.0) fails 14 `HookSdkRuntime` integration tests, on `main` too:
+  that harness ran no user-folder hook. Check that the push guard still fires in agent-host chats; SessionStart context still arrives.
 - Push `ai/travel-photo-diary-skill` from the other machine (`C:\Git\CopilotAtelier`, worktree
   `C:\Git\CopilotAtelier-travel-photo-diary`); it is not on GitHub (checked 2026-11-10). Until it
   is, the boundary between it and the `travel-handbook` Skill stays provisional.

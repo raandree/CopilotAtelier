@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-10
+last-verified: 2026-11-11
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,23 +9,12 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 03, the travel work, is done on `ai/travel-work` and passed an independent security review** (`dc1dad0`,
-`5e9bb9b`, `15fb67e`, `bfd44f0`, `bc27c27`; not pushed): two Markdown rules, signed-in Reddit reading behind a
-GET-only allow-list and read only through the new file-reading-only `quarantined-reader` agent, and the Skills
-`travel-handbook` and `travel-planning`, each kept by the owner's with/without rule. All 17 review findings (3
-Major) were fixed test-first inside their commits; the pre-review history is `ai/travel-work-pre-review`. No owner
-trip is named in a shipped file; raw evidence stays in `D:\Git\_ca-work\travel-evals`. Queue: Desktop `CopilotAtelier-handoffs/00-README.md`.
-
-**S-33 is merged** as #45 (squash `a481c9d`, `6.1.0-preview0017`; Windows CI 5,332 passed): a second
-colon in the program path is refused, quoted or not (`docs/SECURITY-REVIEW.md`, 2026-10-18). With #43
-(`1de0c04`: the pinned line also runs under Windows PowerShell 5.1 and the PowerShell that runs the
-verifier, and a quoted program path fails) and #44 (`ab01e51`: the Remote grant tests retry after a
-runner stall) it is on `main`. The deployed verifier hashed to `dd415737…2415` on 2026-11-09, and
-Prox1 holds no containment profile to re-pin; a profile elsewhere pins that digest.
-
-**R-04 is merged** as #42 (`6.1.0-preview0014`): `IdentityPrivilege` reads the verifier's access
-token and refuses one that is not a standard account's; the suites reach the Pass through a seam, and
-it was measured once on a real standard account's token on 2026-11-09 (decision 0025, revisions).
+**Brief 10, GitHub issue #49, is done on `ai/update-release-channel`** (not pushed; independent review fixed: B1 PowerShellGet 3
+labels, M1 updates that did not land). `Update-CopilotAtelier` gains the opt-in `-AllowPrerelease` the owner ruled; without it the
+command names a newer preview (`NewerPrerelease`). Versions keep and compare their prerelease labels through
+`Get-CopilotAtelierModuleVersion` and `Compare-CopilotAtelierVersion` in Windows PowerShell 5.1 and 7; the Deployment record,
+`IsCurrent`, and `VersionDrift` follow, and Install and Test warn about a Canonical target that is a git working tree. The owner
+approved a stable 6.1.0: its tag follows the merge. Report and German reply draft: Desktop `CopilotAtelier-handoffs/reports/10-*`.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
@@ -55,6 +44,12 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
 
 ## Previous focuses
 
+- **Brief 03, the travel work (2026-11-10).** Merged as #53 (`dc714ba`, `6.1.0-preview0025`): two Markdown rules,
+  signed-in Reddit reading only through the file-reading-only `quarantined-reader` agent, and the Skills
+  `travel-handbook` and `travel-planning`; all 17 findings of its security review were fixed test-first.
+- **S-33 and R-04 (#42 to #45, to 2026-11-09).** A second colon in a hook program path is refused (#45, `a481c9d`), and
+  `IdentityPrivilege` refuses a token that is not a standard account's (#42; decision 0025). The deployed verifier
+  hashed to `dd415737…2415` on 2026-11-09; a containment profile elsewhere pins that digest.
 - **The agents' models (2026-11-09).** Opus 5.5 and Sonnet 5.5 on `main` (`ea19ba4`, `6.1.0-preview0022`;
   Decision record 0029); the Skill index on `main` (`661c30a`); the R-04 closing test passed.
 - **Prompts 04 to 06b and 05c (2026-10-09 to 2026-10-11).** The criterion 21 eval chain:
@@ -107,6 +102,8 @@ Earlier route-selection and trigger-query sets remain unmeasured. ShellPilot's
 
 ## Open findings
 
+- **Needs a check, security-relevant (2026-11-11):** today's VS Code update (bundled SDK runtime 1.0.30-preview.0) fails 14
+  `HookSdkRuntime` integration tests on `main` too; whether the push guard still fires in agent-host chats is unverified.
 - **High:** `software-engineer-contoso` claims no egress while retaining an
   unrestricted terminal and mandating a generic `security-reviewer` delegate
   with web, GitHub, MCP, and terminal tools. In agent-host sessions the host
@@ -160,11 +157,12 @@ unproven — train reached 100 % while validation fell.
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
 3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with
-   `00-README.md`): brief 03 waits on the owner to push and merge `ai/travel-work`, redeploy, delete any
-   leftover `extracted\all-cookies.json` (plaintext cookie values), and sign in to Reddit once for the live
-   `reddit-read` check; then the P5 follow-ups (`docs/SECURITY-REVIEW.md`:
-   S-20, the escape set of `WritableRoots`, S-19, the run id of `-Revalidate`, a CI retry for the Gallery
-   bootstrap) and more. The `ai/travel-photo-diary-skill` branch exists only on the other machine.
+   `00-README.md`): brief 10 waits on the owner to push `ai/update-release-channel`, merge it, post the
+   issue reply, and tag `v6.1.0` on the merge commit once CI has published its preview; from brief 03, delete
+   any leftover `extracted\all-cookies.json` and sign in to Reddit once for the live `reddit-read` check;
+   then the P5 follow-ups (`docs/SECURITY-REVIEW.md`: S-20, the escape set of `WritableRoots`, S-19, the
+   run id of `-Revalidate`, a CI retry for the Gallery bootstrap) and more. The
+   `ai/travel-photo-diary-skill` branch exists only on the other machine.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.
