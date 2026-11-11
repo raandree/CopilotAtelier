@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-11-11
+
 ### Added
 
 - Add the `quarantined-reader` Custom agent, a helper subagent hidden from the agent picker. It reads untrusted text saved to files, answers its caller's question in a fixed Markdown format with no link, command, file path, token, or cookie and at most ten quoted words in a row, and counts the passages that try to steer an AI agent. It holds file reading only, with no shell, web, browser, editing, or delegation, so text that fools it has no channel out; a fooled reader can still return a wrong summary. See [the agents README](com.github.copilot/agents/README.md#14-quarantined-reader-agent).
