@@ -167,9 +167,22 @@ Describe 'Copilot CLI variant of the representative profile' -Tag 'Unit' {
             Should -BeExactly $sourceBody -Because 'the preamble is additive; it never edits the shared body'
     }
 
-    It 'Should not claim the workflow runs unchanged on an unverified client' {
-        $script:variant.VerificationState | Should -Be 'StructurallyChecked'
-        $script:variant.VerifiedClientVersion | Should -BeNullOrEmpty
+    It 'Should not claim that the workflow runs unchanged on the strength of the smoke cases' {
+        <#
+            The receipt covers loading, the tool surface, and the file itself.
+            No behavioral case has run, so none may be claimed, and a runtime
+            claim must be bound to the variant's exact bytes.
+        #>
+        @($script:variant.VerifiedCase | Where-Object -FilterScript { $_ -like 'B*' }) |
+            Should -BeNullOrEmpty -Because 'the behavioral cases B1 to B8 need model requests and have not run'
+
+        if ($script:variant.VerificationState -ne 'StructurallyChecked')
+        {
+            $script:variant.VerificationState | Should -Be 'RuntimeVerified'
+            $script:variant.RuntimeReceiptStatus | Should -Be 'Bound'
+            $script:variant.RuntimeReceipt.ArtifactSha256 | Should -Be $script:variant.ArtifactSha256
+            $script:variant.VerifiedClientVersion | Should -Be $script:variant.RuntimeReceipt.RuntimeVersion
+        }
     }
 
     It 'Should emit frontmatter that carries no VS Code-only field' {
@@ -236,6 +249,43 @@ Describe 'Client adapter build artifact' -Tag 'Unit' {
                 ([System.IO.File]::ReadAllText($emitted) -replace "`r`n", "`n") |
                     Should -BeExactly $current.Content -Because "$emitted is stale; rerun the build"
             }
+        }
+    }
+
+    It 'Should hold case C3 on the built Copilot CLI variant, as its receipt records' {
+        <#
+            C3 of docs/client-adapter-evals.md reads the file a client loads:
+            the limitation section sits between its markers and names both
+            refused modes, and the end marker carries the SHA-256 of the shared
+            body after it. While the receipt is bound to this file, its recorded
+            outcome must agree.
+        #>
+        $artifact = Join-Path (Join-Path $script:adapterRoot 'copilot-cli') $script:variant.FileName
+        $text = [System.IO.File]::ReadAllText($artifact)
+        $begin = '<!-- copilot-atelier:client-limitations:begin client=copilot-cli -->'
+        $end = [regex]::Match($text, '<!-- copilot-atelier:client-limitations:end client=copilot-cli sharedBodySha256=([0-9a-f]{64}) -->\n\n')
+
+        $end.Success | Should -BeTrue
+        $text.IndexOf($begin) | Should -BeGreaterThan 0
+        $text.IndexOf($begin) | Should -BeLessThan $end.Index
+
+        $section = $text.Substring($text.IndexOf($begin), $end.Index - $text.IndexOf($begin))
+        $section | Should -Match '`review: on` is not available on this client'
+        $section | Should -Match '`cycle: full` is not available on this client'
+
+        $body = $text.Substring($end.Index + $end.Length)
+        $bodyHash = [System.BitConverter]::ToString(
+            [System.Security.Cryptography.SHA256]::Create().ComputeHash(
+                [System.Text.UTF8Encoding]::new($false).GetBytes($body))).Replace('-', '').ToLowerInvariant()
+
+        $bodyHash | Should -Be $end.Groups[1].Value
+
+        $receiptMap = $script:contract.Client['copilot-cli'].RuntimeReceipt
+        $receipt = if ($receiptMap -and $receiptMap.Contains($script:representative)) { $receiptMap[$script:representative] }
+
+        if ($receipt -and $receipt.ArtifactSha256 -eq (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant())
+        {
+            @($receipt.Case | Where-Object -FilterScript { $_.Id -eq 'C3' }).Outcome | Should -Be 'Passed'
         }
     }
 
@@ -373,8 +423,45 @@ Describe 'Client adapter documentation' -Tag 'Unit' {
         $script:adapterSection | Should -Match '(?i)refuse'
     }
 
-    It 'Should not claim a runtime verification the repository cannot show' {
-        $script:adapterSection | Should -Not -Match '(?i)runtime.?verified'
+    It 'Should claim runtime verification only as far as a committed receipt shows it' {
+        $receipt = @(
+            foreach ($client in $script:contract.Client.Keys)
+            {
+                $receiptMap = $script:contract.Client[$client].RuntimeReceipt
+
+                if ($receiptMap)
+                {
+                    $receiptMap.Values
+                }
+            }
+        )
+
+        if ($script:adapterSection -match '(?i)runtime.?verified')
+        {
+            $receipt | Should -Not -BeNullOrEmpty -Because 'a runtime claim needs a committed receipt'
+
+            foreach ($entry in $receipt)
+            {
+                $script:adapterSection |
+                    Should -Match ([regex]::Escape($entry.RuntimeVersion)) -Because 'a runtime claim names the version it was proven against'
+            }
+        }
+
         $script:adapterSection | Should -Not -Match '(?i)cloud agent'
+    }
+
+    It 'Should record every committed runtime receipt in the evaluation document' {
+        $evaluation = Get-Content -Raw -LiteralPath (Join-Path $script:projectPath 'docs/client-adapter-evals.md') -Encoding UTF8
+
+        foreach ($client in $script:contract.Client.Keys)
+        {
+            $receiptMap = $script:contract.Client[$client].RuntimeReceipt
+
+            foreach ($entry in @($(if ($receiptMap) { $receiptMap.Values })))
+            {
+                $evaluation | Should -Match ([regex]::Escape($entry.ArtifactSha256)) -Because "$client names the file its receipt is bound to"
+                $evaluation | Should -Match ([regex]::Escape($entry.RuntimeVersion)) -Because "$client names the runtime version its receipt records"
+            }
+        }
     }
 }

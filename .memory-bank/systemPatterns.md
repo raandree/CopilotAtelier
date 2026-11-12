@@ -61,7 +61,7 @@ Durable relationships and the Decision record index; read a linked record only w
     not authorization; `agents` grants delegation, not body inheritance. Share Instructions with a drift test.
 - Cross-client discovery is not parity. Compose from one authoritative profile
     with strict parsing and capability mappings. Reject unknown grants, remove
-    tools whose restrictions cannot be expressed, refuse unsupported workflows, and hash-own variants. A host lists Skill descriptions only up to a character budget (Copilot CLI 1.0.103: 30,000; VS Code chat: 15,000), other sources first, then in name order, and the rest by name only; a Skill must not depend on its description being shown, so each has a row in the always-applied Skill index, and `Get-CopilotAtelierFootprint` estimates the cut (2026-11-07).
+    tools whose restrictions cannot be expressed, refuse unsupported workflows, and hash-own variants. A host lists Skill descriptions only up to a character budget (Copilot CLI 1.0.103: 30,000; VS Code chat: 15,000), other sources first, then in name order, and the rest by name only; a Skill must not depend on its description being shown, so each has a row in the always-applied Skill index, and `Get-CopilotAtelierFootprint` estimates the cut (2026-11-07). Claim a runtime result only through a receipt bound to the SHA-256 of the file its cases ran on, so any edit falls back on its own (2026-11-12).
 - A local HTTP verdict is feedback, not authority: the transport proves that a
     hash was posted, not who posted it. Bind feedback to the viewed revision and
     retain chat sign-off. Match anchors to parser tokens even under locks; reject disagreement.

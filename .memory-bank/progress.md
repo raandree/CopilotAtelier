@@ -12,13 +12,17 @@ source: CHANGELOG.md and git history
 Copilot Atelier's latest full GitHub release is `v6.1.0`, published 2026-11-11
 at 19:56 UTC to GitHub and the PowerShell Gallery from `a3167d8` (#54), the
 commit CI had published as `6.1.0-preview0026`. The changelog rollover #55
-(`f358226`) followed at 23:43 UTC; that its CI run (43122012334, GitVersion
-`6.1.1-preview.1`) published nothing is unconfirmed. Incremental work is
+(`f358226`) followed at 23:43 UTC; its CI run (43122012334, GitVersion
+`6.1.1-preview.1`) published nothing (Deploy skipped, confirmed 2026-11-12). Incremental work is
 tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-11-12**: Brief 05, the hook input probe (`software-engineer`), on `ai/hook-payload-probe`: the push guard fires in a VS Code
+- **2026-11-12**: Brief 04, the adapter smoke check (`software-engineer`), on `ai/adapter-runtime-smoke`: cases C1 to C3 ran offline on
+  the composed `software-engineer` variant in Copilot CLI 1.0.96 and the source profile in runtime 1.0.108-0; C2 passed on both, C3 on
+  the variant, C1 failed on both on an ignored-field warning. Receipts bound to each file's SHA-256 let `Get-CopilotAtelierClientAdapter`
+  report `RuntimeVerified` for those cases only; the fallback test went red first, then green. Full gate 5,819 passed, 0 failed.
+- **2026-11-12**: Brief 05, the hook input probe (`software-engineer`), merged as #56 (`548a162`): the push guard fires in a VS Code
   agent-host chat on runtime 1.0.108-0 (live inert probe denied); the 14 `HookSdkRuntime` failures were the fixtures, which now pass
   the agent host's `enableConfigDiscovery`, `enableFileHooks`, and `enableSkills` (44 of 44); a new block pins the hook input for
   `skill`, `view` (`Read`), `edit` (`Edit`), and `create` (`Write`) in that runtime and Copilot CLI 1.0.96, red first (14 failed),
@@ -47,12 +51,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   `copilot:claude-opus-5.5`, and a test fails a model outside the list (Decision record 0029 supersedes
   0007); red first (17 of 182). The R-04 closing test passed on a throwaway standard account. On
   `main` (`ea19ba4`, pushed without a pull request; `6.1.0-preview0022`), redeployed 2026-11-10.
-- **2026-11-07**: The Skill index (`software-engineer`). The logs of two Copilot CLI chats (DeskPilot,
-  ShellPilot) showed `subagent-dispatch` never loaded for "write handoff prompts": runtime 1.0.103 lists
-  Skill descriptions only to 30,000 characters, VS Code's 20 synced Skills first and ours by name, so 30
-  of 50 Skills reached the model as a bare name (66 logged sessions agree; VS Code chat uses 15,000).
-  Added the always-applied `skill-index.instructions.md` (4,932 characters), a pre-flight pointer, and a
-  `SkillCatalog` estimate in `Get-CopilotAtelierFootprint`; red first, gate 5,652 passed. On `main` (`661c30a`, `6.1.0-preview0021`).
 
 ## Stable capabilities
 
@@ -84,8 +82,9 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - Desktop `CopilotAtelier New\LEDGER.md` keeps the queue's history (01-08 and P2-P20) with
   Decision 0028 gates, dependencies, and duplicate/superseded references; the open prompts
   are in Desktop `CopilotAtelier-handoffs` (start with `00-README.md`).
-- Confirm that CI run 43122012334 (the #55 merge) published nothing: its Deploy job skipped and the newest
-  release is still `v6.1.0`. Close #49 when you like; its reply is posted.
+- Close #49 when you like; its reply is posted, and CI run 43122012334 (the #55 merge) published nothing.
+- Decide adapter case C1: drop `target` from the Copilot CLI variant, or let C1 tolerate fields a client documents as ignored; then
+  rerun `tests/ClientAdapterRuntime.Tests.ps1` and replace the receipts in `Get-CopilotAtelierClientContract`.
 - Probe VS Code Local's hook input for the Skill and file tools (tool names, payload, `matcher`) before
   any collector is reconsidered; brief 05 verified only the SDK host and Copilot CLI, offline.
 - Push `ai/travel-photo-diary-skill` from the other machine (`C:\Git\CopilotAtelier`, worktree

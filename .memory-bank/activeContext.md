@@ -9,13 +9,13 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 05, the hook input probe (2026-11-12), is done on `ai/hook-payload-probe`** (not pushed). The push guard still fires in a VS
-Code agent-host chat on runtime 1.0.108-0 (SDK 1.0.30-preview.0): a live inert probe was denied. The 14 `HookSdkRuntime` failures were
-the fixtures, which now pass the agent host's `enableConfigDiscovery`, `enableFileHooks`, and `enableSkills` (44 of 44). A new block
-pins the hook input in that runtime and Copilot CLI 1.0.96: `tool_input.skill` names the Skill, not its file or body; `view`, `edit`,
-`create` arrive as `Read`, `Edit`, `Write` with `tool_input.path` as written; a `matcher` filters an entry. The owner declined both
-collectors (Skill use: no body SHA-256; changed files: shell edits invisible, VS Code Local unverified). Report: Desktop
-`CopilotAtelier-handoffs/reports/05-*`.
+**Brief 04, the adapter smoke check (2026-11-12), is done on `ai/adapter-runtime-smoke`** (not pushed). Cases C1 to C3 of
+`docs/client-adapter-evals.md` ran offline: the composed `software-engineer` variant on the WinGet Copilot CLI 1.0.96 and the source
+profile on the runtime 1.0.108-0 that VS Code 1.146.0 bundles. C2 passed on both, C3 on the variant; C1 failed on both on a load
+warning (`target` on the CLI; `argument-hint`, `agents`, `handoffs` on the agent host). The contract commits each run as a receipt
+bound to the file's SHA-256, and `Get-CopilotAtelierClientAdapter` reports `RuntimeVerified` only for those passed cases at that
+version, falling back to `StructurallyChecked` after any edit (new output: `ArtifactSha256`, `VerifiedCase`, `RuntimeReceipt`,
+`RuntimeReceiptStatus`). The lost `../CopilotAtelier-Task-Prompts/` was restored from chat 33534cca's log. Report: Desktop `reports/04-*`.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
@@ -45,6 +45,9 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
 
 ## Previous focuses
 
+- **Brief 05, the hook input probe (2026-11-12).** Merged as #56 (`548a162`): the push guard fires in agent-host chats on runtime
+  1.0.108-0; the SDK fixtures pass `enableConfigDiscovery`, `enableFileHooks`, and `enableSkills`; the hook input of `skill`, `view`,
+  `edit`, and `create` is pinned for that runtime and CLI 1.0.96. The owner declined both collectors.
 - **Brief 10, GitHub issue #49 (2026-11-11).** Merged as #54 (`a3167d8`, `6.1.0-preview0026`) and released as the stable `v6.1.0`
   on the same commit (GitHub and the Gallery, 19:56 UTC): `Update-CopilotAtelier -AllowPrerelease`, versions compared with their
   prerelease labels in Windows PowerShell 5.1 and 7, and a warning for a Canonical target that is a git working tree. The changelog
@@ -57,9 +60,6 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
   hashed to `dd415737…2415` on 2026-11-09; a containment profile elsewhere pins that digest.
 - **The agents' models (2026-11-09).** Opus 5.5 and Sonnet 5.5 on `main` (`ea19ba4`, `6.1.0-preview0022`;
   Decision record 0029); the Skill index on `main` (`661c30a`); the R-04 closing test passed.
-- **Prompts 04 to 06b and 05c (2026-10-09 to 2026-10-11).** The criterion 21 eval chain:
-  Amendments 5 to 7, one fresh run (83.3 % at both Positions), and the record-only
-  ruling that criterion 21 ships as not met (`progress.md`; the Decision's Confirmation).
 - **Decision 0028, steps 7.1 to 7.5 (2026-10-06 to 2026-10-08).** The design
   (`b568c8c`, signed off after 26 questions), Amendments 1 to 4 (A1 to A19), the
   A12 backstop (`23a861a`), the hash-pinned frozen reference (`30fb3229…9c79`,
@@ -103,6 +103,8 @@ Earlier route-selection and trigger-query sets remain unmeasured. ShellPilot's
 
 ## Open findings
 
+- **Minor (2026-11-12):** adapter case C1 fails on both runtimes on an ignored-field warning; dropping `target` from the CLI variant, or
+  a C1 that tolerates documented ignored fields, is the owner's decision. The CLI `/agent` list and the agent host stay unverified.
 - **Medium (2026-11-12):** VS Code Local chats are not probed for the hook input of Skill and file tools: their tool names, payload,
   and `matcher` handling are unverified (Copilot Chat 0.74.0 shows no matcher handling near its hook code).
 - **High:** `software-engineer-contoso` claims no egress while retaining an
@@ -157,13 +159,11 @@ unproven — train reached 100 % while validation fell.
    controller agent (the security lint names the rule `ObsoleteRemoteOverride`).
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
-3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with
-   `00-README.md`): brief 05 waits on the owner to push and merge `ai/hook-payload-probe`; brief 10 leaves
-   confirming that CI run 43122012334 published nothing and closing #49; from brief 03, delete
-   any leftover `extracted\all-cookies.json` and sign in to Reddit once for the live `reddit-read` check;
-   then the P5 follow-ups (`docs/SECURITY-REVIEW.md`: S-20, the escape set of `WritableRoots`, S-19, the
-   run id of `-Revalidate`, a CI retry for the Gallery bootstrap) and more. The
-   `ai/travel-photo-diary-skill` branch exists only on the other machine.
+3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): brief 04 waits on the owner
+   to push and merge `ai/adapter-runtime-smoke` (`review: on` recommended: it changes the command's output); closing #49; from
+   brief 03, delete any leftover `extracted\all-cookies.json` and sign in to Reddit once for the live `reddit-read` check; then
+   the P5 follow-ups (`docs/SECURITY-REVIEW.md`: S-20, the escape set of `WritableRoots`, S-19, the run id of `-Revalidate`, a CI
+   retry for the Gallery bootstrap) and more. `ai/travel-photo-diary-skill` exists only on the other machine.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.

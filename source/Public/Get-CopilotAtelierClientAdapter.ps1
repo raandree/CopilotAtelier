@@ -28,6 +28,20 @@ function Get-CopilotAtelierClientAdapter
             the workflow modes this client cannot honour. The shared body itself
             is byte for byte the authoritative one.
 
+            Every result reports ArtifactSha256, the SHA-256 of the returned
+            content's UTF-8 bytes. For a composed variant that is the hash of
+            the file the build writes; for the authoritative client it is the
+            hash of the profile itself, whose lines end in LF. The client
+            contract commits a runtime receipt per adapted agent: the cases
+            that ran against one exact file, that file's SHA-256, the runtime
+            and its version, the date, and each outcome. While ArtifactSha256
+            matches the receipt, the result reports RuntimeVerified at that
+            runtime version for the cases the receipt records as passed, listed
+            in VerifiedCase, and RuntimeReceiptStatus is Bound. Once the file
+            changes, the receipt is Stale, and the result falls back to
+            StructurallyChecked with no version, no verified case, and no
+            receipt.
+
             The command reads files only. It does not contact the network, write
             anything, install a variant, or invoke a model, so it is safe to use
             as an offline smoke check of the compatibility mapping. The composed
@@ -71,6 +85,12 @@ function Get-CopilotAtelierClientAdapter
 
             Lists what the Copilot CLI variant of the representative profile
             cannot do, and why.
+
+        .EXAMPLE
+            Get-CopilotAtelierClientAdapter -Name software-engineer | Format-List Client, VerificationState, VerifiedClientVersion, VerifiedCase, RuntimeReceiptStatus
+
+            Shows, per client, how far the committed runtime receipt reaches for
+            the profile as it is on disk now.
 
         .LINK
             https://github.com/raandree/CopilotAtelier
@@ -171,14 +191,32 @@ function Get-CopilotAtelierClientAdapter
             $composed = ConvertTo-CopilotAtelierClientAgent -Path $sourcePath -Client $currentClient `
                 -RequiredCapability $adapted.RequiredCapability -RequiredWorkflow $workflow
 
+            $hashProvider = [System.Security.Cryptography.SHA256]::Create()
+
+            try
+            {
+                $artifactSha256 = [System.BitConverter]::ToString(
+                    $hashProvider.ComputeHash([System.Text.UTF8Encoding]::new($false).GetBytes($composed.Content))).Replace('-', '').ToLowerInvariant()
+            }
+            finally
+            {
+                $hashProvider.Dispose()
+            }
+
+            $verification = Resolve-CopilotAtelierClientVerification -ClientContract $clientContract `
+                -Name $currentName -ArtifactSha256 $artifactSha256
+
             [pscustomobject] @{
                 Name                     = $currentName
                 Client                   = $currentClient
                 ClientDisplayName        = $clientContract.DisplayName
                 IsAdapted                = $true
                 IsAuthoritativeSource    = $clientContract.IsAuthoritativeSource
-                VerificationState        = $clientContract.VerificationState
-                VerifiedClientVersion    = $clientContract.VerifiedClientVersion
+                VerificationState        = $verification.VerificationState
+                VerifiedClientVersion    = $verification.VerifiedClientVersion
+                VerifiedCase             = @($verification.VerifiedCase)
+                RuntimeReceipt           = $verification.RuntimeReceipt
+                RuntimeReceiptStatus     = $verification.RuntimeReceiptStatus
                 SourceProfileObservation = $clientContract.SourceProfileObservation
                 DocumentationUri         = $clientContract.DocumentationUri
                 RequiredCapability       = @($adapted.RequiredCapability)
@@ -190,6 +228,7 @@ function Get-CopilotAtelierClientAdapter
                 Body                     = $composed.Body
                 SharedBodyHash           = $composed.SharedBodyHash
                 Content                  = $composed.Content
+                ArtifactSha256           = $artifactSha256
                 Tool                     = @($composed.Tool)
                 WithheldTool             = @($composed.WithheldTool)
                 UnsupportedCapability    = @($composed.UnsupportedCapability)

@@ -78,6 +78,7 @@ task Build_Client_Adapter_Variants {
             'Private/Get-CopilotAtelierReparseTag.ps1'
             'Private/Assert-CopilotAtelierRegularPath.ps1'
             'Private/Get-CopilotAtelierClientContract.ps1'
+            'Private/Resolve-CopilotAtelierClientVerification.ps1'
             'Private/Get-CopilotAtelierDirectoryMap.ps1'
             'Private/ConvertFrom-CopilotAtelierAgentFrontmatter.ps1'
             'Private/ConvertTo-CopilotAtelierAgentFrontmatter.ps1'
