@@ -54,12 +54,28 @@ function Get-CopilotAtelierSkillHealth
             present there, the enumerated hook events are SessionStart,
             UserPromptSubmit, PreToolUse, PostToolUse, PreCompact, SubagentStart,
             SubagentStop, and Stop, and each one is verified against that
-            Instruction rather than asserted. None of them reports that a Skill
-            was selected, loaded, or executed, so no reliable Skill-activation
-            contract is verified for this implementation. Another client, or a
-            newer version of this one, may expose a contract this check cannot
-            see; the report states the verification state rather than claiming a
-            universal fact. Consequently no automatic collection exists and
+            Instruction rather than asserted. None of them is documented there
+            to report that a Skill was selected, loaded, or executed, so no
+            reliable Skill-activation contract is verified for this
+            implementation. Another client, or a newer version of this one,
+            may expose a contract this check cannot see; the report states the
+            verification state rather than claiming a universal fact.
+
+            Outside that scope, real runtimes were probed offline on 2026-11-12,
+            on Windows, with a scripted model: the Copilot SDK runtime that VS
+            Code bundles (runtime 1.0.108-0, SDK 1.0.30-preview.0) and Copilot
+            CLI 1.0.96. In both, a PascalCase PreToolUse or PostToolUse hook
+            receives a call of the skill tool as tool_name skill with the Skill
+            name in tool_input.skill; a failed call runs PostToolUseFailure with
+            an error instead of PostToolUse; and a read of a SKILL.md arrives as
+            a separate Read call carrying the path the model wrote. The input
+            names neither the Skill's file nor its body, so it cannot supply the
+            SHA-256 that every observation record must carry, and a collector
+            would have to guess which Skill directory was loaded. VS Code Local
+            chats, other versions, and other clients stay unverified, and no
+            collector is built on these facts.
+
+            Consequently no automatic collection exists, and
             capture is disabled by default. Usage evidence therefore reaches the
             report only through ObservationPath, every record is reported as
             Imported rather than observed, and a document that claims observed

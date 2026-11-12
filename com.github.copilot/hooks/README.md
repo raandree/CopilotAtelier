@@ -1127,6 +1127,40 @@ Observed with VS Code 1.141.0 and Copilot CLI 1.0.92 on 2026-10-08:
   clock's `turns` does not count it. Copilot CLI ran PreCompact with
   `trigger: manual`; VS Code Local did not, as scoped above.
 
+#### Tool-call input for Skill and file tools
+
+Probed offline on Windows on 2026-11-12, with a scripted model calling the
+runtimes' own tools, in the Copilot SDK runtime that VS Code bundles (runtime
+1.0.108-0, SDK 1.0.30-preview.0) and in Copilot CLI 1.0.96. Both delivered the
+same input to PascalCase hooks in `~/.copilot/hooks/*.json`, and
+`tests/HookSdkRuntime.Tests.ps1` pins it. VS Code Local chats, other versions,
+other clients, and camelCase events were not probed.
+
+| The model calls | `tool_name` | Names the Skill or file | A failed call |
+|---|---|---|---|
+| `skill` | `skill` | `tool_input.skill`, the name only | `PostToolUseFailure`, `error`: `Skill not found: <name>` |
+| `view` | `Read` | `tool_input.path` | `PostToolUseFailure`, `error`: `Path does not exist` |
+| `edit` | `Edit` | `tool_input.path`, beside `old_str` and `new_str` | `PostToolUseFailure`, `error`: `No match found` |
+| `create` | `Write` | `tool_input.path`, beside `file_text` | `PostToolUseFailure`, `error`: `Path already exists` |
+
+- Every input carries `hook_event_name`, `session_id`, `timestamp` (ISO 8601,
+  UTC), `cwd`, `tool_name`, and `tool_input`, the model's arguments unchanged.
+  The bundled runtime adds `tool_use_id`, the model's call id; Copilot CLI
+  1.0.96 sends none.
+- `tool_input.path` is what the model wrote: an absolute path stays absolute,
+  and a relative one stays relative although the tool resolves it against
+  `cwd`.
+- `PostToolUse` runs only for a successful call and adds `tool_result` with
+  `result_type` and `text_result_for_llm`. A failed call runs
+  `PostToolUseFailure` instead, with an `error` text and no `tool_result`.
+- A `skill` call activates the Skill, and its result only says that the Skill
+  loaded: it names neither the Skill's file nor its body. A `Read` of that
+  `SKILL.md` is a separate call whose `text_result_for_llm` carries the whole
+  body.
+- A `matcher` such as `Edit|Write` on a hook entry limits it to those calls in
+  both runtimes. The hook code of VS Code Local's Copilot Chat 0.74.0 shows no
+  matcher handling; that was read, not tested.
+
 #### Inspecting host versions and hook-written files
 
 In the VS Code 1.141.0 observation, Copilot Chat ships inside VS Code at
@@ -1144,6 +1178,14 @@ the hook's atomic replace. Never write the file to inspect or repair evidence.
 - **Hook never fires.** Confirm `hooks.json` is present under
   `~/.copilot/hooks` and that the link resolves. Re-run
   [`Setup-CopilotSettings.ps1`](../../Setup-CopilotSettings.ps1).
+- **A host built on the Copilot SDK runs none of the hooks in
+  `~/.copilot/hooks`.** In SDK 1.0.30-preview.0, which VS Code bundles since its
+  update of 2026-11-11, the runtime discovers that folder only for a session
+  created with `enableConfigDiscovery: true`; repository hooks under
+  `.github/hooks` follow `enableFileHooks`. VS Code's agent host sets both for a
+  local workspace, so its chats still run the hooks; a script that creates its
+  own sessions, such as the fixtures of `tests/HookSdkRuntime.Tests.ps1`, has to
+  set them too.
 - **A workspace `.github/hooks/*.json` never fires.** `chat.hookFilesLocations`
   replaces the default location map rather than extending it. A settings value
   of `{ "~/.copilot/hooks": true }` therefore drops `.github/hooks`, and the

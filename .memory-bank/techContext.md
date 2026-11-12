@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-11
+last-verified: 2026-11-12
 owner: software-engineer
 source: build.yaml and source/
 ---
@@ -55,9 +55,6 @@ Customization directories listed in `build.yaml` into the built module at
 | `Get-CopilotAtelierClientAdapter` | Read-only report of how a Custom agent profile is composed per Copilot client, and what that client cannot do |
 | `Test-CopilotAtelier` | Read-only deployment, hash, link, hook, and settings diagnostics |
 | `Uninstall-CopilotAtelier` | Remove unchanged owned files; preserve personal content and configuration |
-
-Never hand-edit `ModuleVersion` in `source/CopilotAtelier.psd1`; GitVersion
-supplies it at build time.
 
 `Build_Client_Adapter_Variants` composes the client-specific Custom agent
 variants into `output/clientAdapters/<client>/` — outside the built module,
@@ -127,20 +124,14 @@ expose `~/.copilot/{agents,instructions,skills,prompts,hooks}`.
 | `github.copilot.chat.agent.maxRequests` | `500` | Support long agent workflows |
 | `gitlens.ai.vscode.model` | `copilot:claude-opus-5.5` | GitLens model |
 
-Setup removes the undocumented `github.copilot.advanced.model` key that earlier
-releases wrote; nothing ever consumed it.
-
 Custom agents declare `model` as a priority array. The last entry must be a GA model so a retirement degrades instead of breaking every agent,
 and every entry must be one the Copilot offers: the Copilot SDK host does not start an agent none of whose models is offered (Decision record 0029).
 
 ## Execution constraints
 
-Use the shared execution-safety Instruction: synchronous one-shot commands,
-detached Pester/build runs, temporary logs, and no foreground polling. A
-detached `*>&1 | Out-File` run loses a terminating error to standard error, so
-wrap an entry point such as `Setup-CopilotSettings.ps1` in `try`/`catch` that
-logs the error record. Never mutate a remote without an explicit current-turn
-request.
+Use the shared execution-safety Instruction. A detached `*>&1 | Out-File` run
+loses a terminating error to standard error, so wrap an entry point such as
+`Setup-CopilotSettings.ps1` in `try`/`catch` that logs the error record.
 
 ## Validation
 
@@ -163,6 +154,15 @@ request.
 - Pester 5.7.1 result serialization stores file/provider references as paths or
   labels to avoid `Export-Clixml` stalls. `Initialize_TestResultSerialization`
   restores caller type data through build-exit cleanup, including failures.
+- The hook harness's SDK sessions pass `enableConfigDiscovery`, `enableFileHooks`,
+  and `enableSkills`; without them SDK 1.0.30-preview.0 loads no user hooks.
+
+## Releases
+
+- The release run's `Create_ChangeLog_GitHub_PR` pushes `updateChangelogAfterv<version>`
+  before it opens the pull request, so after a failed pull request step (only
+  logged) open it from that branch; the rollover drops `CHANGELOG.md`'s final
+  newline (MD047), so restore it in a commit on the branch before merging.
 
 ## Sources of truth
 

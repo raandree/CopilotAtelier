@@ -55,9 +55,11 @@ BeforeDiscovery {
     # The bundled runtime always; a standalone Copilot CLI too when one is installed.
     $script:conversationRuntimes = @(@{ Runtime = 'the runtime that VS Code bundles'; RuntimePath = ''; PackageRoot = $script:sdkPackageRoot })
     if ($script:isWindowsPlatform) {
+        # VS Code puts its copilot launcher, bin\copilot-shim\copilot.exe, first on PATH; it
+        # hands over to an installed CLI, so the CLI itself is taken instead.
         $cliPath = @(
             Get-Command -Name 'copilot' -CommandType Application -ErrorAction SilentlyContinue |
-                Where-Object -FilterScript { $_.Source -like '*.exe' } |
+                Where-Object -FilterScript { $_.Source -like '*.exe' -and (Split-Path -Path (Split-Path -Path $_.Source -Parent) -Leaf) -ne 'copilot-shim' } |
                 Select-Object -ExpandProperty Source
             if ($env:LOCALAPPDATA) {
                 Get-ChildItem -Path (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Microsoft\WinGet\Packages\GitHub.Copilot_*\copilot.exe') -ErrorAction SilentlyContinue |
@@ -865,5 +867,209 @@ Describe 'Remote grant in <Runtime>' -Tag 'Integration' -Skip:(-not ($script:run
 
         $text | Should -Match 'Denied by preToolUse hook: Blocked by Copilot Atelier: this command mutates a GitHub remote resource'
         $text | Should -Not -Match 'probe tool result'
+    }
+}
+
+<#
+    What PreToolUse, PostToolUse, and PostToolUseFailure receive when the model
+    loads a Skill, reads its SKILL.md, and edits or creates files. The fake model
+    calls the runtime's own skill, view, edit, and create tools, which run for
+    real against a Skill staged under the scratch home and files in the scratch
+    workspace, and probe hooks log every input. A PascalCase hook sees the file
+    tools under other names than the model does: view as Read, edit as Edit,
+    create as Write. A skill call and a Read of SKILL.md stay apart: only the
+    skill call activates the Skill. A second PostToolUse entry with a matcher
+    shows which calls such a filter lets through.
+#>
+Describe 'Hook input for Skill and file tools in <Runtime>' -Tag 'Integration' -Skip:(-not ($script:runtimeAvailable -and $script:pwshAvailable)) -ForEach $script:conversationRuntimes {
+    BeforeAll {
+        $utf8 = [Text.UTF8Encoding]::new($false)
+        $runRoot = Join-Path -Path $TestDrive -ChildPath ([guid]::NewGuid().ToString('N'))
+        $copilotHome = Join-Path -Path $runRoot -ChildPath 'copilot-home'
+        $hookDirectory = Join-Path -Path $copilotHome -ChildPath 'hooks'
+        $script:skillName = 'hook-probe-skill'
+        $skillDirectory = Join-Path -Path $copilotHome -ChildPath "skills\$script:skillName"
+        $script:workspace = Join-Path -Path $runRoot -ChildPath 'workspace'
+        $script:logDirectory = Join-Path -Path $runRoot -ChildPath 'hook-log'
+        $null = New-Item -ItemType Directory -Path $hookDirectory, $skillDirectory, $script:workspace, $script:logDirectory -Force
+
+        $script:skillFile = Join-Path -Path $skillDirectory -ChildPath 'SKILL.md'
+        [IO.File]::WriteAllText($script:skillFile, "---`nname: $script:skillName`ndescription: Probe Skill for the hook input harness.`n---`n`n# Hook probe Skill`n`nSKILL-BODY-MARKER`n", $utf8)
+        $script:editedFile = Join-Path -Path $script:workspace -ChildPath 'edited.md'
+        $script:createdFile = Join-Path -Path $script:workspace -ChildPath 'created.md'
+        $script:missingFile = Join-Path -Path $script:workspace -ChildPath 'missing.md'
+        [IO.File]::WriteAllText($script:editedFile, "alpha`n", $utf8)
+
+        $probeHook = Join-Path -Path $runRoot -ChildPath 'probe-hook.ps1'
+        [IO.File]::WriteAllText($probeHook, @'
+param([string]$Name, [string]$LogDirectory)
+$payload = [Console]::In.ReadToEnd()
+$file = '{0}-{1:yyyyMMddHHmmssfffffff}-{2}.json' -f $Name, [datetime]::UtcNow, [guid]::NewGuid().ToString('N')
+[IO.File]::WriteAllText((Join-Path -Path $LogDirectory -ChildPath $file), $payload)
+exit 0
+'@, $utf8)
+
+        function New-ProbeHookEntry ([string] $Name, [string] $Matcher) {
+            $line = 'pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -Name {1} -LogDirectory "{2}"' -f $probeHook, $Name, $script:logDirectory
+            $entry = [ordered]@{ type = 'command'; timeout = 20; command = $line; powershell = $line }
+            if ($Matcher) {
+                $entry['matcher'] = $Matcher
+            }
+
+            $entry
+        }
+
+        $probeHooks = [ordered]@{
+            PreToolUse         = @(New-ProbeHookEntry -Name 'PRE')
+            PostToolUse        = @((New-ProbeHookEntry -Name 'POST'), (New-ProbeHookEntry -Name 'EDITS' -Matcher 'Edit|Write'))
+            PostToolUseFailure = @(New-ProbeHookEntry -Name 'FAIL')
+        }
+        [IO.File]::WriteAllText((Join-Path -Path $hookDirectory -ChildPath 'hooks.json'), (@{ hooks = $probeHooks } | ConvertTo-Json -Depth 6), $utf8)
+
+        $toolCalls = @(
+            @{ name = 'skill'; arguments = @{ skill = $script:skillName } }
+            @{ name = 'view'; arguments = @{ path = $script:skillFile } }
+            @{ name = 'view'; arguments = @{ path = $script:editedFile } }
+            @{ name = 'edit'; arguments = @{ path = $script:editedFile; old_str = 'alpha'; new_str = 'beta' } }
+            @{ name = 'create'; arguments = @{ path = $script:createdFile; file_text = "created`n" } }
+            @{ name = 'skill'; arguments = @{ skill = 'no-such-skill' } }
+            @{ name = 'view'; arguments = @{ path = $script:missingFile } }
+            @{ name = 'edit'; arguments = @{ path = $script:editedFile; old_str = 'not in the file'; new_str = 'gamma' } }
+            @{ name = 'create'; arguments = @{ path = $script:createdFile; file_text = "again`n" } }
+            @{ name = 'view'; arguments = @{ path = 'edited.md' } }
+        )
+        $steps = @(
+            @{ op = 'newSession'; availableTools = @('skill', 'view', 'edit', 'create') }
+            @{ op = 'send'; prompt = 'turn P1'; toolCalls = $toolCalls }
+            @{ op = 'disconnect' }
+        )
+
+        $startInfo = [Diagnostics.ProcessStartInfo]::new((Get-Command -Name 'node' -CommandType Application | Select-Object -First 1 -ExpandProperty Source))
+        foreach ($argument in @((Join-Path -Path $PSScriptRoot -ChildPath 'Fixtures\Invoke-CopilotSdkConversation.mjs'), $PackageRoot, $copilotHome, $script:workspace, $RuntimePath)) {
+            $startInfo.Arguments += ' "' + $argument + '"'
+        }
+
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.WorkingDirectory = $script:workspace
+        $startInfo.RedirectStandardInput = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+        $startInfo.StandardOutputEncoding = $utf8
+        $startInfo.StandardErrorEncoding = $utf8
+
+        $process = [Diagnostics.Process]::Start($startInfo)
+        try {
+            $outputTask = $process.StandardOutput.ReadToEndAsync()
+            $errorTask = $process.StandardError.ReadToEndAsync()
+            $inputBytes = $utf8.GetBytes((ConvertTo-Json -InputObject $steps -Depth 6 -Compress))
+            $process.StandardInput.BaseStream.Write($inputBytes, 0, $inputBytes.Length)
+            $process.StandardInput.Close()
+
+            # The fixture stops itself after 600 seconds; this only catches a stuck node.
+            if (-not $process.WaitForExit(660000)) {
+                $process.Kill()
+                throw 'Invoke-CopilotSdkConversation.mjs did not exit within 660 seconds.'
+            }
+
+            $process.WaitForExit()
+            if ($process.ExitCode -ne 0) {
+                throw ('Invoke-CopilotSdkConversation.mjs exited with {0}: {1}' -f $process.ExitCode, $errorTask.Result)
+            }
+
+            $script:probeConversation = $outputTask.Result | ConvertFrom-Json
+        } finally {
+            $process.Dispose()
+        }
+
+        Write-Information -MessageData ('{0} reported runtime version {1}' -f $Runtime, $script:probeConversation.runtimeVersion) -InformationAction Continue
+
+        function Get-ProbePayload ([string] $Name) {
+            Get-ChildItem -LiteralPath $script:logDirectory -Filter "$Name-*.json" | Sort-Object -Property Name | ForEach-Object -Process {
+                Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            }
+        }
+
+        function Find-ProbePayload ([string] $Name, [string] $Tool, [string] $Field, [string] $Value) {
+            @(Get-ProbePayload -Name $Name | Where-Object -FilterScript { $_.tool_name -eq $Tool -and [string]$_.tool_input.$Field -eq $Value })
+        }
+    }
+
+    It 'names the Skill of a skill call in tool_input.skill, before and after it runs' {
+        @(Find-ProbePayload -Name 'PRE' -Tool 'skill' -Field 'skill' -Value $script:skillName).Count | Should -Be 1
+        @(Find-ProbePayload -Name 'POST' -Tool 'skill' -Field 'skill' -Value $script:skillName).Count | Should -Be 1
+    }
+
+    It 'reports a view of SKILL.md as a Read of that path, not as a skill call' {
+        $read = @(Find-ProbePayload -Name 'POST' -Tool 'Read' -Field 'path' -Value $script:skillFile)
+
+        $read.Count | Should -Be 1
+        $read[0].tool_input.path | Should -BeExactly $script:skillFile
+        @(Get-ProbePayload -Name 'POST' | Where-Object -Property tool_name -EQ -Value 'skill').Count | Should -Be 1 -Because 'only the skill call activates the Skill'
+    }
+
+    It 'carries the Skill body in the result of the Read, not in the result of the skill call' {
+        $read = @(Find-ProbePayload -Name 'POST' -Tool 'Read' -Field 'path' -Value $script:skillFile)[0]
+        $activation = @(Find-ProbePayload -Name 'POST' -Tool 'skill' -Field 'skill' -Value $script:skillName)[0]
+
+        $read.tool_result.text_result_for_llm | Should -Match 'SKILL-BODY-MARKER'
+        $activation.tool_result.result_type | Should -BeExactly 'success'
+        $activation.tool_result.text_result_for_llm | Should -Not -Match 'SKILL-BODY-MARKER'
+    }
+
+    It 'names the edited file in tool_input.path of an Edit, before and after the edit' {
+        @(Find-ProbePayload -Name 'PRE' -Tool 'Edit' -Field 'path' -Value $script:editedFile).Count | Should -Be 2
+        @(Find-ProbePayload -Name 'POST' -Tool 'Edit' -Field 'path' -Value $script:editedFile).Count | Should -Be 1
+    }
+
+    It 'names the created file in tool_input.path of a Write, before and after the create' {
+        @(Find-ProbePayload -Name 'PRE' -Tool 'Write' -Field 'path' -Value $script:createdFile).Count | Should -Be 2
+        @(Find-ProbePayload -Name 'POST' -Tool 'Write' -Field 'path' -Value $script:createdFile).Count | Should -Be 1
+    }
+
+    It 'runs PostToolUseFailure with an error and no result instead of PostToolUse for a failed call' {
+        $failures = @(
+            Find-ProbePayload -Name 'FAIL' -Tool 'skill' -Field 'skill' -Value 'no-such-skill'
+            Find-ProbePayload -Name 'FAIL' -Tool 'Read' -Field 'path' -Value $script:missingFile
+            Find-ProbePayload -Name 'FAIL' -Tool 'Edit' -Field 'path' -Value $script:editedFile
+            Find-ProbePayload -Name 'FAIL' -Tool 'Write' -Field 'path' -Value $script:createdFile
+        )
+
+        $failures.Count | Should -Be 4
+        @(Get-ProbePayload -Name 'FAIL').Count | Should -Be 4
+        foreach ($failure in $failures) {
+            $failure.error | Should -Not -BeNullOrEmpty
+            $failure.PSObject.Properties.Name | Should -Not -Contain 'tool_result'
+        }
+        @(Find-ProbePayload -Name 'POST' -Tool 'skill' -Field 'skill' -Value 'no-such-skill').Count | Should -Be 0
+        @(Find-ProbePayload -Name 'POST' -Tool 'Read' -Field 'path' -Value $script:missingFile).Count | Should -Be 0
+    }
+
+    It 'passes a relative path on as the model wrote it' {
+        @(Find-ProbePayload -Name 'PRE' -Tool 'Read' -Field 'path' -Value 'edited.md').Count | Should -Be 1
+        @(Find-ProbePayload -Name 'POST' -Tool 'Read' -Field 'path' -Value 'edited.md').Count | Should -Be 1
+    }
+
+    It 'runs a PostToolUse entry with the matcher Edit|Write only for the successful Edit and Write' {
+        @(Get-ProbePayload -Name 'EDITS' | ForEach-Object -Process { $_.tool_name }) | Should -Be @('Edit', 'Write')
+    }
+
+    It 'names the event and gives every input the session id and the workspace as cwd' {
+        $sessionId = @($script:probeConversation.steps | Where-Object -Property op -EQ -Value 'newSession')[0].sessionId
+        $payloads = @{
+            PreToolUse         = @(Get-ProbePayload -Name 'PRE')
+            PostToolUse        = @(Get-ProbePayload -Name 'POST')
+            PostToolUseFailure = @(Get-ProbePayload -Name 'FAIL')
+        }
+
+        $payloads.PreToolUse.Count | Should -Be 10
+        ($payloads.PostToolUse.Count + $payloads.PostToolUseFailure.Count) | Should -Be 10
+        foreach ($eventName in $payloads.Keys) {
+            foreach ($payload in $payloads[$eventName]) {
+                $payload.hook_event_name | Should -BeExactly $eventName
+                $payload.session_id | Should -BeExactly $sessionId
+                $payload.cwd | Should -BeExactly $script:workspace
+            }
+        }
     }
 }

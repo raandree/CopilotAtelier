@@ -7,13 +7,18 @@
 // The runtime gets its own COPILOT_HOME, so it loads only the hooks staged under
 // <copilot home>/hooks and the workspace; the user's hooks and sessions stay out.
 // Each session offers one tool, probe_tool, which always succeeds, so the
-// runtime's postToolUse pipeline runs on every call the fake model makes.
+// runtime's postToolUse pipeline runs on every call the fake model makes. A
+// session can offer the runtime's built-in tools instead, which then run for
+// real, for example against files in the workspace.
 //
 // Usage: node Invoke-CopilotSdkConversation.mjs <sdk package root> <copilot home> <workspace> [runtime path]
 // The optional runtime path replaces the bundled copilot-runtime, for example
 // with a standalone Copilot CLI binary, which the SDK starts the same way.
 // Standard input: a JSON array of steps, run in order:
 //   { "op": "newSession" }                         starts a session; later steps use it
+//   { "op": "newSession", "availableTools": [ "view", ... ] }
+//                                                  starts a session that offers these
+//                                                  tools instead of probe_tool alone
 //   { "op": "send", "prompt": "..." }              one user turn; the fake model calls
 //                                                  probe_tool once, then answers in text
 //   { "op": "send", "prompt": "...", "noTool": true }
@@ -23,11 +28,15 @@
 //                                                  one user turn whose probe_tool call
 //                                                  carries these arguments, for example
 //                                                  a command a PreToolUse hook inspects
+//   { "op": "send", "prompt": "...", "toolCalls": [ { "name": "view", "arguments": { ... } }, ... ] }
+//                                                  one user turn in which the fake model
+//                                                  makes these calls in order, one per
+//                                                  request, then answers in text
 //   { "op": "compact" }                            history.compact with trigger manual
 //   { "op": "writeFile", "path": "...", "content": "..." }
 //   { "op": "removeFile", "path": "..." }
 //   { "op": "disconnect" }
-// Standard output: one JSON object { requests, events, steps }.
+// Standard output: one JSON object { runtimeVersion, requests, events, steps }.
 
 import { createServer } from 'node:http';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -53,6 +62,7 @@ let currentStep = -1;
 let summaryMode = false;
 let toolCallsThisStep = 0;
 let currentToolArguments;
+let currentToolCalls;
 
 function textOf(content) {
     if (typeof content === 'string') {
@@ -67,6 +77,13 @@ function textOf(content) {
 function plan(body) {
     if (summaryMode) {
         return { text: '<overview>Probe summary of the conversation so far.</overview>' };
+    }
+    if (currentToolCalls) {
+        if (toolCallsThisStep < currentToolCalls.length) {
+            const call = currentToolCalls[toolCallsThisStep++];
+            return { toolCall: { id: `call_${currentStep}_${requests.length}`, name: call.name, arguments: JSON.stringify(call.arguments ?? {}) } };
+        }
+        return { text: `Probe reply ${requests.length}.` };
     }
     const toolNames = (body.tools ?? []).map((tool) => tool.function?.name ?? tool.name);
     if (toolNames.includes('probe_tool') && toolCallsThisStep === 0) {
@@ -173,12 +190,17 @@ const probeTool = {
 let exitCode = 0;
 let session;
 let sessionOrdinal = 0;
+let runtimeVersion;
 try {
+    // The version the runtime reports for itself; a standalone CLI can run a newer build than its file version.
+    await client.start();
+    runtimeVersion = (await client.getStatus()).version;
     for (const [index, step] of steps.entries()) {
         currentStep = index;
         // plan() calls probe_tool only while no call was made in this step.
         toolCallsThisStep = step.noTool ? 1 : 0;
         currentToolArguments = step.toolArguments;
+        currentToolCalls = step.toolCalls;
         const result = { step: index, op: step.op };
         switch (step.op) {
             case 'newSession': {
@@ -187,14 +209,20 @@ try {
                 session = await client.createSession({
                     workingDirectory: workspace,
                     onPermissionRequest: approveAll,
+                    // The runtime reads <copilot home>/hooks and skills only when a session asks:
+                    // SDK 1.0.30-preview.0 defaults enableConfigDiscovery to false. VS Code's agent
+                    // host passes these three flags for a local workspace, and so does this probe.
+                    enableConfigDiscovery: true,
+                    enableFileHooks: true,
+                    enableSkills: true,
                     model: 'gpt-4.1',
                     provider: { type: 'openai', wireApi: 'completions', baseUrl, apiKey: 'probe', modelId: 'gpt-4.1', wireModel: 'probe-model' },
                     tools: [probeTool],
-                    availableTools: ['probe_tool'],
+                    availableTools: step.availableTools ?? ['probe_tool'],
                     toolSearch: { enabled: false },
                 });
                 session.on((event) => {
-                    if (!/^(hook\.|session\.(compaction|warning|error|start))|^tool\.execution_complete$/.test(event.type)) {
+                    if (!/^(hook\.|session\.(compaction|warning|error|start))|^tool\.execution_(start|complete)$|^skill\.invoked$/.test(event.type)) {
                         return;
                     }
                     events.push({
@@ -210,6 +238,10 @@ try {
                         messagesRemoved: event.data?.messagesRemoved,
                         message: event.data?.message,
                         toolResult: event.type === 'tool.execution_complete' ? event.data?.result : undefined,
+                        toolCallId: event.data?.toolCallId,
+                        toolName: event.data?.toolName,
+                        arguments: event.type === 'tool.execution_start' ? event.data?.arguments : undefined,
+                        skillName: event.type === 'skill.invoked' ? event.data?.name : undefined,
                     });
                 });
                 result.sessionId = session.sessionId;
@@ -248,10 +280,10 @@ try {
         await new Promise((resolve) => setTimeout(resolve, 500));
         stepResults.push(result);
     }
-    process.stdout.write(JSON.stringify({ requests, events, steps: stepResults }));
+    process.stdout.write(JSON.stringify({ runtimeVersion, requests, events, steps: stepResults }));
 } catch (error) {
     console.error(error?.stack ?? String(error));
-    process.stdout.write(JSON.stringify({ requests, events, steps: stepResults, failure: String(error?.message ?? error) }));
+    process.stdout.write(JSON.stringify({ runtimeVersion, requests, events, steps: stepResults, failure: String(error?.message ?? error) }));
     exitCode = 1;
 } finally {
     if (session) {

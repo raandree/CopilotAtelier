@@ -208,7 +208,7 @@ function Measure-CopilotAtelierSkillHealth
         VerificationScope        = 'The deployed authoring Instruction and the shipped hook configuration under the inspected content root, at the version present there. No client was executed and no client API was queried.'
         SupportedClientEvent     = $supportedClientEvent
         SupportedCaptureClient   = @()
-        Gap                      = 'Within that scope there is no reliable Skill-activation contract verified for this implementation: none of the enumerated events reports that a Skill was selected, loaded, or executed. No automatic capture is implemented and none is enabled. Usage evidence can only come from explicitly imported observation records, and the absence of a record means unknown use rather than no use.'
+        Gap                      = 'Within that scope there is no reliable Skill-activation contract verified for this implementation: none of the enumerated events is documented there to report that a Skill was selected, loaded, or executed. No automatic capture is implemented and none is enabled. Usage evidence can only come from explicitly imported observation records, and the absence of a record means unknown use rather than no use.'
         Source                   = $telemetrySource
     }
 

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Say what a hook receives for a Skill load and a file edit, verified offline on Windows in the Copilot SDK runtime that VS Code bundles (1.0.108-0) and in Copilot CLI 1.0.96: a `PreToolUse` or `PostToolUse` hook sees a `skill` call with the Skill's name in `tool_input.skill` but neither its file nor its body, sees the file tools as `Read`, `Edit`, and `Write` with the path exactly as the model wrote it, and a failed call runs `PostToolUseFailure` instead. The help of `Get-CopilotAtelierSkillHealth`, the `changed-file-validation` Skill, and the [hooks README](com.github.copilot/hooks/README.md#tool-call-input-for-skill-and-file-tools) now carry this contract and what stays unverified, such as VS Code Local chats. No collector is added: Skill use still enters the report only through `-ObservationPath`, because every record needs the SHA-256 of the Skill body, and changed files are still collected by hand.
+
 ## [6.1.0] - 2026-11-11
 
 ### Added
