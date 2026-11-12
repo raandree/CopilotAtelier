@@ -2299,4 +2299,126 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $result.evidence | Should -Match 'exactly one PreToolUse'
         }
     }
+
+    # Review of 2026-10-16, V-05 and W-03, closed with S-20: four exception texts of this check and the two closure details of
+    # the interpreter reached the evidence as they came. An exception's text is localized .NET text that often carries a path,
+    # and the access check's reasons carry both, so each is cut to printable ASCII the way the texts about a wrapper are: an
+    # exception's text to the default of 200 characters, and the six closure details together to 1,000.
+    Context 'the texts the check takes from an exception or from the access check' {
+        BeforeAll {
+            # A carriage return and a line feed forge a line, an escape drives a terminal, an accent is the plain case of a
+            # localized text, and four tag characters spell a word a reader cannot see. Each becomes one question mark.
+            $script:hostileText = 'alpha' + [string][char]0x000D + [string][char]0x000A + 'beta' + [string][char]0x001B + '[31m' +
+                [string][char]0x00E9 + (-join @(0xE0050, 0xE0041, 0xE0053, 0xE0053 | ForEach-Object -Process { [char]::ConvertFromUtf32($_) }))
+            $script:hostileRelayed = 'alpha??beta?[31m?????'
+
+            $script:exceptionText = $script:hostileText + ('x' * 500)
+            $script:exceptionRelayed = $script:hostileRelayed + ('x' * (200 - $script:hostileRelayed.Length)) + '...'
+
+            # Six reasons of 3,000 characters each: the cap holds what they make together, so neither a cap on each reason
+            # nor the default of 200 gives this tail.
+            $script:closureReason = @($script:hostileText) + @(1..5 | ForEach-Object -Process { 'x' * 3000 })
+            $closureHead = $script:hostileRelayed + '; '
+            $script:closureRelayed = $closureHead + ('x' * (1000 - $closureHead.Length)) + '...'
+
+            function script:Get-UnprintableCount {
+                param(
+                    [Parameter(Mandatory)]
+                    [AllowEmptyString()]
+                    [string]$Text
+                )
+
+                @($Text.ToCharArray() | Where-Object -FilterScript { [int]$_ -lt 0x20 -or [int]$_ -gt 0x7E }).Count
+            }
+
+            function script:Get-TextTail {
+                param(
+                    [Parameter(Mandatory)]
+                    [string]$Text,
+
+                    [Parameter(Mandatory)]
+                    [int]$Length
+                )
+
+                $Text.Substring([Math]::Max(0, $Text.Length - $Length))
+            }
+        }
+
+        It 'cuts the reason a pinned hook control could not be read to printable ASCII and two hundred characters' {
+            # The read fails on the path, and .NET puts the path into its message. At the root of the drive the hostile
+            # characters come early in that message, and the long name makes the message longer than the cap.
+            $unreadable = [System.IO.Path]::GetPathRoot($TestDrive) + $script:hostileText + ('x' * 250) + '\hooks.json'
+
+            $result = Test-HookContract -HookConfigPath $unreadable -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be 'Unavailable'
+            Get-UnprintableCount -Text $result.evidence | Should -Be 0
+            $result.evidence | Should -Match ([regex]::Escape($script:hostileRelayed))
+            $result.evidence.StartsWith('could not read a pinned hook control: ', [System.StringComparison]::Ordinal) | Should -BeTrue
+            $result.evidence.Length | Should -Be ('could not read a pinned hook control: '.Length + 203) -Because 'the text of the exception is cut at 200 characters and the cut is marked'
+            $result.evidence | Should -Match '\.\.\.$'
+        }
+
+        It 'cuts the reason an interpreter could not be measured at all to printable ASCII and two hundred characters' {
+            Mock -CommandName Test-PathProtection -MockWith { throw $script:exceptionText }
+
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be 'Unavailable'
+            $result.evidence | Should -Match 'could not be measured, so the hook command was not run: '
+            Get-UnprintableCount -Text $result.evidence | Should -Be 0
+            Get-TextTail -Text $result.evidence -Length $script:exceptionRelayed.Length | Should -BeExactly $script:exceptionRelayed
+        }
+
+        It 'cuts the reasons of an interpreter that <Kind> to printable ASCII and, together, a thousand characters' -ForEach @(
+            @{ Kind = 'this identity can replace'; Replaceable = $true; Status = 'Fail' }
+            @{ Kind = 'could not be shown to be closed'; Replaceable = $false; Status = 'Unavailable' }
+        ) {
+            $script:asViolation = $Replaceable
+            Mock -CommandName Test-PathProtection -MockWith {
+                [pscustomobject]@{
+                    Path = $Path
+                    Closed = $false
+                    Absent = $false
+                    Violation = $(if ($script:asViolation) { $script:closureReason } else { @() })
+                    Unmeasured = $(if ($script:asViolation) { @() } else { $script:closureReason })
+                }
+            }
+
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be $Status
+            $result.evidence | Should -Match '^the interpreter '
+            Get-UnprintableCount -Text $result.evidence | Should -Be 0
+            Get-TextTail -Text $result.evidence -Length $script:closureRelayed.Length | Should -BeExactly $script:closureRelayed
+        }
+
+        It 'cuts the reason the resolution probe could not run to printable ASCII and two hundred characters' {
+            Mock -CommandName Invoke-HookPayload -MockWith { throw $script:exceptionText }
+
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be 'Unavailable'
+            $result.evidence | Should -Match '^could not run the resolution probe: '
+            Get-UnprintableCount -Text $result.evidence | Should -Be 0
+            Get-TextTail -Text $result.evidence -Length $script:exceptionRelayed.Length | Should -BeExactly $script:exceptionRelayed
+        }
+
+        It 'cuts the reason a payload could not run to printable ASCII and two hundred characters' {
+            # The resolution probe and the safe payload run for real; the push payload is the one that cannot be run.
+            Mock -CommandName Invoke-HookPayload -ParameterFilter { $Payload -like '*git push*' } -MockWith { throw $script:exceptionText }
+
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be 'Unavailable'
+            $result.evidence | Should -Match '^could not run the push payload: '
+            Get-UnprintableCount -Text $result.evidence | Should -Be 0
+            Get-TextTail -Text $result.evidence -Length $script:exceptionRelayed.Length | Should -BeExactly $script:exceptionRelayed
+        }
+    }
 }

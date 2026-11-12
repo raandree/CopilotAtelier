@@ -1,7 +1,9 @@
-# Evaluated during discovery so -Skip: can see it; a BeforeAll runs too late.
-# Never name this $isWindows: PowerShell variable names are case-insensitive, so
-# it would collide with the read-only automatic $IsWindows and abort the file.
-$script:onWindows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
+BeforeDiscovery {
+    # Evaluated during discovery so -Skip: can see it; a BeforeAll runs too late.
+    # Never name this $isWindows: PowerShell variable names are case-insensitive, so
+    # it would collide with the read-only automatic $IsWindows and abort the file.
+    $script:onWindows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
+}
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
@@ -1567,6 +1569,71 @@ Describe 'Ledger appender channel' -Tag 'Unit' {
             Should -BeTrue -Because 'the pipe owner is the creator, so a third-party identity can be granted access'
         $script:appender.HasExited | Should -BeFalse
     }
+
+    # S-20: the replay case above needs a pipe, so it runs on Windows only. The check that refuses
+    # it reads files and rebuilds a digest, so it also runs in-process here on every system.
+    Context 'the acknowledgement check as a function, on every system' {
+        BeforeAll {
+            . (Join-Path $script:repoRoot 'tests/Helpers/ScriptFunction.ps1')
+            . (Get-ScriptFunctionDefinition -Path $script:appenderScript -Name @(
+                    'Test-OrdinalEqual'
+                    'Test-UtcInstant'
+                    'ConvertFrom-JsonText'
+                    'ConvertTo-JsonStringLiteral'
+                    'ConvertTo-CanonicalNumber'
+                    'Get-CanonicalMember'
+                    'Join-CanonicalMember'
+                    'ConvertTo-CanonicalJson'
+                    'Get-Sha256Hex'
+                    'New-StoredRecord'
+                    'Read-StoredRecord'
+                    'Read-FileByte'
+                    'Read-SinkLine'
+                    'Read-ChainState'
+                    'Read-ChainHeadState'
+                    'Test-Acknowledgement'
+                ))
+        }
+
+        BeforeEach {
+            # One record, written by hand and not by the appender, so the check is held to the
+            # bytes of the stored schema and not to its own way of writing them.
+            $stored = New-ForgedLine -Member @(
+                '"data":{"note":"test"}'
+                '"prevSha256":"' + ('0' * 64) + '"'
+                '"runId":"run-0001"'
+                '"sequence":1'
+                '"type":"Baseline"'
+                '"utc":"2026-09-02T22:00:00Z"'
+            )
+            Set-SinkLine -SinkPath $script:sinkPath -Line @($stored.Line)
+            Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 $stored.Digest
+            $script:storedDigest = $stored.Digest
+        }
+
+        It 'accepts the acknowledgement of the record that was sent' {
+            $sent = ConvertFrom-JsonText -Text (New-TestRecordJson -Type 'Baseline')
+
+            try {
+                Test-Acknowledgement -Sequence 1 -RecordSha256 $script:storedDigest -Record $sent.RootElement `
+                    -Path $script:sinkPath -HeadPath $script:headPath | Should -BeExactly ''
+            } finally {
+                $sent.Dispose()
+            }
+        }
+
+        It 'refuses an acknowledgement that replays a record the client did not send' {
+            # Every field of the answer is true of the ledger, and nothing of what was sent is in it.
+            $sent = ConvertFrom-JsonText -Text (New-TestRecordJson -Type 'Second')
+
+            try {
+                Test-Acknowledgement -Sequence 1 -RecordSha256 $script:storedDigest -Record $sent.RootElement `
+                    -Path $script:sinkPath -HeadPath $script:headPath | Should -Match 'does not hold the record that was sent'
+            } finally {
+                $sent.Dispose()
+            }
+        }
+    }
 }
 
 Describe 'Ledger appender bound validation' -Tag 'Unit' {
@@ -1844,6 +1911,14 @@ Describe 'Ledger appender ordinal grammar' -Tag 'Unit' {
             @{ Name = 'with nine fractional digits'; Utc = '2026-09-02T22:00:00.123456789Z' }
             @{ Name = 'on a leap day'; Utc = '2024-02-29T00:00:00Z' }
         )
+
+        # The names the cases below imitate, split where the zero-width space goes. The rows stay
+        # ASCII; the space is added in the test body.
+        $script:imitatedName = @(
+            @{ Name = 'type'; Head = 'ty'; Tail = 'pe' }
+            @{ Name = 'Seal'; Head = 'Seal'; Tail = '' }
+            @{ Name = 'operation'; Head = 'oper'; Tail = 'ation' }
+        )
     }
 
     BeforeEach {
@@ -1971,6 +2046,47 @@ Describe 'Ledger appender ordinal grammar' -Tag 'Unit' {
         $result.ExitCode | Should -Be 2
         $result.StandardOutput.Trim() | Should -BeExactly ''
         $result.StandardError | Should -Match 'hexadecimal' -Because 'a digest that is not 64 hexadecimal characters is a format refusal, not a mismatch'
+    }
+
+    # S-20: every case above drives the service over a pipe, which only Windows has. The two
+    # functions the S-04 fix added are plain .NET, so they also run in-process here on every
+    # system; the S-05 check runs the same way under 'Ledger appender channel'.
+    Context 'as functions, on every system' {
+        BeforeAll {
+            . (Join-Path $script:repoRoot 'tests/Helpers/ScriptFunction.ps1')
+            . (Get-ScriptFunctionDefinition -Path $script:appenderScript -Name @(
+                    'Test-OrdinalEqual'
+                    'Test-UtcInstant'
+                ))
+        }
+
+        It 'tells <Name> from a name that differs from it only by a zero-width space' -ForEach $script:imitatedName {
+            Test-OrdinalEqual -Left ($Head + $script:zeroWidthSpace + $Tail) -Right $Name | Should -BeFalse
+        }
+
+        It 'tells two names apart that differ only in case' {
+            Test-OrdinalEqual -Left 'Type' -Right 'type' | Should -BeFalse
+        }
+
+        It 'finds a name equal to itself' {
+            Test-OrdinalEqual -Left 'type' -Right 'type' | Should -BeTrue
+        }
+
+        It 'refuses a utc that is <Name>' -ForEach $script:unrealInstant {
+            Test-UtcInstant -Value $Utc | Should -BeFalse
+        }
+
+        It 'refuses a utc with a trailing line feed' {
+            Test-UtcInstant -Value ('2026-10-14T16:00:00Z' + [string][char]0x000A) | Should -BeFalse
+        }
+
+        It 'refuses a utc with a leading space' {
+            Test-UtcInstant -Value ' 2026-10-14T16:00:00Z' | Should -BeFalse
+        }
+
+        It 'accepts a utc <Name>' -ForEach $script:realInstant {
+            Test-UtcInstant -Value $Utc | Should -BeTrue
+        }
     }
 }
 
@@ -2101,6 +2217,65 @@ Describe 'Ledger appender refusal text' -Tag 'Unit' {
 
         It 'returns an empty string for an empty message' {
             Format-RefusalText -Text '' | Should -BeExactly ''
+        }
+    }
+
+    # S-20: the service writes two lines of its own about a connection it dropped. No client text
+    # reaches them, so no case over the pipe can choose their text. Each line is therefore read
+    # from the script and evaluated with an error whose message is chosen, which runs the very
+    # expression the service writes.
+    Context 'in the lines the service writes about a dropped connection' {
+        BeforeAll {
+            . (Join-Path $script:repoRoot 'tests/Helpers/ScriptFunction.ps1')
+            . (Get-ScriptFunctionDefinition -Path $script:appenderScript -Name 'Format-RefusalText')
+
+            function script:Get-ServiceLine {
+                param(
+                    [Parameter(Mandatory)]
+                    [string]$Prefix,
+
+                    [Parameter(Mandatory)]
+                    [string]$Message
+                )
+
+                $tree = [System.Management.Automation.Language.Parser]::ParseFile($script:appenderScript, [ref]$null, [ref]$null)
+                $call = @(
+                    $tree.FindAll({ $args[0] -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, $true) |
+                        Where-Object -FilterScript {
+                            $_.Expression.Extent.Text -ceq '[Console]::Error' -and $_.Member.Extent.Text -ceq 'WriteLine' -and
+                            @($_.Arguments).Count -eq 1 -and
+                            $_.Arguments[0] -is [System.Management.Automation.Language.ExpandableStringExpressionAst] -and
+                            $_.Arguments[0].Value.StartsWith($Prefix, [System.StringComparison]::Ordinal)
+                        }
+                )
+
+                if ($call.Count -ne 1) {
+                    throw "the appender writes $($call.Count) lines to standard error that start with '$Prefix', not one"
+                }
+
+                $errorRecord = [System.Management.Automation.ErrorRecord]::new([System.IO.IOException]::new($Message),
+                    'DroppedConnection', [System.Management.Automation.ErrorCategory]::ConnectionError, $null)
+                $variable = [System.Collections.Generic.List[psvariable]]::new()
+                $variable.Add([psvariable]::new('_', $errorRecord))
+
+                return [string]@([scriptblock]::Create($call[0].Arguments[0].Extent.Text).InvokeWithContext(@{}, $variable))[0]
+            }
+
+            # The characters of the hostile-server case above, then enough to pass the cap.
+            $script:droppedText = 'alpha' + [string][char]0x000D + [string][char]0x000A +
+                'beta' + [string][char]0x001B + '[31mred' + [char]::ConvertFromUtf32(0x202E) +
+                'reversed' + [char]::ConvertFromUtf32(0xE0041) + [char]::ConvertFromUtf32(0xFE0F) +
+                [char]::ConvertFromUtf32(0x3164) + [char]::ConvertFromUtf32(0x2800) +
+                [char]::ConvertFromUtf32(0x00A0) + 'tagged' + ('x' * 500)
+            $relayed = 'alpha??beta?[31mred?reversed?????tagged'
+            $script:droppedRelayed = $relayed + ('x' * (200 - $relayed.Length)) + '...'
+        }
+
+        It 'cuts the exception text of <Name> to printable ASCII and two hundred characters' -ForEach @(
+            @{ Name = 'a connection attempt it dropped'; Prefix = 'Ledger appender dropped a connection attempt: ' }
+            @{ Name = 'a connection it dropped'; Prefix = 'Ledger appender dropped a connection: ' }
+        ) {
+            Get-ServiceLine -Prefix $Prefix -Message $script:droppedText | Should -BeExactly ($Prefix + $script:droppedRelayed)
         }
     }
 }
