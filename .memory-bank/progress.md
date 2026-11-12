@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-11
+last-verified: 2026-11-12
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -9,21 +9,26 @@ source: CHANGELOG.md and git history
 
 ## Project status
 
-Copilot Atelier's latest full GitHub release is `v6.0.0`, published 2026-09-30
-from `a592832`. CI on `main` has since published the prereleases
-`6.0.1-preview0001` (`fea564f`) and `6.1.0-preview0001` (`7a48abe`) to
-`6.1.0-preview0025` (`dc714ba`, 2026-11-11) to GitHub Releases and the
-PowerShell Gallery (verified 2026-11-11). The owner approved a stable `6.1.0` on
-2026-11-11; its `v6.1.0` tag waits for brief 10 to merge. Incremental work is
+Copilot Atelier's latest full GitHub release is `v6.1.0`, published 2026-11-11
+at 19:56 UTC to GitHub and the PowerShell Gallery from `a3167d8` (#54), the
+commit CI had published as `6.1.0-preview0026`. The changelog rollover #55
+(`f358226`) followed at 23:43 UTC; that its CI run (43122012334, GitVersion
+`6.1.1-preview.1`) published nothing is unconfirmed. Incremental work is
 tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-11-11**: Brief 10, GitHub issue #49 (`software-engineer`), on `ai/update-release-channel`: the owner-ruled `Update-CopilotAtelier
+- **2026-11-12**: Brief 05, the hook input probe (`software-engineer`), on `ai/hook-payload-probe`: the push guard fires in a VS Code
+  agent-host chat on runtime 1.0.108-0 (live inert probe denied); the 14 `HookSdkRuntime` failures were the fixtures, which now pass
+  the agent host's `enableConfigDiscovery`, `enableFileHooks`, and `enableSkills` (44 of 44); a new block pins the hook input for
+  `skill`, `view` (`Read`), `edit` (`Edit`), and `create` (`Write`) in that runtime and Copilot CLI 1.0.96, red first (14 failed),
+  then 18 of 18. The owner declined a Skill-use and a changed-file collector.
+- **2026-11-11**: Brief 10, GitHub issue #49 (`software-engineer`), merged as #54 (`a3167d8`) and released as `v6.1.0`: the owner-ruled `Update-CopilotAtelier
   -AllowPrerelease` installs previews, and without it the command names a newer preview. Versions keep and compare their prerelease labels
   through `Get-CopilotAtelierModuleVersion` and `Compare-CopilotAtelierVersion`, also in Windows PowerShell 5.1 (no `SemanticVersion`); the
   Deployment record, `IsCurrent`, and `VersionDrift` follow; Install and Test warn about a git working tree as Canonical target. Red first;
   an independent review's Blocker (PowerShellGet 3 reports the label separately) and Major (an update that did not land) fixed test-first.
+  The release run pushed the rollover branch but could not open its pull request; #55 merged it with the final newline restored.
 - **2026-11-10**: Brief 03, the travel work (`software-engineer`), merged as #53 (`dc714ba`, `6.1.0-preview0025`): the Markdown
   Instruction counts MD013 in UTF-16 units and keeps emoji out of linked headings (`dc1dad0`); the contained
   `quarantined-reader` agent reads untrusted text with file reading only (`5e9bb9b`);
@@ -48,11 +53,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   of 50 Skills reached the model as a bare name (66 logged sessions agree; VS Code chat uses 15,000).
   Added the always-applied `skill-index.instructions.md` (4,932 characters), a pre-flight pointer, and a
   `SkillCatalog` estimate in `Get-CopilotAtelierFootprint`; red first, gate 5,652 passed. On `main` (`661c30a`, `6.1.0-preview0021`).
-- **2026-10-21**: The P8 checks (`software-engineer`; spending approved 2026-10-20). A new 20-query set
-  measured the `subagent-dispatch` description; the new one names prompts run one per chat, briefs, the
-  task ledger, and folder migration (`claude-opus-5.5` train 10 to 12 of 12, validation 7 to 8 of 8;
-  `claude-haiku-4.5` train 7 to 10, validation 7 of 8). Five runs per version: E cases 27 against 9 of 35,
-  decoys 20 of 20 in both; a fresh-subagent migration passed every E7 line. Merged as #48 (`ae8684d`).
 
 ## Stable capabilities
 
@@ -84,11 +84,10 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 - Desktop `CopilotAtelier New\LEDGER.md` keeps the queue's history (01-08 and P2-P20) with
   Decision 0028 gates, dependencies, and duplicate/superseded references; the open prompts
   are in Desktop `CopilotAtelier-handoffs` (start with `00-README.md`).
-- Release the owner-approved stable `6.1.0` once brief 10 is merged: tag `v6.1.0` on the merge commit after
-  CI has published its preview, merge the changelog pull request the release opens, then post the issue #49
-  reply. The commands and the reply draft are in the brief 10 report.
-- The VS Code update of 2026-11-11 (bundled Copilot SDK runtime 1.0.30-preview.0) fails 14 `HookSdkRuntime` integration tests, on `main` too:
-  that harness ran no user-folder hook. Check that the push guard still fires in agent-host chats; SessionStart context still arrives.
+- Confirm that CI run 43122012334 (the #55 merge) published nothing: its Deploy job skipped and the newest
+  release is still `v6.1.0`. Close #49 when you like; its reply is posted.
+- Probe VS Code Local's hook input for the Skill and file tools (tool names, payload, `matcher`) before
+  any collector is reconsidered; brief 05 verified only the SDK host and Copilot CLI, offline.
 - Push `ai/travel-photo-diary-skill` from the other machine (`C:\Git\CopilotAtelier`, worktree
   `C:\Git\CopilotAtelier-travel-photo-diary`); it is not on GitHub (checked 2026-11-10). Until it
   is, the boundary between it and the `travel-handbook` Skill stays provisional.

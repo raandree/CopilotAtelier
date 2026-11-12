@@ -44,14 +44,23 @@ process, and no lifecycle event triggers collection.
 **Why no hook.** The client's documented hook events are `SessionStart`,
 `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `SubagentStart`,
 `SubagentStop`, and `Stop`. `PostToolUse` is the only plausible collector, and
-its payload contract for edit tools is not verified for this implementation, so
-wiring it would mean guessing at a field name. Worse, the shipped hooks are
-mandatory: `PreToolUse` blocks remote mutation and `Stop` closes the session
-clock. An optional collector inside either one turns a validation fault into a
-guard fault, and a `Stop` hook that can fail is a route to an unattended retry
-loop. Collection therefore stays a command the user or the agent runs on
-purpose. Should the `PostToolUse` input contract ever be verified, a collector
-belongs in its own hook file, never inside a mandatory one.
+its input for edit tools is now verified, offline on Windows on 2026-11-12, in
+the Copilot SDK runtime that VS Code bundles (1.0.108-0) and in Copilot CLI
+1.0.96: a PascalCase hook sees `edit` as `Edit` and `create` as `Write`, with
+the file in `tool_input.path` exactly as the model wrote it, absolute or
+relative to `cwd`, and a failed call runs `PostToolUseFailure` instead. VS Code
+Local chats, other versions, and other clients stay unverified. Both runtimes
+honour a `matcher` such as `Edit|Write` on a hook entry, so a collector would
+launch only for those calls there. VS Code Local reads the same hooks folder,
+but its Copilot Chat 0.74.0 shows no matcher handling, so a collector would
+probably launch on every tool call there. Either way it would miss files changed
+through a shell or git.
+Worse, the shipped hooks are mandatory: `PreToolUse` blocks remote mutation and
+`Stop` closes the session clock. An optional collector inside either one turns a
+validation fault into a guard fault, and a `Stop` hook that can fail is a route
+to an unattended retry loop. Collection therefore stays a command the user or
+the agent runs on purpose. A collector, should one ever be built, belongs in its
+own hook file, never inside a mandatory one.
 
 Scripts live beside this file under `scripts/` and are also deployed to
 `$HOME/.copilot/skills/changed-file-validation/scripts/`.

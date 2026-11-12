@@ -40,7 +40,14 @@ const client = new CopilotClient({
 
 let exitCode = 0;
 try {
-    const session = await client.createSession({ workingDirectory: workspace, onPermissionRequest: approveAll });
+    // The session flags VS Code's agent host passes for a local workspace; see Invoke-CopilotSdkConversation.mjs.
+    const session = await client.createSession({
+        workingDirectory: workspace,
+        onPermissionRequest: approveAll,
+        enableConfigDiscovery: true,
+        enableFileHooks: true,
+        enableSkills: true,
+    });
     let preToolUseHookCount = 0;
     session.on((event) => {
         if (event.type === 'hook.end' && event.data?.hookType === 'preToolUse') {

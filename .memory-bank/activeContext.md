@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-11
+last-verified: 2026-11-12
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,12 +9,13 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 10, GitHub issue #49, is done on `ai/update-release-channel`** (not pushed; independent review fixed: B1 PowerShellGet 3
-labels, M1 updates that did not land). `Update-CopilotAtelier` gains the opt-in `-AllowPrerelease` the owner ruled; without it the
-command names a newer preview (`NewerPrerelease`). Versions keep and compare their prerelease labels through
-`Get-CopilotAtelierModuleVersion` and `Compare-CopilotAtelierVersion` in Windows PowerShell 5.1 and 7; the Deployment record,
-`IsCurrent`, and `VersionDrift` follow, and Install and Test warn about a Canonical target that is a git working tree. The owner
-approved a stable 6.1.0: its tag follows the merge. Report and German reply draft: Desktop `CopilotAtelier-handoffs/reports/10-*`.
+**Brief 05, the hook input probe (2026-11-12), is done on `ai/hook-payload-probe`** (not pushed). The push guard still fires in a VS
+Code agent-host chat on runtime 1.0.108-0 (SDK 1.0.30-preview.0): a live inert probe was denied. The 14 `HookSdkRuntime` failures were
+the fixtures, which now pass the agent host's `enableConfigDiscovery`, `enableFileHooks`, and `enableSkills` (44 of 44). A new block
+pins the hook input in that runtime and Copilot CLI 1.0.96: `tool_input.skill` names the Skill, not its file or body; `view`, `edit`,
+`create` arrive as `Read`, `Edit`, `Write` with `tool_input.path` as written; a `matcher` filters an entry. The owner declined both
+collectors (Skill use: no body SHA-256; changed files: shell edits invisible, VS Code Local unverified). Report: Desktop
+`CopilotAtelier-handoffs/reports/05-*`.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
@@ -44,6 +45,10 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
 
 ## Previous focuses
 
+- **Brief 10, GitHub issue #49 (2026-11-11).** Merged as #54 (`a3167d8`, `6.1.0-preview0026`) and released as the stable `v6.1.0`
+  on the same commit (GitHub and the Gallery, 19:56 UTC): `Update-CopilotAtelier -AllowPrerelease`, versions compared with their
+  prerelease labels in Windows PowerShell 5.1 and 7, and a warning for a Canonical target that is a git working tree. The changelog
+  rollover is #55 (`f358226`, 23:43 UTC); the reply to #49 is posted.
 - **Brief 03, the travel work (2026-11-10).** Merged as #53 (`dc714ba`, `6.1.0-preview0025`): two Markdown rules,
   signed-in Reddit reading only through the file-reading-only `quarantined-reader` agent, and the Skills
   `travel-handbook` and `travel-planning`; all 17 findings of its security review were fixed test-first.
@@ -67,10 +72,6 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
   toward blocking. The bundled SDK runtime drops a PascalCase deny that also carries
   `hookSpecificOutput`, so the guard prints the top-level pair alone
   (`tests/HookSdkRuntime.Tests.ps1`; Decision 0016). Deployed 2026-10-04.
-- **Contributor calibration Phases 1 and 2 (#27, `7a48abe`; Decision 0028).** On `main`.
-  The private behavior eval scored 52.1% without the Instruction and 100% with it.
-- **Runtime tool names (`a592832`, on `main`; Decision 0026).** Every Custom agent
-  pairs its VS Code tool names with runtime names (github/copilot-cli#4594).
 - **Plan-review findings PR-01 to PR-09.** Resolved in the integrated tree with a
   mandatory heading verifier; browser feedback never grants chat sign-off, the
   cross-platform artifact transfer stayed unproven, and `review: on` remains
@@ -102,8 +103,8 @@ Earlier route-selection and trigger-query sets remain unmeasured. ShellPilot's
 
 ## Open findings
 
-- **Needs a check, security-relevant (2026-11-11):** today's VS Code update (bundled SDK runtime 1.0.30-preview.0) fails 14
-  `HookSdkRuntime` integration tests on `main` too; whether the push guard still fires in agent-host chats is unverified.
+- **Medium (2026-11-12):** VS Code Local chats are not probed for the hook input of Skill and file tools: their tool names, payload,
+  and `matcher` handling are unverified (Copilot Chat 0.74.0 shows no matcher handling near its hook code).
 - **High:** `software-engineer-contoso` claims no egress while retaining an
   unrestricted terminal and mandating a generic `security-reviewer` delegate
   with web, GitHub, MCP, and terminal tools. In agent-host sessions the host
@@ -157,8 +158,8 @@ unproven — train reached 100 % while validation fell.
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
 3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with
-   `00-README.md`): brief 10 waits on the owner to push `ai/update-release-channel`, merge it, post the
-   issue reply, and tag `v6.1.0` on the merge commit once CI has published its preview; from brief 03, delete
+   `00-README.md`): brief 05 waits on the owner to push and merge `ai/hook-payload-probe`; brief 10 leaves
+   confirming that CI run 43122012334 published nothing and closing #49; from brief 03, delete
    any leftover `extracted\all-cookies.json` and sign in to Reddit once for the live `reddit-read` check;
    then the P5 follow-ups (`docs/SECURITY-REVIEW.md`: S-20, the escape set of `WritableRoots`, S-19, the
    run id of `-Revalidate`, a CI retry for the Gallery bootstrap) and more. The

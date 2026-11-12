@@ -363,14 +363,24 @@ and the shipped hook configuration under the content root, at the version
 present there — the enumerated hook events are `SessionStart`,
 `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PreCompact`, `SubagentStart`,
 `SubagentStop`, and `Stop`, and each one is **verified against that Instruction
-rather than asserted**. None of them reports that a Skill was selected, loaded,
-or executed, so **no reliable Skill-activation contract is verified for this
-implementation**. Another client, or a newer version of this one, may expose a
-contract this check cannot see; the report publishes its verification state
-instead of claiming a universal fact.
+rather than asserted**. None of them is documented there to report that a Skill
+was selected, loaded, or executed, so **no reliable Skill-activation contract is
+verified for this implementation**. Another client, or a newer version of this
+one, may expose a contract this check cannot see; the report publishes its
+verification state instead of claiming a universal fact.
 
-There is therefore no verified event to observe a Skill activation from, no
-automatic collection is implemented, and capture is disabled by default. Every
+Real runtimes were probed outside that scope on 2026-11-12, offline on Windows
+with a scripted model: the Copilot SDK runtime that VS Code bundles (1.0.108-0)
+and Copilot CLI 1.0.96. There, a `PreToolUse` or `PostToolUse` hook does see a
+call of the `skill` tool, with the Skill's name in `tool_input.skill`, but not
+the Skill's file or body, so it cannot supply the `skillSha256` every record
+needs; a read of a `SKILL.md` arrives as a separate `Read` call. The
+[hooks README](com.github.copilot/hooks/README.md#tool-call-input-for-skill-and-file-tools)
+lists that contract; VS Code Local chats, other versions, and other clients
+stay unverified.
+
+No verified event therefore yields a record the import accepts: no automatic
+collection is implemented, and capture is disabled by default. Every
 accepted record is labelled `Imported` — a document that claims observed trust
 is recorded as a claim and still read as imported.
 
