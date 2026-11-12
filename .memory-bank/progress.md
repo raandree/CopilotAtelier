@@ -20,8 +20,8 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 - **2026-11-12**: Brief 04, the adapter smoke check (`software-engineer`), on `ai/adapter-runtime-smoke`: cases C1 to C3 ran offline on
   the composed `software-engineer` variant in Copilot CLI 1.0.96 and the source profile in runtime 1.0.108-0; C2 passed on both, C3 on
-  the variant, C1 failed on both on an ignored-field warning. Receipts bound to each file's SHA-256 let `Get-CopilotAtelierClientAdapter`
-  report `RuntimeVerified` for those cases only; the fallback test went red first, then green. Full gate 5,819 passed, 0 failed.
+  the variant, and C1 on the CLI once the variant stopped emitting `target`; on the agent host C1 fails by design. Receipts bound to each
+  file's SHA-256 let `Get-CopilotAtelierClientAdapter` report `RuntimeVerified` for those cases only; fallback test red first, then green.
 - **2026-11-12**: Brief 05, the hook input probe (`software-engineer`), merged as #56 (`548a162`): the push guard fires in a VS Code
   agent-host chat on runtime 1.0.108-0 (live inert probe denied); the 14 `HookSdkRuntime` failures were the fixtures, which now pass
   the agent host's `enableConfigDiscovery`, `enableFileHooks`, and `enableSkills` (44 of 44); a new block pins the hook input for
@@ -83,8 +83,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   Decision 0028 gates, dependencies, and duplicate/superseded references; the open prompts
   are in Desktop `CopilotAtelier-handoffs` (start with `00-README.md`).
 - Close #49 when you like; its reply is posted, and CI run 43122012334 (the #55 merge) published nothing.
-- Decide adapter case C1: drop `target` from the Copilot CLI variant, or let C1 tolerate fields a client documents as ignored; then
-  rerun `tests/ClientAdapterRuntime.Tests.ps1` and replace the receipts in `Get-CopilotAtelierClientContract`.
 - Probe VS Code Local's hook input for the Skill and file tools (tool names, payload, `matcher`) before
   any collector is reconsidered; brief 05 verified only the SDK host and Copilot CLI, offline.
 - Push `ai/travel-photo-diary-skill` from the other machine (`C:\Git\CopilotAtelier`, worktree

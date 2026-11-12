@@ -326,7 +326,7 @@ function Get-CopilotAtelierClientContract
         'software-engineer' = [pscustomobject] @{
             Agent          = 'software-engineer'
             Artifact       = 'output/clientAdapters/copilot-cli/software-engineer.agent.md'
-            ArtifactSha256 = 'cd122f0c604538b3cd266acc67f3d3294dc9eaa4d267ac760ec81eb3f228563d'
+            ArtifactSha256 = '857662eb1bab211dbc968c861bfd2aa1b0f99cb204d618707b9069bb0ab05671'
             Runtime        = 'GitHub Copilot CLI from the WinGet package GitHub.Copilot, %LOCALAPPDATA%\Microsoft\WinGet\Links\copilot.exe, started over stdio by the Copilot SDK 1.0.30-preview.0'
             RuntimeVersion = '1.0.96'
             VerifiedOn     = '2026-11-12'
@@ -335,8 +335,8 @@ function Get-CopilotAtelierClientContract
                 [pscustomobject] @{
                     Id       = 'C1'
                     Kind     = 'Runtime'
-                    Outcome  = 'Failed'
-                    Evidence = 'The runtime listed software-engineer from the scratch agents directory as a user agent without a load error, but warned: unknown field ignored: target.'
+                    Outcome  = 'Passed'
+                    Evidence = 'The runtime listed software-engineer from the scratch agents directory as a user agent, with no load error and no warning.'
                 }
                 [pscustomobject] @{
                     Id       = 'C2'
@@ -436,8 +436,14 @@ function Get-CopilotAtelierClientContract
                 SourceProfileObservation = $null
                 DocumentationUri        = 'https://docs.github.com/en/copilot/reference/custom-agents-configuration'
                 DiscoveryPath           = '~/.copilot/agents'
-                TargetValue             = 'github-copilot'
-                EmittedField            = @('name', 'description', 'target', 'disable-model-invocation', 'user-invocable', 'tools')
+                <#
+                    No target field: Copilot CLI 1.0.96 warns "unknown field
+                    ignored: target" while it loads the file, which alone failed
+                    case C1, and VS Code filters agents by target only in session
+                    types that declare one, which local chat does not.
+                #>
+                TargetValue             = $null
+                EmittedField            = @('name', 'description', 'disable-model-invocation', 'user-invocable', 'tools')
                 ToolMap                 = $copilotCliToolMap
                 ExecutionSourceTool     = $copilotCliExecutionSourceTool
                 CapabilityClass         = $copilotCliCapabilityClass

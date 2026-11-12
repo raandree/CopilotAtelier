@@ -1161,14 +1161,15 @@ C3 of [docs/client-adapter-evals.md](docs/client-adapter-evals.md) ran on
 2026-11-12: the composed variant on Copilot CLI 1.0.96, and the source profile
 on runtime 1.0.108-0, which VS Code 1.146.0 bundles for its agent-host chats.
 `Get-CopilotAtelierClientAdapter` reports `RuntimeVerified` only for the cases
-that passed (C2 on both, C3 on the variant), at those versions, and only while
-the file still has the SHA-256 that the committed receipt records; any edit
-falls back to `StructurallyChecked`. C1 failed on both, because each runtime
-warns about frontmatter it ignores: `target` on the CLI, and `argument-hint`,
-`agents`, and `handoffs` on the agent-host runtime. The CLI's interactive
-`/agent` list, local VS Code chat, and every behavioral case remain unverified,
-and the observation that the source profile loaded in VS Code 1.136.1 is kept
-as historical evidence, bound to no file.
+that passed (C1 to C3 on the variant, C2 on the source profile), at those
+versions, and only while the file still has the SHA-256 that the committed
+receipt records; any edit falls back to `StructurallyChecked`. The variant
+emits no `target` field, because the CLI ignores it with a warning. C1 fails by
+design on the agent-host runtime, which warns that it ignores `argument-hint`,
+`agents`, and `handoffs`: local VS Code chat needs those fields. The CLI's
+interactive `/agent` list, local VS Code chat, and every behavioral case remain
+unverified, and the observation that the source profile loaded in VS Code
+1.136.1 is kept as historical evidence, bound to no file.
 A composed variant loses handoff buttons, so a workflow that advances through a
 handoff cannot advance on that client. Notebook, task, problem, browser,
 GitHub-toolset, MCP, and VS Code-command tools have no documented client

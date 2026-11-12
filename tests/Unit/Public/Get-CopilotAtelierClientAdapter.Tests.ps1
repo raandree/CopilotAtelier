@@ -651,7 +651,7 @@ Describe 'Copilot CLI variant composition' -Tag 'Unit' {
 
         $reported | Should -Contain 'argument-hint'
         $result.Frontmatter.Contains('argument-hint') | Should -BeFalse
-        $result.Frontmatter['target'] | Should -Be 'github-copilot'
+        $result.Frontmatter.Contains('target') | Should -BeFalse -Because 'the client ignores target and warns about it'
     }
 
     It 'Should preserve the shared workflow body exactly' {

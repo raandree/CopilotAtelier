@@ -193,7 +193,8 @@ Describe 'Copilot CLI variant of the representative profile' -Tag 'Unit' {
             $frontmatter.Contains($field) | Should -BeFalse -Because "'$field' is not part of the client contract"
         }
 
-        $frontmatter['target'] | Should -Be 'github-copilot'
+        $frontmatter.Contains('target') |
+            Should -BeFalse -Because 'Copilot CLI 1.0.96 ignores target and warns that it does, which alone failed case C1'
         $frontmatter['name'].Trim("'", '"') | Should -Be $script:representative
         $frontmatter['description'] | Should -Not -BeNullOrEmpty
     }

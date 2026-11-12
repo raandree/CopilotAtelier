@@ -16,8 +16,8 @@ composed variant can be perfectly well-formed and still fail to do the work.
 
 | Client | Version | State | Why |
 |---|---|---|---|
-| VS Code Copilot Chat | Copilot runtime 1.0.108-0, which VS Code 1.146.0 bundles for its agent-host chats | `RuntimeVerified` for C2 | The source profile passed C2 on that runtime and failed C1 on a load warning. Local VS Code chat did not run. The observation that the source profile loaded in VS Code 1.136.1 on 2026-09-07 stays historical evidence, bound to no file |
-| GitHub Copilot CLI | 1.0.96, from the WinGet package `GitHub.Copilot` | `RuntimeVerified` for C2 and C3 | The composed variant passed C2 on the CLI's runtime and C3 on the file, and failed C1 on a load warning. The CLI's interactive `/agent` list was not used |
+| VS Code Copilot Chat | Copilot runtime 1.0.108-0, which VS Code 1.146.0 bundles for its agent-host chats | `RuntimeVerified` for C2 | The source profile passed C2 on that runtime. C1 fails there by design, on a warning about fields only local VS Code chat reads (see [Runs](#runs)). Local VS Code chat did not run. The observation that the source profile loaded in VS Code 1.136.1 on 2026-09-07 stays historical evidence, bound to no file |
+| GitHub Copilot CLI | 1.0.96, from the WinGet package `GitHub.Copilot` | `RuntimeVerified` for C1, C2, and C3 | The composed variant passed C1 and C2 on the CLI's runtime and C3 on the file, once it stopped emitting `target`. The CLI's interactive `/agent` list was not used |
 
 A state of `RuntimeVerified` requires a receipt bound to the artifact it
 describes. `Get-CopilotAtelierClientContract` commits one per client for
@@ -81,18 +81,24 @@ SDK 1.0.30-preview.0 that VS Code 1.146.0 bundles.
 | Run | File the cases ran on | SHA-256 | Runtime | Version | C1 | C2 | C3 |
 |---|---|---|---|---|---|---|---|
 | Source profile on the runtime VS Code bundles | `com.github.copilot/agents/software-engineer.agent.md` | `8bb72f5d1ed03858da3cf2b0ed56842a78641736cebd1d1145abc77359ae9ba5` | `prebuilds\win32-x64\copilot-runtime.exe` in `@github/copilot-sdk-win32-x64` | 1.0.108-0 | Failed | Passed | Not applicable |
-| Composed variant on the Copilot CLI | `output/clientAdapters/copilot-cli/software-engineer.agent.md` | `cd122f0c604538b3cd266acc67f3d3294dc9eaa4d267ac760ec81eb3f228563d` | `%LOCALAPPDATA%\Microsoft\WinGet\Links\copilot.exe` | 1.0.96 | Failed | Passed | Passed |
+| Composed variant on the Copilot CLI | `output/clientAdapters/copilot-cli/software-engineer.agent.md` | `857662eb1bab211dbc968c861bfd2aa1b0f99cb204d618707b9069bb0ab05671` | `%LOCALAPPDATA%\Microsoft\WinGet\Links\copilot.exe` | 1.0.96 | Passed | Passed | Passed |
 
-**C1 failed on both runtimes, on a warning alone.** Each runtime listed
-`software-engineer` from the scratch agents directory as a user agent, without
-a load error, and warned about frontmatter it ignores:
+**C1 passed on the CLI and fails by design on the agent-host runtime.**
+Each runtime listed `software-engineer` from the scratch agents directory as a
+user agent, without a load error.
 
-- Copilot CLI 1.0.96: `unknown field ignored: target`. The composed variant
-  emits `target: github-copilot`, which the GitHub reference documents but this
-  CLI does not read.
-- Runtime 1.0.108-0: `unknown fields ignored: argument-hint, agents, handoffs`,
-  the fields only local VS Code chat reads. That agent-host chats ignore
-  `agents:` matches Decision record 0026.
+- Copilot CLI 1.0.96 loaded the variant without a warning. Its first run, on
+  `cd122f0c604538b3cd266acc67f3d3294dc9eaa4d267ac760ec81eb3f228563d`, failed
+  C1 on `unknown field ignored: target`: the variant emitted
+  `target: github-copilot`, which the GitHub reference documents but this CLI
+  does not read. On the owner's ruling, the variant no longer emits it; VS Code
+  filters agents by `target` only in session types that declare one, which
+  local chat does not.
+- Runtime 1.0.108-0 warns `unknown fields ignored: argument-hint, agents,
+  handoffs`. Local VS Code chat reads those fields, so the source profile keeps
+  them, and on the owner's ruling C1 stays strict: it is an expected failure
+  there. The warning also records that agent-host chats ignore `agents:`, as
+  Decision record 0026 found.
 
 **C2 passed on both.** With the profile selected, the model was offered:
 
@@ -122,9 +128,8 @@ the shared body after it.
 - VS Code's agent host process itself, which also passes its built-in agents
   as `customAgents` and selects a user agent by the same calls.
 - Any other runtime version: each receipt names one.
-- A clean C1 on either client, which needs either a C1 that tolerates fields a
-  client documents as ignored, or a composed variant without `target`. That is
-  a decision, not a fix.
+- C1 on the agent-host runtime, which fails by design while the source profile
+  carries fields only local VS Code chat reads.
 - The behavioral cases B1 to B8, which need model requests.
 
 ## Behavioral cases — model requests required, unexecuted

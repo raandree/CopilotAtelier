@@ -9,13 +9,13 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 04, the adapter smoke check (2026-11-12), is done on `ai/adapter-runtime-smoke`** (not pushed). Cases C1 to C3 of
-`docs/client-adapter-evals.md` ran offline: the composed `software-engineer` variant on the WinGet Copilot CLI 1.0.96 and the source
-profile on the runtime 1.0.108-0 that VS Code 1.146.0 bundles. C2 passed on both, C3 on the variant; C1 failed on both on a load
-warning (`target` on the CLI; `argument-hint`, `agents`, `handoffs` on the agent host). The contract commits each run as a receipt
-bound to the file's SHA-256, and `Get-CopilotAtelierClientAdapter` reports `RuntimeVerified` only for those passed cases at that
-version, falling back to `StructurallyChecked` after any edit (new output: `ArtifactSha256`, `VerifiedCase`, `RuntimeReceipt`,
-`RuntimeReceiptStatus`). The lost `../CopilotAtelier-Task-Prompts/` was restored from chat 33534cca's log. Report: Desktop `reports/04-*`.
+**Brief 04, the adapter smoke check (2026-11-12), is done on `ai/adapter-runtime-smoke`** (pushed; no pull request yet). Cases C1 to
+C3 of `docs/client-adapter-evals.md` ran offline: the composed `software-engineer` variant on the WinGet Copilot CLI 1.0.96 and the
+source profile on the runtime 1.0.108-0 that VS Code 1.146.0 bundles. C2 passed on both and C3 on the variant; C1 passed on the CLI
+once the variant stopped emitting `target` (owner's ruling) and fails by design on the agent host, which ignores `argument-hint`,
+`agents`, and `handoffs`. Each run is a receipt bound to the file's SHA-256: `Get-CopilotAtelierClientAdapter` reports `RuntimeVerified`
+only for the passed cases at that version and falls back to `StructurallyChecked` after any edit (new output: `ArtifactSha256`,
+`VerifiedCase`, `RuntimeReceipt`, `RuntimeReceiptStatus`). `../CopilotAtelier-Task-Prompts/` was restored from chat 33534cca's log.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
@@ -102,9 +102,6 @@ Earlier route-selection and trigger-query sets remain unmeasured. ShellPilot's
 `-SkillPath` reads a folded `>-` description as `>-`: give it one-line copies.
 
 ## Open findings
-
-- **Minor (2026-11-12):** adapter case C1 fails on both runtimes on an ignored-field warning; dropping `target` from the CLI variant, or
-  a C1 that tolerates documented ignored fields, is the owner's decision. The CLI `/agent` list and the agent host stay unverified.
 - **Medium (2026-11-12):** VS Code Local chats are not probed for the hook input of Skill and file tools: their tool names, payload,
   and `matcher` handling are unverified (Copilot Chat 0.74.0 shows no matcher handling near its hook code).
 - **High:** `software-engineer-contoso` claims no egress while retaining an
@@ -159,8 +156,8 @@ unproven — train reached 100 % while validation fell.
    controller agent (the security lint names the rule `ObsoleteRemoteOverride`).
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
-3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): brief 04 waits on the owner
-   to push and merge `ai/adapter-runtime-smoke` (`review: on` recommended: it changes the command's output); closing #49; from
+3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): brief 04 waits on its
+   requested security review, then on the owner to push, open, and merge `ai/adapter-runtime-smoke`; closing #49; from
    brief 03, delete any leftover `extracted\all-cookies.json` and sign in to Reddit once for the live `reddit-read` check; then
    the P5 follow-ups (`docs/SECURITY-REVIEW.md`: S-20, the escape set of `WritableRoots`, S-19, the run id of `-Revalidate`, a CI
    retry for the Gallery bootstrap) and more. `ai/travel-photo-diary-skill` exists only on the other machine.
