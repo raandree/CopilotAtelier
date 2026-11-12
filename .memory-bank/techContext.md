@@ -52,7 +52,7 @@ Customization directories listed in `build.yaml` into the built module at
 | `Get-CopilotAtelierVersion` | Report installed version and preview label, deployed version, and currency |
 | `Get-CopilotAtelierProfile` | Read-only report of each installation profile and the Skills it deploys |
 | `Get-CopilotAtelierFootprint` | Read-only footprint report of the Customization collection with loading-reduction opportunities and the Skills a host lists by name only (`SkillCatalog`) |
-| `Get-CopilotAtelierClientAdapter` | Read-only report of how a Custom agent profile is composed per Copilot client, and what that client cannot do |
+| `Get-CopilotAtelierClientAdapter` | Read-only report of how a Custom agent profile is composed per Copilot client, what that client cannot do, and how far its runtime receipt reaches |
 | `Test-CopilotAtelier` | Read-only deployment, hash, link, hook, and settings diagnostics |
 | `Uninstall-CopilotAtelier` | Remove unchanged owned files; preserve personal content and configuration |
 
@@ -155,7 +155,7 @@ loses a terminating error to standard error, so wrap an entry point such as
   labels to avoid `Export-Clixml` stalls. `Initialize_TestResultSerialization`
   restores caller type data through build-exit cleanup, including failures.
 - The hook harness's SDK sessions pass `enableConfigDiscovery`, `enableFileHooks`,
-  and `enableSkills`; without them SDK 1.0.30-preview.0 loads no user hooks.
+  and `enableSkills`; without them SDK 1.0.30-preview.0 loads no user hooks. `tests/ClientAdapterRuntime.Tests.ps1` reuses that fixture to list and select agents.
 
 ## Releases
 

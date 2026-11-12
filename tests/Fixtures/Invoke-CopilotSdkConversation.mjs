@@ -19,6 +19,13 @@
 //   { "op": "newSession", "availableTools": [ "view", ... ] }
 //                                                  starts a session that offers these
 //                                                  tools instead of probe_tool alone
+//   { "op": "newSession", "allTools": true, "userInput": true }
+//                                                  starts a session that restricts no tool,
+//                                                  so a selected agent's tools list is the
+//                                                  only filter, and answers ask_user as an
+//                                                  interactive host does
+//   { "op": "listAgents" }                         the custom agents the session discovered
+//   { "op": "selectAgent", "name": "..." }         selects a custom agent for later turns
 //   { "op": "send", "prompt": "..." }              one user turn; the fake model calls
 //                                                  probe_tool once, then answers in text
 //   { "op": "send", "prompt": "...", "noTool": true }
@@ -37,6 +44,8 @@
 //   { "op": "removeFile", "path": "..." }
 //   { "op": "disconnect" }
 // Standard output: one JSON object { runtimeVersion, requests, events, steps }.
+// Agent loading reports its errors and warnings in session.custom_agents_updated
+// events, which are captured from before the session is created.
 
 import { createServer } from 'node:http';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -178,6 +187,20 @@ const client = new CopilotClient({
     workingDirectory: workspace,
 });
 
+function agentSummary(agent) {
+    return agent
+        ? {
+              name: agent.name,
+              id: agent.id,
+              path: agent.path,
+              source: agent.source,
+              tools: agent.tools ?? null,
+              userInvocable: agent.userInvocable,
+              disableModelInvocation: agent.disableModelInvocation,
+          }
+        : null;
+}
+
 const probeTool = {
     name: 'probe_tool',
     description: 'Returns a fixed text. Used only by the hook probe.',
@@ -209,6 +232,21 @@ try {
                 session = await client.createSession({
                     workingDirectory: workspace,
                     onPermissionRequest: approveAll,
+                    ...(step.userInput ? { onUserInputRequest: async () => ({ answer: 'Probe answer.', wasFreeform: true }) } : {}),
+                    // Registered before session.create, so agent loading done while the session is created is not missed.
+                    onEvent: (event) => {
+                        if (event.type !== 'session.custom_agents_updated') {
+                            return;
+                        }
+                        events.push({
+                            step: currentStep,
+                            session: ordinal,
+                            type: event.type,
+                            agents: (event.data?.agents ?? []).map(agentSummary),
+                            errors: event.data?.errors ?? [],
+                            warnings: event.data?.warnings ?? [],
+                        });
+                    },
                     // The runtime reads <copilot home>/hooks and skills only when a session asks:
                     // SDK 1.0.30-preview.0 defaults enableConfigDiscovery to false. VS Code's agent
                     // host passes these three flags for a local workspace, and so does this probe.
@@ -218,7 +256,7 @@ try {
                     model: 'gpt-4.1',
                     provider: { type: 'openai', wireApi: 'completions', baseUrl, apiKey: 'probe', modelId: 'gpt-4.1', wireModel: 'probe-model' },
                     tools: [probeTool],
-                    availableTools: step.availableTools ?? ['probe_tool'],
+                    availableTools: step.allTools ? undefined : step.availableTools ?? ['probe_tool'],
                     toolSearch: { enabled: false },
                 });
                 session.on((event) => {
@@ -252,6 +290,12 @@ try {
                 result.reply = reply?.data?.content;
                 break;
             }
+            case 'listAgents':
+                result.agents = ((await session.rpc.agent.list()).agents ?? []).map(agentSummary);
+                break;
+            case 'selectAgent':
+                result.agent = agentSummary((await session.rpc.agent.select({ name: step.name })).agent);
+                break;
             case 'compact': {
                 summaryMode = true;
                 try {

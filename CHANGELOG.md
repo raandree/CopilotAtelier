@@ -9,8 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Bind the client adapter's runtime claim to the file it was proven on. The model-free cases C1 to C3 of [docs/client-adapter-evals.md](docs/client-adapter-evals.md) ran offline on Windows: the composed `software-engineer` variant in Copilot CLI 1.0.96, and the source profile in the runtime that VS Code 1.146.0 bundles for agent-host chats (1.0.108-0). The client contract commits each run as a receipt that names the cases, the SHA-256 of the file they ran on, the runtime and its version, the date, and each outcome; a new run replaces the whole receipt. `Get-CopilotAtelierClientAdapter` now also returns `ArtifactSha256`, `VerifiedRuntime`, `VerifiedCase`, `RuntimeReceipt`, and `RuntimeReceiptStatus`, and reports `RuntimeVerified` only for passed cases that ran on a runtime, at the receipt's version, and only while the file a client loads still has that SHA-256; after any edit it falls back to `StructurallyChecked`. The Copilot CLI variant passed C1 to C3. The source profile failed C1 and C2 on the agent-host runtime, which ignores `argument-hint`, `agents`, and `handoffs` and so offers delegation without the profile's `agents:` allow-list; the VS Code client therefore stays `StructurallyChecked`. [tests/ClientAdapterRuntime.Tests.ps1](tests/ClientAdapterRuntime.Tests.ps1) runs the cases again and re-checks the receipts on a machine with VS Code and the CLI.
+
 ### Changed
 
+- Stop emitting `target: github-copilot` in the Copilot CLI variant of a Custom agent. Copilot CLI 1.0.96 ignores the field and warns that it does when it loads the file, which failed case C1, and VS Code's local chat does not filter agents on it.
 - Say what a hook receives for a Skill load and a file edit, verified offline on Windows in the Copilot SDK runtime that VS Code bundles (1.0.108-0) and in Copilot CLI 1.0.96: a `PreToolUse` or `PostToolUse` hook sees a `skill` call with the Skill's name in `tool_input.skill` but neither its file nor its body, sees the file tools as `Read`, `Edit`, and `Write` with the path exactly as the model wrote it, and a failed call runs `PostToolUseFailure` instead. The help of `Get-CopilotAtelierSkillHealth`, the `changed-file-validation` Skill, and the [hooks README](com.github.copilot/hooks/README.md#tool-call-input-for-skill-and-file-tools) now carry this contract and what stays unverified, such as VS Code Local chats. No collector is added: Skill use still enters the report only through `-ObservationPath`, because every record needs the SHA-256 of the Skill body, and changed files are still collected by hand.
 
 ## [6.1.0] - 2026-11-11

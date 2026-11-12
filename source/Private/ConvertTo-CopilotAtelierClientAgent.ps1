@@ -292,6 +292,8 @@ function ConvertTo-CopilotAtelierClientAgent
 
     foreach ($name in $clientContract.EmittedField)
     {
+        # No current client emits target (Copilot CLI 1.0.96 ignores it); a
+        # contract that lists it in EmittedField supplies TargetValue.
         if ($name -eq 'target')
         {
             if ($clientContract.TargetValue)

@@ -32,11 +32,18 @@ function Get-CopilotAtelierClientContract
             so a client that cannot express the restriction loses the capability
             instead of inheriting it unrestricted.
 
-            VerificationState never claims a runtime result without a receipt
-            bound to the artifact it describes. A one-off observation that a
-            checkout's profile loaded in one editor build is kept separately as
-            SourceProfileObservation, because it says nothing about an arbitrary
-            content path or a composed variant.
+            VerificationState is what a client claims for a file no receipt is
+            bound to, and it never claims a runtime result. RuntimeReceipt holds,
+            per adapted agent, the receipt of the cases that ran against one
+            exact file: that file's SHA-256, the runtime and its version, the
+            date, the harness, and the outcome of each case.
+            Resolve-CopilotAtelierClientVerification binds a receipt to an
+            artifact by that hash alone, so Get-CopilotAtelierClientAdapter
+            reports RuntimeVerified only for the cases a receipt records as
+            passed, at the runtime version it names, and only while the file is
+            unchanged. A one-off observation that a checkout's profile loaded in
+            one editor build is kept separately as SourceProfileObservation,
+            because it is bound to no file.
 
             AdaptedAgent is the rollout gate. Only the profiles listed there are
             composed for a non-authoritative client, and each entry names the
@@ -273,8 +280,82 @@ function Get-CopilotAtelierClientContract
         $vsCodeWorkflow[$workflow] = [pscustomobject] @{
             Workflow          = $workflow
             Status            = 'Supported'
-            Reason            = 'The authoritative client provides the subagent allow-list and the handoffs the shared body is written against.'
+            Reason            = 'Local VS Code chat provides the subagent allow-list and the handoffs the shared body is written against. Agent-host chats ignore the allow-list, as Decision record 0026 records.'
             ClientInstruction = 'Proceed as the shared workflow body describes.'
+        }
+    }
+
+    <#
+        The receipts of the model-free cases in docs/client-adapter-evals.md,
+        run on 2026-11-12 by tests/ClientAdapterRuntime.Tests.ps1. Each one is
+        bound to the SHA-256 of the file its cases ran on, so editing the
+        profile, or anything that changes the composed variant, retires it
+        until the cases run again. Every case in a receipt ran on one file at
+        one runtime version: a new run replaces the whole receipt, so a later
+        case enters it only together with the earlier ones run again. A Runtime
+        case ran on the runtime; a File case read the file.
+    #>
+    $smokeHarness = 'tests/ClientAdapterRuntime.Tests.ps1 through tests/Fixtures/Invoke-CopilotSdkConversation.mjs: a scratch COPILOT_HOME, a loopback fake model, no sign-in, and no model request'
+
+    $vsCodeRuntimeReceipt = [ordered] @{
+        'software-engineer' = [pscustomobject] @{
+            Agent          = 'software-engineer'
+            Artifact       = 'com.github.copilot/agents/software-engineer.agent.md'
+            ArtifactSha256 = '8bb72f5d1ed03858da3cf2b0ed56842a78641736cebd1d1145abc77359ae9ba5'
+            Runtime        = 'The Copilot runtime that VS Code 1.146.0 bundles in @github/copilot-sdk-win32-x64 1.0.30-preview.0, which runs agent-host chats'
+            RuntimeId      = 'vscode-agent-host-runtime'
+            RuntimeVersion = '1.0.108-0'
+            VerifiedOn     = '2026-11-12'
+            Harness        = $smokeHarness
+            Case           = @(
+                [pscustomobject] @{
+                    Id       = 'C1'
+                    Kind     = 'Runtime'
+                    Outcome  = 'Failed'
+                    Evidence = 'The runtime listed software-engineer from the scratch agents directory as a user agent without a load error, but warned: unknown fields ignored: argument-hint, agents, handoffs.'
+                }
+                [pscustomobject] @{
+                    Id       = 'C2'
+                    Kind     = 'Runtime'
+                    Outcome  = 'Failed'
+                    Evidence = 'Selected, the profile kept its declared tool list as written, and the model was offered ask_user, create, edit, glob, grep, list_agents, list_powershell, powershell, read_agent, read_powershell, sql, stop_powershell, task, update_todo, view, web_fetch, and write_agent. The runtime ignores the agents: allow-list, so task, list_agents, read_agent, and write_agent are delegation without its bound, which is a privilege widening.'
+                }
+            )
+            NotCovered     = 'Local VS Code chat, the agent host process itself, any other runtime version, and the behavioral cases B1 to B8, which need model requests.'
+        }
+    }
+
+    $copilotCliRuntimeReceipt = [ordered] @{
+        'software-engineer' = [pscustomobject] @{
+            Agent          = 'software-engineer'
+            Artifact       = 'output/clientAdapters/copilot-cli/software-engineer.agent.md'
+            ArtifactSha256 = '857662eb1bab211dbc968c861bfd2aa1b0f99cb204d618707b9069bb0ab05671'
+            Runtime        = 'GitHub Copilot CLI from the WinGet package GitHub.Copilot, %LOCALAPPDATA%\Microsoft\WinGet\Links\copilot.exe, started over stdio by the Copilot SDK 1.0.30-preview.0'
+            RuntimeId      = 'copilot-cli'
+            RuntimeVersion = '1.0.96'
+            VerifiedOn     = '2026-11-12'
+            Harness        = $smokeHarness
+            Case           = @(
+                [pscustomobject] @{
+                    Id       = 'C1'
+                    Kind     = 'Runtime'
+                    Outcome  = 'Passed'
+                    Evidence = 'The runtime listed software-engineer from the scratch agents directory as a user agent, with no load error and no warning.'
+                }
+                [pscustomobject] @{
+                    Id       = 'C2'
+                    Kind     = 'Runtime'
+                    Outcome  = 'Passed'
+                    Evidence = 'Selected, the profile kept exactly ask_user, edit, execute, glob, grep, read, todo, and web_fetch, and the model was offered exactly ask_user, create, edit, glob, grep, list_powershell, powershell, read_powershell, skill, sql, stop_powershell, view, and web_fetch: no delegation tool, and nothing beyond the mapped tools and the runtime''s own skill and sql.'
+                }
+                [pscustomobject] @{
+                    Id       = 'C3'
+                    Kind     = 'File'
+                    Outcome  = 'Passed'
+                    Evidence = 'The limitation section sits once between its markers and names review: on and cycle: full as unavailable, and the SHA-256 in the end marker is that of the shared body after it.'
+                }
+            )
+            NotCovered     = 'The CLI interactive /agent list, any other CLI version, and the behavioral cases B1 to B8, which need model requests.'
         }
     }
 
@@ -329,7 +410,7 @@ function Get-CopilotAtelierClientContract
                 ModelShape              = 'PriorityArray'
                 VerificationState       = 'StructurallyChecked'
                 VerifiedClientVersion   = $null
-                RuntimeReceipt          = $null
+                RuntimeReceipt          = $vsCodeRuntimeReceipt
                 SourceProfileObservation = [pscustomobject] @{
                     Client     = 'vscode'
                     Version    = '1.136.1'
@@ -355,12 +436,18 @@ function Get-CopilotAtelierClientContract
                 ModelShape              = 'SingleString'
                 VerificationState       = 'StructurallyChecked'
                 VerifiedClientVersion   = $null
-                RuntimeReceipt          = $null
+                RuntimeReceipt          = $copilotCliRuntimeReceipt
                 SourceProfileObservation = $null
                 DocumentationUri        = 'https://docs.github.com/en/copilot/reference/custom-agents-configuration'
                 DiscoveryPath           = '~/.copilot/agents'
-                TargetValue             = 'github-copilot'
-                EmittedField            = @('name', 'description', 'target', 'disable-model-invocation', 'user-invocable', 'tools')
+                <#
+                    No target field: Copilot CLI 1.0.96 warns "unknown field
+                    ignored: target" while it loads the file, which alone failed
+                    case C1, and VS Code filters agents by target only in session
+                    types that declare one, which local chat does not.
+                #>
+                TargetValue             = $null
+                EmittedField            = @('name', 'description', 'disable-model-invocation', 'user-invocable', 'tools')
                 ToolMap                 = $copilotCliToolMap
                 ExecutionSourceTool     = $copilotCliExecutionSourceTool
                 CapabilityClass         = $copilotCliCapabilityClass
