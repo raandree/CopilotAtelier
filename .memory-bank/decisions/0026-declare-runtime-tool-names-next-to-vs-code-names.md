@@ -1,12 +1,20 @@
 ---
 status: accepted
 date: 2026-09-29
-last-verified: 2026-09-29
+last-verified: 2026-11-12
 owner: software-engineer
 source: VS Code 1.139.1 agent-host diagnosis, offline runtime probe, github/copilot-cli#4594
 ---
 
 # Declare runtime tool names next to VS Code names
+
+Superseded in part on 2026-11-12 by brief 04: the last bullet of *Decision
+outcome* keeps `VerificationState` at `StructurallyChecked` because this probe
+is not an artifact-bound receipt. That still holds for this probe, but a run
+bound by SHA-256 to the file its cases ran on is now such a receipt. The client
+contract commits it as `RuntimeReceipt`, and `Get-CopilotAtelierClientAdapter`
+reports `RuntimeVerified` for its passed runtime cases while that file is
+unchanged; see [the client adapter evaluation cases](../../docs/client-adapter-evals.md).
 
 ## Context and problem statement
 

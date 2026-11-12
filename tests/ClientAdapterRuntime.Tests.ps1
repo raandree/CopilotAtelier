@@ -168,6 +168,12 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
             $startInfo.StandardOutputEncoding = $utf8
             $startInfo.StandardErrorEncoding = $utf8
 
+            # No sign-in must not depend on the caller: the runtime gets the scratch home and no token.
+            foreach ($name in 'COPILOT_HOME', 'COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN')
+            {
+                $null = $startInfo.Environment.Remove($name)
+            }
+
             $process = [Diagnostics.Process]::Start($startInfo)
             try
             {
@@ -177,10 +183,18 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
                 $process.StandardInput.BaseStream.Write($inputBytes, 0, $inputBytes.Length)
                 $process.StandardInput.Close()
 
-                # The fixture stops itself after 600 seconds; this only catches a stuck node.
+                # The fixture stops itself after 600 seconds; this only catches a stuck node and the runtime it started.
                 if (-not $process.WaitForExit(660000))
                 {
-                    $process.Kill()
+                    if ($PSVersionTable.PSVersion.Major -ge 7)
+                    {
+                        $process.Kill($true)
+                    }
+                    else
+                    {
+                        $process.Kill()
+                    }
+
                     throw 'Invoke-CopilotSdkConversation.mjs did not exit within 660 seconds.'
                 }
 
@@ -213,13 +227,34 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
             $script:workflowTool = @('view', 'edit', 'create', 'powershell', 'grep', 'glob', 'web_fetch', 'ask_user')
             $script:delegationTool = @('task', 'list_agents', 'read_agent', 'write_agent')
 
+            # Everything the composed variant's eight entries can enable, plus the tools the runtime always offers.
+            $script:cliAllowedTool = @(
+                'ask_user', 'view', 'edit', 'create', 'grep', 'glob', 'web_fetch'
+                'powershell', 'read_powershell', 'write_powershell', 'list_powershell', 'stop_powershell'
+                'update_todo', 'skill', 'sql'
+            )
+
+            # The fields the source profile carries for local VS Code chat only; nothing else may be ignored.
+            $script:vsCodeOnlyField = @('agents', 'argument-hint', 'handoffs')
+
+            $script:ignoredField = @(
+                foreach ($warning in $script:loadWarning)
+                {
+                    if ($warning -match 'unknown fields? ignored:\s*(?<field>.+)$')
+                    {
+                        $Matches['field'] -split ',' | ForEach-Object -Process { $_.Trim() } | Where-Object -FilterScript { $_ }
+                    }
+                }
+            ) | Sort-Object
+
             $script:isListedFromScratch = $script:listed.Count -eq 1 -and
                 [IO.Path]::GetFullPath([string] $script:listed[0].path) -eq [IO.Path]::GetFullPath($script:stagedPath) -and
                 $script:listed[0].source -eq 'user'
 
             $loadedTool = @($script:selected.tools | Sort-Object)
             $declaredTool = @($script:adapter.Tool | Sort-Object)
-            $delegationOffered = @($script:offeredWith | Where-Object -FilterScript { $_ -in $script:delegationTool })
+            $script:delegationOffered = @($script:offeredWith | Where-Object -FilterScript { $_ -in $script:delegationTool })
+            $script:isAllowListIgnored = 'agents' -in $script:ignoredField
 
             $c2Holds = ($loadedTool -join ',') -eq ($declaredTool -join ',') -and
                 'probe_tool' -in $script:offeredWithout -and
@@ -228,14 +263,16 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
 
             if ($Client -eq 'copilot-cli')
             {
-                # C2 also requires the delegation tool withheld, no VS Code identifier, and neither dead alias.
-                $c2Holds = $c2Holds -and $delegationOffered.Count -eq 0 -and
+                # C2 also requires the delegation tool withheld, nothing beyond the mapped tools, no VS Code
+                # identifier, and neither dead alias.
+                $c2Holds = $c2Holds -and $script:delegationOffered.Count -eq 0 -and
+                    @($script:offeredWith | Where-Object -FilterScript { $_ -notin $script:cliAllowedTool }).Count -eq 0 -and
                     @($loadedTool | Where-Object -FilterScript { $_ -match '/' -or $_ -in @('web', 'search') }).Count -eq 0
             }
             else
             {
-                # The source profile declares agent, so its delegation tool must survive the selection.
-                $c2Holds = $c2Holds -and 'task' -in $script:offeredWith
+                # Delegation without its agents: allow-list is a privilege widening, so it fails C2.
+                $c2Holds = $c2Holds -and -not ($script:isAllowListIgnored -and $script:delegationOffered.Count -gt 0)
             }
 
             $script:outcome = [ordered] @{
@@ -265,20 +302,32 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
 
         It 'runs on the exact bytes the adapter composes and reports' {
             $script:stagedSha256 |
-                Should -Be $script:composedSha256 -Because "$script:artifactPath must be what Get-CopilotAtelierClientAdapter composes; rebuild when it is stale"
+                Should -BeExactly $script:composedSha256 -Because "$script:artifactPath must be what Get-CopilotAtelierClientAdapter composes; rebuild when it is stale"
             $script:adapter.ArtifactSha256 |
-                Should -Be $script:stagedSha256 -Because 'a receipt binds to the SHA-256 the adapter reports for the file the cases ran on'
+                Should -BeExactly $script:stagedSha256 -Because 'a receipt binds to the SHA-256 the adapter reports for the file the cases ran on'
         }
 
         It 'C1: lists the profile from the scratch agents directory as a user agent' {
             $script:listed.Count | Should -Be 1
             [IO.Path]::GetFullPath([string] $script:listed[0].path) | Should -Be ([IO.Path]::GetFullPath($script:stagedPath))
-            $script:listed[0].source | Should -Be 'user'
+            $script:listed[0].source | Should -BeExactly 'user'
         }
 
         It 'C1: loads the profile without a load error' {
             $script:loading | Should -Not -BeNullOrEmpty -Because 'the runtime reports agent loading in session.custom_agents_updated'
             $script:loadError | Should -BeNullOrEmpty
+        }
+
+        It 'C1: warns about nothing but the fields only local VS Code chat reads' {
+            if ($Client -eq 'copilot-cli')
+            {
+                $script:loadWarning | Should -BeNullOrEmpty -Because 'the composed variant emits only fields the client reads'
+            }
+            else
+            {
+                ($script:ignoredField -join ',') |
+                    Should -BeExactly ($script:vsCodeOnlyField -join ',') -Because 'a newly ignored field, or one the runtime starts to read, changes what the receipt shows'
+            }
         }
 
         It 'C2: keeps exactly the tools the file declares' {
@@ -305,14 +354,21 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
                     $script:offeredWith | Should -Not -Contain $name -Because 'the composed variant withholds delegation it cannot bound'
                 }
 
+                @($script:offeredWith | Where-Object -FilterScript { $_ -notin $script:cliAllowedTool }) |
+                    Should -BeNullOrEmpty -Because 'nothing beyond the mapped tools and the tools the runtime always offers'
                 @($script:selected.tools | Where-Object -FilterScript { $_ -match '/' }) |
                     Should -BeNullOrEmpty -Because 'no VS Code identifier survives the composition'
                 $script:selected.tools | Should -Not -Contain 'web'
                 $script:selected.tools | Should -Not -Contain 'search'
             }
+            elseif ($script:isAllowListIgnored -and $script:delegationOffered.Count -gt 0)
+            {
+                $script:outcome.C2 |
+                    Should -BeExactly 'Failed' -Because "the runtime ignores agents: and still offers $($script:delegationOffered -join ', '), which is delegation without its bound"
+            }
             else
             {
-                $script:offeredWith | Should -Contain 'task' -Because 'the source profile declares agent'
+                $script:offeredWith | Should -Contain 'task' -Because 'the source profile declares agent, and its allow-list is honoured'
             }
         }
 
@@ -327,13 +383,13 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
                 return
             }
 
-            if ($receipt.RuntimeVersion -ne $script:runtimeVersion)
+            if ($receipt.RuntimeVersion -cne $script:runtimeVersion)
             {
                 Set-ItResult -Skipped -Because "the receipt records runtime $($receipt.RuntimeVersion), and this runtime reports $script:runtimeVersion"
                 return
             }
 
-            if ($receipt.ArtifactSha256 -ne $script:stagedSha256)
+            if ($receipt.ArtifactSha256 -cne $script:stagedSha256)
             {
                 Set-ItResult -Skipped -Because "the receipt is bound to $($receipt.ArtifactSha256), and the file now hashes to $script:stagedSha256; run the cases again and record the new receipt"
                 return
@@ -341,7 +397,7 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
 
             foreach ($case in @($receipt.Case | Where-Object -Property Kind -EQ -Value 'Runtime'))
             {
-                $script:outcome[$case.Id] | Should -Be $case.Outcome -Because "the receipt records $($case.Id) as $($case.Outcome)"
+                $script:outcome[$case.Id] | Should -BeExactly $case.Outcome -Because "the receipt records $($case.Id) as $($case.Outcome)"
             }
         }
     }

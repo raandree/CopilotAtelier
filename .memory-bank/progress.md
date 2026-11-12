@@ -18,10 +18,10 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-11-12**: Brief 04, the adapter smoke check (`software-engineer`), on `ai/adapter-runtime-smoke`: cases C1 to C3 ran offline on
-  the composed `software-engineer` variant in Copilot CLI 1.0.96 and the source profile in runtime 1.0.108-0; C2 passed on both, C3 on
-  the variant, and C1 on the CLI once the variant stopped emitting `target`; on the agent host C1 fails by design. Receipts bound to each
-  file's SHA-256 let `Get-CopilotAtelierClientAdapter` report `RuntimeVerified` for those cases only; fallback test red first, then green.
+- **2026-11-12**: Brief 04, the adapter smoke check (`software-engineer`), on `ai/adapter-runtime-smoke`: cases C1 to C3 ran offline; the
+  composed `software-engineer` variant passed all three on Copilot CLI 1.0.96 once it stopped emitting `target`, and the source profile
+  failed C1 and C2 on runtime 1.0.108-0, whose agent host ignores `agents:`. Receipts bound to each file's SHA-256 raise the state only for
+  passed runtime cases; fallback test red first. An independent review's 2 Major (unbounded delegation, untested binding) fixed test-first.
 - **2026-11-12**: Brief 05, the hook input probe (`software-engineer`), merged as #56 (`548a162`): the push guard fires in a VS Code
   agent-host chat on runtime 1.0.108-0 (live inert probe denied); the 14 `HookSdkRuntime` failures were the fixtures, which now pass
   the agent host's `enableConfigDiscovery`, `enableFileHooks`, and `enableSkills` (44 of 44); a new block pins the hook input for

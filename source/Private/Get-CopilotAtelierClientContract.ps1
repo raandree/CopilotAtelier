@@ -280,7 +280,7 @@ function Get-CopilotAtelierClientContract
         $vsCodeWorkflow[$workflow] = [pscustomobject] @{
             Workflow          = $workflow
             Status            = 'Supported'
-            Reason            = 'The authoritative client provides the subagent allow-list and the handoffs the shared body is written against.'
+            Reason            = 'Local VS Code chat provides the subagent allow-list and the handoffs the shared body is written against. Agent-host chats ignore the allow-list, as Decision record 0026 records.'
             ClientInstruction = 'Proceed as the shared workflow body describes.'
         }
     }
@@ -290,8 +290,10 @@ function Get-CopilotAtelierClientContract
         run on 2026-11-12 by tests/ClientAdapterRuntime.Tests.ps1. Each one is
         bound to the SHA-256 of the file its cases ran on, so editing the
         profile, or anything that changes the composed variant, retires it
-        until the cases run again and a new receipt replaces it. A Runtime case
-        ran on the runtime; a File case read the file.
+        until the cases run again. Every case in a receipt ran on one file at
+        one runtime version: a new run replaces the whole receipt, so a later
+        case enters it only together with the earlier ones run again. A Runtime
+        case ran on the runtime; a File case read the file.
     #>
     $smokeHarness = 'tests/ClientAdapterRuntime.Tests.ps1 through tests/Fixtures/Invoke-CopilotSdkConversation.mjs: a scratch COPILOT_HOME, a loopback fake model, no sign-in, and no model request'
 
@@ -301,6 +303,7 @@ function Get-CopilotAtelierClientContract
             Artifact       = 'com.github.copilot/agents/software-engineer.agent.md'
             ArtifactSha256 = '8bb72f5d1ed03858da3cf2b0ed56842a78641736cebd1d1145abc77359ae9ba5'
             Runtime        = 'The Copilot runtime that VS Code 1.146.0 bundles in @github/copilot-sdk-win32-x64 1.0.30-preview.0, which runs agent-host chats'
+            RuntimeId      = 'vscode-agent-host-runtime'
             RuntimeVersion = '1.0.108-0'
             VerifiedOn     = '2026-11-12'
             Harness        = $smokeHarness
@@ -314,8 +317,8 @@ function Get-CopilotAtelierClientContract
                 [pscustomobject] @{
                     Id       = 'C2'
                     Kind     = 'Runtime'
-                    Outcome  = 'Passed'
-                    Evidence = 'Selected, the profile kept its declared tool list as written, and the model was offered view, edit, create, powershell, grep, glob, web_fetch, ask_user, and task, the delegation tool for its agent entry.'
+                    Outcome  = 'Failed'
+                    Evidence = 'Selected, the profile kept its declared tool list as written, and the model was offered ask_user, create, edit, glob, grep, list_agents, list_powershell, powershell, read_agent, read_powershell, sql, stop_powershell, task, update_todo, view, web_fetch, and write_agent. The runtime ignores the agents: allow-list, so task, list_agents, read_agent, and write_agent are delegation without its bound, which is a privilege widening.'
                 }
             )
             NotCovered     = 'Local VS Code chat, the agent host process itself, any other runtime version, and the behavioral cases B1 to B8, which need model requests.'
@@ -328,6 +331,7 @@ function Get-CopilotAtelierClientContract
             Artifact       = 'output/clientAdapters/copilot-cli/software-engineer.agent.md'
             ArtifactSha256 = '857662eb1bab211dbc968c861bfd2aa1b0f99cb204d618707b9069bb0ab05671'
             Runtime        = 'GitHub Copilot CLI from the WinGet package GitHub.Copilot, %LOCALAPPDATA%\Microsoft\WinGet\Links\copilot.exe, started over stdio by the Copilot SDK 1.0.30-preview.0'
+            RuntimeId      = 'copilot-cli'
             RuntimeVersion = '1.0.96'
             VerifiedOn     = '2026-11-12'
             Harness        = $smokeHarness
@@ -342,7 +346,7 @@ function Get-CopilotAtelierClientContract
                     Id       = 'C2'
                     Kind     = 'Runtime'
                     Outcome  = 'Passed'
-                    Evidence = 'Selected, the profile kept exactly ask_user, edit, execute, glob, grep, read, todo, and web_fetch, and the model was offered view, edit, create, powershell, grep, glob, web_fetch, and ask_user, with no delegation tool.'
+                    Evidence = 'Selected, the profile kept exactly ask_user, edit, execute, glob, grep, read, todo, and web_fetch, and the model was offered exactly ask_user, create, edit, glob, grep, list_powershell, powershell, read_powershell, skill, sql, stop_powershell, view, and web_fetch: no delegation tool, and nothing beyond the mapped tools and the runtime''s own skill and sql.'
                 }
                 [pscustomobject] @{
                     Id       = 'C3'

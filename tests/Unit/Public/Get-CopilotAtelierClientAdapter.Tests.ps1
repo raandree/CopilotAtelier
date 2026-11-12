@@ -59,7 +59,12 @@ Describe 'Client capability contract' -Tag 'Unit' {
         $contract.Client['copilot-cli'].IsAuthoritativeSource | Should -BeFalse
     }
 
-    It 'Should record the verification state and tested client version for every client' {
+    It 'Should record a structural state for every client, which only a bound receipt can raise' {
+        <#
+            The contract alone never claims a runtime result: a state of
+            RuntimeVerified exists only on a result whose file is bound to a
+            receipt, so a contract-level claim would bypass the binding.
+        #>
         $contract = InModuleScope CopilotAtelier { Get-CopilotAtelierClientContract }
 
         foreach ($client in $contract.Client.Keys)
@@ -67,18 +72,13 @@ Describe 'Client capability contract' -Tag 'Unit' {
             $entry = $contract.Client[$client]
 
             $entry.VerificationState |
-                Should -BeIn @('RuntimeVerified', 'StructurallyChecked', 'Unverified', 'Unsupported') -Because $client
+                Should -BeIn @('StructurallyChecked', 'Unverified', 'Unsupported') -Because "$client may not claim a runtime result without a receipt bound to a file"
+            $entry.VerifiedClientVersion | Should -BeNullOrEmpty -Because $client
             $entry.DocumentationUri | Should -Not -BeNullOrEmpty -Because $client
-
-            if ($entry.VerificationState -eq 'RuntimeVerified')
-            {
-                $entry.VerifiedClientVersion |
-                    Should -Not -BeNullOrEmpty -Because 'a runtime claim names the version it was proven against'
-            }
         }
     }
 
-    It 'Should not claim runtime verification without an artifact-bound receipt' {
+    It 'Should keep the historical VS Code observation apart from every receipt' {
         <#
             An observation that one checkout's profile once loaded in one editor
             build is historical evidence about that file. It cannot travel with
@@ -87,22 +87,12 @@ Describe 'Client capability contract' -Tag 'Unit' {
         #>
         $contract = InModuleScope CopilotAtelier { Get-CopilotAtelierClientContract }
 
-        foreach ($client in $contract.Client.Keys)
-        {
-            $entry = $contract.Client[$client]
-
-            if ($entry.VerificationState -eq 'RuntimeVerified')
-            {
-                $entry.RuntimeReceipt |
-                    Should -Not -BeNullOrEmpty -Because "$client claims a runtime state, so it must name the artifact-bound receipt that proves it"
-            }
-        }
-
         $observation = $contract.Client['vscode'].SourceProfileObservation
 
         $observation | Should -Not -BeNullOrEmpty -Because 'the historical VS Code observation is kept, but as source-profile evidence'
         $observation.Version | Should -Not -BeNullOrEmpty
         $observation.Scope | Should -Not -BeNullOrEmpty
+        $observation.PSObject.Properties.Name | Should -Not -Contain 'ArtifactSha256' -Because 'the observation is bound to no file'
     }
 
     It 'Should name the cases, the file hash, the runtime and its version, the date, and each outcome in every runtime receipt' {
@@ -122,6 +112,7 @@ Describe 'Client capability contract' -Tag 'Unit' {
                 $receipt.Artifact | Should -Not -BeNullOrEmpty -Because $label
                 $receipt.ArtifactSha256 | Should -MatchExactly '^[0-9a-f]{64}$' -Because "$label binds to one file by its lowercase SHA-256"
                 $receipt.Runtime | Should -Not -BeNullOrEmpty -Because $label
+                $receipt.RuntimeId | Should -MatchExactly '^[a-z0-9]+(-[a-z0-9]+)*$' -Because "$label names what ran with a short identifier"
                 $receipt.RuntimeVersion | Should -Not -BeNullOrEmpty -Because $label
                 $receipt.Harness | Should -Not -BeNullOrEmpty -Because "$label must say how to run the cases again"
                 $receipt.NotCovered | Should -Not -BeNullOrEmpty -Because "$label must say what it does not cover"
@@ -718,6 +709,7 @@ Describe 'Runtime receipt binding' -Tag 'Unit' {
                         Artifact       = 'fixture-agent.agent.md'
                         ArtifactSha256 = $script:boundHash
                         Runtime        = 'Fixture runtime'
+                        RuntimeId      = 'fixture-runtime'
                         RuntimeVersion = '9.9.9'
                         VerifiedOn     = '2026-11-12'
                         Harness        = 'Fixture harness'
@@ -760,12 +752,46 @@ Describe 'Runtime receipt binding' -Tag 'Unit' {
             Resolve-CopilotAtelierClientVerification -ClientContract $ClientContract -Name 'fixture-agent' -ArtifactSha256 $Hash
         }
 
-        $result.RuntimeReceiptStatus | Should -Be 'Bound'
-        $result.VerificationState | Should -Be 'RuntimeVerified'
-        $result.VerifiedClientVersion | Should -Be '9.9.9'
+        $result.RuntimeReceiptStatus | Should -BeExactly 'Bound'
+        $result.VerificationState | Should -BeExactly 'RuntimeVerified'
+        $result.VerifiedRuntime | Should -BeExactly 'fixture-runtime' -Because 'a runtime claim names what ran, not only the client it stands for'
+        $result.VerifiedClientVersion | Should -BeExactly '9.9.9'
         $result.VerifiedCase | Should -Be @('C2', 'C3')
         $result.VerifiedCase | Should -Not -Contain 'C1' -Because 'a failed case is never reported as verified'
-        $result.RuntimeReceipt.ArtifactSha256 | Should -Be $script:boundHash
+        $result.RuntimeReceipt.ArtifactSha256 | Should -BeExactly $script:boundHash
+    }
+
+    It 'Should reject a hash that is not lowercase hexadecimal' {
+        <#
+            Receipts record lowercase hashes and the binding compares them
+            exactly, so an uppercase hash would quietly retire every receipt
+            rather than fail.
+        #>
+        $clientContract = script:New-ClientContractFixture -Case @(
+            (script:New-CaseFixture -Id 'C2' -Kind 'Runtime' -Outcome 'Passed')
+        )
+
+        {
+            InModuleScope CopilotAtelier -Parameters @{ ClientContract = $clientContract; Hash = $script:boundHash.ToUpperInvariant() } {
+                param ($ClientContract, $Hash)
+                Resolve-CopilotAtelierClientVerification -ClientContract $ClientContract -Name 'fixture-agent' -ArtifactSha256 $Hash
+            }
+        } | Should -Throw
+    }
+
+    It 'Should refuse a client contract that claims a runtime result on its own' {
+        $clientContract = script:New-ClientContractFixture -Case @(
+            (script:New-CaseFixture -Id 'C2' -Kind 'Runtime' -Outcome 'Passed')
+        )
+        $clientContract.VerificationState = 'RuntimeVerified'
+        $clientContract.VerifiedClientVersion = '9.9.9'
+
+        {
+            InModuleScope CopilotAtelier -Parameters @{ ClientContract = $clientContract } {
+                param ($ClientContract)
+                Resolve-CopilotAtelierClientVerification -ClientContract $ClientContract -Name 'fixture-agent' -ArtifactSha256 ('b' * 64)
+            }
+        } | Should -Throw -ExpectedMessage '*RuntimeVerified*'
     }
 
     It 'Should fall back to the client contract state once the hash differs' {
@@ -778,8 +804,9 @@ Describe 'Runtime receipt binding' -Tag 'Unit' {
             Resolve-CopilotAtelierClientVerification -ClientContract $ClientContract -Name 'fixture-agent' -ArtifactSha256 ('b' * 64)
         }
 
-        $result.RuntimeReceiptStatus | Should -Be 'Stale'
-        $result.VerificationState | Should -Be 'StructurallyChecked'
+        $result.RuntimeReceiptStatus | Should -BeExactly 'Stale'
+        $result.VerificationState | Should -BeExactly 'StructurallyChecked'
+        $result.VerifiedRuntime | Should -BeNullOrEmpty
         $result.VerifiedClientVersion | Should -BeNullOrEmpty
         $result.VerifiedCase | Should -BeNullOrEmpty
         $result.RuntimeReceipt | Should -BeNullOrEmpty
@@ -811,8 +838,9 @@ Describe 'Runtime receipt binding' -Tag 'Unit' {
             Resolve-CopilotAtelierClientVerification -ClientContract $ClientContract -Name 'fixture-agent' -ArtifactSha256 $Hash
         }
 
-        $result.RuntimeReceiptStatus | Should -Be 'Bound'
-        $result.VerificationState | Should -Be 'StructurallyChecked'
+        $result.RuntimeReceiptStatus | Should -BeExactly 'Bound'
+        $result.VerificationState | Should -BeExactly 'StructurallyChecked'
+        $result.VerifiedRuntime | Should -BeNullOrEmpty
         $result.VerifiedClientVersion | Should -BeNullOrEmpty
         $result.VerifiedCase | Should -Be @('C3')
     }
@@ -860,32 +888,71 @@ Describe 'Get-CopilotAtelierClientAdapter' -Tag 'Unit' {
         foreach ($result in @(Get-CopilotAtelierClientAdapter -Name 'software-engineer' -ContentPath $root))
         {
             $result.RuntimeReceiptStatus |
-                Should -Be 'Stale' -Because "$($result.Client) has a receipt for the shipped file, and this file is not that one"
-            $result.VerificationState | Should -Be 'StructurallyChecked' -Because $result.Client
+                Should -BeExactly 'Stale' -Because "$($result.Client) has a receipt for the shipped file, and this file is not that one"
+            $result.VerificationState | Should -BeExactly 'StructurallyChecked' -Because $result.Client
+            $result.VerifiedRuntime | Should -BeNullOrEmpty -Because $result.Client
             $result.VerifiedClientVersion | Should -BeNullOrEmpty -Because $result.Client
             $result.VerifiedCase | Should -BeNullOrEmpty -Because $result.Client
             $result.RuntimeReceipt | Should -BeNullOrEmpty -Because $result.Client
         }
     }
 
+    It 'Should not bind the source profile receipt to a copy whose bytes differ only in line endings' {
+        <#
+            The receipt vouches for the bytes the runtime read. A CRLF copy reads
+            the same once normalized, but it is not the file the cases ran on.
+        #>
+        $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+        $agentDirectory = Join-Path $root 'com.github.copilot/agents'
+        New-Item -ItemType Directory -Path $agentDirectory -Force | Out-Null
+
+        $shipped = (Get-CopilotAtelierClientAdapter -Name 'software-engineer' -Client 'vscode').SourcePath
+        $crlf = [System.IO.File]::ReadAllText($shipped) -replace "`r`n", "`n" -replace "`n", "`r`n"
+        [System.IO.File]::WriteAllText((Join-Path $agentDirectory 'software-engineer.agent.md'), $crlf, [System.Text.UTF8Encoding]::new($false))
+
+        $result = Get-CopilotAtelierClientAdapter -Name 'software-engineer' -Client 'vscode' -ContentPath $root
+
+        $result.RuntimeReceiptStatus | Should -BeExactly 'Stale'
+        $result.VerificationState | Should -BeExactly 'StructurallyChecked'
+    }
+
     It 'Should back every runtime claim about the shipped profile with a receipt bound to its exact bytes' {
         <#
             This holds whether the committed receipt is current or stale: a
-            bound receipt licenses the claim, and anything else falls back.
+            bound receipt licenses the claim, and anything else falls back. The
+            authoritative profile is hashed as the file it is, and a composed
+            variant as the UTF-8 bytes the build writes.
         #>
         foreach ($result in @(Get-CopilotAtelierClientAdapter -Name 'software-engineer'))
         {
-            $expectedHash = [System.BitConverter]::ToString(
-                [System.Security.Cryptography.SHA256]::Create().ComputeHash(
-                    [System.Text.UTF8Encoding]::new($false).GetBytes($result.Content))).Replace('-', '').ToLowerInvariant()
+            $byte = if ($result.IsAuthoritativeSource)
+            {
+                [System.IO.File]::ReadAllBytes($result.SourcePath)
+            }
+            else
+            {
+                [System.Text.UTF8Encoding]::new($false).GetBytes($result.Content)
+            }
 
-            $result.ArtifactSha256 | Should -Be $expectedHash -Because "$($result.Client) reports the hash of the content it returns"
+            $hashProvider = [System.Security.Cryptography.SHA256]::Create()
+
+            try
+            {
+                $expectedHash = [System.BitConverter]::ToString($hashProvider.ComputeHash($byte)).Replace('-', '').ToLowerInvariant()
+            }
+            finally
+            {
+                $hashProvider.Dispose()
+            }
+
+            $result.ArtifactSha256 | Should -BeExactly $expectedHash -Because "$($result.Client) reports the hash of the file a client loads"
 
             if ($result.VerificationState -eq 'RuntimeVerified')
             {
-                $result.RuntimeReceiptStatus | Should -Be 'Bound' -Because $result.Client
-                $result.RuntimeReceipt.ArtifactSha256 | Should -Be $result.ArtifactSha256 -Because $result.Client
-                $result.VerifiedClientVersion | Should -Be $result.RuntimeReceipt.RuntimeVersion -Because $result.Client
+                $result.RuntimeReceiptStatus | Should -BeExactly 'Bound' -Because $result.Client
+                $result.RuntimeReceipt.ArtifactSha256 | Should -BeExactly $result.ArtifactSha256 -Because $result.Client
+                $result.VerifiedClientVersion | Should -BeExactly $result.RuntimeReceipt.RuntimeVersion -Because $result.Client
+                $result.VerifiedRuntime | Should -BeExactly $result.RuntimeReceipt.RuntimeId -Because "$($result.Client) names what ran"
 
                 $passed = @($result.RuntimeReceipt.Case | Where-Object -FilterScript { $_.Outcome -eq 'Passed' } | ForEach-Object -Process { $_.Id })
                 $result.VerifiedCase | Should -Not -BeNullOrEmpty -Because $result.Client
@@ -893,7 +960,8 @@ Describe 'Get-CopilotAtelierClientAdapter' -Tag 'Unit' {
             }
             else
             {
-                $result.VerificationState | Should -Be 'StructurallyChecked' -Because $result.Client
+                $result.VerificationState | Should -BeExactly 'StructurallyChecked' -Because $result.Client
+                $result.VerifiedRuntime | Should -BeNullOrEmpty -Because $result.Client
                 $result.VerifiedClientVersion | Should -BeNullOrEmpty -Because $result.Client
             }
         }

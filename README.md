@@ -1132,7 +1132,9 @@ published through the plugin channel, because `output/` is not tracked. Placing
 a second profile for one agent in `~/.copilot/agents` - which VS Code and the
 Copilot CLI both read - would create a duplicate discovery entry rather than
 fix a compatibility gap. Use the artifact to review the mapping, or copy one
-variant into a client configuration you control yourself.
+variant into a `COPILOT_HOME` that only the Copilot CLI reads: the variant
+carries no `target` field, so nothing in it keeps VS Code from loading it as a
+second profile.
 
 The build task owns that directory rather than sweeping it. It writes a
 `.copilot-atelier-adapter-manifest.json` recording each file it generated
@@ -1156,20 +1158,22 @@ is refused with the paths it claims: review them, then remove the directory
 yourself or point `ClientAdapterSubdirectory` at a fresh name and rebuild.
 Nothing is adopted and nothing is deleted on your behalf.
 
-**Known limitations.** Runtime evidence is narrow. The model-free cases C1 to
-C3 of [docs/client-adapter-evals.md](docs/client-adapter-evals.md) ran on
-2026-11-12: the composed variant on Copilot CLI 1.0.96, and the source profile
-on runtime 1.0.108-0, which VS Code 1.146.0 bundles for its agent-host chats.
-`Get-CopilotAtelierClientAdapter` reports `RuntimeVerified` only for the cases
-that passed (C1 to C3 on the variant, C2 on the source profile), at those
-versions, and only while the file still has the SHA-256 that the committed
-receipt records; any edit falls back to `StructurallyChecked`. The variant
-emits no `target` field, because the CLI ignores it with a warning. C1 fails by
-design on the agent-host runtime, which warns that it ignores `argument-hint`,
-`agents`, and `handoffs`: local VS Code chat needs those fields. The CLI's
-interactive `/agent` list, local VS Code chat, and every behavioral case remain
-unverified, and the observation that the source profile loaded in VS Code
-1.136.1 is kept as historical evidence, bound to no file.
+**Known limitations.** Runtime evidence is narrow. The client contract commits
+one receipt per client, recorded on 2026-11-12 from the model-free cases of
+[docs/client-adapter-evals.md](docs/client-adapter-evals.md). The composed
+variant passed C1 to C3 on Copilot CLI 1.0.96; it emits no `target` field,
+because the CLI ignores it with a warning. The source profile failed C1 and C2
+on runtime 1.0.108-0, which VS Code 1.146.0 bundles for its agent-host chats:
+that runtime ignores `argument-hint`, `agents`, and `handoffs`, fields local VS
+Code chat needs, and so it offers delegation without the profile's `agents:`
+allow-list. `Get-CopilotAtelierClientAdapter` reports `RuntimeVerified` only for
+passed cases that ran on a runtime, naming that runtime and version
+(`VerifiedRuntime`, `VerifiedClientVersion`), and only while the file a client
+loads still has the receipt's SHA-256. Run it for the current state: after any
+edit, the state falls back to `StructurallyChecked`. The CLI's interactive
+`/agent` list, local VS Code chat, and every behavioral case remain unverified,
+and the observation that the source profile loaded in VS Code 1.136.1 is kept
+as historical evidence, bound to no file.
 A composed variant loses handoff buttons, so a workflow that advances through a
 handoff cannot advance on that client. Notebook, task, problem, browser,
 GitHub-toolset, MCP, and VS Code-command tools have no documented client

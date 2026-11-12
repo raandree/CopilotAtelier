@@ -178,10 +178,10 @@ Describe 'Copilot CLI variant of the representative profile' -Tag 'Unit' {
 
         if ($script:variant.VerificationState -ne 'StructurallyChecked')
         {
-            $script:variant.VerificationState | Should -Be 'RuntimeVerified'
-            $script:variant.RuntimeReceiptStatus | Should -Be 'Bound'
-            $script:variant.RuntimeReceipt.ArtifactSha256 | Should -Be $script:variant.ArtifactSha256
-            $script:variant.VerifiedClientVersion | Should -Be $script:variant.RuntimeReceipt.RuntimeVersion
+            $script:variant.VerificationState | Should -BeExactly 'RuntimeVerified'
+            $script:variant.RuntimeReceiptStatus | Should -BeExactly 'Bound'
+            $script:variant.RuntimeReceipt.ArtifactSha256 | Should -BeExactly $script:variant.ArtifactSha256
+            $script:variant.VerifiedClientVersion | Should -BeExactly $script:variant.RuntimeReceipt.RuntimeVersion
         }
     }
 
@@ -264,27 +264,36 @@ Describe 'Client adapter build artifact' -Tag 'Unit' {
         $artifact = Join-Path (Join-Path $script:adapterRoot 'copilot-cli') $script:variant.FileName
         $text = [System.IO.File]::ReadAllText($artifact)
         $begin = '<!-- copilot-atelier:client-limitations:begin client=copilot-cli -->'
+        $beginIndex = $text.IndexOf($begin, [System.StringComparison]::Ordinal)
         $end = [regex]::Match($text, '<!-- copilot-atelier:client-limitations:end client=copilot-cli sharedBodySha256=([0-9a-f]{64}) -->\n\n')
 
         $end.Success | Should -BeTrue
-        $text.IndexOf($begin) | Should -BeGreaterThan 0
-        $text.IndexOf($begin) | Should -BeLessThan $end.Index
+        $beginIndex | Should -BeGreaterThan 0
+        $beginIndex | Should -BeLessThan $end.Index
 
-        $section = $text.Substring($text.IndexOf($begin), $end.Index - $text.IndexOf($begin))
+        $section = $text.Substring($beginIndex, $end.Index - $beginIndex)
         $section | Should -Match '`review: on` is not available on this client'
         $section | Should -Match '`cycle: full` is not available on this client'
 
         $body = $text.Substring($end.Index + $end.Length)
-        $bodyHash = [System.BitConverter]::ToString(
-            [System.Security.Cryptography.SHA256]::Create().ComputeHash(
-                [System.Text.UTF8Encoding]::new($false).GetBytes($body))).Replace('-', '').ToLowerInvariant()
+        $hashProvider = [System.Security.Cryptography.SHA256]::Create()
 
-        $bodyHash | Should -Be $end.Groups[1].Value
+        try
+        {
+            $bodyHash = [System.BitConverter]::ToString(
+                $hashProvider.ComputeHash([System.Text.UTF8Encoding]::new($false).GetBytes($body))).Replace('-', '').ToLowerInvariant()
+        }
+        finally
+        {
+            $hashProvider.Dispose()
+        }
+
+        $bodyHash | Should -BeExactly $end.Groups[1].Value
 
         $receiptMap = $script:contract.Client['copilot-cli'].RuntimeReceipt
         $receipt = if ($receiptMap -and $receiptMap.Contains($script:representative)) { $receiptMap[$script:representative] }
 
-        if ($receipt -and $receipt.ArtifactSha256 -eq (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant())
+        if ($receipt -and $receipt.ArtifactSha256 -ceq (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant())
         {
             @($receipt.Case | Where-Object -FilterScript { $_.Id -eq 'C3' }).Outcome | Should -Be 'Passed'
         }
@@ -350,6 +359,66 @@ Describe 'Client adapter build artifact' -Tag 'Unit' {
             Should -Match 'Assert-CopilotAtelierRegularPath' -Because 'the exporter guards every path component through the shared guard, which the task must dot-source'
         $task |
             Should -Not -Match 'Remove-Item[^\r\n]*-Recurse' -Because 'deletion is bounded by the ownership manifest, not by a recursive sweep'
+    }
+}
+
+Describe 'Runtime receipts of the shipped profile' -Tag 'Unit' {
+    It 'Should bind the <Client> receipt while the file a client loads still has its hash' -ForEach @(
+        @{ Client = 'vscode' }
+        @{ Client = 'copilot-cli' }
+    ) {
+        <#
+            The positive control of the binding. While the file still hashes to
+            the receipt's SHA-256, the result must be bound and report exactly
+            the receipt's cases. An edit to the profile moves the hash, so the
+            check skips instead of forcing a rerun; a regression that retires a
+            current receipt fails it.
+        #>
+        $receiptMap = $script:contract.Client[$Client].RuntimeReceipt
+        $receipt = if ($receiptMap -and $receiptMap.Contains($script:representative)) { $receiptMap[$script:representative] }
+
+        if (-not $receipt)
+        {
+            Set-ItResult -Skipped -Because "no receipt is committed for $Client"
+            return
+        }
+
+        $file = if ($Client -eq 'vscode')
+        {
+            $script:agentPath
+        }
+        else
+        {
+            Join-Path (Join-Path $script:adapterRoot 'copilot-cli') "$($script:representative).agent.md"
+        }
+
+        $fileHash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+
+        if ($fileHash -cne $receipt.ArtifactSha256)
+        {
+            Set-ItResult -Skipped -Because "$file hashes to $fileHash and the receipt to $($receipt.ArtifactSha256); the claim has fallen back until the cases run again"
+            return
+        }
+
+        $result = Get-CopilotAtelierClientAdapter -Name $script:representative -Client $Client -ContentPath $script:projectPath
+        $passed = @($receipt.Case | Where-Object -FilterScript { $_.Outcome -eq 'Passed' } | ForEach-Object -Process { $_.Id })
+        $runtimePassed = @($receipt.Case | Where-Object -FilterScript { $_.Outcome -eq 'Passed' -and $_.Kind -eq 'Runtime' })
+
+        $result.ArtifactSha256 | Should -BeExactly $fileHash
+        $result.RuntimeReceiptStatus | Should -BeExactly 'Bound'
+        (@($result.VerifiedCase) -join ',') | Should -BeExactly ($passed -join ',')
+
+        if ($runtimePassed.Count -gt 0)
+        {
+            $result.VerificationState | Should -BeExactly 'RuntimeVerified'
+            $result.VerifiedRuntime | Should -BeExactly $receipt.RuntimeId
+            $result.VerifiedClientVersion | Should -BeExactly $receipt.RuntimeVersion
+        }
+        else
+        {
+            $result.VerificationState | Should -BeExactly 'StructurallyChecked' -Because 'no case that ran on the runtime passed'
+            $result.VerifiedRuntime | Should -BeNullOrEmpty
+        }
     }
 }
 
