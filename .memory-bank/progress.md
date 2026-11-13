@@ -19,6 +19,9 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
 
 ## Recent milestones
 
+- **2026-11-13**: Re-review of the review fixes nobody had reviewed (`software-engineer`, the owner's ruling): brief 13 Approve; #54
+  Approve with four Nits (handoff backlog); #57 Approve with changes, so brief 17 (C2 fails closed); #53 Request changes, two Majors in
+  the Reddit quarantine, so brief 16. #58 and #56 left out as low risk; no GitHub review existed on #53 to #58.
 - **2026-11-13**: Brief 13, S-19 (`software-engineer`), pushed on `ai/s19-replayed-acknowledgement`: the ledger client counts the sink's
   records before it sends and believes only a later sequence (`sequence > n`, the owner's ruling), so a replayed identical record is refused,
   and a sink it cannot count stops the send. Red first (the replay exited 0 on `aea224e`); 14 mutants caught. Review: Approve with changes,
@@ -50,11 +53,8 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
   and `travel-planning` (`bc27c27`), each kept by the owner's with/without rule (planning 0 vs 2 corrections;
   handbook kept on an approved rerun). An independent security review found 17 issues (3 Major); all were
   fixed test-first inside their commits. No trip is named in any shipped file. Report in the handoff folder.
-- **2026-11-10**: The Task ledger stays in its Handoff sequence's folder (`software-engineer`). Briefs added
-  to a folder without `LEDGER.md` now get the ledger there first, never a row in another folder's ledger;
-  a Brief claims its number with its row; an Error found before a change still counts. The checker reports
-  `LedgerOutsideFolder`. 10 new tests (7 red first), 2 mutants caught, 1,157 focused passed. Merged as
-  #51 (`4c4fbd3`, `6.1.0-preview0024`).
+- **2026-11-10**: The Task ledger stays in its Handoff sequence's folder (`software-engineer`): a brief's row lives in its own
+  folder's `LEDGER.md` (`LedgerOutsideFolder`). Merged as #51 (`4c4fbd3`, `6.1.0-preview0024`).
 
 ## Stable capabilities
 
