@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-12
+last-verified: 2026-11-13
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,13 +9,13 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 04, the adapter smoke check (2026-11-12), is done on `ai/adapter-runtime-smoke`** (first commit pushed, later ones local; no
-pull request yet). Cases C1 to C3 of `docs/client-adapter-evals.md` ran offline: the composed `software-engineer` variant passed all three
-on the WinGet Copilot CLI 1.0.96 once it stopped emitting `target` (owner's ruling); the source profile failed C1 and C2 on runtime
-1.0.108-0 (VS Code 1.146.0's agent host), which ignores `argument-hint`, `agents`, `handoffs` and so offers delegation without the
-`agents:` allow-list (review R04-01). Each run is a receipt bound to the file's SHA-256: `Get-CopilotAtelierClientAdapter` reports
-`RuntimeVerified` only for passed runtime cases at that version, so VS Code stays `StructurallyChecked` (new output: `ArtifactSha256`,
-`VerifiedRuntime`, `VerifiedCase`, `RuntimeReceipt`, `RuntimeReceiptStatus`). The `security-reviewer` pass found 2 Major, both fixed.
+**Brief 11, S-20 (2026-11-13), is done on `ai/s20-relay-exception-texts`** (local commits, not pushed). The appender's two lines
+about a dropped connection go through `Format-RefusalText`, and `Test-HookContract` relays its four exception texts, the two
+closure details of the interpreter and the interpreter's path through `Format-RelayedText` (200 characters; 1,000 for the details
+together and for the path): S-20, V-05 and W-03 are closed. `Test-OrdinalEqual`, `Test-UtcInstant` and `Test-Acknowledgement` run
+in-process on every system, and the `-Validate` stored-line case lost its `-Skip`; the pull request's CI is their first run on
+Ubuntu and macOS. The `security-reviewer` said Approve with changes (0 Blocker, 0 Major); R11-01 is a follow-up (Open findings).
+New digests: verifier `d283ad9b…1c24`, appender `9ad77258…064b`; every containment profile re-pins both.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
@@ -45,6 +45,10 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
 
 ## Previous focuses
 
+- **Brief 04, the adapter smoke check (2026-11-12).** Merged as #57 (`0859e9e`, 23:25 UTC; CI published `6.2.0-preview0001`):
+  a runtime receipt bound to the file's SHA-256 lets `Get-CopilotAtelierClientAdapter` report `RuntimeVerified` only for passed
+  runtime cases. The Copilot CLI variant passed C1 to C3 without `target`; the agent host failed C1 and C2 because it ignores
+  `agents:`, so VS Code stays `StructurallyChecked`. R04-14 is deferred.
 - **Brief 05, the hook input probe (2026-11-12).** Merged as #56 (`548a162`): the push guard fires in agent-host chats on runtime
   1.0.108-0; the SDK fixtures pass `enableConfigDiscovery`, `enableFileHooks`, and `enableSkills`; the hook input of `skill`, `view`,
   `edit`, and `create` is pinned for that runtime and CLI 1.0.96. The owner declined both collectors.
@@ -60,22 +64,14 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
   hashed to `dd415737…2415` on 2026-11-09; a containment profile elsewhere pins that digest.
 - **The agents' models (2026-11-09).** Opus 5.5 and Sonnet 5.5 on `main` (`ea19ba4`, `6.1.0-preview0022`;
   Decision record 0029); the Skill index on `main` (`661c30a`); the R-04 closing test passed.
-- **Decision 0028, steps 7.1 to 7.5 (2026-10-06 to 2026-10-08).** The design
-  (`b568c8c`, signed off after 26 questions), Amendments 1 to 4 (A1 to A19), the
-  A12 backstop (`23a861a`), the hash-pinned frozen reference (`30fb3229…9c79`,
-  A17), the latency levels (`3bef6b9`: `SessionStart.AddedLatency` Budget 2.0,
-  `PostToolUse.CallLatency` Budget 0.75), and the VS Code Local backstop proved
-  live (`b05efe3`). The RAANDREE3 `FailFast` is a .NET 10.0.6 runtime fault on
-  PowerShell 7.6.1, not this repository's code. Evidence: the record's Confirmation.
+- **Decision 0028, steps 7.1 to 7.5 (2026-10-06 to 2026-10-08).** Design `b568c8c`, Amendments 1 to 4, the A12
+  backstop `23a861a`, the frozen reference `30fb3229…9c79`, the latency levels `3bef6b9`, and the VS Code Local
+  backstop `b05efe3`; the RAANDREE3 `FailFast` is a .NET 10.0.6 fault. Evidence: the record's Confirmation.
 - **Hook guard and deny reason (prompts 02 to 06, #28 to #30; `d8cc6f5` to `fea564f`).**
   Ten reviews ended in an approval. The guard decides within about five seconds and errs
   toward blocking. The bundled SDK runtime drops a PascalCase deny that also carries
   `hookSpecificOutput`, so the guard prints the top-level pair alone
   (`tests/HookSdkRuntime.Tests.ps1`; Decision 0016). Deployed 2026-10-04.
-- **Plan-review findings PR-01 to PR-09.** Resolved in the integrated tree with a
-  mandatory heading verifier; browser feedback never grants chat sign-off, the
-  cross-platform artifact transfer stayed unproven, and `review: on` remains
-  recommended for the combined HTTP and persistence corrections.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -103,6 +99,8 @@ Earlier route-selection and trigger-query sets remain unmeasured. ShellPilot's
 
 ## Open findings
 
+- **Minor (2026-11-13, review R11-01):** at least 26 exception texts of the containment verifier (20 into its evidence), the event
+  names of hooks.json, the grants root and the escape-set paths still pass unrelayed; brief 11 closed only the hook check's texts.
 - **Low (2026-11-12, review R04-14):** six private SHA-256 hex helpers in `source/` and the copied SDK lookup in two runtime suites
   could share one helper each; deferred by the owner.
 - **Medium (2026-11-12):** VS Code Local chats are not probed for the hook input of Skill and file tools: their tool names, payload,
@@ -159,11 +157,11 @@ unproven — train reached 100 % while validation fell.
    controller agent (the security lint names the rule `ObsoleteRemoteOverride`).
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
-3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): brief 04 waits on the owner
-   to push its later commits and to open and merge `ai/adapter-runtime-smoke`; closing #49; from
+3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): brief 11 waits on the owner
+   to push and merge `ai/s20-relay-exception-texts` and to re-pin both digests in any containment profile; closing #49; from
    brief 03, delete any leftover `extracted\all-cookies.json` and sign in to Reddit once for the live `reddit-read` check; then
-   the P5 follow-ups (`docs/SECURITY-REVIEW.md`: S-20, the escape set of `WritableRoots`, S-19, the run id of `-Revalidate`, a CI
-   retry for the Gallery bootstrap) and more. `ai/travel-photo-diary-skill` exists only on the other machine.
+   the other P5 follow-ups (`docs/SECURITY-REVIEW.md`: the escape set of `WritableRoots`, S-19, the run id of `-Revalidate`, a CI
+   retry for the Gallery bootstrap, and R11-01) and more. `ai/travel-photo-diary-skill` exists only on the other machine.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.

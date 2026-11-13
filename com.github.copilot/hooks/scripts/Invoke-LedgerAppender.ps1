@@ -1984,7 +1984,7 @@ switch ($PSCmdlet.ParameterSetName) {
                     # faulted. The replacement is created before the faulted one
                     # is released, so the name stays owned throughout.
                     [Console]::Error.WriteLine(
-                        "Ledger appender dropped a connection attempt: $($_.Exception.GetBaseException().Message)")
+                        "Ledger appender dropped a connection attempt: $(Format-RefusalText -Text $_.Exception.GetBaseException().Message)")
 
                     $faulted = $listening
                     $listening = $null
@@ -2086,7 +2086,7 @@ switch ($PSCmdlet.ParameterSetName) {
                     # A client that hangs up, times out, or sends garbage must
                     # not take the ledger service down with it: losing the
                     # appender mid-run would strand every later record.
-                    [Console]::Error.WriteLine("Ledger appender dropped a connection: $($_.Exception.Message)")
+                    [Console]::Error.WriteLine("Ledger appender dropped a connection: $(Format-RefusalText -Text $_.Exception.Message)")
                 } finally {
                     $server.Dispose()
                 }

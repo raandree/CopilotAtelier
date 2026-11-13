@@ -2717,6 +2717,9 @@ function Test-HookContract {
         passes under cmd.exe and fails under a wrapper fails, which is how a quoted program path, a dash word or a comment
         marker is caught by measurement and not by a rule. Each wrapper is shown closed to this identity first, and nothing runs
         under one that is not. A host's own spawn code is not run, so the Pass says what was rebuilt and not that a host ran it.
+
+        The message of an exception, a reason of the access check and the path of the interpreter are cut to printable ASCII
+        and to a length before they go into the evidence, as the texts about a wrapper are.
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
@@ -2749,7 +2752,7 @@ function Test-HookContract {
         $configBytes = [System.IO.File]::ReadAllBytes($HookConfigPath)
         $scriptBytes = [System.IO.File]::ReadAllBytes($HookScriptPath)
     } catch {
-        return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not read a pinned hook control: $($_.Exception.Message)"
+        return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not read a pinned hook control: $(Format-RelayedText -Text $_.Exception.Message)"
     }
 
     $configDigest = Get-BytesDigest -Bytes $configBytes
@@ -2878,26 +2881,29 @@ function Test-HookContract {
         return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the hook command does not start with the absolute path of its interpreter ($($interpreter.Problem)), so the program that runs it cannot be shown to be one that was measured; pin a command that starts with an absolute interpreter path. It was not run"
     }
 
+    # A quoted program word may hold a tab and has no length limit, so the path is relayed wherever the evidence names it.
+    $interpreterShown = Format-RelayedText -Text $interpreter.Path -Limit 1000
+
     try {
         $protection = Test-PathProtection -Path $interpreter.Path -WritableRoot $WritableRoot
     } catch {
-        return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "the interpreter $($interpreter.Path) could not be measured, so the hook command was not run: $($_.Exception.Message)"
+        return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "the interpreter $interpreterShown could not be measured, so the hook command was not run: $(Format-RelayedText -Text $_.Exception.Message)"
     }
 
     if ($protection.Absent) {
-        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the interpreter $($interpreter.Path) does not exist, so the hook command was not run"
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the interpreter $interpreterShown does not exist, so the hook command was not run"
     }
 
     if (@($protection.Violation).Count -gt 0) {
-        $detail = @($protection.Violation | Select-Object -First 6) -join '; '
+        $detail = Format-RelayedText -Text (@($protection.Violation | Select-Object -First 6) -join '; ') -Limit 1000
 
-        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the interpreter $($interpreter.Path) can be replaced by this identity, so what the probe reports proves nothing and the hook command was not run: $detail"
+        return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the interpreter $interpreterShown can be replaced by this identity, so what the probe reports proves nothing and the hook command was not run: $detail"
     }
 
     if (@($protection.Unmeasured).Count -gt 0) {
-        $detail = @($protection.Unmeasured | Select-Object -First 6) -join '; '
+        $detail = Format-RelayedText -Text (@($protection.Unmeasured | Select-Object -First 6) -join '; ') -Limit 1000
 
-        return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "the interpreter $($interpreter.Path) could not be shown to be closed to this identity, so the hook command was not run: $detail"
+        return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "the interpreter $interpreterShown could not be shown to be closed to this identity, so the hook command was not run: $detail"
     }
 
     # A wrapper is a program this check starts as the identity under test, so it is shown closed to that identity before
@@ -2957,7 +2963,7 @@ function Test-HookContract {
                 HOME = $profileDecoyHome
             }
         } catch {
-            return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not run the resolution probe: $($_.Exception.Message)"
+            return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not run the resolution probe: $(Format-RelayedText -Text $_.Exception.Message)"
         }
 
         if ($clock.Elapsed.TotalSeconds -ge $timeoutSeconds) {
@@ -2992,7 +2998,7 @@ function Test-HookContract {
                     HOME = $emptyHome
                 }
             } catch {
-                return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not run the $name payload: $($_.Exception.Message)"
+                return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not run the $name payload: $(Format-RelayedText -Text $_.Exception.Message)"
             }
 
             if ($clock.Elapsed.TotalSeconds -ge $timeoutSeconds) {
@@ -3025,7 +3031,7 @@ function Test-HookContract {
     }
 
     $shell = if ($script:OnWindows) { 'cmd.exe /d /c' } else { '/bin/sh' }
-    $evidence = 'expected 0,2,2 and measured ' + ($measured -join ' ') + " from the pinned script $resolvedScript through the interpreter $($interpreter.Path), with the line run through $shell"
+    $evidence = 'expected 0,2,2 and measured ' + ($measured -join ' ') + " from the pinned script $resolvedScript through the interpreter $interpreterShown, with the line run through $shell"
     $wrapperFailed = @($wrapperResult | Where-Object -FilterScript { $_.Status -eq 'Fail' }).Count -gt 0
     $wrapperUnmeasured = @($wrapperResult | Where-Object -FilterScript { $_.Status -eq 'Unavailable' }).Count -gt 0
 
