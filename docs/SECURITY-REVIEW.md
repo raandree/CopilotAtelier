@@ -4,6 +4,102 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-11-13: relayed exception texts, S-20, V-05 and W-03 (follow-up of prompt P5)
+
+The Custom `security-reviewer` agent reviewed the change that closes S-20 of the review of
+2026-10-14 and V-05 and W-03 of the review of 2026-10-16. The ledger appender now relays the
+exception text of its two lines about a dropped connection through `Format-RefusalText`, and the
+`HookContract` check of the verifier relays its four exception texts and the two closure details
+of the interpreter through `Format-RelayedText`; the S-04 and S-05 functions that need no pipe are
+tested on every system. The reviewer read the commit `8549642` in a fresh context, read-only,
+reverted both scripts in a copy under TEMP to watch the new tests fail, ran cap mutants of its own,
+and said **Approve with changes**: no Blocker, no Major, two Minors (R11-01, R11-06) and four Nits
+(R11-02 to R11-05). R11-02 to R11-06 were fixed in the same change, R11-01 and the event names of
+R11-03 are a recorded follow-up, and no second review pass was asked for.
+
+### Scope
+
+- Can a text from outside the two scripts still reach the two appender lines or the six verifier
+  texts without the relay, and can a relay throw or change a verdict or a status?
+- Do the new tests fail without the change and for the right reason, and do they pin the caps of
+  200 characters and of 1,000 over the six closure details together?
+- Does the gating meet the second half of S-20: the platform-neutral functions run on every
+  system, and the cases that need the pipe stay Windows-only through `BeforeDiscovery` and `-Skip`,
+  never `#requires`? Is anything in the new tests likely to fail on Ubuntu or macOS?
+- Does the change alter an evidence string or a standard-error line beyond the relayed part?
+- What must the records not claim?
+
+### Verdict
+
+**Approve with changes.** The eight relays are correct: the only outside text in either appender
+line is the exception's message, both relay functions accept null and empty text, `-Limit 1000` is
+inside the range `Format-RelayedText` takes, `EnumerateRunes` replaces ill-formed UTF-16 instead of
+throwing, and no status string or branch condition changed. With both scripts reverted to
+`0859e9e`, all eight relay tests failed for the intended reason, and the reviewer's six cap mutants
+and a cap per reason failed too. With the platform probe forced off, 39 appender tests ran and 94
+were skipped, nothing in the new tests is tied to Windows, and neither file uses `#requires`. What
+it found was a path that still reached three of the six texts unrelayed, a test that did not run
+the lines as the service runs them, a pipe-free case left Windows-only, and claims of the draft
+changelog that went past the evidence. It also found the same class at sites this change does not
+touch.
+
+### Findings
+
+| ID | Severity | Where | Finding | Resolution |
+|---|---|---|---|---|
+| R11-01 | Minor | `Test-RunContainment.ps1`, outside `Test-HookContract` | The class this change fixes for `Test-HookContract` remains at the verifier's other 24 `$($_.Exception.Message)` sites (20 reach the evidence directly or through a reason or a list, two go to `Write-Verbose`, two are "Containment refused" lines on standard error) and at two more that take a base exception's message. `ControlImmutability` and `WritableRoots` join every unmeasured line without a cap. Two paths come from this account's own settings: the grants root, from the LocalAppData known folder that this account can redirect (the reviewer read the ACL of the key and wrote nothing), and the temporary folder of the escape set. NTFS names allow tag characters | Not fixed, recorded as a follow-up: brief 11 names only the eight texts of this change. The reviewer's fix is to relay each text (200 characters each, 1,000 for a joined list), relay the grants root and the paths of the escape set, and add a syntax-tree test that fails on any exception message put into the evidence outside `Format-RelayedText` |
+| R11-02 | Nit | `Test-HookContract` | The path of the interpreter still reached three of the six texts unrelayed: `Get-HookInterpreter` accepts a tab inside a quoted program word and a path of any length (the reviewer's probe passed one of 5,012 characters). The source is the digest-pinned hooks.json. The U-01 and W-03 rows say that the path is limited to printable ASCII, which is not exact | Fixed: the check relays the path once, at 1,000 characters, and every evidence string that names it uses the relayed text (five strings, the Pass included). Two tests, red first: a quoted path with a tab, and a path of 5,000 characters that is cut at 1,000. Two mutants caught: the path not relayed, and the path cut at the default of 200. The U-01 and W-03 rows point here |
+| R11-03 | Nit | `Test-HookContract`, and `Test-GrantRecorderUnregistered` | The event names of hooks.json go into the evidence raw and uncounted, while the same function relays the keys it does not read and the hook type; and the new docstring sentence, "a text this check did not compose", read as a rule for every text | The sentence now names what is relayed: the message of an exception, a reason of the access check and the path of the interpreter. Not fixed, with R11-01: the event names |
+| R11-04 | Nit | `tests/LedgerAppender.Tests.ps1`, the test of the service's two lines | The test was sound in finding and evaluating each line, but it ran without the script's `Set-StrictMode -Version 3.0`, and `$_` held a bare `IOException`, while `.Wait()` raises a `MethodInvocationException` around an `AggregateException`. A failure under strict mode, or a line that read `.Message` in place of `GetBaseException().Message`, would have passed | Fixed: the line runs under strict mode 3, and each error has the shape the service meets, with the chosen text only where the line reads. Three mutants caught: either line reading the other message, and a line that fails only under strict mode |
+| R11-05 | Nit | `tests/LedgerAppender.Tests.ps1`, 'refuses a stored line whose extra field name only a culture folds into type' | The case runs `-Validate` in a child process and needs no pipe, the appender does not refuse that mode off Windows, and it covers `Read-StoredRecord`, which the new function tests do not; it was still Windows-only | Fixed: its `-Skip` is removed. The pull request's CI is its first run on Ubuntu and macOS |
+| R11-06 | Minor | `CHANGELOG.md`, the draft | Four claims went past the evidence: that the tests run on Ubuntu and macOS (nobody had seen that run), that they are the tests of the S-04 and S-05 fixes that need no pipe (they are new in-process tests of three functions), that 24 other exception texts remain (at least 26 do), and that the closure details are .NET exception text (they are the reasons of the access check, which can carry it) | Fixed in the entry as the reviewer worded it |
+
+### Tests
+
+- Test first: on `0859e9e` the eight relay tests failed for the intended reason, each verifier
+  case with 12 unprintable code units in its evidence and the two appender lines at 586 and 578
+  characters where 249 and 241 were expected, and with the change they passed. The two R11-02
+  tests failed the same way (a tab in the evidence, a path not cut) and passed with the fix.
+- The new function tests of `Test-OrdinalEqual`, `Test-UtcInstant` and `Test-Acknowledgement`
+  passed on their first run, because they cover code that already worked, so mutants proved that
+  they can fail: `-ceq` in place of the ordinal comparison (3 tests failed), an instant checked by
+  its shape only (5), and an acknowledgement that does not rebuild the record that was sent (1, and
+  the positive control still passed). Nine more mutants caught the caps and the lines: two exception
+  texts cut at 1,000, the closure details cut at 200 and per reason, and the five R11-02 and R11-04
+  mutants above. Every mutant ran on a copy under TEMP, never in the working tree; the baselines
+  passed (27, then 30, tests).
+- The suites of the appender and of the verifier, on `8549642`: 1,156 passed, 0 failed, 3
+  skipped by design (a POSIX case, the property test whose fresh seed only CI draws, and an
+  elevation type this token does not have). The reviewer ran them too: the appender 133 of 133,
+  `HookContract` 329 and 1 skipped by design.
+- The full gate, `./build.ps1 -Tasks build, test`, on the final tree: 5,855 passed, 0 failed,
+  145 skipped, 91.54 % coverage against a threshold of 65 %, 21 build tasks and no error in 51
+  minutes, and the same 16 warnings as in earlier gates.
+- PSScriptAnalyzer 1.25.0 with default rules was clean at every severity on the four files, before
+  and after the fixes.
+- Nothing ran on Ubuntu or macOS here, which have neither WSL nor Docker on this host; the pull
+  request's CI is the first run of the new tests there.
+
+### Remaining risks
+
+- R11-01: at least 26 exception texts of the verifier, the event names of hooks.json, the grants
+  root and the paths of the escape set still reach the evidence or standard error as they come.
+  Most are localized .NET text around a path an operator chose, and two of the paths come from
+  settings this account can change.
+- The appender's two lines were evaluated from the syntax tree of the script with chosen errors,
+  outside the service; no case drove them over the pipe. The review of 2026-10-14, not this
+  change, traced that no client text reaches them, so for them the relay is hardening.
+- The new digests: the verifier
+  `d283ad9b099936a63bf52063b14a1b3a8a322da7732f619ae69c88c722581c24` and the appender
+  `9ad77258631eb21f664140523acb682d1d278626ba726ce57bfb65411070064b`, the files as checked out
+  (CRLF on every system, by `.gitattributes`). Every containment profile has to re-pin both, and
+  `~/.copilot` has to be refreshed with `./Setup-CopilotSettings.ps1`.
+- Not run: Ubuntu and macOS, Windows PowerShell 5.1, the live service under real faults of the
+  pipe, the known-folder redirection end to end (it needs a registry write), how long the .NET
+  message of the read test is on a localized Windows, and a second review pass of the fixes.
+- The remaining risks of the earlier entries that this change does not touch stay open: S-19, the
+  escape set of `WritableRoots`, the run id of `-Revalidate`, and the second Windows account.
+
 ## 2026-11-09: the R-04 closing test on a standard account's token
 
 Not a review: the measurement that the entry of 2026-10-15 left open, run on the owner's
@@ -123,7 +219,9 @@ the drive's own colon.
 - The remaining risks of the 2026-10-14, 2026-10-15 and 2026-10-16 entries that this change does
   not touch stay open: S-19, S-20, the escape set of `WritableRoots`, the run id of
   `-Revalidate`, the second Windows account, and the unrelayed exception texts. The property test
-  with a fresh seed in CI, which was on that list, is done (see the CHANGELOG).
+  with a fresh seed in CI, which was on that list, is done (see the CHANGELOG). S-20 and the
+  unrelayed exception texts of the hook check were closed on 2026-11-13; see the entry of that
+  date.
 
 ## 2026-10-16: the pinned hook line under the wrappers of the documented hosts (follow-up of prompt P5)
 
@@ -190,7 +288,7 @@ code.
 
 | ID | Severity | Where | Finding | Resolution |
 |---|---|---|---|---|
-| U-01 | Minor | `Get-HookWrapperProblem` | The reason of a `Violation` or an `Unmeasured` entered the evidence without `Format-RelayedText`, although the path next to it was relayed. The path of the second wrapper is `MainModule.FileName` of the verifier's own `pwsh`, and nothing limits it to printable ASCII. Reproduced with the real `Test-PathProtection` and a wrapper in a folder named with an accent and four tag characters (a hidden "PASS"): they reached a 1,425-character Fail evidence verbatim. The interpreter's path is limited by `Get-HookInterpreter`, so the same pattern for the interpreter is safe for the path (the access check's reason is another matter: W-03). The result can only be Fail or Unavailable, and it needs someone who chooses where the verifier's `pwsh` runs from | Fixed: both reasons go through `Format-RelayedText` with the largest cap the function takes (1,000 characters). Tests with an accent and four tag characters (five `?`) for the Violation and for the Unmeasured, and a length bound; mutations G13 and G14 (either relay dropped) and G15 (the cap cut at one site) were caught, but the delta check showed that the bound did not pin the value of the cap (V-04) |
+| U-01 | Minor | `Get-HookWrapperProblem` | The reason of a `Violation` or an `Unmeasured` entered the evidence without `Format-RelayedText`, although the path next to it was relayed. The path of the second wrapper is `MainModule.FileName` of the verifier's own `pwsh`, and nothing limits it to printable ASCII. Reproduced with the real `Test-PathProtection` and a wrapper in a folder named with an accent and four tag characters (a hidden "PASS"): they reached a 1,425-character Fail evidence verbatim. The interpreter's path is limited by `Get-HookInterpreter`, so the same pattern for the interpreter is safe for the path (the access check's reason is another matter: W-03). The result can only be Fail or Unavailable, and it needs someone who chooses where the verifier's `pwsh` runs from | Fixed: both reasons go through `Format-RelayedText` with the largest cap the function takes (1,000 characters). Tests with an accent and four tag characters (five `?`) for the Violation and for the Unmeasured, and a length bound; mutations G13 and G14 (either relay dropped) and G15 (the cap cut at one site) were caught, but the delta check showed that the bound did not pin the value of the cap (V-04). Corrected on 2026-11-13 (R11-02): a quoted program word may hold a tab and has no length limit, so the interpreter's path is not limited to printable ASCII; the check now relays it |
 | U-02 | Minor | this file | S-21 called the wrapper run "a follow-up", S-24 said "Partly … the check still passes a quoted path", and Remaining risks said the probe "is not a measurement under either" and that a quoted path "passes the check" | Fixed: this entry, and the S-21 and S-24 rows and the two bullets of the 2026-10-14 entry are annotated with the date and a pointer |
 | U-03 | Minor | the runtime evidence of the check, README, CHANGELOG, decision 0025 | Four places said that exit 1 "does not block" under both wrappers. That holds for VS Code only (1.142.0, `HookExecutor`: an exit code of 2 blocks, any other non-zero code is a warning). The README's own statement for the Copilot SDK host is that it fails closed on every non-zero exit and denies the call. The verdict is right either way, but the sentence the controller reads was wrong for the second wrapper | Fixed: the runtime evidence says that VS Code treats exit 1 as a warning and the SDK host denies every call on it; the README, the CHANGELOG, decision 0025 and the S-21 and S-24 rows of this file say the same. Tests assert the wording and refuse "does not block"; mutations Q01 and Q02 were caught. The sweep for these four places missed four more (V-03) |
 | U-04 | Nit | comments of the check, README, CHANGELOG, decision 0025 | "Neither documented host starts `cmd.exe`" is true only by default. VS Code 1.142.0 (`X8a`) uses the PowerShell form only when `ComSpec` names `cmd.exe` and `SystemRoot` or `WINDIR` is set; otherwise it uses `shell:true`, which Node starts as `cmd.exe /d /s /c "<line>"` when `ComSpec` is unset or names `cmd.exe`, and as `<ComSpec> -c <line>` when it names another shell (this entry first said only the first form: V-01). It also finds PowerShell through `%SystemRoot%` and not through a search path. No verdict gap: the `cmd.exe` leg stays required | Fixed: the text says "by default" and names the condition, and says that VS Code starts Windows PowerShell from `%SystemRoot%\System32` and the SDK host starts `pwsh` by name. The fallback forms (`cmd.exe /d /s /c` and `<ComSpec> -c`) and the `POWERSHELL_UPDATECHECK=Off` that VS Code sets are listed among what no run covered. The facts about VS Code were read in its 1.142.0 bundle on this host, and none was run |
@@ -201,10 +299,10 @@ code.
 | V-02 | Nit | CHANGELOG, decision 0025, the README row, the runtime note of the check, this entry | Facts that were only read were worded as done or measured: (a) "a push went ahead", though no push ran; (b) the host treatment of exit 1 sat inside text that ends "measured on 2026-10-16"; (c) the runtime note stated both host behaviours as fact; (d) this entry said that the reviewer "ran VS Code's own spawn call from Node" (it ran a Node `spawn` built from the arguments it read in `X8a`) and that "the kill of the process tree held" (it read `Kill($true)`; no time-out occurred in its runs, and it observed only the clean-up of the temporary folder); (e) the U-07 row said "one test under each wrapper", where there are two | Fixed: (a) "would go ahead"; (b) the parse error is the measured part, and what exit 1 does is read, as the README states and the VS Code bundle shows; (c) the note begins "As the hooks README states" and says "would go ahead", with a test and mutations Q01 to Q05; (d) and (e) reworded |
 | V-03 | Minor | the S-25 row of this file, decision 0025 (the `#` example), three comments of the suite | The sweep for U-03 was incomplete: they still said that exit 1 for a push "does not block" or "was not blocked" under both wrappers, where the README says that the SDK host fails closed on every non-zero exit | Fixed: the S-25 row is annotated like S-21 and S-24, and the decision and the comments say that VS Code treats exit 1 as a warning and the SDK host denies the call. The sweep this time covered `docs/`, `.memory-bank/`, `tests/`, `com.github.copilot/`, `skills/`, `source/`, `.github/`, the changelog and the README, for "does not block", "not blocked", "goes ahead" and "went ahead". What remains is intended or about other things: the assertions that refuse the old wording, quotations of it in this file, a historical finding in `assessment-log.md`, and hooks that never block a session |
 | V-04 | Nit | the relay test of `ContainmentVerifier.HookContract.Tests.ps1`, mutation G15 | The cap was not pinned. The six assertions of the test, run by hand against mutated copies of `Get-HookWrapperProblem`, passed when `-Limit 1000` was dropped at either site (the default is 200) and when each reason was cut at 1,000 on its own (up to about 6 KB for six reasons); only G13 to G15 were caught, and G15 (`-Limit 1` at one site) is not an edit anyone would make | Fixed: the test holds six reasons of 3,000 characters and a length between 1,050 and 1,500, so the default cap and a cap on each reason fail. Mutations G16 to G19 (the default cap and a cap on each reason, at either site) were added and caught, one failing test each |
-| V-05 | Nit | the docstring of `Get-HookWrapperProblem` | "Like every other text this check did not compose" is false: four `$($_.Exception.Message)` texts of `Test-HookContract` still reach the evidence unrelayed | Fixed: the docstring says "as Measure-HookWrapper does for the texts it relays". Not fixed, recorded: all four lines exist unchanged at `origin/main`, and so do the two closure details of the interpreter (W-03), so relaying them is a separate change, to be made with S-20 |
+| V-05 | Nit | the docstring of `Get-HookWrapperProblem` | "Like every other text this check did not compose" is false: four `$($_.Exception.Message)` texts of `Test-HookContract` still reach the evidence unrelayed | Fixed: the docstring says "as Measure-HookWrapper does for the texts it relays". Not fixed, recorded: all four lines exist unchanged at `origin/main`, and so do the two closure details of the interpreter (W-03), so relaying them is a separate change, to be made with S-20. Closed on 2026-11-13; see the entry of that date |
 | W-01 | Nit | this entry | The committed text still held the placeholder "the final gate is the next item", and its introduction said that the change "was gated again" while the only finished gate predated the V fixes | Fixed: the gate on `ecd82fc` is recorded under Tests, and the introduction points there |
 | W-02 | Nit | this entry (Tests) | "The delta round changed … one attribute (the `[OutputType]` …)" is wrong: the attribute changed in `01b0e31`, in the first round. `eff87a8` changed comments and one string literal of `Test-HookContract` only | Fixed: the attribute change is placed after the 88-mutation run, where it happened, and the delta round is said to have changed comments and one evidence string |
-| W-03 | Nit | this entry (Remaining risks), the U-01 row | "Four `$($_.Exception.Message)` texts" is true but incomplete: the two closure details of the interpreter (lines 2885 and 2891 of the verifier at `ecd82fc`, `$detail`) also pass the access check's reason unrelayed, and that reason is localized .NET text from `GetBaseException().Message`. The interpreter's path is limited to printable ASCII, but the reason is not; the first review's remark that the interpreter pattern "is safe" covered the path only | Fixed in the records: the follow-up reads "four texts and the two closure details of the interpreter", and the U-01 row says that the safety covers the path. Not fixed, recorded: both are older than this change (the same lines exist at `origin/main`), so relaying them is a separate change, with S-20 |
+| W-03 | Nit | this entry (Remaining risks), the U-01 row | "Four `$($_.Exception.Message)` texts" is true but incomplete: the two closure details of the interpreter (lines 2885 and 2891 of the verifier at `ecd82fc`, `$detail`) also pass the access check's reason unrelayed, and that reason is localized .NET text from `GetBaseException().Message`. The interpreter's path is limited to printable ASCII, but the reason is not; the first review's remark that the interpreter pattern "is safe" covered the path only | Fixed in the records: the follow-up reads "four texts and the two closure details of the interpreter", and the U-01 row says that the safety covers the path. Not fixed, recorded: both are older than this change (the same lines exist at `origin/main`), so relaying them is a separate change, with S-20. Closed on 2026-11-13 with S-20, the path of the interpreter included, which is not limited to printable ASCII after all (R11-02); see the entry of that date |
 | W-04 | Nit | `com.github.copilot/hooks/README.md` lines 50, 1171 and 1190 | They said flatly that both hosts run the launcher in an outer PowerShell, or that VS Code hands the command to a PowerShell shell, where the `HookContract` row says that VS Code does so only when `ComSpec` names `cmd.exe` and `SystemRoot` or `WINDIR` is set | Fixed: "by default" in the three places. The `HookContract` suite, the only one that reads this README, was run again: 239 passed, 0 failed |
 
 What the reviewer confirmed sound:
@@ -394,7 +492,8 @@ Ubuntu and macOS; and the costs of about 85 and 7 seconds.
 - Four `$($_.Exception.Message)` texts of `Test-HookContract` and the two closure details of
   the interpreter (the access check's reason, which is localized .NET text) still reach the
   evidence unrelayed (V-05, W-03). They are older than this change (the same lines exist at
-  `origin/main`), so relaying them is a separate change, to be made with S-20.
+  `origin/main`), so relaying them is a separate change, to be made with S-20. Closed on
+  2026-11-13; see the entry of that date.
 - The suite of the check takes about 85 seconds longer and a verify run about 7 seconds
   longer, on one host; the reviewer did not verify the first figure.
 - The Custom `security-reviewer` agent cannot start in this runtime until the first entry
@@ -402,7 +501,8 @@ Ubuntu and macOS; and the costs of about 85 and 7 seconds.
   built-in `security-review` agent.
 - The remaining risks of the 2026-10-14 and 2026-10-15 entries that this change does not
   touch stay open: S-19, S-20, the escape set of `WritableRoots`, the run id of
-  `-Revalidate`, the second Windows account, and T-03, T-13, T-17 and T-18 of R-04.
+  `-Revalidate`, the second Windows account, and T-03, T-13, T-17 and T-18 of R-04. S-20 was
+  closed on 2026-11-13; see the entry of that date.
 
 ## 2026-10-15: the token of the run identity, R-04 (follow-up of prompt P5)
 
@@ -677,7 +777,7 @@ fraction of ten digits, all fail closed.
 | S-17 | Minor | Verifier | The hook-line scan reads `cmd.exe` rules only: `-Command "$(calc.exe)"`, `"$env:PLUGIN_ROOT"`, a backtick inside quotes and `-Command x '"' ; calc.exe '"'` were accepted, and a PowerShell wrapper or a POSIX shell reads them differently from a scan that toggles on the ASCII double quote. | Fixed (`25cedd4`): no `$` or backtick anywhere, no `'` outside double quotes, and, beyond what was asked, nothing outside printable ASCII (checked on the text as given; PowerShell reads curly quotes as quotes) and no dot segment in the program path. The 15 shipped command strings carry none of them. Thirteen new rows failed first; five mutations, one per rule, broke exactly those rows. |
 | S-18 | Nit | Docs | The README launcher recipe (`Environment.Clear()` and a `PSModulePath` of system folders) does not do what it says: pwsh adds the account's own module folder first. | Fixed in the README, after reproducing it. The module path is closed only where the verifier measures it (the three firewall cmdlets); adding the folders pwsh searches to the escape set of `WritableRoots` is a follow-up. |
 | S-19 | Nit | Docs | "Cannot make a record that was not stored read as stored" has an exception: a server that replays the earlier acknowledgement of a record identical to one already stored. | Fixed in the README: the exception and what the client cannot prove (how many times the record was stored). The reviewer's hardening, `sequence == head before send + 1`, needs the client to read the chain before it sends, and is not done. |
-| S-20 | Nit | Both | Two service-side `[Console]::Error.WriteLine` lines print raw exception text; the S-04 and S-05 appender tests are Windows-only although three of the functions are platform-neutral; `..` in the program word is normalized textually. | The `..` item is fixed with S-17. The first is not changed: no client text reaches those lines (`Test-RecordSchema` returns canonicalization errors to the client inside a `try`, and `Add-Record` runs only after it passed), so there is nothing to provoke in a test; part C accepted that as a Nit and still recommends routing both lines through `Format-RefusalText`. The second is a follow-up, because Ubuntu and macOS cannot be run here. |
+| S-20 | Nit | Both | Two service-side `[Console]::Error.WriteLine` lines print raw exception text; the S-04 and S-05 appender tests are Windows-only although three of the functions are platform-neutral; `..` in the program word is normalized textually. | The `..` item is fixed with S-17. The first is not changed: no client text reaches those lines (`Test-RecordSchema` returns canonicalization errors to the client inside a `try`, and `Add-Record` runs only after it passed), so there is nothing to provoke in a test; part C accepted that as a Nit and still recommends routing both lines through `Format-RefusalText`. The second is a follow-up, because Ubuntu and macOS cannot be run here. Closed on 2026-11-13; see the entry of that date. |
 
 Pass 3, part C (a bounded delta check of `25cedd4` and `c7e886e`). It confirmed S-18 and S-19 resolved and S-17 resolved for the characters it names, and showed that the class was not closed: **one Major, three Minors**. It also confirmed that the ASCII rule refuses nothing a shipped-shape command carries (the commands resolve `PLUGIN_ROOT` at run time), that the order of the checks is safe, and that the rule makes the culture-sensitive `IndexOf('"', 1)` and `StartsWith('\\')` safe, because they now see only ASCII. It accepted as follow-ups S-20 (both bullets), the escape-set addition and the S-19 hardening, and R-04 stays accepted.
 
@@ -813,7 +913,7 @@ change. Nothing could run on Ubuntu or macOS here.
   (S-20). No client text reaches them, which was traced and not provoked; routing
   both through `Format-RefusalText` is a follow-up, and so is gating the S-04 and
   S-05 appender tests, which are Windows-only although three of the functions are
-  platform-neutral.
+  platform-neutral. Closed on 2026-11-13; see the entry of that date.
 - No test used a second Windows account, and the firewall results depend on a
   premise about the filtering platform that was not verified. Nothing could run on
   Ubuntu or macOS here, and most of the appender tests are Windows-only.

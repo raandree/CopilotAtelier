@@ -1970,7 +1970,8 @@ Describe 'Ledger appender ordinal grammar' -Tag 'Unit' {
         @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 0
     }
 
-    It 'refuses a stored line whose extra field name only a culture folds into type' -Skip:(-not $script:onWindows) {
+    It 'refuses a stored line whose extra field name only a culture folds into type' {
+        # -Validate needs no pipe, so this case runs on every system (review R11-05).
         # The canonical form escapes the zero-width space, so the planted key has
         # to be written escaped for the line to be canonical at all; that is what
         # makes this line pass every check but the closed schema.
@@ -2048,9 +2049,9 @@ Describe 'Ledger appender ordinal grammar' -Tag 'Unit' {
         $result.StandardError | Should -Match 'hexadecimal' -Because 'a digest that is not 64 hexadecimal characters is a format refusal, not a mismatch'
     }
 
-    # S-20: every case above drives the service over a pipe, which only Windows has. The two
-    # functions the S-04 fix added are plain .NET, so they also run in-process here on every
-    # system; the S-05 check runs the same way under 'Ledger appender channel'.
+    # S-20: the cases above that need the service drive it over a pipe, which only Windows has.
+    # The two functions the S-04 fix added are plain .NET, so they also run in-process here on
+    # every system; the S-05 check runs the same way under 'Ledger appender channel'.
     Context 'as functions, on every system' {
         BeforeAll {
             . (Join-Path $script:repoRoot 'tests/Helpers/ScriptFunction.ps1')
@@ -2235,7 +2236,7 @@ Describe 'Ledger appender refusal text' -Tag 'Unit' {
                     [string]$Prefix,
 
                     [Parameter(Mandatory)]
-                    [string]$Message
+                    [System.Exception]$Exception
                 )
 
                 $tree = [System.Management.Automation.Language.Parser]::ParseFile($script:appenderScript, [ref]$null, [ref]$null)
@@ -2253,12 +2254,15 @@ Describe 'Ledger appender refusal text' -Tag 'Unit' {
                     throw "the appender writes $($call.Count) lines to standard error that start with '$Prefix', not one"
                 }
 
-                $errorRecord = [System.Management.Automation.ErrorRecord]::new([System.IO.IOException]::new($Message),
+                $errorRecord = [System.Management.Automation.ErrorRecord]::new($Exception,
                     'DroppedConnection', [System.Management.Automation.ErrorCategory]::ConnectionError, $null)
                 $variable = [System.Collections.Generic.List[psvariable]]::new()
                 $variable.Add([psvariable]::new('_', $errorRecord))
 
-                return [string]@([scriptblock]::Create($call[0].Arguments[0].Extent.Text).InvokeWithContext(@{}, $variable))[0]
+                # Under the strict mode the script sets, so an expression that would fail in the service fails here.
+                $expression = [scriptblock]::Create('Set-StrictMode -Version 3.0' + [System.Environment]::NewLine + $call[0].Arguments[0].Extent.Text)
+
+                return [string]@($expression.InvokeWithContext(@{}, $variable))[0]
             }
 
             # The characters of the hostile-server case above, then enough to pass the cap.
@@ -2271,11 +2275,22 @@ Describe 'Ledger appender refusal text' -Tag 'Unit' {
             $script:droppedRelayed = $relayed + ('x' * (200 - $relayed.Length)) + '...'
         }
 
+        # Each error has the shape the service meets: .Wait() fails with an AggregateException that PowerShell wraps in a
+        # MethodInvocationException, whose base is the pipe's own error, and a broken stream fails with a
+        # MethodInvocationException of its own. The chosen text sits only where the line reads, so a line that reads the
+        # other message fails.
         It 'cuts the exception text of <Name> to printable ASCII and two hundred characters' -ForEach @(
-            @{ Name = 'a connection attempt it dropped'; Prefix = 'Ledger appender dropped a connection attempt: ' }
-            @{ Name = 'a connection it dropped'; Prefix = 'Ledger appender dropped a connection: ' }
+            @{ Name = 'a connection attempt it dropped'; Prefix = 'Ledger appender dropped a connection attempt: '; ReadsBase = $true }
+            @{ Name = 'a connection it dropped'; Prefix = 'Ledger appender dropped a connection: '; ReadsBase = $false }
         ) {
-            Get-ServiceLine -Prefix $Prefix -Message $script:droppedText | Should -BeExactly ($Prefix + $script:droppedRelayed)
+            $exception = if ($ReadsBase) {
+                [System.Management.Automation.MethodInvocationException]::new('Exception calling "Wait" with "1" argument(s): "One or more errors occurred."',
+                    [System.AggregateException]::new([System.IO.IOException]::new($script:droppedText)))
+            } else {
+                [System.Management.Automation.MethodInvocationException]::new($script:droppedText, [System.IO.IOException]::new('Pipe is broken.'))
+            }
+
+            Get-ServiceLine -Prefix $Prefix -Exception $exception | Should -BeExactly ($Prefix + $script:droppedRelayed)
         }
     }
 }

@@ -2342,6 +2342,11 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
                 $Text.Substring([Math]::Max(0, $Text.Length - $Length))
             }
+
+            # The shipped Windows command after its program word, to pin behind an interpreter path of a test's choosing.
+            $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
+            $script:shippedTail = ([string]@($shipped.hooks.PreToolUse)[0].windows).Substring('powershell'.Length)
+            $script:replaceable = [pscustomobject]@{ Path = ''; Closed = $false; Absent = $false; Violation = @('this identity holds the right to delete it'); Unmeasured = @() }
         }
 
         It 'cuts the reason a pinned hook control could not be read to printable ASCII and two hundred characters' {
@@ -2419,6 +2424,34 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             $result.evidence | Should -Match '^could not run the push payload: '
             Get-UnprintableCount -Text $result.evidence | Should -Be 0
             Get-TextTail -Text $result.evidence -Length $script:exceptionRelayed.Length | Should -BeExactly $script:exceptionRelayed
+        }
+
+        # Review R11-02: a quoted program word may hold a tab, and nothing limits its length, so the path of the interpreter
+        # that three of these texts name is relayed as well, at 1,000 characters.
+        It 'relays the path of an interpreter named with a tab as printable ASCII' {
+            Mock -CommandName Test-PathProtection -MockWith { $script:replaceable }
+            $tabbed = [System.IO.Path]::GetPathRoot($script:systemPowerShell) + 'Windows\System32\Windows' + [string][char]0x0009 + 'PowerShell\v1.0\powershell.exe'
+            $tree = New-PluginTree -Name 'tab-in-interpreter' -Command ('"' + $tabbed + '"' + $script:shippedTail)
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            Get-UnprintableCount -Text $result.evidence | Should -Be 0
+            $result.evidence | Should -Match ([regex]::Escape('Windows?PowerShell\v1.0\powershell.exe can be replaced'))
+        }
+
+        It 'cuts the path of an interpreter at a thousand characters' {
+            Mock -CommandName Test-PathProtection -MockWith { $script:replaceable }
+            $root = [System.IO.Path]::GetPathRoot($script:systemPowerShell)
+            $tree = New-PluginTree -Name 'long-interpreter' -Command ('"' + $root + ('x' * 5000) + '\powershell.exe"' + $script:shippedTail)
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail'
+            $expected = 'the interpreter ' + $root + ('x' * (1000 - $root.Length)) + '... can be replaced'
+            $result.evidence.StartsWith($expected, [System.StringComparison]::Ordinal) | Should -BeTrue -Because 'the path is cut at 1,000 characters and the cut is marked'
         }
     }
 }

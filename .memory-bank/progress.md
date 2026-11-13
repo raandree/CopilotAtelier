@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-12
+last-verified: 2026-11-13
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -13,12 +13,17 @@ Copilot Atelier's latest full GitHub release is `v6.1.0`, published 2026-11-11
 at 19:56 UTC to GitHub and the PowerShell Gallery from `a3167d8` (#54), the
 commit CI had published as `6.1.0-preview0026`. The changelog rollover #55
 (`f358226`) followed at 23:43 UTC; its CI run (43122012334, GitVersion
-`6.1.1-preview.1`) published nothing (Deploy skipped, confirmed 2026-11-12). Incremental work is
-tracked under `[Unreleased]` in `CHANGELOG.md`.
+`6.1.1-preview.1`) published nothing (Deploy skipped, confirmed 2026-11-12). The newest
+pre-release is `6.2.0-preview0001`, which CI published from #57 (`0859e9e`) on 2026-11-13
+at 00:05 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-11-12**: Brief 04, the adapter smoke check (`software-engineer`), on `ai/adapter-runtime-smoke`: cases C1 to C3 ran offline; the
+- **2026-11-13**: Brief 11, S-20 (`software-engineer`), on `ai/s20-relay-exception-texts`: the appender's two lines about a dropped
+  connection and the hook check's four exception texts, two closure details and interpreter path are relayed as printable ASCII,
+  closing S-20, V-05 and W-03 (red first, 8 and then 2 tests; 12 mutants caught). The S-04/S-05 functions and the `-Validate`
+  stored-line case run on every system. Review: Approve with changes; R11-02 to R11-06 fixed, R11-01 (26+ verifier texts) a follow-up.
+- **2026-11-12**: Brief 04, the adapter smoke check (`software-engineer`), merged as #57 (`0859e9e`): cases C1 to C3 ran offline; the
   composed `software-engineer` variant passed all three on Copilot CLI 1.0.96 once it stopped emitting `target`, and the source profile
   failed C1 and C2 on runtime 1.0.108-0, whose agent host ignores `agents:`. Receipts bound to each file's SHA-256 raise the state only for
   passed runtime cases; fallback test red first. An independent review's 2 Major (unbounded delegation, untested binding) fixed test-first.
@@ -46,11 +51,6 @@ tracked under `[Unreleased]` in `CHANGELOG.md`.
   a Brief claims its number with its row; an Error found before a change still counts. The checker reports
   `LedgerOutsideFolder`. 10 new tests (7 red first), 2 mutants caught, 1,157 focused passed. Merged as
   #51 (`4c4fbd3`, `6.1.0-preview0024`).
-- **2026-11-09**: The agents' models (`software-engineer`, owner ruling of 2026-11-09): every Custom agent
-  declares Claude Opus 5.5 and Sonnet 5.5 (`spec-work-implementer` Sonnet first), Setup writes
-  `copilot:claude-opus-5.5`, and a test fails a model outside the list (Decision record 0029 supersedes
-  0007); red first (17 of 182). The R-04 closing test passed on a throwaway standard account. On
-  `main` (`ea19ba4`, pushed without a pull request; `6.1.0-preview0022`), redeployed 2026-11-10.
 
 ## Stable capabilities
 
