@@ -379,13 +379,14 @@ Invoke-LedgerAppender.ps1 -Validate -SinkPath $sink -ChainHeadPath $head
 ```
 
 The client authenticates the pipe's owner and access list before it sends the
-record. It reports success only after it has rebuilt the digest of the record it
-sent, at the acknowledged sequence and on top of the stored record before it, and
-found that digest both in the acknowledgement and in the ledger at that
-sequence: a server that merely answers `Ok` is not believed, and neither is one
-that answers with the sequence and digest of a different record that was already
-stored. A record identical to one that is already stored is the exception, set
-out under the limits below.
+record, and counts the records the ledger already holds. It reports success only
+after it has rebuilt the digest of the record it sent, at the acknowledged
+sequence and on top of the stored record before it, found that digest both in
+the acknowledgement and in the ledger at that sequence, and found that sequence
+after the records it counted: a server that merely answers `Ok` is not believed,
+and neither is one that answers with the sequence and digest of a record that
+was already stored, even one identical to the record sent. What the count leaves
+open is set out under the limits below.
 By default the client expects the pipe to belong to the account that would own
 what the client creates, which is the right account when both run as one
 identity. When the service runs as another account, as in a separate-account
@@ -444,12 +445,18 @@ a chain that validates; keeping both out of the reach of the run identity is
 filesystem policy. A process of the service's own account can still take the
 pipe name before the service starts, or join it: it can make an append fail, but
 it cannot make a record that was not stored read as stored, because the client
-rebuilds the digest of its own record and looks for it in the ledger. The one
-exception is a record identical to one already stored: a server that replays the
-earlier acknowledgement of an identical record is believed at the earlier
-sequence, since the ledger does hold that record there. What the client cannot
-prove is how many times the record was stored. Separate accounts and
-`-ExpectedServerIdentity` are what tell such a process from the service.
+rebuilds the digest of its own record, looks for it in the ledger, and believes
+only a sequence after the records the ledger held before the send. A client that
+sends the same record twice, each time after the previous acknowledgement,
+therefore knows that the ledger holds it at two sequences. Two limits remain. A
+record that another writer appends between the client's count and its own append
+lies after the count, so a server can answer with it when it is identical to the
+client's; requiring exactly the next sequence would close that only by refusing
+every append that another writer overtakes, although that append was stored. And
+the client cannot prove that a record was not stored more often than it was
+sent, because the service's own account can append any record. Separate
+accounts and `-ExpectedServerIdentity` are what tell such a process from the
+service.
 
 Two availability limits remain, and neither changes what the ledger says. Any
 open handle on the chain head, even one opened with sharing, makes the service's
