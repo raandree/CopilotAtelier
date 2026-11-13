@@ -14,12 +14,19 @@ at 19:56 UTC to GitHub and the PowerShell Gallery from `a3167d8` (#54), the
 commit CI had published as `6.1.0-preview0026`. The changelog rollover #55
 (`f358226`) followed at 23:43 UTC; its CI run (43122012334, GitVersion
 `6.1.1-preview.1`) published nothing (Deploy skipped, confirmed 2026-11-12). The newest
-pre-release is `6.2.0-preview0001`, which CI published from #57 (`0859e9e`) on 2026-11-13
-at 00:05 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`.
+pre-release is `6.2.0-preview0002`, which CI published from #58 (`aea224e`, run 43431374837) on 2026-11-13
+at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-11-13**: Brief 11, S-20 (`software-engineer`), on `ai/s20-relay-exception-texts`: the appender's two lines about a dropped
+- **2026-11-13**: Re-review of the review fixes nobody had reviewed (`software-engineer`, the owner's ruling): brief 13 Approve; #54
+  Approve with four Nits (handoff backlog); #57 Approve with changes, so brief 17 (C2 fails closed); #53 Request changes, two Majors in
+  the Reddit quarantine, so brief 16. #58 and #56 left out as low risk; no GitHub review existed on #53 to #58.
+- **2026-11-13**: Brief 13, S-19 (`software-engineer`), pushed on `ai/s19-replayed-acknowledgement`: the ledger client counts the sink's
+  records before it sends and believes only a later sequence (`sequence > n`, the owner's ruling), so a replayed identical record is refused,
+  and a sink it cannot count stops the send. Red first (the replay exited 0 on `aea224e`); 14 mutants caught. Review: Approve with changes,
+  then Approve on re-review; R13-01 to R13-09 fixed. New appender digest `f55e163b…0572`.
+- **2026-11-13**: Brief 11, S-20 (`software-engineer`), merged as #58 (`aea224e`, 13:10 UTC): the appender's two lines about a dropped
   connection and the hook check's four exception texts, two closure details and interpreter path are relayed as printable ASCII,
   closing S-20, V-05 and W-03 (red first, 8 and then 2 tests; 12 mutants caught). The S-04/S-05 functions and the `-Validate`
   stored-line case run on every system. Review: Approve with changes; R11-02 to R11-06 fixed, R11-01 (26+ verifier texts) a follow-up.
@@ -46,11 +53,8 @@ at 00:05 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
   and `travel-planning` (`bc27c27`), each kept by the owner's with/without rule (planning 0 vs 2 corrections;
   handbook kept on an approved rerun). An independent security review found 17 issues (3 Major); all were
   fixed test-first inside their commits. No trip is named in any shipped file. Report in the handoff folder.
-- **2026-11-10**: The Task ledger stays in its Handoff sequence's folder (`software-engineer`). Briefs added
-  to a folder without `LEDGER.md` now get the ledger there first, never a row in another folder's ledger;
-  a Brief claims its number with its row; an Error found before a change still counts. The checker reports
-  `LedgerOutsideFolder`. 10 new tests (7 red first), 2 mutants caught, 1,157 focused passed. Merged as
-  #51 (`4c4fbd3`, `6.1.0-preview0024`).
+- **2026-11-10**: The Task ledger stays in its Handoff sequence's folder (`software-engineer`): a brief's row lives in its own
+  folder's `LEDGER.md` (`LedgerOutsideFolder`). Merged as #51 (`4c4fbd3`, `6.1.0-preview0024`).
 
 ## Stable capabilities
 
