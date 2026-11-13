@@ -170,7 +170,8 @@ for (const [label, flag] of [['left out', {}], ['null', { headless: null }], ['0
 
 test('the harness tells each task whether its window is visible', () => {
   // The refusal above relies on scripts/extract.mjs passing headless as
-  // false, or as true with --headless; a fake Playwright opens no browser.
+  // false, or as true with --headless, and launching the browser the same way;
+  // a fake Playwright records the launch and opens no browser.
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'extract-harness-'));
   try {
     fs.mkdirSync(path.join(root, 'scripts'));
@@ -180,9 +181,15 @@ test('the harness tells each task whether its window is visible', () => {
     fs.mkdirSync(playwright, { recursive: true });
     fs.writeFileSync(path.join(playwright, 'package.json'), JSON.stringify({ name: 'playwright', type: 'module', main: 'index.js' }));
     fs.writeFileSync(path.join(playwright, 'index.js'), [
+      "import fs from 'node:fs';",
       'const page = {};',
       'const context = { addCookies: async () => {}, pages: () => [page], newPage: async () => page, close: async () => {} };',
-      'export const chromium = { launchPersistentContext: async () => context };'
+      'export const chromium = {',
+      '  launchPersistentContext: async (dir, options) => {',
+      "    fs.writeFileSync(new URL('../../launched.json', import.meta.url), JSON.stringify({ headless: options?.headless }));",
+      '    return context;',
+      '  }',
+      '};'
     ].join('\n'));
     fs.writeFileSync(path.join(root, 'tasks', 'probe.mjs'), [
       "import fs from 'node:fs';",
@@ -195,6 +202,8 @@ test('the harness tells each task whether its window is visible', () => {
       const result = spawnSync(process.execPath, [path.join(root, 'scripts', 'extract.mjs'), 'probe', ...flags, 'travel'], { encoding: 'utf8' });
       assert.equal(result.status, 0, result.stderr);
       assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'seen.json'), 'utf8')), { args: ['travel'], headless });
+      // R16-06: the window the browser opens must be the one the task is told.
+      assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'launched.json'), 'utf8')), { headless });
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

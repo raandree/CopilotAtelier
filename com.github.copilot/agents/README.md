@@ -899,7 +899,7 @@ software-engineer (base)
 ### 14. Quarantined Reader Agent
 
 **Role**: Reads untrusted text saved to files and returns a fixed-format summary to the user  
-**Scope**: Started by the user in a chat of its own; not offered to other agents as a subagent  
+**Scope**: Started by the user in a chat of its own; hidden from the subagent list  
 **File**: `quarantined-reader.agent.md`
 
 **Responsibilities**:
@@ -911,10 +911,11 @@ software-engineer (base)
 **Key Features**:
 
 - Holds one tool, `read/readFile`: no shell, web, browser, editing, delegation, or session tool. `tests/AuthenticatedWebExtraction.Tests.ps1` pins the tool list, and `tests/AgentRuntimeToolNames.Tests.ps1` classifies it as contained
-- Its summary goes to the user, not to an agent: `user-invocable: true` puts it in the agent picker, `disable-model-invocation: true` keeps VS Code from offering it to other agents as a subagent, and no agent names it under `agents:` or in a handoff. The agent that runs `reddit-read` only points the user to it, so the workflow hands neither the Reddit text nor the summary to an agent that can act
-- Exempt from the shared lifecycle: it reads no Memory Bank file, Skill, or Instruction, so a workspace's records stay out of the context where Reddit text is read
+- Meant to answer the user, not an agent: `user-invocable: true` puts it in the agent picker, and the agent that runs `reddit-read` only points the user to it and declines to run it, even when the user asks
+- `disable-model-invocation: true` works differently per host. VS Code 1.146.0 local chat hides the reader from the subagent list but still runs it by name for a caller without an explicit `agents:` list, VS Code's built-in Agent included, and hands that caller its summary. The Copilot CLI refuses the call in code. The agent host passes the flag on as `infer: false`, and whether its runtime enforces that is unverified. Every agent here that holds `agent` declares an explicit `agents:` list without `*` and without the reader, which local VS Code chat enforces and the agent host ignores, and no agent names the reader in a handoff; `tests/AuthenticatedWebExtraction.Tests.ps1` pins both
+- Exempt from the shared lifecycle by instruction: it is told to read no Memory Bank file, Skill, or Instruction and to ignore the session-start hook's note, which VS Code and the hook still put into its chat
 - The summary carries no link, domain, e-mail address, file path, command, code, token, cookie, or image, and quotes at most ten words in a row; only its instructions enforce that
-- Remaining risk: its file tool is not confined to the files the user names and may reach the plaintext session cookies in `auth-state/`; the chat renders its summary as Markdown; in agent-host sessions an agent that holds the session tools can read its chat, and whether that runtime honours `disable-model-invocation` is unverified; and a fooled reader can return a wrong summary, so the user checks a decision against the raw files. Encrypting `auth-state/` is still open
+- Remaining risk, held by instructions only: a call by name from VS Code's built-in Agent, until a hook denies it; its file tool, which is not confined to the files the user names and may reach the plaintext session cookies in `auth-state/` and the Memory Bank; the lifecycle Instructions and the session-start hook's note, which still reach its chat; the Markdown the chat renders; an agent with a shell reading the Reddit files, the reader's chat in a host's chat store, or `auth-state/`; in agent-host sessions, an agent that holds the session tools reading its chat; and a fooled reader returning a wrong summary, so the user checks a decision against the raw files. Encrypting `auth-state/` is still open
 
 **When to Use**:
 

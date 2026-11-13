@@ -7,12 +7,45 @@ BeforeAll {
         Join-Path $PSScriptRoot 'AuthenticatedWebExtraction/reddit-read.test.mjs'
         Join-Path $PSScriptRoot 'AuthenticatedWebExtraction/dump-cookies.test.mjs'
     )
-    $script:skillText = Get-Content -LiteralPath (Join-Path $script:skillRoot 'SKILL.md') -Raw
+    $script:skillText = Get-Content -LiteralPath (Join-Path $script:skillRoot 'SKILL.md') -Raw -Encoding UTF8
     $script:agentsRoot = Join-Path $script:repoRoot 'com.github.copilot/agents'
-    $script:readerText = Get-Content -LiteralPath (Join-Path $script:agentsRoot 'quarantined-reader.agent.md') -Raw
+    $script:readerText = Get-Content -LiteralPath (Join-Path $script:agentsRoot 'quarantined-reader.agent.md') -Raw -Encoding UTF8
     $script:readerFrontmatter = [regex]::Match($script:readerText, '\A---\r?\n(?<head>.*?)\r?\n---', 'Singleline').Groups['head'].Value
-    $agentsReadme = Get-Content -LiteralPath (Join-Path $script:agentsRoot 'README.md') -Raw
+    $agentsReadme = Get-Content -LiteralPath (Join-Path $script:agentsRoot 'README.md') -Raw -Encoding UTF8
     $script:readerReadme = [regex]::Match($agentsReadme, '(?ms)^### \d+\. Quarantined Reader Agent\r?$.*?(?=^---\r?$)').Value
+    $script:redditSection = [regex]::Match($script:skillText, '(?ms)^## Signed-in Reddit Reading\r?$.*?(?=^## )').Value
+
+    # The entries of the quarantine since 6.1.0; the released 6.1.0 entries keep their history.
+    $changelog = Get-Content -LiteralPath (Join-Path $script:repoRoot 'CHANGELOG.md') -Raw -Encoding UTF8
+    $script:changelogEntry = @(
+        ($changelog -split '(?m)^## \[6\.1\.0\]')[0] -split '\r?\n' |
+            Where-Object -FilterScript { $_ -match '^- ' -and $_ -match 'quarantined-reader' }
+    ) -join "`n"
+
+    function Get-NormalizedSha256
+    {
+        <#
+            The SHA-256 of a text with LF line endings and no blank lines at
+            either end, so that a checkout with CRLF line endings pins the same
+            value as one with LF.
+        #>
+        param (
+            [Parameter(Mandatory)]
+            [AllowEmptyString()]
+            [string] $Text
+        )
+
+        $normalized = (($Text -split '\r?\n') -join "`n").Trim()
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try
+        {
+            ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($normalized))) -replace '-', '').ToLowerInvariant()
+        }
+        finally
+        {
+            $sha.Dispose()
+        }
+    }
 
     function Get-Clause
     {
@@ -168,9 +201,11 @@ Describe 'authenticated-web-extraction keeps Reddit text away from every agent t
             'SKILL.md'                       = $script:skillText
             'quarantined-reader.agent.md'    = $script:readerText
             'the reader''s README section'   = $script:readerReadme
+            'the CHANGELOG entry'            = $script:changelogEntry
         }
 
         $script:readerReadme | Should -Not -BeNullOrEmpty -Because 'the agents README documents the reader in a section of its own'
+        $script:changelogEntry | Should -Not -BeNullOrEmpty -Because 'the CHANGELOG records the quarantine since 6.1.0'
         foreach ($entry in $texts.GetEnumerator())
         {
             foreach ($claim in $claims)
@@ -180,11 +215,95 @@ Describe 'authenticated-web-extraction keeps Reddit text away from every agent t
         }
     }
 
+    It 'names the call by name that VS Code still allows' {
+        # R16-01: in VS Code 1.146.0 local chat, disable-model-invocation only
+        # hides the reader from the subagent list; runSubagent still runs it by
+        # name for a caller without an explicit agents: list.
+        $script:redditSection | Should -Match '(?i)\bthe user asks\b[^.]*`quarantined-reader`[^.]*\bdecline' -Because 'an agent must not run the reader even when the user asks'
+        $script:readerText | Should -Not -Match '(?i)\bthe user started you\b' -Because 'a host can still run the reader as a subagent by name'
+        $texts = [ordered] @{
+            'SKILL.md, Signed-in Reddit Reading' = $script:redditSection
+            'the reader''s README section'       = $script:readerReadme
+            'the CHANGELOG entry'                = $script:changelogEntry
+        }
+
+        foreach ($entry in $texts.GetEnumerator())
+        {
+            $entry.Value | Should -Match '(?i)\bbuilt-in Agent\b' -Because "$($entry.Key) must name the caller that VS Code still lets run the reader by name"
+            $entry.Value | Should -Match '(?i)`infer: false`' -Because "$($entry.Key) must say what the agent host makes of the flag"
+            $entry.Value | Should -Match '(?i)\bhook\b' -Because "$($entry.Key) must name the deterministic close that is still open"
+        }
+    }
+
+    It 'keeps every agent that can run subagents from reaching the reader by name' {
+        # R16-02: VS Code refuses a call by name only through the caller's own
+        # agents: list, and infer: wins over disable-model-invocation.
+        $script:readerFrontmatter | Should -Not -Match '(?m)^infer\s*:' -Because 'VS Code and its agent host let infer win over disable-model-invocation'
+
+        foreach ($agentFile in Get-ChildItem -LiteralPath $script:agentsRoot -Filter '*.agent.md' -File)
+        {
+            $head = [regex]::Match((Get-Content -LiteralPath $agentFile.FullName -Raw -Encoding UTF8), '\A---\r?\n(?<head>.*?)\r?\n---', 'Singleline').Groups['head'].Value
+            $toolsMatch = [regex]::Match($head, '(?m)^tools:\s*\[(?<list>.*)\]\s*$')
+            $tools = @([regex]::Matches($toolsMatch.Groups['list'].Value, '''([^'']+)''') | ForEach-Object -Process { $_.Groups[1].Value })
+            if ($toolsMatch.Success -and -not ($tools -match '^agent(/|$)'))
+            {
+                continue
+            }
+
+            $agentsMatch = [regex]::Match($head, '(?m)^agents:(?<value>[^\r\n]*(?:\r?\n[ \t]+-[^\r\n]*)*)')
+            $agentsMatch.Success | Should -BeTrue -Because "$($agentFile.Name) can run subagents, and only its own agents: list stops VS Code from running the reader by name"
+            $value = $agentsMatch.Groups['value'].Value
+            $value | Should -Match '^\s*\[[^\]]*\]\s*$|\r?\n[ \t]+-' -Because "$($agentFile.Name) must list the agents it may run"
+            $value | Should -Not -Match '\*' -Because "$($agentFile.Name) must not let VS Code run any agent by name"
+            $value | Should -Not -Match 'quarantined-reader' -Because "$($agentFile.Name) must not run the reader"
+        }
+    }
+
+    It 'pins the reviewed text of the Reddit quarantine' {
+        # R16-04: word lists let a reworded instruction through, so the text a
+        # reviewer approved is pinned whole. Re-pin a value only after an
+        # independent review of the new text; the tests above give the reasons
+        # it has to hold.
+        $workflow = [regex]::Match($script:skillText, '(?ms)^## Standard Workflow\r?$(?<body>.*?)(?=^## )').Groups['body'].Value
+        $pinned = [ordered] @{
+            'SKILL.md, Standard Workflow steps 3 and 4' = @{
+                Text   = [regex]::Match($workflow, '(?ms)^3\. .*').Value
+                Sha256 = '6b6c4a86e93736b30cac75bd3e2149c2a94a4d905eedff4db6a07aa7faaa2b4c'
+            }
+            'SKILL.md, Signed-in Reddit Reading'        = @{
+                Text   = $script:redditSection
+                Sha256 = '3031b9c9fdc40f22ee049cfef643d6a613cdee7a4fb35f6dc8de1b2918279105'
+            }
+            'the reader''s README section'              = @{
+                Text   = $script:readerReadme
+                Sha256 = '8cdc11cf22a3d4e888bc8c5ae9ab35290dff57344bf6365c6e177af1048cbba5'
+            }
+        }
+
+        foreach ($entry in $pinned.GetEnumerator())
+        {
+            $entry.Value.Text | Should -Not -BeNullOrEmpty -Because "$($entry.Key) must exist to be pinned"
+            Get-NormalizedSha256 -Text $entry.Value.Text |
+                Should -Be $entry.Value.Sha256 -Because "$($entry.Key) changed after its review; re-pin it only after an independent review of the new text"
+        }
+    }
+
+    It 'asks the user to retire the companion prompt for Reddit' {
+        # R16-05: the user-level prompt still sends an agent to every task's
+        # output, and an agent that follows it has no reason to load this Skill.
+        $companion = [regex]::Match($script:skillText, '(?ms)^## Companion Prompt\r?$(?<body>.*?)(?=^## |\z)').Groups['body'].Value
+
+        $companion | Should -Match '(?i)\bthe user\b[^.]*\bdelete\b' -Because 'only the user can change a prompt in their own profile'
+        $companion | Should -Match '(?i)\bkeep `reddit-read` out\b'
+        $script:redditSection | Should -Match 'auth-extract\.prompt\.md' -Because 'the remaining limits must name the prompt'
+        $script:changelogEntry | Should -Match 'auth-extract\.prompt\.md' -Because 'the upgrade note must name the prompt'
+    }
+
     It 'leaves the summary of the quarantined reader to the user' {
         # Option 1 of brief 16: the user starts the reader in a new chat, so no
         # agent that can act starts it or receives its summary.
         $script:readerFrontmatter | Should -Match '(?m)^user-invocable:\s*true\s*$' -Because 'the user starts the reader from the agent picker'
-        $script:readerFrontmatter | Should -Match '(?m)^disable-model-invocation:\s*true\s*$' -Because 'no agent may start the reader and receive its summary'
+        $script:readerFrontmatter | Should -Match '(?m)^disable-model-invocation:\s*true\s*$' -Because 'the flag hides the reader from the subagent list in VS Code and makes the Copilot CLI refuse it by name'
         $script:readerText | Should -Not -Match '(?i)\bcall(er|ers|ing agent)\b' -Because 'the reader answers the user, not an agent that called it'
 
         $namingAgent = @(
@@ -219,16 +338,44 @@ Describe 'authenticated-web-extraction keeps Reddit text away from every agent t
         $lifecycle | Should -Match '\(\.\./rules/preflight\.instructions\.md\)'
         $lifecycle | Should -Match '\(\.\./rules/postflight\.instructions\.md\)'
         $lifecycle | Should -Not -Match '(?i)as far as' -Because 'a partial pre-flight still reads the Memory Bank and Skills'
-        foreach ($exempted in 'Memory Bank', 'Skill', 'Instruction', 'banner')
+
+        # R16-07: a negation only counts right next to the item it negates, and
+        # an exception can reverse the exemption within its own sentence.
+        $lifecycle | Should -Not -Match '(?i)\bexcept\b' -Because 'an exception can reverse the exemption'
+        foreach ($exempted in 'Memory Bank', 'Skill', 'Instruction')
         {
-            $lifecycle | Should -Match "(?i)\b(no|never|not)\b[^.]*\b$exempted" -Because "the reader reads or writes no $exempted"
+            $lifecycle | Should -Match "(?i)\bno\s+$exempted" -Because "the reader reads no $exempted"
         }
 
+        $lifecycle | Should -Match '(?i)\bno\b[^.,;]*\bbanner\b' -Because 'the reader writes no banner'
         $lifecycle | Should -Match '(?i)only the files the user names'
+
+        # R16-03: the session-start hook adds its own note to every chat, and
+        # that note calls its Memory Bank probe authoritative.
+        $lifecycle | Should -Match '(?i)\bsession-start hook\b' -Because 'the exemption must name the hook''s note as well'
+        $lifecycle | Should -Match '(?i)\bignore\b[^.]*\bMemory Bank line\b[^.]*\bPRE-FLIGHT\b[^.]*\bclosing command\b' -Because 'the reader must ignore each line of that note that asks for a read, a banner, or a command'
+        $script:readerReadme | Should -Match '(?i)\bis told to read no\b' -Because 'the exemption is an instruction, not a host control'
+        $script:changelogEntry | Should -Match '(?i)\bis told to read no\b' -Because 'the exemption is an instruction, not a host control'
+        foreach ($text in $script:redditSection, $script:readerReadme, $script:changelogEntry)
+        {
+            $text | Should -Match '(?i)\bsession-start hook\b' -Because 'the remaining limits must name the lifecycle the hosts still put into the reader''s chat'
+        }
     }
 }
 
 Describe 'authenticated-web-extraction bootstrap recipe' -Tag 'Unit' {
+    It 'names every file an installation from before Reddit reading needs' {
+        # R16-08: an extract.mjs from before Reddit reading passes no headless
+        # flag, so reddit-read refuses every run until it is copied in too.
+        $upgrade = [regex]::Match($script:skillText, '(?m)^An installation that predates Reddit reading[^\r\n]*').Value
+
+        $upgrade | Should -Not -BeNullOrEmpty
+        foreach ($file in 'scripts\extract.mjs', 'tasks\check-logins.mjs', 'tasks\reddit-read.mjs', 'lib\reddit-url.mjs')
+        {
+            $upgrade | Should -Match ([regex]::Escape($file)) -Because "reddit-read needs $file"
+        }
+    }
+
     It 'copies every bundled file to a fresh machine' {
         $bundled = Get-ChildItem -LiteralPath $script:bootstrapRoot -Recurse -File |
             ForEach-Object -Process { $_.FullName.Substring($script:bootstrapRoot.Length + 1) -replace '/', '\' }
