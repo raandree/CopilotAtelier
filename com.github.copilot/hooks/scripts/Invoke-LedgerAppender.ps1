@@ -1801,6 +1801,43 @@ function Read-AppenderResponse {
     return $response
 }
 
+function Get-StoredRecordCount {
+    <#
+        How many records the sink holds, counted before a record is sent (S-19). Only a sink that
+        does not exist holds none: the service creates its sink before it creates its pipe. Any
+        other failure to read it, such as a directory, a denied read or a half-written last line,
+        is an error, and the caller sends nothing.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    $result = @{ Count = 0; Error = '' }
+
+    try {
+        $sink = Read-SinkLine -Path $Path
+    } catch {
+        $cause = $_.Exception.GetBaseException()
+
+        if ($cause -isnot [System.IO.FileNotFoundException]) {
+            $result.Error = $cause.Message
+        }
+
+        return $result
+    }
+
+    if ($sink.Error) {
+        $result.Error = $sink.Error
+        return $result
+    }
+
+    $result.Count = $sink.Line.Count
+    return $result
+}
+
 function Test-Acknowledgement {
     <#
         The acknowledgement is a claim by whoever answered the pipe, and the
@@ -2166,22 +2203,13 @@ switch ($PSCmdlet.ParameterSetName) {
             # the record this send stored (S-19). The sink, not the head: the service flushes a
             # record before it moves the head, and an open handle on the head would make the
             # service's replace of it fail.
-            $storedBefore = 0
-            if (Test-Path -LiteralPath $SinkPath -PathType Leaf) {
-                try {
-                    $before = Read-SinkLine -Path $SinkPath
-                } catch {
-                    Write-Refusal -Message "could not count the records in the ledger before sending: $($_.Exception.Message)"
-                    exit 2
-                }
-
-                if ($before.Error) {
-                    Write-Refusal -Message "could not count the records in the ledger before sending: $($before.Error)"
-                    exit 2
-                }
-
-                $storedBefore = $before.Line.Count
+            $before = Get-StoredRecordCount -Path $SinkPath
+            if ($before.Error) {
+                Write-Refusal -Message "could not count the records in the ledger before sending: $($before.Error)"
+                exit 2
             }
+
+            $storedBefore = $before.Count
 
             # The record is forwarded byte for byte inside an envelope that states
             # the operation. Re-serializing it here would change the bytes the

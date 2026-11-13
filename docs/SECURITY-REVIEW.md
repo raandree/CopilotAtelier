@@ -4,6 +4,109 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-11-13: a replayed acknowledgement, S-19 (follow-up of prompt P5)
+
+The Custom `security-reviewer` agent reviewed the change that closes S-19 of the review of
+2026-10-14. The ledger client believed an acknowledgement once it had rebuilt the digest of the
+record it sent at the acknowledged sequence and found it in the ledger. For a record identical to
+one already stored, a server that replayed the earlier acknowledgement therefore passed every
+check, and the client could not prove how many times a record was stored. The client now counts
+the records in the sink before it sends and believes only a sequence after them. The owner chose
+that form out of three: `sequence > n`, the `sequence == n + 1` that the reviewer of 2026-10-14
+proposed, and recording S-19 as an accepted residual. The reviewer read the commit `27037b1` in a
+fresh context, read-only, ran the suites and nine mutants of its own on copies under TEMP, scripted
+the `-Seal` replay and nine states of the sink against a squatter, and said **Approve with
+changes**: no Blocker, no Major, two Minors (R13-01, R13-02) and four Nits (R13-03 to R13-06). All
+six were fixed in the same change, and no second review pass was asked for.
+
+### Scope
+
+- With one writer at a time, can a server whose pipe passes the client's identity check still make
+  `-Append` or `-Seal` report a record that this send did not store?
+- Is the count taken before any byte of the record leaves the client, and does every way it can go
+  wrong give the right count or refuse without sending?
+- Can the read of the sink before the send disturb the running service or change what it stores?
+- Do the new tests fail without the change, and do they pin the boundary on both sides?
+- Do the hooks README, the CHANGELOG, the comments and the commit message claim only what is shown?
+
+### Verdict
+
+**Approve with changes.** With one writer, the reviewer found no way for a server that passes the
+identity check to make the client report a record that this send did not store: a client that waits
+for each acknowledgement counts after the previous read-back, so k successful sends name k
+different sequences. The S-19 replay is refused for `-Append` and, in a run of the reviewer's own,
+for `-Seal`; `aea224e` believes both. Every failure of the count it provoked (a half-written last
+line, a byte-order mark, an empty line, invalid UTF-8, a sink held without shared reading, and a
+sink hidden by its access list) stopped the client before any byte of the record left it. The count
+uses the share mode of the read-back the client already made, opens no handle on the chain head and
+writes nothing, and an append through the real service and the service's own open of the sink both
+succeeded with such a reader open. What it found was a test gap, wording that drew the window of a
+concurrent writer too narrowly, and a count that leaned on `Test-Path`.
+
+### Findings
+
+| ID | Severity | Where | Finding | Resolution |
+|---|---|---|---|---|
+| R13-01 | Minor | `tests/LedgerAppender.Tests.ps1` | No test told the chosen form, `sequence > n`, from the form that was not chosen: a check written as `sequence == n + 1` passed every test, although it refuses an append that another writer overtook after it was stored, and the controller's retry would then store the record twice | Fixed: an in-process case accepts an append that another writer overtook (n = 0, sequence 2), and fails under that mutant |
+| R13-02 | Minor | hooks README, `CHANGELOG.md` | The limit for a concurrent writer was drawn too narrowly. The window runs from the count until the client reads the ledger back, not until its own append, and the client waits for the answer without a deadline: only `Connect` is bounded, at 10 seconds. The README also said that requiring exactly the next sequence would close that limit, which it would not, because the other writer's identical record can be the next one. The design note of the brief said the same; the owner's ruling did not depend on it | Fixed in the README and the CHANGELOG as the reviewer worded it |
+| R13-03 | Nit | `Invoke-LedgerAppender.ps1`, the count | Counting zero rested on `Test-Path -PathType Leaf`, whose `$false` also covers a directory and a sink that this identity cannot query. A directory was counted as no records, and the record was sent and refused only at the read-back; a hidden sink was refused before the send only because the `Test-Path` of PowerShell 7.6.10 writes an error that the script's `Stop` preference and `trap` turn into exit 2 | Fixed: `Get-StoredRecordCount` opens the sink and counts zero only for a `FileNotFoundException`, and any other failure refuses before the send with its reason. Red first: a pipe case with a directory as the sink, which the client of `27037b1` sent. Four in-process cases hold the count on every system |
+| R13-04 | Nit | `tests/LedgerAppender.Tests.ps1` | That the new comparison runs last, so that the existing refusals keep their messages, was pinned only by a Windows pipe case: its in-process twin passed `-StoredBefore 0`, which is not the state it models | Fixed: the twin passes `-StoredBefore 1`, and fails when the comparison runs first |
+| R13-05 | Nit | the message of `27037b1` | "Tests, red first" was too broad: the case that stores the same record twice is a positive control and cannot be red, and the in-process cases failed on `aea224e` only on the missing parameter | Recorded under Tests below and in the report. The commit is not rewritten |
+| R13-06 | Nit | this file | The dated entry that closes S-19 and records the new digest was not in the commit | This entry. The older records that still called S-19 open point here |
+
+### Tests
+
+- Test first, on `aea224e`: the pipe case of the identical replay failed for the stated reason, as
+  the client exited 0 with "Appended sequence 1 as b29cc4f7…", and so did the pipe case of a
+  half-written sink, whose record the client sent and refused only at the read-back. The in-process
+  cases failed on the missing `-StoredBefore`. With the parameter and the count in place and the
+  comparison not yet written, the in-process case of the identical replay failed on its assertion
+  (an empty answer). The case that stores the same record twice through the real service is a
+  positive control and passed throughout. In the fix round, the pipe case of a directory as the sink
+  was red on `27037b1` for the stated reason, as the record was sent, and the four in-process cases
+  of the count failed until `Get-StoredRecordCount` existed.
+- Mutants, on copies under TEMP and never in the working tree: 5 in the first round and 9 in the fix
+  round, all caught. They covered the boundary (`-lt`, n + 1, and `== n + 1`), the comparison moved
+  first, a count error ignored, every error counted as zero, an absent sink refused, a count one too
+  many, and the count not passed to the check. Of the reviewer's 9 mutants of `27037b1`, two
+  survived: `== n + 1` (R13-01, now caught) and a count read from the chain head, which gives the
+  same result with one writer. The sink is read for availability, which no test measures.
+- The suites of the appender and of the verifier, on `27037b1`: 1,163 passed, 0 failed, 3 skipped
+  by design (a POSIX case, the property test whose fresh seed only CI draws, and an elevation type
+  that this token does not have). On the final tree: 1,169 passed, 0 failed, the same 3 skipped,
+  in 431 seconds.
+- The full gate, `./build.ps1 -Tasks build, test`, on the final tree before these two results were
+  written here (no test reads this file): 5,866 passed, 0 failed, 145 skipped, 91.54 % coverage
+  against a threshold of 65 %, 21 build tasks and no error in 54 minutes, and the same 16 warnings
+  as in earlier gates.
+- PSScriptAnalyzer 1.25.0 with default rules: 0 findings on both changed scripts, at every
+  severity. markdownlint: 0 issues.
+- Nothing ran on Ubuntu or macOS here; the in-process cases run there in the pull request's CI.
+
+### Remaining risks
+
+- The trust boundary does not move. Only the appender's own account, or an administrator, can own
+  a pipe that the client accepts, and that account can stop the service and write a chain that
+  validates, because the chain is not keyed. The change removes a quiet way to make the client
+  over-count while the service runs.
+- A record identical to the client's that another writer appends after the client's count and
+  before the client reads the ledger back is believed, and the client waits for the answer without
+  a deadline. `sequence == n + 1` would not close this, and it would refuse every overtaken append.
+- The client cannot prove that a record was not stored more often than it was sent, because the
+  service's own account can append any record.
+- A count that meets the half-written last line of another writer's append refuses before the
+  send; the read-back after the send already had that race.
+- The new digest of the appender, as checked out (CRLF on every system, by `.gitattributes`):
+  `f0795f80364a253d5b87b5af3a0d2f6b7269de8a5e81e5215e6bfcae1122677b`; the reviewed commit
+  `27037b1` hashed to `d1b763e680f39c07ccfe9e907781e150659dac2952962441b1d6b91dc5db06ce`. The
+  verifier is unchanged at `d283ad9b099936a63bf52063b14a1b3a8a322da7732f619ae69c88c722581c24`. Every
+  containment profile has to re-pin the appender, and `~/.copilot` has to be refreshed with
+  `./Setup-CopilotSettings.ps1`.
+- Not run: Ubuntu and macOS, Windows PowerShell 5.1, a live concurrent writer, a second Windows
+  account, and a second review pass of the fixes.
+- The remaining risks of the earlier entries that this change does not touch stay open: R11-01, the
+  escape set of `WritableRoots`, the run id of `-Revalidate`, and the second Windows account.
+
 ## 2026-11-13: relayed exception texts, S-20, V-05 and W-03 (follow-up of prompt P5)
 
 The Custom `security-reviewer` agent reviewed the change that closes S-20 of the review of
@@ -99,6 +202,7 @@ touch.
   message of the read test is on a localized Windows, and a second review pass of the fixes.
 - The remaining risks of the earlier entries that this change does not touch stay open: S-19, the
   escape set of `WritableRoots`, the run id of `-Revalidate`, and the second Windows account.
+  S-19 was closed later that day; see the entry on S-19 above.
 
 ## 2026-11-09: the R-04 closing test on a standard account's token
 
@@ -221,7 +325,7 @@ the drive's own colon.
   `-Revalidate`, the second Windows account, and the unrelayed exception texts. The property test
   with a fresh seed in CI, which was on that list, is done (see the CHANGELOG). S-20 and the
   unrelayed exception texts of the hook check were closed on 2026-11-13; see the entry of that
-  date.
+  date. S-19 was closed on 2026-11-13 too; see the entry on S-19 of that date.
 
 ## 2026-10-16: the pinned hook line under the wrappers of the documented hosts (follow-up of prompt P5)
 
@@ -502,7 +606,8 @@ Ubuntu and macOS; and the costs of about 85 and 7 seconds.
 - The remaining risks of the 2026-10-14 and 2026-10-15 entries that this change does not
   touch stay open: S-19, S-20, the escape set of `WritableRoots`, the run id of
   `-Revalidate`, the second Windows account, and T-03, T-13, T-17 and T-18 of R-04. S-20 was
-  closed on 2026-11-13; see the entry of that date.
+  closed on 2026-11-13; see the entry of that date. S-19 was closed on 2026-11-13 too; see the
+  entry on S-19 of that date.
 
 ## 2026-10-15: the token of the run identity, R-04 (follow-up of prompt P5)
 
@@ -776,7 +881,7 @@ fraction of ten digits, all fail closed.
 |---|---|---|---|---|
 | S-17 | Minor | Verifier | The hook-line scan reads `cmd.exe` rules only: `-Command "$(calc.exe)"`, `"$env:PLUGIN_ROOT"`, a backtick inside quotes and `-Command x '"' ; calc.exe '"'` were accepted, and a PowerShell wrapper or a POSIX shell reads them differently from a scan that toggles on the ASCII double quote. | Fixed (`25cedd4`): no `$` or backtick anywhere, no `'` outside double quotes, and, beyond what was asked, nothing outside printable ASCII (checked on the text as given; PowerShell reads curly quotes as quotes) and no dot segment in the program path. The 15 shipped command strings carry none of them. Thirteen new rows failed first; five mutations, one per rule, broke exactly those rows. |
 | S-18 | Nit | Docs | The README launcher recipe (`Environment.Clear()` and a `PSModulePath` of system folders) does not do what it says: pwsh adds the account's own module folder first. | Fixed in the README, after reproducing it. The module path is closed only where the verifier measures it (the three firewall cmdlets); adding the folders pwsh searches to the escape set of `WritableRoots` is a follow-up. |
-| S-19 | Nit | Docs | "Cannot make a record that was not stored read as stored" has an exception: a server that replays the earlier acknowledgement of a record identical to one already stored. | Fixed in the README: the exception and what the client cannot prove (how many times the record was stored). The reviewer's hardening, `sequence == head before send + 1`, needs the client to read the chain before it sends, and is not done. |
+| S-19 | Nit | Docs | "Cannot make a record that was not stored read as stored" has an exception: a server that replays the earlier acknowledgement of a record identical to one already stored. | Fixed in the README: the exception and what the client cannot prove (how many times the record was stored). The reviewer's hardening, `sequence == head before send + 1`, needs the client to read the chain before it sends, and is not done. Closed on 2026-11-13, as `sequence > n` with n counted from the sink before the send; see the entry on S-19 of that date. |
 | S-20 | Nit | Both | Two service-side `[Console]::Error.WriteLine` lines print raw exception text; the S-04 and S-05 appender tests are Windows-only although three of the functions are platform-neutral; `..` in the program word is normalized textually. | The `..` item is fixed with S-17. The first is not changed: no client text reaches those lines (`Test-RecordSchema` returns canonicalization errors to the client inside a `try`, and `Add-Record` runs only after it passed), so there is nothing to provoke in a test; part C accepted that as a Nit and still recommends routing both lines through `Format-RefusalText`. The second is a follow-up, because Ubuntu and macOS cannot be run here. Closed on 2026-11-13; see the entry of that date. |
 
 Pass 3, part C (a bounded delta check of `25cedd4` and `c7e886e`). It confirmed S-18 and S-19 resolved and S-17 resolved for the characters it names, and showed that the class was not closed: **one Major, three Minors**. It also confirmed that the ASCII rule refuses nothing a shipped-shape command carries (the commands resolve `PLUGIN_ROOT` at run time), that the order of the checks is safe, and that the rule makes the culture-sensitive `IndexOf('"', 1)` and `StartsWith('\\')` safe, because they now see only ASCII. It accepted as follow-ups S-20 (both bullets), the escape-set addition and the S-19 hardening, and R-04 stays accepted.
@@ -908,7 +1013,7 @@ change. Nothing could run on Ubuntu or macOS here.
   already stored passes the client's acknowledgement check, so the client cannot
   prove how many times a record was stored (S-19). The reviewer's hardening,
   `sequence == head before send + 1`, needs the client to read the chain before it
-  sends and is not done.
+  sends and is not done. Closed on 2026-11-13; see the entry on S-19 of that date.
 - Two service-side `[Console]::Error.WriteLine` lines print raw exception text
   (S-20). No client text reaches them, which was traced and not provoked; routing
   both through `Format-RefusalText` is a follow-up, and so is gating the S-04 and

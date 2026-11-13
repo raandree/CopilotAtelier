@@ -449,14 +449,15 @@ rebuilds the digest of its own record, looks for it in the ledger, and believes
 only a sequence after the records the ledger held before the send. A client that
 sends the same record twice, each time after the previous acknowledgement,
 therefore knows that the ledger holds it at two sequences. Two limits remain. A
-record that another writer appends between the client's count and its own append
-lies after the count, so a server can answer with it when it is identical to the
-client's; requiring exactly the next sequence would close that only by refusing
-every append that another writer overtakes, although that append was stored. And
-the client cannot prove that a record was not stored more often than it was
-sent, because the service's own account can append any record. Separate
-accounts and `-ExpectedServerIdentity` are what tell such a process from the
-service.
+record identical to the client's that another writer appends after the client's
+count and before the client reads the ledger back lies after the count, so a
+server can answer with it, and the client waits for that answer without a
+deadline. Requiring exactly the next sequence would not close this, because that
+record can be the next one, and it would refuse every append that another writer
+overtakes, although that append was stored. And the client cannot prove that a
+record was not stored more often than it was sent, because the service's own
+account can append any record. Separate accounts and `-ExpectedServerIdentity`
+are what tell such a process from the service.
 
 Two availability limits remain, and neither changes what the ledger says. Any
 open handle on the chain head, even one opened with sharing, makes the service's

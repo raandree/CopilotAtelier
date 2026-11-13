@@ -14,12 +14,16 @@ at 19:56 UTC to GitHub and the PowerShell Gallery from `a3167d8` (#54), the
 commit CI had published as `6.1.0-preview0026`. The changelog rollover #55
 (`f358226`) followed at 23:43 UTC; its CI run (43122012334, GitVersion
 `6.1.1-preview.1`) published nothing (Deploy skipped, confirmed 2026-11-12). The newest
-pre-release is `6.2.0-preview0001`, which CI published from #57 (`0859e9e`) on 2026-11-13
-at 00:05 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`.
+pre-release is `6.2.0-preview0002`, which CI published from #58 (`aea224e`, run 43431374837) on 2026-11-13
+at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
-- **2026-11-13**: Brief 11, S-20 (`software-engineer`), on `ai/s20-relay-exception-texts`: the appender's two lines about a dropped
+- **2026-11-13**: Brief 13, S-19 (`software-engineer`), on `ai/s19-replayed-acknowledgement`: the ledger client counts the sink's records
+  before it sends and believes only a later sequence (`sequence > n`, the owner's ruling), so a replayed identical record is refused, and a
+  sink it cannot count stops the send. Red first (the replay exited 0 on `aea224e`); 14 mutants caught. Review: Approve with changes,
+  R13-01 to R13-06 fixed. New appender digest `f0795f80…677b`.
+- **2026-11-13**: Brief 11, S-20 (`software-engineer`), merged as #58 (`aea224e`, 13:10 UTC): the appender's two lines about a dropped
   connection and the hook check's four exception texts, two closure details and interpreter path are relayed as printable ASCII,
   closing S-20, V-05 and W-03 (red first, 8 and then 2 tests; 12 mutants caught). The S-04/S-05 functions and the `-Validate`
   stored-line case run on every system. Review: Approve with changes; R11-02 to R11-06 fixed, R11-01 (26+ verifier texts) a follow-up.

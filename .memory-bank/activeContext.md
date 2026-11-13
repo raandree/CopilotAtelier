@@ -9,13 +9,11 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 11, S-20 (2026-11-13), is done on `ai/s20-relay-exception-texts`** (local commits, not pushed). The appender's two lines
-about a dropped connection go through `Format-RefusalText`, and `Test-HookContract` relays its four exception texts, the two
-closure details of the interpreter and the interpreter's path through `Format-RelayedText` (200 characters; 1,000 for the details
-together and for the path): S-20, V-05 and W-03 are closed. `Test-OrdinalEqual`, `Test-UtcInstant` and `Test-Acknowledgement` run
-in-process on every system, and the `-Validate` stored-line case lost its `-Skip`; the pull request's CI is their first run on
-Ubuntu and macOS. The `security-reviewer` said Approve with changes (0 Blocker, 0 Major); R11-01 is a follow-up (Open findings).
-New digests: verifier `d283ad9b…1c24`, appender `9ad77258…064b`; every containment profile re-pins both.
+**Brief 13, S-19 (2026-11-13), is done on `ai/s19-replayed-acknowledgement`** (local commits, not pushed). The ledger client counts the
+records in the sink before it sends (`Get-StoredRecordCount`: only a missing sink holds none, and any other read failure stops the send) and
+believes an acknowledgement only for a sequence after them, as the owner ruled (`sequence > n`, not `== n + 1`), so a replayed identical
+record is refused. The `security-reviewer` said Approve with changes (0 Blocker, 0 Major); R13-01 to R13-06 are fixed. New appender digest
+`f0795f80…677b`, verifier unchanged at `d283ad9b…1c24`; every containment profile re-pins the appender.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
@@ -45,6 +43,9 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
 
 ## Previous focuses
 
+- **Brief 11, S-20 (2026-11-13).** Merged as #58 (`aea224e`, 13:10 UTC): the appender's two lines about a dropped connection and the
+  hook check's exception texts, closure details and interpreter path are relayed as printable ASCII, closing S-20, V-05 and W-03;
+  the S-04/S-05 functions run in-process on every system. R11-01 stays open (Open findings).
 - **Brief 04, the adapter smoke check (2026-11-12).** Merged as #57 (`0859e9e`, 23:25 UTC; CI published `6.2.0-preview0001`):
   a runtime receipt bound to the file's SHA-256 lets `Get-CopilotAtelierClientAdapter` report `RuntimeVerified` only for passed
   runtime cases. The Copilot CLI variant passed C1 to C3 without `target`; the agent host failed C1 and C2 because it ignores
@@ -157,11 +158,11 @@ unproven — train reached 100 % while validation fell.
    controller agent (the security lint names the rule `ObsoleteRemoteOverride`).
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
-3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): brief 11 waits on the owner
-   to push and merge `ai/s20-relay-exception-texts` and to re-pin both digests in any containment profile; closing #49; from
-   brief 03, delete any leftover `extracted\all-cookies.json` and sign in to Reddit once for the live `reddit-read` check; then
-   the other P5 follow-ups (`docs/SECURITY-REVIEW.md`: the escape set of `WritableRoots`, S-19, the run id of `-Revalidate`, a CI
-   retry for the Gallery bootstrap, and R11-01) and more. `ai/travel-photo-diary-skill` exists only on the other machine.
+3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): brief 13 waits on the owner
+   to push and merge `ai/s19-replayed-acknowledgement` and to re-pin the appender digest (and #58's verifier digest) in any containment
+   profile; closing #49; from brief 03, delete any leftover `extracted\all-cookies.json` and sign in to Reddit once for the live
+   `reddit-read` check; then the other P5 follow-ups (`docs/SECURITY-REVIEW.md`: the escape set of `WritableRoots`, the run id of
+   `-Revalidate`, a CI retry for the Gallery bootstrap, and R11-01) and more. `ai/travel-photo-diary-skill` exists only on the other machine.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.
