@@ -1811,6 +1811,14 @@ Describe 'Ledger appender channel' -Tag 'Unit' {
 
             (Get-StoredRecordCount -Path $script:sinkPath).Error | Should -Not -BeNullOrEmpty
         }
+
+        It 'refuses to count when a read fails with an empty message' {
+            # The error is also the flag that stops the send, so an exception without text must not
+            # read as no error.
+            Mock Read-FileByte { throw [System.IO.IOException]::new('') }
+
+            (Get-StoredRecordCount -Path $script:sinkPath).Error | Should -Match '\AIOException'
+        }
     }
 }
 

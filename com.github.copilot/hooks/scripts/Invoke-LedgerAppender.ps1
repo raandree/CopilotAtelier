@@ -1822,8 +1822,10 @@ function Get-StoredRecordCount {
     } catch {
         $cause = $_.Exception.GetBaseException()
 
+        # The type comes first: the error is also the flag that stops the send, so it must never
+        # be empty, and the reason has to survive the cut of the refusal line.
         if ($cause -isnot [System.IO.FileNotFoundException]) {
-            $result.Error = $cause.Message
+            $result.Error = '{0}: {1}' -f $cause.GetType().Name, $cause.Message
         }
 
         return $result

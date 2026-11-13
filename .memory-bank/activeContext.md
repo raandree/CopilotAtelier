@@ -9,11 +9,11 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 13, S-19 (2026-11-13), is done on `ai/s19-replayed-acknowledgement`** (local commits, not pushed). The ledger client counts the
+**Brief 13, S-19 (2026-11-13), is done on `ai/s19-replayed-acknowledgement`** (pushed, not merged). The ledger client counts the
 records in the sink before it sends (`Get-StoredRecordCount`: only a missing sink holds none, and any other read failure stops the send) and
 believes an acknowledgement only for a sequence after them, as the owner ruled (`sequence > n`, not `== n + 1`), so a replayed identical
-record is refused. The `security-reviewer` said Approve with changes (0 Blocker, 0 Major); R13-01 to R13-06 are fixed. New appender digest
-`f0795f80…677b`, verifier unchanged at `d283ad9b…1c24`; every containment profile re-pins the appender.
+record is refused. The `security-reviewer` said Approve with changes (0 Blocker, 0 Major) and approved the fixes on re-review; R13-01 to
+R13-09 are fixed. New appender digest `f55e163b…0572`, verifier unchanged at `d283ad9b…1c24`; every containment profile re-pins the appender.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
@@ -159,7 +159,7 @@ unproven — train reached 100 % while validation fell.
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
 3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): brief 13 waits on the owner
-   to push and merge `ai/s19-replayed-acknowledgement` and to re-pin the appender digest (and #58's verifier digest) in any containment
+   to open a pull request for `ai/s19-replayed-acknowledgement`, merge it, and re-pin the appender digest (and #58's verifier digest) in any containment
    profile; closing #49; from brief 03, delete any leftover `extracted\all-cookies.json` and sign in to Reddit once for the live
    `reddit-read` check; then the other P5 follow-ups (`docs/SECURITY-REVIEW.md`: the escape set of `WritableRoots`, the run id of
    `-Revalidate`, a CI retry for the Gallery bootstrap, and R11-01) and more. `ai/travel-photo-diary-skill` exists only on the other machine.

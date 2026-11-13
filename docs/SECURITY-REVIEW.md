@@ -17,7 +17,9 @@ proposed, and recording S-19 as an accepted residual. The reviewer read the comm
 fresh context, read-only, ran the suites and nine mutants of its own on copies under TEMP, scripted
 the `-Seal` replay and nine states of the sink against a squatter, and said **Approve with
 changes**: no Blocker, no Major, two Minors (R13-01, R13-02) and four Nits (R13-03 to R13-06). All
-six were fixed in the same change, and no second review pass was asked for.
+six were fixed in the same change. At the owner's request, the same reviewer then re-reviewed the
+fixes in `e58dd0d` and said **Approve**: R13-01 to R13-06 resolved, and three new Nits (R13-07 to
+R13-09), which are fixed too.
 
 ### Scope
 
@@ -53,6 +55,9 @@ concurrent writer too narrowly, and a count that leaned on `Test-Path`.
 | R13-04 | Nit | `tests/LedgerAppender.Tests.ps1` | That the new comparison runs last, so that the existing refusals keep their messages, was pinned only by a Windows pipe case: its in-process twin passed `-StoredBefore 0`, which is not the state it models | Fixed: the twin passes `-StoredBefore 1`, and fails when the comparison runs first |
 | R13-05 | Nit | the message of `27037b1` | "Tests, red first" was too broad: the case that stores the same record twice is a positive control and cannot be red, and the in-process cases failed on `aea224e` only on the missing parameter | Recorded under Tests below and in the report. The commit is not rewritten |
 | R13-06 | Nit | this file | The dated entry that closes S-19 and records the new digest was not in the commit | This entry. The older records that still called S-19 open point here |
+| R13-07 | Nit | `Get-StoredRecordCount` (re-review) | One string, the exception's message, was both the flag that stops the send and the reason. An exception without text would have read as no error, so the client would have counted zero records and sent; no read failure on this path is known to raise one. And for a denied access, the reason follows the path in .NET's text, so on a long path the cut of the refusal line at 200 characters dropped it | Fixed: the error names the exception's type before its text. Red first: an in-process case whose read throws an exception with an empty message returned no error |
+| R13-08 | Nit | this file, `activeContext.md` (re-review) | This entry said that no second review pass was asked for, and `activeContext.md` still placed the branch in local commits, although it was pushed | Fixed: this entry records the re-review, and the Memory Bank says pushed, not merged |
+| R13-09 | Nit | `systemPatterns.md` (re-review) | The new pattern said that counting the sink proves which send stored a record, which holds only with one writer | Fixed in the reviewer's words, with the condition and the limit |
 
 ### Tests
 
@@ -64,7 +69,9 @@ concurrent writer too narrowly, and a count that leaned on `Test-Path`.
   (an empty answer). The case that stores the same record twice through the real service is a
   positive control and passed throughout. In the fix round, the pipe case of a directory as the sink
   was red on `27037b1` for the stated reason, as the record was sent, and the four in-process cases
-  of the count failed until `Get-StoredRecordCount` existed.
+  of the count failed until `Get-StoredRecordCount` existed. After the re-review, the in-process
+  case of a read that fails with an empty message returned no error on `e58dd0d` (R13-07), and
+  passed once the error named the exception's type.
 - Mutants, on copies under TEMP and never in the working tree: 5 in the first round and 9 in the fix
   round, all caught. They covered the boundary (`-lt`, n + 1, and `== n + 1`), the comparison moved
   first, a count error ignored, every error counted as zero, an absent sink refused, a count one too
@@ -73,12 +80,14 @@ concurrent writer too narrowly, and a count that leaned on `Test-Path`.
   same result with one writer. The sink is read for availability, which no test measures.
 - The suites of the appender and of the verifier, on `27037b1`: 1,163 passed, 0 failed, 3 skipped
   by design (a POSIX case, the property test whose fresh seed only CI draws, and an elevation type
-  that this token does not have). On the final tree: 1,169 passed, 0 failed, the same 3 skipped,
-  in 431 seconds.
-- The full gate, `./build.ps1 -Tasks build, test`, on the final tree before these two results were
-  written here (no test reads this file): 5,866 passed, 0 failed, 145 skipped, 91.54 % coverage
-  against a threshold of 65 %, 21 build tasks and no error in 54 minutes, and the same 16 warnings
-  as in earlier gates.
+  that this token does not have). On `e58dd0d`: 1,169 passed, 0 failed, the same 3 skipped, in 431
+  seconds. On the final tree, after the re-review: 1,170 passed, 0 failed, the same 3 skipped, in
+  449 seconds.
+- The full gate, `./build.ps1 -Tasks build, test`, on the tree of `e58dd0d`: 5,866 passed, 0
+  failed, 145 skipped. On the final tree, after the re-review and before these results were written
+  here (no test reads this file): 5,867 passed, 0 failed, 145 skipped, 91.54 % coverage against a
+  threshold of 65 %, 21 build tasks and no error in 52 minutes, and the same 16 warnings as in
+  earlier gates.
 - PSScriptAnalyzer 1.25.0 with default rules: 0 findings on both changed scripts, at every
   severity. markdownlint: 0 issues.
 - Nothing ran on Ubuntu or macOS here; the in-process cases run there in the pull request's CI.
@@ -97,13 +106,15 @@ concurrent writer too narrowly, and a count that leaned on `Test-Path`.
 - A count that meets the half-written last line of another writer's append refuses before the
   send; the read-back after the send already had that race.
 - The new digest of the appender, as checked out (CRLF on every system, by `.gitattributes`):
-  `f0795f80364a253d5b87b5af3a0d2f6b7269de8a5e81e5215e6bfcae1122677b`; the reviewed commit
-  `27037b1` hashed to `d1b763e680f39c07ccfe9e907781e150659dac2952962441b1d6b91dc5db06ce`. The
+  `f55e163b02fe4db6d318bc3e8c3d8cc6c86c2bf365496ddf22cda5e812030572`. The reviewed commit
+  `27037b1` hashed to `d1b763e680f39c07ccfe9e907781e150659dac2952962441b1d6b91dc5db06ce`, and the
+  re-reviewed `e58dd0d` to `f0795f80364a253d5b87b5af3a0d2f6b7269de8a5e81e5215e6bfcae1122677b`. The
   verifier is unchanged at `d283ad9b099936a63bf52063b14a1b3a8a322da7732f619ae69c88c722581c24`. Every
   containment profile has to re-pin the appender, and `~/.copilot` has to be refreshed with
   `./Setup-CopilotSettings.ps1`.
-- Not run: Ubuntu and macOS, Windows PowerShell 5.1, a live concurrent writer, a second Windows
-  account, and a second review pass of the fixes.
+- Not run: Ubuntu and macOS, Windows PowerShell 5.1, a live concurrent writer, and a second Windows
+  account. The fix of R13-07 to R13-09 was not reviewed again; the reviewer said none of them
+  needed another pass.
 - The remaining risks of the earlier entries that this change does not touch stay open: R11-01, the
   escape set of `WritableRoots`, the run id of `-Revalidate`, and the second Windows account.
 

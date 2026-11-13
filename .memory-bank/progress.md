@@ -19,10 +19,10 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
 
 ## Recent milestones
 
-- **2026-11-13**: Brief 13, S-19 (`software-engineer`), on `ai/s19-replayed-acknowledgement`: the ledger client counts the sink's records
-  before it sends and believes only a later sequence (`sequence > n`, the owner's ruling), so a replayed identical record is refused, and a
-  sink it cannot count stops the send. Red first (the replay exited 0 on `aea224e`); 14 mutants caught. Review: Approve with changes,
-  R13-01 to R13-06 fixed. New appender digest `f0795f80…677b`.
+- **2026-11-13**: Brief 13, S-19 (`software-engineer`), pushed on `ai/s19-replayed-acknowledgement`: the ledger client counts the sink's
+  records before it sends and believes only a later sequence (`sequence > n`, the owner's ruling), so a replayed identical record is refused,
+  and a sink it cannot count stops the send. Red first (the replay exited 0 on `aea224e`); 14 mutants caught. Review: Approve with changes,
+  then Approve on re-review; R13-01 to R13-09 fixed. New appender digest `f55e163b…0572`.
 - **2026-11-13**: Brief 11, S-20 (`software-engineer`), merged as #58 (`aea224e`, 13:10 UTC): the appender's two lines about a dropped
   connection and the hook check's four exception texts, two closure details and interpreter path are relayed as printable ASCII,
   closing S-20, V-05 and W-03 (red first, 8 and then 2 tests; 12 mutants caught). The S-04/S-05 functions and the `-Validate`
