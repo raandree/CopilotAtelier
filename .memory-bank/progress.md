@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-13
+last-verified: 2026-11-14
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -19,6 +19,10 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
 
 ## Recent milestones
 
+- **2026-11-14**: Brief 16, the Reddit quarantine (`software-engineer`, a controller run), on `ai/reddit-quarantine`, stacked on brief 13,
+  not pushed. Option 1 under the owner's delegation: `quarantined-reader` is user-invocable and hidden from the subagent list, the agent only
+  runs `reddit-read` and declines to run the reader, and the user reads its summary in a chat of its own; `reddit-read` refuses without
+  `headless: false`. Red first; seven SHA-256 pins; every reviewer mutant caught. Request changes, then Approve; gate 5,878 passed, 0 failed.
 - **2026-11-13**: Re-review of the review fixes nobody had reviewed (`software-engineer`, the owner's ruling): brief 13 Approve; #54
   Approve with four Nits (handoff backlog); #57 Approve with changes, so brief 17 (C2 fails closed); #53 Request changes, two Majors in
   the Reddit quarantine, so brief 16. #58 and #56 left out as low risk; no GitHub review existed on #53 to #58.
@@ -45,16 +49,9 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
   Deployment record, `IsCurrent`, and `VersionDrift` follow; Install and Test warn about a git working tree as Canonical target. Red first;
   an independent review's Blocker (PowerShellGet 3 reports the label separately) and Major (an update that did not land) fixed test-first.
   The release run pushed the rollover branch but could not open its pull request; #55 merged it with the final newline restored.
-- **2026-11-10**: Brief 03, the travel work (`software-engineer`), merged as #53 (`dc714ba`, `6.1.0-preview0025`): the Markdown
-  Instruction counts MD013 in UTF-16 units and keeps emoji out of linked headings (`dc1dad0`); the contained
-  `quarantined-reader` agent reads untrusted text with file reading only (`5e9bb9b`);
-  `authenticated-web-extraction` reads Reddit signed in through a GET-only allow-list and hands the files to
-  that reader (`15fb67e`); new Skills `travel-handbook` (`bfd44f0`, uv-run Python scripts, 215 offline tests)
-  and `travel-planning` (`bc27c27`), each kept by the owner's with/without rule (planning 0 vs 2 corrections;
-  handbook kept on an approved rerun). An independent security review found 17 issues (3 Major); all were
-  fixed test-first inside their commits. No trip is named in any shipped file. Report in the handoff folder.
-- **2026-11-10**: The Task ledger stays in its Handoff sequence's folder (`software-engineer`): a brief's row lives in its own
-  folder's `LEDGER.md` (`LedgerOutsideFolder`). Merged as #51 (`4c4fbd3`, `6.1.0-preview0024`).
+- **2026-11-10**: Brief 03, the travel work (`software-engineer`), merged as #53 (`dc714ba`, `6.1.0-preview0025`): MD013 in UTF-16 units
+  (`dc1dad0`), the file-reading-only `quarantined-reader` (`5e9bb9b`, reworked by brief 16), signed-in Reddit reading through a GET-only
+  allow-list (`15fb67e`), and the Skills `travel-handbook` (`bfd44f0`) and `travel-planning` (`bc27c27`); 17 review findings fixed test-first.
 
 ## Stable capabilities
 
@@ -96,8 +93,8 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
   tested against a fake browser only, so its refusal of redirects is unverified against live Reddit.
 - Delete any `extracted\all-cookies.json` that a `dump-cookies` run before brief 03 left in
   `%LOCALAPPDATA%\CareerAuthBrowser`: it holds cookie values in plaintext.
-- `auth-state/` of `authenticated-web-extraction` keeps other sites' session cookies in plaintext for any
-  agent with a shell. It predates brief 03; the review's quarantine covers Reddit text only.
+- `auth-state/` of `authenticated-web-extraction` keeps other sites' session cookies in plaintext for any agent with a shell, and
+  `quarantined-reader` can read it; encrypting it (option 2 of brief 16) and brief 16's two other follow-ups are in the handoff `backlog.md`.
 - Confirm the clock pin live in a new VS Code agent-host chat and in VS Code Local
   (the Copilot CLI runtime stood in for them when it was redeployed on
   2026-10-11; `main` is pushed and `origin/ai/session-clock-path` is gone).

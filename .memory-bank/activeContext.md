@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-13
+last-verified: 2026-11-14
 owner: software-engineer
 source: current task evidence
 ---
@@ -9,11 +9,12 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 13, S-19 (2026-11-13), is done on `ai/s19-replayed-acknowledgement`** (pushed, not merged). The ledger client counts the
-records in the sink before it sends (`Get-StoredRecordCount`: only a missing sink holds none, and any other read failure stops the send) and
-believes an acknowledgement only for a sequence after them, as the owner ruled (`sequence > n`, not `== n + 1`), so a replayed identical
-record is refused. The `security-reviewer` said Approve with changes (0 Blocker, 0 Major) and approved the fixes on re-review; R13-01 to
-R13-09 are fixed. New appender digest `f55e163b…0572`, verifier unchanged at `d283ad9b…1c24`; every containment profile re-pins the appender.
+**Brief 16, the Reddit quarantine (2026-11-14), is done on `ai/reddit-quarantine`**, stacked on brief 13's unmerged branch, not pushed.
+Option 1, decided under the owner's delegation: `quarantined-reader` is user-invocable and hidden from the subagent list
+(`disable-model-invocation: true`); the agent that runs `reddit-read` only points the user to a new chat with the reader and declines to run
+it, and the user, not an agent, checks a decision against the raw files. The reader is told to skip the lifecycle and the session-start note,
+and `reddit-read` refuses unless the harness passes `headless: false`. SHA-256 pins hold the reviewed text of seven places. Review: Request
+changes (1 Major), then Approve with changes, then Approve; full gate 5,878 passed, 0 failed.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
@@ -43,6 +44,8 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
 
 ## Previous focuses
 
+- **Brief 13, S-19 (2026-11-13).** On `ai/s19-replayed-acknowledgement` (#59, checks green, not merged: the push guard denied the merge):
+  the ledger client counts the sink before it sends and believes only a later sequence; new appender digest `f55e163b…0572`.
 - **Brief 11, S-20 (2026-11-13).** Merged as #58 (`aea224e`): the appender's and the hook check's exception texts are relayed as
   printable ASCII, closing S-20, V-05 and W-03; R11-01 stays open (Open findings).
 - **Brief 04, the adapter smoke check (2026-11-12).** Merged as #57 (`0859e9e`, 23:25 UTC; CI published `6.2.0-preview0001`):
@@ -55,9 +58,8 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
   on the same commit (GitHub and the Gallery, 19:56 UTC): `Update-CopilotAtelier -AllowPrerelease`, versions compared with their
   prerelease labels in Windows PowerShell 5.1 and 7, and a warning for a Canonical target that is a git working tree. The changelog
   rollover is #55 (`f358226`, 23:43 UTC); the reply to #49 is posted.
-- **Brief 03, the travel work (2026-11-10).** Merged as #53 (`dc714ba`, `6.1.0-preview0025`): two Markdown rules,
-  signed-in Reddit reading only through the file-reading-only `quarantined-reader` agent, and the Skills
-  `travel-handbook` and `travel-planning`; all 17 findings of its security review were fixed test-first.
+- **Brief 03, the travel work (2026-11-10).** Merged as #53 (`dc714ba`, `6.1.0-preview0025`): two Markdown rules, signed-in Reddit
+  reading with the `quarantined-reader` agent (reworked by brief 16), and the Skills `travel-handbook` and `travel-planning`.
 - **S-33 and R-04 (#42 to #45, to 2026-11-09).** A second colon in a hook program path is refused (#45, `a481c9d`), and
   `IdentityPrivilege` refuses a token that is not a standard account's (#42; decision 0025). The deployed verifier
   hashed to `dd415737…2415` on 2026-11-09; a containment profile elsewhere pins that digest.
@@ -66,8 +68,6 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
 - **Decision 0028, steps 7.1 to 7.5 (2026-10-06 to 2026-10-08).** Design `b568c8c`, Amendments 1 to 4, the A12
   backstop `23a861a`, the frozen reference `30fb3229…9c79`, the latency levels `3bef6b9`, and the VS Code Local
   backstop `b05efe3`; the RAANDREE3 `FailFast` is a .NET 10.0.6 fault. Evidence: the record's Confirmation.
-- **Hook guard and deny reason (prompts 02 to 06, #28 to #30).** Ten reviews ended in an approval; the guard errs toward blocking,
-  and prints the top-level deny pair alone because the SDK runtime drops one that carries `hookSpecificOutput` (Decision 0016).
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -95,9 +95,10 @@ Earlier route-selection and trigger-query sets remain unmeasured. ShellPilot's
 
 ## Open findings
 
-- **Major (2026-11-13, re-review of #53, brief 16):** signed-in Reddit text still reaches the agent that holds the shell (the Skill's
-  workflow reads `extracted/` and checks against the raw files), and `quarantined-reader` can read the plaintext cookies in `auth-state/`
-  and returns free text to that agent, so the quarantine removes no leg of the trifecta (RR03-01, RR03-02).
+- **Residual (2026-11-14, brief 16, on `ai/reddit-quarantine`):** RR03-01 to RR03-04 are fixed; by instruction only, a caller without an explicit
+  `agents:` list (VS Code's built-in Agent), or an agent-host agent holding `agent` while `infer: false` is unverified, can still run `quarantined-reader`
+  by name, and its file tool reaches `auth-state/`. Owner's follow-ups (handoff `backlog.md`): a hook that denies that call, a session-start note without
+  the Memory Bank line for the reader, and option 2 (encrypt `auth-state/`).
 - **Minor (2026-11-13, re-review of #57, brief 17):** the VS Code C2 case counts delegation as unbounded only when the runtime's warning
   names `agents` (RR04-01); its `else` branch still asserts `task` (R04-01), and the agent-host runtime has no tool allow-list (R04-07).
 - **Minor (2026-11-13, review R11-01):** at least 26 exception texts of the containment verifier (20 into its evidence), the event
@@ -158,12 +159,12 @@ unproven — train reached 100 % while validation fell.
    controller agent (the security lint names the rule `ObsoleteRemoteOverride`).
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
-3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): brief 13 waits on the owner
-   to open a pull request for `ai/s19-replayed-acknowledgement`, merge it, and re-pin the appender digest (and #58's verifier digest) in
-   any containment profile; then briefs 16 (the Reddit quarantine) and 17 (C2 fails closed), each asking first; closing #49; from brief 03,
-   delete any leftover `extracted\all-cookies.json` and sign in to Reddit once for the live `reddit-read` check; then the other P5
-   follow-ups (`docs/SECURITY-REVIEW.md`: the escape set of `WritableRoots`, the run id of `-Revalidate`, a CI retry for the Gallery
-   bootstrap, and R11-01) and more. `ai/travel-photo-diary-skill` exists only on the other machine.
+3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): #59 (brief 13) waits on the owner's
+   merge and the re-pin of the appender digest (and #58's verifier digest) in any containment profile. Briefs 16 (done), 17, 12, 14, and 15
+   run stacked on its branch, local and unpushed; after #59 is squash-merged, one rebase moves the stack onto `main`. From briefs 03 and 16:
+   delete any leftover `extracted\all-cookies.json`, copy the changed Reddit files into `CareerAuthBrowser`, delete `auth-extract.prompt.md`
+   or keep `reddit-read` out of it, and check `reddit-read` and the reader's own chat live. Then close #49 and route R11-01 and the other
+   P5 follow-ups (`docs/SECURITY-REVIEW.md`). `ai/travel-photo-diary-skill` exists only on the other machine.
 4. A further eval run needs a new amendment, TBD-11 closed with source and date,
    the owner's term file, and a freeze digest recorded outside the kit
    (`docs/SECURITY-REVIEW.md`, *Before the next freeze*; A34, A38); none is authorized.
