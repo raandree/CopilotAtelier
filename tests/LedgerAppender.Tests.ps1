@@ -1478,6 +1478,79 @@ Describe 'Ledger appender channel' -Tag 'Unit' {
             Should -Be 1 -Because 'the record the client sent was never stored'
     }
 
+    It 'refuses an acknowledgement that replays an identical record stored before the send' -Skip:(-not $script:onWindows) {
+        # S-19: the record sent is byte for byte the one already stored, so the replayed sequence and
+        # digest rebuild exactly and every check of the stored record passes. Only the number of
+        # records the client counted before it sent tells this send's record from the earlier one.
+        $record = New-TestRecordJson -Type 'Baseline'
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+        (Invoke-Append -PipeName $script:pipeName -RecordJson $record).ExitCode | Should -Be 0
+        Stop-TestAppender -Process $script:appender
+        $script:appender = $null
+
+        $stored = Get-SinkRecord -SinkPath $script:sinkPath
+        $replay = '{"status":"Ok","message":"","sequence":1,"recordSha256":"' + $stored[0].recordSha256 + '"}'
+        $script:hostile = Start-HostileServer -PipeName $script:pipeName -CapturePath $script:capturePath `
+            -ResponseBase64 (ConvertTo-HostileResponse -Response $replay)
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'before this record was sent'
+
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count |
+            Should -Be 1 -Because 'the second send was never stored'
+    }
+
+    It 'accepts an identical record stored again at a sequence of its own' -Skip:(-not $script:onWindows) {
+        # An honest repeat is stored again at the next sequence, after every record the ledger
+        # held before the send, so the check must believe it.
+        $record = New-TestRecordJson -Type 'Baseline'
+        $script:appender = Start-TestAppender -PipeName $script:pipeName -SinkPath $script:sinkPath -ChainHeadPath $script:headPath
+
+        (Invoke-Append -PipeName $script:pipeName -RecordJson $record).ExitCode | Should -Be 0
+        $second = Invoke-Append -PipeName $script:pipeName -RecordJson $record
+        $second.ExitCode | Should -Be 0 -Because $second.Output
+        $second.Output | Should -Match 'Appended sequence 2 '
+
+        @(Get-SinkLine -SinkPath $script:sinkPath).Count | Should -Be 2
+    }
+
+    It 'sends nothing when it cannot count the records stored before the send' -Skip:(-not $script:onWindows) {
+        # A last line without its terminator is a half-written append, so the client cannot tell how
+        # many records the ledger holds. It refuses before a single byte of the record is sent.
+        [System.IO.File]::WriteAllBytes($script:sinkPath, [System.Text.UTF8Encoding]::new($false).GetBytes('{"partial":'))
+        $script:hostile = Start-HostileServer -PipeName $script:pipeName -CapturePath $script:capturePath
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'before sending'
+
+        $captured = ''
+        if (Test-Path -LiteralPath $script:capturePath -PathType Leaf) {
+            $captured = [System.IO.File]::ReadAllText($script:capturePath)
+        }
+
+        $captured | Should -Not -Match 'run-0001' -Because 'a record is not sent when the client cannot count what the ledger holds'
+    }
+
+    It 'sends nothing when the sink is a directory' -Skip:(-not $script:onWindows) {
+        # A directory where the sink should be is not a ledger without records. Only a sink that
+        # does not exist holds none; anything else that stops the read stops the send.
+        $null = New-Item -ItemType Directory -Path $script:sinkPath
+        $script:hostile = Start-HostileServer -PipeName $script:pipeName -CapturePath $script:capturePath
+
+        $result = Invoke-Append -PipeName $script:pipeName -RecordJson (New-TestRecordJson -Type 'Baseline')
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $result.Output | Should -Match 'before sending'
+
+        $captured = ''
+        if (Test-Path -LiteralPath $script:capturePath -PathType Leaf) {
+            $captured = [System.IO.File]::ReadAllText($script:capturePath)
+        }
+
+        $captured | Should -Not -Match 'run-0001' -Because 'a record is not sent when the client cannot open the sink'
+    }
+
     It 'refuses a pipe that is open to another identity' -Skip:(-not $script:onWindows) {
         $script:hostile = Start-HostileServer -PipeName $script:pipeName -CapturePath $script:capturePath -GrantEveryone
 
@@ -1608,6 +1681,7 @@ Describe 'Ledger appender channel' -Tag 'Unit' {
             )
             Set-SinkLine -SinkPath $script:sinkPath -Line @($stored.Line)
             Set-ChainHead -ChainHeadPath $script:headPath -Sequence 1 -RecordSha256 $stored.Digest
+            $script:storedLine = $stored.Line
             $script:storedDigest = $stored.Digest
         }
 
@@ -1616,7 +1690,7 @@ Describe 'Ledger appender channel' -Tag 'Unit' {
 
             try {
                 Test-Acknowledgement -Sequence 1 -RecordSha256 $script:storedDigest -Record $sent.RootElement `
-                    -Path $script:sinkPath -HeadPath $script:headPath | Should -BeExactly ''
+                    -StoredBefore 0 -Path $script:sinkPath -HeadPath $script:headPath | Should -BeExactly ''
             } finally {
                 $sent.Dispose()
             }
@@ -1624,14 +1698,126 @@ Describe 'Ledger appender channel' -Tag 'Unit' {
 
         It 'refuses an acknowledgement that replays a record the client did not send' {
             # Every field of the answer is true of the ledger, and nothing of what was sent is in it.
+            # The ledger held that record before the send, as in the pipe case, and the digest check
+            # still answers first.
             $sent = ConvertFrom-JsonText -Text (New-TestRecordJson -Type 'Second')
 
             try {
                 Test-Acknowledgement -Sequence 1 -RecordSha256 $script:storedDigest -Record $sent.RootElement `
-                    -Path $script:sinkPath -HeadPath $script:headPath | Should -Match 'does not hold the record that was sent'
+                    -StoredBefore 1 -Path $script:sinkPath -HeadPath $script:headPath | Should -Match 'does not hold the record that was sent'
             } finally {
                 $sent.Dispose()
             }
+        }
+
+        It 'refuses an acknowledgement of an identical record stored before the send' {
+            # S-19: the record sent is byte for byte the one at sequence 1, so the replayed sequence
+            # and digest rebuild exactly. The ledger held that record before the send, so it is not
+            # the record this send stored.
+            $sent = ConvertFrom-JsonText -Text (New-TestRecordJson -Type 'Baseline')
+
+            try {
+                Test-Acknowledgement -Sequence 1 -RecordSha256 $script:storedDigest -Record $sent.RootElement `
+                    -StoredBefore 1 -Path $script:sinkPath -HeadPath $script:headPath | Should -Match 'before this record was sent'
+            } finally {
+                $sent.Dispose()
+            }
+        }
+
+        It 'accepts an identical record stored again after the records held before the send' {
+            $again = New-ForgedLine -Member @(
+                '"data":{"note":"test"}'
+                '"prevSha256":"' + $script:storedDigest + '"'
+                '"runId":"run-0001"'
+                '"sequence":2'
+                '"type":"Baseline"'
+                '"utc":"2026-09-02T22:00:00Z"'
+            )
+            Set-SinkLine -SinkPath $script:sinkPath -Line @($script:storedLine, $again.Line)
+            Set-ChainHead -ChainHeadPath $script:headPath -Sequence 2 -RecordSha256 $again.Digest
+            $sent = ConvertFrom-JsonText -Text (New-TestRecordJson -Type 'Baseline')
+
+            try {
+                Test-Acknowledgement -Sequence 2 -RecordSha256 $again.Digest -Record $sent.RootElement `
+                    -StoredBefore 1 -Path $script:sinkPath -HeadPath $script:headPath | Should -BeExactly ''
+            } finally {
+                $sent.Dispose()
+            }
+        }
+
+        It 'accepts an append that another writer overtook' {
+            # Another writer's record landed between the count and this append, so the record sent
+            # is at sequence 2 although the ledger held nothing when it was counted. A sequence after
+            # the count is required, not the next one: this append was stored.
+            $ours = New-ForgedLine -Member @(
+                '"data":{"note":"test"}'
+                '"prevSha256":"' + $script:storedDigest + '"'
+                '"runId":"run-0001"'
+                '"sequence":2'
+                '"type":"Second"'
+                '"utc":"2026-09-02T22:00:00Z"'
+            )
+            Set-SinkLine -SinkPath $script:sinkPath -Line @($script:storedLine, $ours.Line)
+            Set-ChainHead -ChainHeadPath $script:headPath -Sequence 2 -RecordSha256 $ours.Digest
+            $sent = ConvertFrom-JsonText -Text (New-TestRecordJson -Type 'Second')
+
+            try {
+                Test-Acknowledgement -Sequence 2 -RecordSha256 $ours.Digest -Record $sent.RootElement `
+                    -StoredBefore 0 -Path $script:sinkPath -HeadPath $script:headPath | Should -BeExactly ''
+            } finally {
+                $sent.Dispose()
+            }
+        }
+    }
+
+    # S-19: the count the client takes before it sends, as a function, so that what counts as no
+    # records and what stops the send hold on every system.
+    Context 'the count before the send, as a function, on every system' {
+        BeforeAll {
+            . (Join-Path $script:repoRoot 'tests/Helpers/ScriptFunction.ps1')
+            . (Get-ScriptFunctionDefinition -Path $script:appenderScript -Name @(
+                    'Read-FileByte'
+                    'Read-SinkLine'
+                    'Get-StoredRecordCount'
+                ))
+        }
+
+        It 'counts no records for a sink that does not exist' {
+            $count = Get-StoredRecordCount -Path $script:sinkPath
+
+            $count.Error | Should -BeExactly ''
+            $count.Count | Should -Be 0
+        }
+
+        It 'counts the records of a sink' {
+            Set-SinkLine -SinkPath $script:sinkPath -Line @('{"a":1}', '{"b":2}')
+            $count = Get-StoredRecordCount -Path $script:sinkPath
+
+            $count.Error | Should -BeExactly ''
+            $count.Count | Should -Be 2
+        }
+
+        It 'refuses to count a sink whose last line is half written' {
+            [System.IO.File]::WriteAllBytes($script:sinkPath, [System.Text.UTF8Encoding]::new($false).GetBytes('{"partial":'))
+
+            (Get-StoredRecordCount -Path $script:sinkPath).Error |
+                Should -Match 'does not end with a complete, terminated record'
+        }
+
+        It 'refuses to count a sink that is a directory' {
+            # Test-Path -PathType Leaf answers no for a directory as it does for a missing file, so
+            # only the error of opening the path tells the two apart.
+            $null = New-Item -ItemType Directory -Path $script:sinkPath
+
+            (Get-StoredRecordCount -Path $script:sinkPath).Error | Should -Not -BeNullOrEmpty
+        }
+
+        It 'refuses to count when a read fails with an empty message' {
+            # The error is also the flag that stops the send, so an exception without text must not
+            # read as no error.
+            Mock Read-FileByte { throw [System.IO.IOException]::new('') }
+
+            (Get-StoredRecordCount -Path $script:sinkPath).Error | Should -Match '\AIOException'
         }
     }
 }

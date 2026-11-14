@@ -34,6 +34,8 @@
     Sends one record to a running appender and returns its assigned sequence.
     The server is authenticated before the record is sent, and the
     acknowledgement is checked against the ledger before success is reported.
+    The records already in the ledger are counted before the record is sent,
+    and only a sequence after them is believed.
 .PARAMETER Seal
     Appends a final record and refuses every later append. Sealing is a server
     decision carried by the request, not by the record's own type.
@@ -1799,6 +1801,45 @@ function Read-AppenderResponse {
     return $response
 }
 
+function Get-StoredRecordCount {
+    <#
+        How many records the sink holds, counted before a record is sent (S-19). Only a sink that
+        does not exist holds none: the service creates its sink before it creates its pipe. Any
+        other failure to read it, such as a directory, a denied read or a half-written last line,
+        is an error, and the caller sends nothing.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    $result = @{ Count = 0; Error = '' }
+
+    try {
+        $sink = Read-SinkLine -Path $Path
+    } catch {
+        $cause = $_.Exception.GetBaseException()
+
+        # The type comes first: the error is also the flag that stops the send, so it must never
+        # be empty, and the reason has to survive the cut of the refusal line.
+        if ($cause -isnot [System.IO.FileNotFoundException]) {
+            $result.Error = '{0}: {1}' -f $cause.GetType().Name, $cause.Message
+        }
+
+        return $result
+    }
+
+    if ($sink.Error) {
+        $result.Error = $sink.Error
+        return $result
+    }
+
+    $result.Count = $sink.Line.Count
+    return $result
+}
+
 function Test-Acknowledgement {
     <#
         The acknowledgement is a claim by whoever answered the pipe, and the
@@ -1807,7 +1848,10 @@ function Test-Acknowledgement {
         true things about the ledger while storing nothing. So the client
         recomputes the digest of the record it sent, at the acknowledged
         sequence and on top of the record before it, and requires that digest
-        to be both what was acknowledged and what is stored.
+        to be both what was acknowledged and what is stored. A record identical
+        to one already stored rebuilds to that record's digest at its sequence,
+        so the acknowledged sequence must also lie after the records the ledger
+        held before the record was sent (S-19).
     #>
     [CmdletBinding()]
     [OutputType([string])]
@@ -1820,6 +1864,11 @@ function Test-Acknowledgement {
 
         [Parameter(Mandatory)]
         [System.Text.Json.JsonElement]$Record,
+
+        # How many records the ledger held before the record was sent.
+        [Parameter(Mandatory)]
+        [ValidateRange(0, [int]::MaxValue)]
+        [int]$StoredBefore,
 
         [Parameter(Mandatory)]
         [string]$Path,
@@ -1888,6 +1937,10 @@ function Test-Acknowledgement {
 
     if ($head.Sequence -lt $Sequence) {
         return "the chain head is behind the acknowledged sequence $Sequence"
+    }
+
+    if ($Sequence -le $StoredBefore) {
+        return "sequence $Sequence was stored before this record was sent: the ledger then ended at sequence $StoredBefore"
     }
 
     return ''
@@ -2147,6 +2200,19 @@ switch ($PSCmdlet.ParameterSetName) {
                 exit 2
             }
 
+            # Counted before the record is sent, because a record identical to one already stored
+            # rebuilds to that record's digest at its sequence: only a sequence after these can be
+            # the record this send stored (S-19). The sink, not the head: the service flushes a
+            # record before it moves the head, and an open handle on the head would make the
+            # service's replace of it fail.
+            $before = Get-StoredRecordCount -Path $SinkPath
+            if ($before.Error) {
+                Write-Refusal -Message "could not count the records in the ledger before sending: $($before.Error)"
+                exit 2
+            }
+
+            $storedBefore = $before.Count
+
             # The record is forwarded byte for byte inside an envelope that states
             # the operation. Re-serializing it here would change the bytes the
             # server hashes; a record crafted to close the envelope early produces
@@ -2194,7 +2260,7 @@ switch ($PSCmdlet.ParameterSetName) {
             # stored and published.
             $acknowledgementError = Test-Acknowledgement -Sequence $response.Sequence `
                 -RecordSha256 $response.RecordSha256 -Record $sent.RootElement `
-                -Path $SinkPath -HeadPath $ChainHeadPath
+                -StoredBefore $storedBefore -Path $SinkPath -HeadPath $ChainHeadPath
             if ($acknowledgementError) {
                 Write-Refusal -Message "the acknowledgement is not backed by the ledger: $acknowledgementError"
                 exit 2
