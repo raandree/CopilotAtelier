@@ -9,19 +9,18 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 12, the module folders in `WritableRoots` (2026-11-14), is done on `ai/writable-roots-module-folders`**, stacked on brief 17's
-branch, not pushed. Q1 to Q4 under the owner's delegation: beside the escape set, the check measures every place PowerShell loads modules
-from (the verifier's `PSModulePath`, `$PSHOME\Modules`, both `powershell.config.json` folders and files, and on Windows 5.1's two folders, or
-its relative `WindowsPowerShell\Modules` when `Documents` does not resolve), inside a declared root or not; a place this identity can replace
-counts as writable (`DELETE` on Windows, the folder above elsewhere); every path and reason is relayed. Review: Request changes twice (R12-01 to
-R12-09), then Approve; gate on `a137a19` 5,989 passed, 0 failed, 91.61 %. Verifier `d7d2b02f…f869`; the guard's 5.1 exposure goes to brief 18.
+**Brief 14, a run id for `-Revalidate` (2026-11-14), is done on `ai/revalidate-run-id`**, stacked on brief 12's branch, not pushed. Design (a)
+under the owner's delegation: the containment profile names its run in `runId` (`schemaVersion` 2), which the operator draws new for every run,
+and `LedgerRun`, between `LedgerChain` and `FinalReport`, requires every record the pinned appender validated to carry it as a JSON string; the
+JSON report and the summary line name it. Review Approve with changes (R14-01 to R14-11), re-review Approve (R14-12, R14-13); gate on `3de81f0`
+6,064 passed, 0 failed, 91.61 %. Verifier `9e150ba8…5c65`, superseding brief 12's; the appender stays at `f55e163b…0572`.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
 write, reach, and read; `Invoke-LedgerAppender.ps1` is the pinned, append-only, hash-chained ledger
 service. Nine reviews are in `docs/SECURITY-REVIEW.md`; the claims shrank where a reviewer showed
-them too large (decision 0025). Not done: hook files outside the pinned one, a run id on
-`-Revalidate`, a keyed chain, a second-account test, and the verifier on POSIX. A contained profile
+them too large (decision 0025). Not done: hook files outside the pinned one, a keyed chain, a second-account
+test, and the verifier on POSIX; brief 14 binds `-Revalidate` to the profile's run id, on its branch. A contained profile
 pins hashes and a `hooks.json` that registers only the guard (regenerate it after every deployment).
 
 P2, per-command remote approval, is merged (#38, squash `1c1327e`,
@@ -44,6 +43,8 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
 
 ## Previous focuses
 
+- **Brief 12, the module folders in `WritableRoots` (2026-11-14).** On `ai/writable-roots-module-folders`, stacked on brief 17, not pushed:
+  every place PowerShell loads modules from is measured, inside a declared root or not; gate 5,989 passed; verifier `d7d2b02f…f869`.
 - **Brief 17, C2 that fails closed (2026-11-14).** On `ai/c2-fail-closed`, stacked on brief 16, not pushed: C2 fails while any delegation
   tool is offered to the VS Code client, and `RuntimeVerified` needs every case of a bound receipt to pass, read exactly; gate 5,893 passed.
 - **Brief 16, the Reddit quarantine (2026-11-14).** On `ai/reddit-quarantine`, stacked on brief 13, not pushed: `quarantined-reader` is
@@ -52,18 +53,12 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
   the ledger client counts the sink before it sends and believes only a later sequence; new appender digest `f55e163b…0572`.
 - **Brief 11, S-20 (2026-11-13).** Merged as #58 (`aea224e`): the appender's and the hook check's exception texts are relayed as
   printable ASCII, closing S-20, V-05 and W-03; R11-01 stays open (Open findings).
-- **Brief 04, the adapter smoke check (2026-11-12).** Merged as #57 (`0859e9e`, 23:25 UTC; CI published `6.2.0-preview0001`):
-  a runtime receipt bound to the file's SHA-256 lets `Get-CopilotAtelierClientAdapter` report `RuntimeVerified` only for passed
-  runtime cases. The Copilot CLI variant passed C1 to C3 without `target`; the agent host failed C1 and C2 because it ignores
-  `agents:`, so VS Code stays `StructurallyChecked`. R04-14 is deferred.
+- **Brief 04, the adapter smoke check (2026-11-12).** Merged as #57 (`0859e9e`): a runtime receipt bound to the file's SHA-256 lets the
+  adapter report `RuntimeVerified` only for passed runtime cases; the agent host ignores `agents:`, so VS Code stays `StructurallyChecked`.
 - **Brief 05, the hook input probe (2026-11-12).** Merged as #56 (`548a162`): the push guard fires in agent-host chats on runtime
   1.0.108-0, and the hook input of `skill`, `view`, `edit`, and `create` is pinned there and in CLI 1.0.96; no collector (owner).
-- **Brief 10, GitHub issue #49 (2026-11-11).** Merged as #54 (`a3167d8`, `6.1.0-preview0026`) and released as the stable `v6.1.0`
-  on the same commit (GitHub and the Gallery, 19:56 UTC): `Update-CopilotAtelier -AllowPrerelease`, versions compared with their
-  prerelease labels in Windows PowerShell 5.1 and 7, and a warning for a Canonical target that is a git working tree. The changelog
-  rollover is #55 (`f358226`, 23:43 UTC); the reply to #49 is posted.
-- **Brief 03, the travel work (2026-11-10).** Merged as #53 (`dc714ba`, `6.1.0-preview0025`): two Markdown rules, signed-in Reddit
-  reading with the `quarantined-reader` agent (reworked by brief 16), and the Skills `travel-handbook` and `travel-planning`.
+- **Brief 10, GitHub issue #49 (2026-11-11).** Merged as #54 (`a3167d8`) and released as the stable `v6.1.0` on that commit:
+  `Update-CopilotAtelier -AllowPrerelease` and prerelease-aware version compares; rollover #55 (`f358226`); the reply to #49 is posted.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -91,6 +86,8 @@ Earlier route-selection and trigger-query sets remain unmeasured. ShellPilot's
 
 ## Open findings
 
+- **Residual (2026-11-14, brief 14, on `ai/revalidate-run-id`):** by design, a sink-and-head writer still forges a run's ledger (the chain is not
+  keyed), a reused run id is not told apart, and only the operator's own `-Revalidate` binds against a controller passing another run's evidence.
 - **Residual (2026-11-14, brief 12, on `ai/writable-roots-module-folders`):** the push guard's own exposure under Windows PowerShell 5.1
   (R12-02, R12-08) is brief 18's; a Pass of `WritableRoots` describes the state at the check; the rename of `Documents` through the profile
   folder, the registry and `USERPROFILE` re-point, `WRITE_DAC` and `WRITE_OWNER` on a place, and modules inside a place are not judged; POSIX unrun.
@@ -159,9 +156,10 @@ unproven — train reached 100 % while validation fell.
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
 3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): #59 (brief 13) waits on the owner's
-   merge and the re-pin of the appender digest (and #58's verifier digest) in any containment profile. Briefs 16, 17, and 12 (done), 14 (next),
-   then 15 and 18 run stacked on its branch, local and unpushed; after #59 is squash-merged, one rebase moves the stack onto `main`, and brief
-   12's verifier digest `d7d2b02f…f869` needs a re-pin once merged. From briefs 03 and 16:
+   merge and the re-pin of the appender digest (and #58's verifier digest) in any containment profile. Briefs 16, 17, 12 and 14 (done), 15
+   (next), then 18 and the publish step run stacked on its branch, local and unpushed; after #59 is squash-merged, one rebase moves the stack
+   onto `main`, and brief 14's verifier digest `9e150ba8…5c65` (superseding brief 12's) needs a re-pin once merged, with every profile at
+   `schemaVersion` 2 and a `runId` new for each run. From briefs 03 and 16:
    delete any leftover `extracted\all-cookies.json`, copy the changed Reddit files into `CareerAuthBrowser`, delete `auth-extract.prompt.md`
    or keep `reddit-read` out of it, and check `reddit-read` and the reader's own chat live. Then close #49 and route R11-01 and the other
    P5 follow-ups (`docs/SECURITY-REVIEW.md`). `ai/travel-photo-diary-skill` exists only on the other machine.

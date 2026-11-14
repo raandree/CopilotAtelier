@@ -19,6 +19,10 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
 
 ## Recent milestones
 
+- **2026-11-14**: Brief 14, a run id for `-Revalidate` (`software-engineer`, a controller run), on `ai/revalidate-run-id`, stacked on brief 12,
+  not pushed. Design (a) under the owner's delegation: the profile names its run in `runId` (`schemaVersion` 2, new for every run), and
+  `LedgerRun` requires every validated ledger record to carry it, so another run's sealed ledger no longer revalidates. Red first; N02 caught in
+  six forms. Approve with changes, then Approve with two Nits; gate 6,064 passed, 0 failed, 91.61 %. Verifier `9e150ba8…5c65`; appender unchanged.
 - **2026-11-14**: Brief 12, the module folders in `WritableRoots` (`software-engineer`, a controller run), on `ai/writable-roots-module-folders`,
   stacked on brief 17, not pushed. Q1 to Q4 under the owner's delegation: the check also measures every place PowerShell loads modules from,
   Windows PowerShell 5.1's included, inside a declared root or not; a place this identity can replace counts as writable; every path and reason
@@ -46,11 +50,8 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
   composed `software-engineer` variant passed all three on Copilot CLI 1.0.96 once it stopped emitting `target`, and the source profile
   failed C1 and C2 on runtime 1.0.108-0, whose agent host ignores `agents:`. Receipts bound to each file's SHA-256 raise the state only for
   passed runtime cases; fallback test red first. An independent review's 2 Major (unbounded delegation, untested binding) fixed test-first.
-- **2026-11-12**: Brief 05, the hook input probe (`software-engineer`), merged as #56 (`548a162`): the push guard fires in a VS Code
-  agent-host chat on runtime 1.0.108-0 (live inert probe denied); the 14 `HookSdkRuntime` failures were the fixtures, which now pass
-  the agent host's `enableConfigDiscovery`, `enableFileHooks`, and `enableSkills` (44 of 44); a new block pins the hook input for
-  `skill`, `view` (`Read`), `edit` (`Edit`), and `create` (`Write`) in that runtime and Copilot CLI 1.0.96, red first (14 failed),
-  then 18 of 18. The owner declined a Skill-use and a changed-file collector.
+- **2026-11-12**: Brief 05, the hook input probe (`software-engineer`), merged as #56 (`548a162`): the push guard fires in a VS Code agent-host
+  chat on runtime 1.0.108-0, and the hook input of `skill`, `view`, `edit` and `create` is pinned there and in Copilot CLI 1.0.96.
 
 ## Stable capabilities
 
