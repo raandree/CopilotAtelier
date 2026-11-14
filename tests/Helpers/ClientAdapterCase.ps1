@@ -81,14 +81,22 @@ function Get-ClientAdapterCaseVerdict
         'vscode'      = @('agents', 'argument-hint', 'handoffs')
     }
 
+    <#
+        The whole warning, matched exactly: the runtime's notice that it ignores
+        named fields of a file in the scratch agents directory, naming at least
+        one field. Any other text, before the notice or in place of a name, makes
+        the warning one the suite does not expect.
+    #>
+    $ignoredFieldNotice = '^agents[\\/][^:\\/]+\.agent\.md: unknown fields? ignored: (?<field>[a-z][a-z0-9-]*(?:, [a-z][a-z0-9-]*)*)$'
+
     $ignoredField = [System.Collections.Generic.List[string]]::new()
     $unexpectedWarning = [System.Collections.Generic.List[string]]::new()
 
     foreach ($warning in $loadWarning)
     {
-        if ($warning -match 'unknown fields? ignored:\s*(?<field>.+)$')
+        if ($warning -cmatch $ignoredFieldNotice)
         {
-            $field = @($Matches['field'] -split ',' | ForEach-Object -Process { $_.Trim() } | Where-Object -FilterScript { $_ })
+            $field = @($Matches['field'] -split ', ')
             $ignoredField.AddRange([string[]] $field)
 
             if (@($field | Where-Object -FilterScript { $_ -cnotin $expectedIgnoredField[$Client] }).Count -gt 0)

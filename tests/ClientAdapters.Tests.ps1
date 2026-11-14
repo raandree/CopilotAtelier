@@ -401,14 +401,15 @@ Describe 'Runtime receipts of the shipped profile' -Tag 'Unit' {
         }
 
         $result = Get-CopilotAtelierClientAdapter -Name $script:representative -Client $Client -ContentPath $script:projectPath
-        $passed = @($receipt.Case | Where-Object -FilterScript { $_.Outcome -eq 'Passed' } | ForEach-Object -Process { $_.Id })
-        $runtimePassed = @($receipt.Case | Where-Object -FilterScript { $_.Outcome -eq 'Passed' -and $_.Kind -eq 'Runtime' })
+        $passed = @($receipt.Case | Where-Object -FilterScript { $_.Outcome -ceq 'Passed' } | ForEach-Object -Process { $_.Id })
+        $runtimePassed = @($receipt.Case | Where-Object -FilterScript { $_.Outcome -ceq 'Passed' -and $_.Kind -ceq 'Runtime' })
+        $notPassed = @($receipt.Case | Where-Object -FilterScript { $_.Outcome -cne 'Passed' })
 
         $result.ArtifactSha256 | Should -BeExactly $fileHash
         $result.RuntimeReceiptStatus | Should -BeExactly 'Bound'
         (@($result.VerifiedCase) -join ',') | Should -BeExactly ($passed -join ',')
 
-        if ($runtimePassed.Count -gt 0)
+        if ($runtimePassed.Count -gt 0 -and $notPassed.Count -eq 0)
         {
             $result.VerificationState | Should -BeExactly 'RuntimeVerified'
             $result.VerifiedRuntime | Should -BeExactly $receipt.RuntimeId
@@ -416,7 +417,8 @@ Describe 'Runtime receipts of the shipped profile' -Tag 'Unit' {
         }
         else
         {
-            $result.VerificationState | Should -BeExactly 'StructurallyChecked' -Because 'no case that ran on the runtime passed'
+            $result.VerificationState |
+                Should -BeExactly 'StructurallyChecked' -Because 'a receipt raises the claim only when every case it records passed and one of them ran on the runtime'
             $result.VerifiedRuntime | Should -BeNullOrEmpty
         }
     }

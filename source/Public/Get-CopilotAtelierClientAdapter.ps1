@@ -35,15 +35,18 @@ function Get-CopilotAtelierClientAdapter
             commits a runtime receipt per adapted agent: the cases that ran
             against one exact file, that file's SHA-256, the runtime and its
             version, the date, what the run observed, and each outcome. While
-            ArtifactSha256 matches the receipt, the result reports
-            RuntimeVerified for the cases the receipt records as passed, listed
-            in VerifiedCase, when at least one of them ran on the runtime;
-            VerifiedRuntime names that runtime, VerifiedClientVersion is its
-            version, and RuntimeReceiptStatus is Bound. A case that only reads
-            the file, such as C3, does not depend on that version. Once the file
-            changes, the receipt is Stale, and the result falls back to
-            StructurallyChecked with no runtime, no version, no verified case,
-            and no receipt.
+            ArtifactSha256 matches the receipt, RuntimeReceiptStatus is Bound
+            and VerifiedCase lists the cases the receipt records as passed. The
+            result reports RuntimeVerified only when every case the receipt
+            records passed and at least one of them ran on the runtime;
+            VerifiedRuntime then names that runtime, and VerifiedClientVersion is
+            its version. A receipt with a case that did not pass, such as a C2
+            that failed on delegation nothing showed to be bounded, leaves the
+            result at StructurallyChecked, and RuntimeReceipt still records each
+            outcome. A case that only reads the file, such as C3, does not depend
+            on that version. Once the file changes, the receipt is Stale, and the
+            result falls back to StructurallyChecked with no runtime, no version,
+            no verified case, and no receipt.
 
             The command reads files only. It does not contact the network, write
             anything, install a variant, or invoke a model, so it is safe to use

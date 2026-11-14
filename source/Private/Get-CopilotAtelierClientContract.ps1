@@ -40,7 +40,7 @@ function Get-CopilotAtelierClientContract
             case.
             Resolve-CopilotAtelierClientVerification binds a receipt to an
             artifact by that hash alone, so Get-CopilotAtelierClientAdapter
-            reports RuntimeVerified only for the cases a receipt records as
+            reports RuntimeVerified only while every case a receipt records
             passed, at the runtime version it names, and only while the file is
             unchanged. A one-off observation that a checkout's profile loaded in
             one editor build is kept separately as SourceProfileObservation,

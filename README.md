@@ -1166,14 +1166,14 @@ because the CLI ignores it with a warning. The source profile failed C1 and C2
 on runtime 1.0.108-0, which VS Code 1.146.0 bundles for its agent-host chats:
 that runtime ignores `argument-hint`, `agents`, and `handoffs`, fields local VS
 Code chat needs, and so it offers delegation without the profile's `agents:`
-allow-list. `Get-CopilotAtelierClientAdapter` reports `RuntimeVerified` only for
-passed cases that ran on a runtime, naming that runtime and version
-(`VerifiedRuntime`, `VerifiedClientVersion`), and only while the file a client
-loads still has the receipt's SHA-256. Run it for the current state: after any
-edit, the state falls back to `StructurallyChecked`. The CLI's interactive
-`/agent` list, local VS Code chat, and every behavioral case remain unverified,
-and the observation that the source profile loaded in VS Code 1.136.1 is kept
-as historical evidence, bound to no file.
+allow-list. `Get-CopilotAtelierClientAdapter` reports `RuntimeVerified` only
+while every case of a receipt passed and one of them ran on a runtime, naming
+that runtime and version (`VerifiedRuntime`, `VerifiedClientVersion`), and only
+while the file a client loads still has the receipt's SHA-256. Run it for the
+current state: after any edit, the state falls back to `StructurallyChecked`.
+The CLI's interactive `/agent` list, local VS Code chat, and every behavioral
+case remain unverified, and the observation that the source profile loaded in
+VS Code 1.136.1 is kept as historical evidence, bound to no file.
 A composed variant loses handoff buttons, so a workflow that advances through a
 handoff cannot advance on that client. Notebook, task, problem, browser,
 GitHub-toolset, MCP, and VS Code-command tools have no documented client

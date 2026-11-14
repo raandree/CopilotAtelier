@@ -34,12 +34,16 @@ Get-CopilotAtelierClientAdapter -Name software-engineer |
 ```
 
 The command reports `RuntimeVerified` only while the file a client loads still
-has the receipt's SHA-256 (`RuntimeReceiptStatus` `Bound`), and only when at
-least one case that ran on the runtime passed. `VerifiedRuntime` then names
-what ran, `VerifiedClientVersion` its version, and `VerifiedCase` the passed
-cases. A case that only reads the file, such as C3, does not depend on that
-version. With no passed runtime case, the VS Code receipt leaves that client at
-`StructurallyChecked`. An edit to the profile retires the VS Code receipt. The
+has the receipt's SHA-256 (`RuntimeReceiptStatus` `Bound`), and only when every
+case the receipt records passed and at least one of them ran on the runtime.
+`VerifiedRuntime` then names what ran and `VerifiedClientVersion` its version;
+`VerifiedCase` lists the passed cases of a bound receipt either way. A case
+that did not pass withholds the claim: a failed C2 means the run offered
+delegation that nothing showed to be bounded, and no other passed case
+outweighs that. A case that only reads the file, such as C3, does not depend
+on that version. The VS Code receipt records C1 and C2 as failed, so that
+client stays `StructurallyChecked`. An edit to the profile retires the VS Code
+receipt. The
 Copilot CLI receipt is retired only when the composed variant changes: an edit
 to the body or to a field the variant emits. A model bump leaves it bound. A
 retired receipt is `Stale`, and its client falls back to `StructurallyChecked`
@@ -63,12 +67,16 @@ what it saw. Run it through the detached launcher like any other Pester suite.
 
 `Get-ClientAdapterCaseVerdict` in
 [`tests/Helpers/ClientAdapterCase.ps1`](../tests/Helpers/ClientAdapterCase.ps1)
-decides C1 and C2 from what a run observed, and names what the suite does not
-accept of a client: a warning it does not expect, or a tool beyond the client's
-allow-list. The suite applies it to each run and, in process, to the
-observation each receipt records and to variations of it, so a receipt that
-records an outcome its own observation refutes fails on every system, also
-where no runtime is installed.
+decides C1 and C2 from what a run observed, and names every check the suite
+requires of a client: that the runtime listed the profile and loaded it without
+an error or a warning the suite does not expect, kept exactly the declared
+tools, withheld the session's own tool once the profile was selected, and
+offered the tools the workflow needs and nothing beyond the client's
+allow-list; and, for the composed variant, that it offered no delegation tool
+and kept no VS Code identifier or dead alias. The suite applies it to each run
+and, in process, to the observation each receipt records and to variations of
+it, so a receipt that records an outcome its own observation refutes fails on
+every system, also where no runtime is installed.
 
 That is the runtime's own agent discovery and the `agent.list` and
 `agent.select` calls that VS Code's agent host also makes. It is not the CLI's
@@ -153,8 +161,13 @@ failed only while that warning named `agents`, and a runtime that withheld
 delegation, the safe behaviour, failed the suite instead (RR04-01 and R04-01 of
 the re-review of 2026-11-13). The agent-host runtime now also has an
 allow-list, as the CLI has: every other tool it offers must be one the
-profile's entries enable there or its own `sql`. And the suite fails on every
-load warning it does not expect of a client, not only on an unknown field.
+profile's entries enable there or its own `sql`. And the suite accepts no load
+warning but the one it expects of the client, matched in full: on the VS Code
+client, the runtime's notice that it ignores exactly the fields only local VS
+Code chat reads, and on the CLI, none. Since then, too, a receipt raises the
+claim only when every case it records passed: before, any passed runtime case
+raised it, and the VS Code client stayed `StructurallyChecked` only because C1
+failed as well.
 
 **C3 passed** on the composed file: the limitation section sits once between
 its markers and names `review: on` and `cycle: full` as unavailable, and the

@@ -107,8 +107,9 @@ Describe 'Rule of the model-free cases' -Tag 'Unit' {
         Get-ClientAdapterCaseVerdict decides C1 and C2 for the smoke cases below
         and names what they do not accept of a client. These cases assert it in
         process, on what runtime 1.0.108-0 recorded for the source profile and on
-        the variations the re-review of 2026-11-13 simulated, so the rule is
-        checked where no runtime is installed, as on a CI runner.
+        the variations the re-review of 2026-11-13 and the review of 2026-11-14
+        simulated, so the rule is checked where no runtime is installed, as on a
+        CI runner.
     #>
     BeforeAll {
         . (Join-Path -Path $PSScriptRoot -ChildPath 'Helpers/ClientAdapterCase.ps1')
@@ -193,6 +194,32 @@ Describe 'Rule of the model-free cases' -Tag 'Unit' {
         @($verdict.Violation).Detail | Should -Match 'tool not found: useMcp'
     }
 
+    It 'fails the suite on a load warning that carries other text before the notice it expects' {
+        $combined = 'agents\software-engineer.agent.md: tool not found: useMcp; unknown fields ignored: argument-hint, agents, handoffs'
+        $observation = script:New-AgentHostObservation -LoadWarning $combined
+
+        $verdict = Get-ClientAdapterCaseVerdict -Client 'vscode' -DeclaredTool $script:sourceTool -Observation $observation
+
+        @($verdict.Violation).Name | Should -Be @('ExpectedWarning') -Because 'the whole warning must be the notice of ignored fields'
+        @($verdict.Violation).Detail | Should -Match 'tool not found: useMcp'
+    }
+
+    It 'fails the suite on a notice of ignored fields that names none' {
+        $variantTool = @('ask_user', 'edit', 'execute', 'glob', 'grep', 'read', 'todo', 'web_fetch')
+        $observation = [pscustomobject] @{
+            ListedAsUserAgent   = $true
+            LoadError           = @()
+            LoadWarning         = @('agents\software-engineer.agent.md: unknown fields ignored: ,')
+            LoadedTool          = $variantTool
+            OfferedWithoutAgent = @('ask_user', 'create', 'edit', 'glob', 'grep', 'powershell', 'probe_tool', 'skill', 'sql', 'view', 'web_fetch')
+            OfferedWithAgent    = @('ask_user', 'create', 'edit', 'glob', 'grep', 'powershell', 'skill', 'sql', 'view', 'web_fetch')
+        }
+
+        $verdict = Get-ClientAdapterCaseVerdict -Client 'copilot-cli' -DeclaredTool $variantTool -Observation $observation
+
+        @($verdict.Violation).Name | Should -Be @('ExpectedWarning') -Because 'the composed variant may cause no warning at all'
+    }
+
     It 'fails C2 and the suite when the composed variant is offered delegation' {
         $variantTool = @('ask_user', 'edit', 'execute', 'glob', 'grep', 'read', 'todo', 'web_fetch')
         $observation = [pscustomobject] @{
@@ -226,8 +253,9 @@ Describe 'Committed runtime receipts' -Tag 'Unit' {
         <#
             The smoke cases below need the runtimes. A receipt edited to record a
             pass that its own observation refutes fails here instead, on every
-            system. A receipt that is not bound to the file a client loads claims
-            nothing, so it is skipped.
+            system, and so does a claim of RuntimeVerified that rests on a receipt
+            whose observation fails a case. A receipt that is not bound to the
+            file a client loads claims nothing, so it is skipped.
         #>
         $adapter = Get-CopilotAtelierClientAdapter -Name 'software-engineer' -Client $Client -ContentPath $script:projectPath
 
@@ -249,6 +277,12 @@ Describe 'Committed runtime receipts' -Tag 'Unit' {
         }
 
         $verdict.Violation | Should -BeNullOrEmpty -Because 'a receipt is recorded only from a run the smoke suite accepts'
+
+        if ($adapter.VerificationState -eq 'RuntimeVerified')
+        {
+            @($verdict.Outcome.Values | Where-Object -FilterScript { $_ -cne 'Passed' }) |
+                Should -BeNullOrEmpty -Because "$Client may claim RuntimeVerified only while its receipt's observation passes every runtime case, C2 included"
+        }
     }
 }
 
