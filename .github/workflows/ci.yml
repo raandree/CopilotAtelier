@@ -200,11 +200,42 @@ jobs:
           Write-Host -Object "ModuleVersion (FullSemVer): $($gitVersionObject.FullSemVer)"
           "## CopilotAtelier $($gitVersionObject.FullSemVer)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
+      # The PowerShell Gallery refuses a request now and then: run 38637411323
+      # failed here with HTTP 403 before any repository code ran. Only the
+      # dependency resolution is retried, each attempt in a new pwsh, so that no
+      # module a failed attempt imported shapes the next one; the build below,
+      # the tests, and the release run once.
+      - name: Resolve Dependencies
+        shell: pwsh
+        run: |
+          # A failed attempt must reach the retry instead of throwing out of the step.
+          $PSNativeCommandUseErrorActionPreference = $false
+          $pauseSeconds = 15, 45
+          $attemptCount = $pauseSeconds.Count + 1
+
+          for ($attempt = 1; $attempt -le $attemptCount; $attempt++)
+          {
+              pwsh -NoProfile -NonInteractive -Command '$ErrorActionPreference = ''Stop''; ./build.ps1 -ResolveDependency -Tasks noop'
+
+              if ($LASTEXITCODE -eq 0)
+              {
+                  break
+              }
+
+              if ($attempt -eq $attemptCount)
+              {
+                  throw "Dependency resolution failed on attempt $attempt of $attemptCount."
+              }
+
+              Write-Host -Object "::warning::Dependency resolution failed on attempt $attempt of $attemptCount with exit code $LASTEXITCODE; retrying in $($pauseSeconds[$attempt - 1]) seconds."
+              Start-Sleep -Seconds $pauseSeconds[$attempt - 1]
+          }
+
       - name: Build & Package Module
         shell: pwsh
         env:
           ModuleVersion: ${{ steps.gitversion.outputs.NuGetVersionV2 }}
-        run: ./build.ps1 -ResolveDependency -Tasks pack
+        run: ./build.ps1 -Tasks pack
 
       - name: Publish Build Artifact
         uses: actions/upload-artifact@v7
