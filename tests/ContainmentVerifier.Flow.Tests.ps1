@@ -587,7 +587,9 @@ Describe 'Containment module search set' -Tag 'Unit' {
 
     # Review R12-02: Windows PowerShell 5.1 runs the hook line under VS Code, and it searches these two folders.
     It 'names the two module folders of Windows PowerShell 5.1 on Windows' {
+        # 5.1 searches its documents folder only when that folder exists (review R12-08).
         $documents = Join-Path $script:search 'Documents'
+        $null = New-Item -ItemType Directory -Path $documents -Force
         $programFiles = Join-Path $script:search 'ProgramFiles'
 
         $set = Invoke-AsPlatform -Windows $true -Action {
@@ -610,14 +612,64 @@ Describe 'Containment module search set' -Tag 'Unit' {
         $set | Should -Not -Contain ([System.IO.Path]::Combine($programFiles, 'WindowsPowerShell', 'Modules'))
     }
 
-    It 'keeps the folder of Windows PowerShell 5.1 in a documents folder on a share as written, so that the check does not open it' {
-        $share = '\\server\share\Documents'
+    # Review R12-08: 5.1 resolves the documents folder with verification, and when that fails it puts the relative
+    # WindowsPowerShell\Modules first, which resolves against its working directory. The check names the place that 5.1
+    # searches, and asks no share whether it exists.
+    It 'names the module folder of Windows PowerShell 5.1 where 5.1 searches when the documents folder <Case>' -ForEach @(
+        @{ Case = 'is a local path that does not exist'; Kind = 'missing' }
+        @{ Case = 'is on a share'; Kind = 'share' }
+    ) {
+        $documents = if ($Kind -eq 'share') { '\\server\share\Documents' } else { Join-Path $script:search 'no-documents' }
+        $relative = [System.IO.Path]::Combine('WindowsPowerShell', 'Modules')
+        $inDocuments = [System.IO.Path]::Combine($documents, 'WindowsPowerShell', 'Modules')
 
         $set = Invoke-AsPlatform -Windows $true -Action {
-            @(Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome -UserConfigurationFolder $script:userConfiguration -DocumentsFolder $share -ProgramFilesFolder (Join-Path $script:search 'ProgramFiles'))
+            @(Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome -UserConfigurationFolder $script:userConfiguration -DocumentsFolder $documents -ProgramFilesFolder (Join-Path $script:search 'ProgramFiles'))
         }
 
-        $set | Should -Contain ([System.IO.Path]::Combine($share, 'WindowsPowerShell', 'Modules'))
+        if ($Kind -eq 'share') {
+            $set | Should -Contain $inDocuments -Because 'a share is kept as written, so that the check does not open it'
+            $set | Should -Not -Contain $relative
+        } else {
+            $set | Should -Contain $relative -Because '5.1 searches its working directory when the documents folder does not exist'
+            $set | Should -Not -Contain $inDocuments
+        }
+    }
+
+    It 'names the relative module folder of Windows PowerShell 5.1 when the documents folder cannot be named' {
+        $set = Invoke-AsPlatform -Windows $true -Action {
+            @(Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome -UserConfigurationFolder $script:userConfiguration -DocumentsFolder '' -ProgramFilesFolder (Join-Path $script:search 'ProgramFiles'))
+        }
+
+        $set | Should -Contain ([System.IO.Path]::Combine('WindowsPowerShell', 'Modules'))
+    }
+
+    # Review R12-08, the false Pass: in a profile closed to the identity and without a documents folder, the place in the
+    # documents folder read as absent below a closed folder and passed, while every hook's 5.1 searched its working directory.
+    It 'leaves WritableRoots unmeasured, not passed, for a closed profile without a documents folder' {
+        $script:closedWork = Join-Path $script:search 'work'
+        $script:missingDocuments = Join-Path (Join-Path $script:search 'closed-profile') 'Documents'
+        Mock Get-ObjectRight -MockWith {
+            if ($Path -eq $script:closedWork) {
+                return New-FlowRight -Path $Path -Granted @('WriteData', 'AppendData')
+            }
+
+            $right = New-FlowRight -Path $Path
+
+            if ($Path.StartsWith($script:missingDocuments, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $right.State = 'Absent'
+            }
+
+            return $right
+        }
+
+        $result = Invoke-AsPlatform -Windows $true -Action {
+            $set = @(Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome -UserConfigurationFolder $script:userConfiguration -DocumentsFolder $script:missingDocuments -ProgramFilesFolder (Join-Path $script:search 'ProgramFiles'))
+            Test-WritableRoot -Declared @($script:closedWork) -EscapeSet @() -ModuleSet $set
+        }
+
+        $result.status | Should -Be 'Unavailable' -Because $result.evidence
+        $result.evidence | Should -Match ([regex]::Escape([System.IO.Path]::Combine('WindowsPowerShell', 'Modules') + ' (is not an absolute path'))
     }
 
     # Review R12-07: pwsh trims an entry and resolves a trailing dot, and finds its modules there.

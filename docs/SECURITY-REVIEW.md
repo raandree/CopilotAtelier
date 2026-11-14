@@ -26,7 +26,10 @@ and pwsh on copies under TEMP. It said **Request changes**: two Majors (R12-01, 
 (R12-03) and four Nits (R12-04 to R12-07), with a security escalation for the push guard. The
 controller ruled on every finding under the owner's delegation (the handoff ledger, 2026-11-14), and
 the fix round addresses all seven; the guard's own exposure under Windows PowerShell 5.1 stays open
-for brief 18. The re-review of the fix round is pending.
+for brief 18. The same reviewer re-reviewed the fix round, `3eb5d8f`, and said **Request changes**
+again: R12-01 and R12-03 to R12-07 resolved, R12-02 partly resolved as ruled, and two new findings,
+R12-08 (Major) and R12-09 (Minor). The controller ruled to fix both as the reviewer proposed (the
+handoff ledger, 2026-11-14), and the second fix round does; its re-review is pending.
 
 ### Measurement
 
@@ -71,17 +74,29 @@ under VS Code, searches `Documents\WindowsPowerShell\Modules` first; a module th
 2 of a denial into exit 0 in the closing statement of the shipped hook line, and neither the set nor
 the residuals named that folder (R12-02).
 
+The re-review of `3eb5d8f` found the code correct where it reaches, the full suite green, and 20 of
+its 22 reverts and mutants caught by tests that run on every leg; on a real filesystem the check now
+failed the move-aside of R12-01 and passed once the remedy step on `Documents` was applied. But it
+found two more ways to a false Pass. When the documents folder does not resolve, Windows PowerShell
+5.1 searches the relative `WindowsPowerShell\Modules` in its working directory, where a module
+turned the exit 2 of a denial into exit 0, while the set named the folder that 5.1 does not use, so
+a closed profile without `Documents` passed (R12-08). And the remedy step left `WRITE_DAC` and
+ownership of `Documents` to the identity, which could give itself the removed rights back
+(R12-09).
+
 ### Findings
 
 | ID | Severity | Where | Finding | Resolution |
 |---|---|---|---|---|
-| R12-01 | Major | hooks README, the remedy, gaps 1 and 3, row 201; this entry; `CHANGELOG.md` | Under the default profile access list the operator steps close the folders against writing, not against replacement: an account holds `FILE_DELETE_CHILD` on its own `Documents`, the kernel grants `DELETE` on any child of such a folder whatever the child's access list says, and the check passed until the move. Gap 1 said that a Pass describes the next start, and gap 3 promised that the next measurement fails a replacement, which runs after the next start has loaded from it | Fixed, in wording and code, as ruled. The README, this entry and the CHANGELOG take the reviewer's wording. On Windows a place of the module search set counts as writable while this identity holds `DELETE` on it, which folds in `FILE_DELETE_CHILD` on the folder that holds it; elsewhere, where `DELETE` is not measured, while the probe can write the folder that holds it, so that a run off Windows is not made unmeasured. The remedy also removes `FILE_DELETE_CHILD` and `DELETE` for the identity on `Documents`. The folders above a place and the registry re-point stay residuals, and `DELETE` on the six escape entries stays in the backlog |
-| R12-02 | Major | `Get-ModuleSearchSet`; `Test-HookContract`; README; this entry | Windows PowerShell 5.1's module folders were neither measured nor named as a residual. 5.1 runs the hook line under VS Code, searches `Documents\WindowsPowerShell\Modules` first when started from a logon environment, and auto-loads a module there that shadows a built-in cmdlet such as `Get-Variable` or `ConvertFrom-Json`; `HookContract` starts its 5.1 wrapper with the verifier's module path, so it cannot see such a module | Partly fixed, option 1 of the ruling: on Windows the set also names `<documents>\WindowsPowerShell\Modules` and `%ProgramFiles%\WindowsPowerShell\Modules`, named without asking whether they exist, and `Get-SearchPathProblem` still applies; the remedy covers `Documents\WindowsPowerShell`. The guard's own exposure stays open, for brief 18: a fourth gap in the README, a line in its row 201, a remaining risk below, the S-18 rows and a limit in the CHANGELOG say so |
+| R12-01 | Major | hooks README, the remedy, gaps 1 and 3, row 201; this entry; `CHANGELOG.md` | Under the default profile access list the operator steps close the folders against writing, not against replacement: an account holds `FILE_DELETE_CHILD` on its own `Documents`, the kernel grants `DELETE` on any child of such a folder whatever the child's access list says, and the check passed until the move. Gap 1 said that a Pass describes the next start, and gap 3 promised that the next measurement fails a replacement, which runs after the next start has loaded from it | Fixed, in wording and code, as ruled. The README, this entry and the CHANGELOG take the reviewer's wording. On Windows a place of the module search set counts as writable while this identity holds `DELETE` on it, which folds in `FILE_DELETE_CHILD` on the folder that holds it; elsewhere, where `DELETE` is not measured, while the probe can write the folder that holds it, so that a run off Windows is not made unmeasured. The remedy also removes `FILE_DELETE_CHILD` and `DELETE` for the identity on `Documents`, and since R12-09 `WRITE_DAC` and `WRITE_OWNER` too, with an administrator as its owner. The folders above a place and the registry re-point stay residuals, and `DELETE` on the six escape entries stays in the backlog |
+| R12-02 | Major | `Get-ModuleSearchSet`; `Test-HookContract`; README; this entry | Windows PowerShell 5.1's module folders were neither measured nor named as a residual. 5.1 runs the hook line under VS Code, searches `Documents\WindowsPowerShell\Modules` first when started from a logon environment, and auto-loads a module there that shadows a built-in cmdlet such as `Get-Variable` or `ConvertFrom-Json`; `HookContract` starts its 5.1 wrapper with the verifier's module path, so it cannot see such a module | Partly fixed, option 1 of the ruling: on Windows the set also names `<documents>\WindowsPowerShell\Modules` and `%ProgramFiles%\WindowsPowerShell\Modules`, named without asking whether they exist, and `Get-SearchPathProblem` still applies; the remedy covers `Documents\WindowsPowerShell`. Since R12-08, a local documents folder that does not exist names the relative entry that 5.1 then searches in its working directory, which is reported unmeasured. The guard's own exposure stays open, for brief 18: a fourth gap in the README, a line in its row 201, a remaining risk below, the S-18 rows and a limit in the CHANGELOG say so. They also say three things that R12-08 added: 5.1 searches its working directory when the documents folder does not resolve; a Pass of `WritableRoots` describes the state at the check; and every hook call starts 5.1 afresh, so that moving `Documents` aside or re-pointing it during a run reaches the guard, which brief 18 owns |
 | R12-03 | Minor | README, the remedy; `Measure-EscapePath` | Only each place of the set is judged, not the modules inside it, and the remedy said nothing about an existing tree | Fixed in the words of the review: the remedy says to start the folders empty or to re-own an existing tree recursively (`takeown /R`, `icacls /reset /T`), and the residuals say that only each place is judged |
 | R12-04 | Nit | `Measure-EscapePath`, the walk | "Closed below a file" ignored that an identity that can delete the file can put a folder in its place | Fixed for every entry, because Q3 applies the walk to every entry: a file above an absent place counts as writable when this identity can delete it (`DELETE` on Windows, write access to its folder elsewhere), as unmeasured when that cannot be measured, and as closed otherwise |
 | R12-05 | Nit | `Get-ModuleSearchSet`; `Get-ContainmentCheck` | A profile path without a folder part silently dropped the user's configuration folder, and a throw of the set surfaced as exit 1 with no report | Fixed: an empty folder part throws too, and `Get-ContainmentCheck` turns a throw of `Get-ModuleSearchSet` into a `WritableRoots` result of `Unavailable` with the reason relayed, without measuring, so that the run gets its report |
 | R12-06 | Nit | README, row 201 and the gaps; this entry; the docstring of `Measure-EscapePath`; `CHANGELOG.md` | Four wordings: `USERPROFILE` re-points the folders too; a symbolic link on the way to a share is opened; only the last component of a path is opened as a link; and the CHANGELOG left out "until it closes them" | Fixed as proposed |
 | R12-07 | Nit | `tests/ContainmentVerifier.Flow.Tests.ps1` | No row pinned the trim (the reviewer's mutant M12 survived), and only the POSIX legs pinned the separator (M11) | Fixed: rows for a padded entry and, on Windows, a trailing dot; the separator now follows the platform the check measures, so that rows for `;` and for `:` run on every leg. Both mutants are caught |
+| R12-08 | Major | `Get-ModuleSearchSet`; README, row 201 and gap 4; this entry; `CHANGELOG.md` (re-review) | Windows PowerShell 5.1 resolves the documents folder with verification, and when that folder does not exist or cannot be read, it puts the relative `WindowsPowerShell\Modules` first and resolves it against its working directory. With a module there, the shipped closing statement turned a denial (exit 2) into exit 0. The set named the unverified absolute path instead, so a profile closed to the identity and without `Documents` passed. During a run the identity can move `Documents` aside through its profile folder, or re-point it to a folder that does not resolve, and every later hook's 5.1 then searches its working directory | Fixed as proposed. On Windows the documents folder is still named without verification (`DoNotVerify`), and one on a share stays a network entry that is never asked whether it exists; a local documents folder that `Directory.Exists` does not find, or one that cannot be named, now names 5.1's relative entry, which `Get-SearchPathProblem` reports unmeasured, so the check fails closed. The records say that 5.1 searches its working directory when the documents folder does not resolve, that a Pass describes the state at the check, and that every hook call starts 5.1 afresh, so that moving or re-pointing `Documents` during a run reaches the guard, which brief 18 owns |
+| R12-09 | Minor | README, the remedy; this entry; `CHANGELOG.md` (re-review) | The remedy step removed `FILE_DELETE_CHILD` and `DELETE` on `Documents`, but an account's full control of its profile includes `WRITE_DAC` there, and an account may own its `Documents`, so after the check it can give itself those rights back and move a closed folder aside; `Documents` is not a place of the set | Fixed as proposed: remove `FILE_DELETE_CHILD`, `DELETE`, `WRITE_DAC` and `WRITE_OWNER` for the identity on `Documents`, and have an administrator own it |
 
 The reviewer's suggestion on defence is adopted as well: both `switch` statements of
 `Test-WritableRoot` name `Closed`, and any other state goes to the unmeasured list.
@@ -150,6 +165,22 @@ The reviewer's suggestion on defence is adopted as well: both `switch` statement
 - Every `tests/ContainmentVerifier*.Tests.ps1` with Pester 5.7.1, after the fix round: 1,118 passed,
   0 failed, the same 3 skipped by design, in 257 seconds. PSScriptAnalyzer 1.25.0: 0 findings on the
   verifier and both suites. markdownlint: 0 issues.
+- The second fix round, test first on `3eb5d8f`: the row of a local documents folder that does not
+  exist found `<documents>\WindowsPowerShell\Modules` named instead of 5.1's relative entry, and the
+  case of the reviewer's false Pass, a closed profile without a documents folder, read Pass; the
+  other 179 tests passed, the row of a documents folder on a share among them, a control that keeps
+  a share a network entry. The case that names the two 5.1 folders now creates its documents
+  folder, which 5.1 needs, and a row for a documents folder that cannot be named pins the guard that
+  keeps an empty name from `Get-SearchPathProblem`. Then 182 of 182 passed. Mutants: the 59 of the
+  first fix round, two with their text moved, and 5 new ones: 63 of 64 caught. A mutant that turns
+  a share into the relative entry is caught by the share row; one that asks a share whether it
+  exists was not run, because it would reach the network, and by reading the same row fails under
+  it. The reviewer's X09, the documents folder resolved with verification, survives, and is now
+  equivalent in what the set names, except in two ways no unit test can show without the network
+  access the check must not make: it reaches a share to verify it, and for a share it cannot reach
+  it names the relative entry instead of the share, both unmeasured. Every
+  `tests/ContainmentVerifier*.Tests.ps1`: 1,121 passed, 0 failed, the same 3 skipped, in 244
+  seconds. PSScriptAnalyzer: 0 findings. markdownlint: 0 issues.
 
 ### Remaining risks
 
@@ -171,21 +202,31 @@ The reviewer's suggestion on defence is adopted as well: both `switch` statement
   next start loads from it before any check runs, so a later measurement fails it only if what was
   loaded does not interfere. The operator steps of the hooks README (create the folders empty or
   re-own an existing tree, have an administrator own them, grant the run identity read access only,
-  and remove `FILE_DELETE_CHILD` and `DELETE` for it on `Documents`) close the folders against
+  remove `FILE_DELETE_CHILD`, `DELETE`, `WRITE_DAC` and `WRITE_OWNER` for it on `Documents`, and
+  have an administrator own `Documents`, because an owner holds `WRITE_DAC` whatever the access list
+  says and could give itself the removed rights back after the check) close the folders against
   writing and against replacement from `Documents`, not against a rename of `Documents` itself
   through the profile folder, which an account can do by default, and not against the registry
   re-point.
 - Only each place is judged, not the modules inside it: a writable module folder or file inside a
   closed place is not seen.
-- Windows PowerShell 5.1 runs the hook line (R12-02). Under VS Code, Windows PowerShell 5.1 runs
-  each hook line, the guard's included, and a containment profile normally pins it as the guard's
-  interpreter. Started from a logon environment, 5.1 searches `Documents\WindowsPowerShell\Modules`
-  first, and a module there shadows a built-in cmdlet: on the reviewer's copy, a module that exports
-  `Get-Variable` turned the exit 2 of a denial into exit 0 in the closing statement of the shipped
-  hook line. `WritableRoots` now measures that folder and `%ProgramFiles%\WindowsPowerShell\Modules`,
-  but `HookContract` starts its 5.1 wrapper with the verifier's own module path, not the one a logon
-  gives 5.1, so nothing tests the hook line as the host runs it. The guard's own exposure stays
-  open, for brief 18.
+- Windows PowerShell 5.1 runs the hook line (R12-02, R12-08). Under VS Code, Windows PowerShell 5.1
+  runs each hook line, the guard's included, and a containment profile normally pins it as the
+  guard's interpreter; every hook call starts it afresh. Started from a logon environment, 5.1
+  searches `Documents\WindowsPowerShell\Modules` first, and when the documents folder does not
+  resolve, because it does not exist or cannot be read, it searches the relative
+  `WindowsPowerShell\Modules` in its working directory instead. A module in either place shadows a
+  built-in cmdlet: on the reviewer's copies, a module that exports `Get-Variable`, ahead of the
+  system folder or in the working directory of a 5.1 whose documents folder did not resolve, turned
+  the exit 2 of a denial into exit 0 in the closing statement of the shipped hook line. Under VS Code
+  that working directory is likely a workspace the run writes (not measured). `WritableRoots` now
+  measures the folder in the documents folder and `%ProgramFiles%\WindowsPowerShell\Modules`, and
+  reports the relative entry unmeasured when the documents folder does not exist, but a Pass
+  describes the state at the check: an identity that moves `Documents` aside through its profile
+  folder during the run sends every later hook's 5.1 to its working directory, one that re-points it
+  in its registry sends 5.1 wherever it points, and either reaches the guard. `HookContract` starts its 5.1 wrapper with the
+  verifier's own module path, not the one a logon gives 5.1, so nothing tests the hook line as the
+  host runs it. The guard's own exposure stays open, for brief 18.
 - Only the text decides what is not opened: a drive letter that is mapped or substituted to a share,
   and a symbolic link on the way to a share, are opened like a local path, and the escape set is
   opened wherever it points, a temp folder on a share included.
@@ -204,8 +245,9 @@ The reviewer's suggestion on defence is adopted as well: both `switch` statement
   `powershell.config.json` cannot be named. `WritableRoots` is then unmeasured, with the reason, and
   measures nothing, and the other checks keep their evidence. A `pwsh -File` start always sets one.
 - The new digest of the verifier, as checked out (CRLF on every system, by `.gitattributes`):
-  `754a2f9cd8ca3225361b42ee5dd31cd0c4acd9ce441e44228abc770c0f1c7094`. The reviewed commit
-  `0b7e4ab` hashed to `2cea2d645d4bc8cbbfadbd88a4f172e19f3060225e47b6d639d7dc1ee0aab8c3`. The
+  `d7d2b02f3202954e8a6a16d010c47786572fffb403ebb02a354c51d4923bf869`. The reviewed commit
+  `0b7e4ab` hashed to `2cea2d645d4bc8cbbfadbd88a4f172e19f3060225e47b6d639d7dc1ee0aab8c3`, and the
+  re-reviewed `3eb5d8f` to `754a2f9cd8ca3225361b42ee5dd31cd0c4acd9ce441e44228abc770c0f1c7094`. The
   appender is unchanged on this branch at
   `f55e163b02fe4db6d318bc3e8c3d8cc6c86c2bf365496ddf22cda5e812030572` (brief 13), and `hooks.json`
   and the guard are unchanged. Every containment profile has to re-pin the verifier, and

@@ -4196,16 +4196,21 @@ function Get-ModuleSearchSet {
         pwsh of this identity loads modules from. The user's file is read from the folder of the
         profile path that the host sets, which is where pwsh reads it.
 
-        The set is fixed and named, like the escape set, and nothing is opened here: the documents
-        and program files folders are named as the registry and the environment name them, without
-        asking whether they exist, which on a documents folder redirected to a share would reach the
-        share. The module path is split on the separator of the platform the check measures (';' on
-        Windows, ':' elsewhere), and each entry is trimmed. An entry that is relative, or names a
-        network or device path (Get-SearchPathProblem), keeps its spelling, so that the check names
-        it without opening it, and only a configuration folder that passes that test is asked
-        whether its file exists; a documents folder that cannot be named leaves its entry relative,
-        and so unmeasured. When the host set no profile path, or one without a folder part, the
-        folder of the user's file cannot be named, and this throws instead of leaving it out.
+        The set is fixed and named, like the escape set. Nothing is opened here: only a local documents
+        folder is asked whether it exists, and a local configuration folder whether its file does. The
+        documents and program files folders are named as the registry and the environment name them,
+        without the verification of the shell, which on a documents folder redirected to a share would
+        reach the share. Windows PowerShell 5.1 resolves its documents folder with that verification,
+        and when it fails, puts the relative WindowsPowerShell\Modules first, which resolves against its
+        working directory: so a local documents folder that does not exist or cannot be read, or one
+        that cannot be named, names that relative entry. A documents folder on a share is not asked,
+        and stays a network entry. The module path is split on the separator of the platform the check
+        measures (';' on Windows, ':' elsewhere), and each entry is trimmed. An entry that is relative,
+        or names a network or device path (Get-SearchPathProblem), keeps its spelling, so that the check
+        names it without opening it and reports it unmeasured, and only a configuration folder that
+        passes that test is asked whether its file exists. When the host set no profile path, or one
+        without a folder part, the folder of the user's file cannot be named, and this throws instead of
+        leaving it out.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]
@@ -4267,8 +4272,18 @@ function Get-ModuleSearchSet {
             $ProgramFilesFolder = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFiles, [System.Environment+SpecialFolderOption]::DoNotVerify)
         }
 
-        $candidate.Add([System.IO.Path]::Combine($DocumentsFolder, 'WindowsPowerShell', 'Modules'))
-        $candidate.Add([System.IO.Path]::Combine($ProgramFilesFolder, 'WindowsPowerShell', 'Modules'))
+        # Where 5.1 searches when its verified documents folder does not resolve. The problem test runs first, so
+        # that no share is asked whether it exists.
+        $windowsModules = [System.IO.Path]::Combine('WindowsPowerShell', 'Modules')
+        $personal = [System.IO.Path]::Combine($DocumentsFolder, $windowsModules)
+
+        if ([string]::IsNullOrWhiteSpace($DocumentsFolder) -or
+            ($null -eq (Get-SearchPathProblem -Path $DocumentsFolder) -and -not [System.IO.Directory]::Exists($DocumentsFolder))) {
+            $personal = $windowsModules
+        }
+
+        $candidate.Add($personal)
+        $candidate.Add([System.IO.Path]::Combine($ProgramFilesFolder, $windowsModules))
     }
 
     foreach ($folder in @($UserConfigurationFolder, $PowerShellHome)) {
