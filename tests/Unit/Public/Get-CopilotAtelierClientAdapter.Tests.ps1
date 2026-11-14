@@ -126,8 +126,9 @@ Describe 'Client capability contract' -Tag 'Unit' {
                 foreach ($entry in $case)
                 {
                     $entry.Id | Should -MatchExactly '^[BC][1-9]$' -Because "$label names a case of docs/client-adapter-evals.md"
-                    $entry.Kind | Should -BeIn @('Runtime', 'File') -Because "$label/$($entry.Id)"
-                    $entry.Outcome | Should -BeIn @('Passed', 'Failed') -Because "$label/$($entry.Id)"
+                    # Exact, as the resolver reads them: a kind or an outcome in another letter case would silently withdraw a claim.
+                    $entry.Kind | Should -MatchExactly '^(Runtime|File)\z' -Because "$label/$($entry.Id)"
+                    $entry.Outcome | Should -MatchExactly '^(Passed|Failed)\z' -Because "$label/$($entry.Id)"
                     $entry.Evidence | Should -Not -BeNullOrEmpty -Because "$label/$($entry.Id)"
                 }
             }
@@ -740,9 +741,9 @@ Describe 'Runtime receipt binding' -Tag 'Unit' {
         }
     }
 
-    It 'Should report RuntimeVerified for the passed cases at the receipt version while the hash matches' {
+    It 'Should report RuntimeVerified at the receipt version while the hash matches and every case passed' {
         $clientContract = script:New-ClientContractFixture -Case @(
-            (script:New-CaseFixture -Id 'C1' -Kind 'Runtime' -Outcome 'Failed')
+            (script:New-CaseFixture -Id 'C1' -Kind 'Runtime' -Outcome 'Passed')
             (script:New-CaseFixture -Id 'C2' -Kind 'Runtime' -Outcome 'Passed')
             (script:New-CaseFixture -Id 'C3' -Kind 'File' -Outcome 'Passed')
         )
@@ -756,9 +757,36 @@ Describe 'Runtime receipt binding' -Tag 'Unit' {
         $result.VerificationState | Should -BeExactly 'RuntimeVerified'
         $result.VerifiedRuntime | Should -BeExactly 'fixture-runtime' -Because 'a runtime claim names what ran, not only the client it stands for'
         $result.VerifiedClientVersion | Should -BeExactly '9.9.9'
-        $result.VerifiedCase | Should -Be @('C2', 'C3')
-        $result.VerifiedCase | Should -Not -Contain 'C1' -Because 'a failed case is never reported as verified'
+        $result.VerifiedCase | Should -Be @('C1', 'C2', 'C3')
         $result.RuntimeReceipt.ArtifactSha256 | Should -BeExactly $script:boundHash
+    }
+
+    It 'Should not report RuntimeVerified while the bound receipt records a case that did not pass: <Outcome>' -ForEach @(
+        @{ Outcome = 'Failed' }
+        @{ Outcome = 'passed' }
+    ) {
+        <#
+            A failed C2 means the run offered delegation that nothing showed to
+            be bounded, so no other passed case may raise the claim. Only an
+            outcome of exactly Passed counts as passed.
+        #>
+        $clientContract = script:New-ClientContractFixture -Case @(
+            (script:New-CaseFixture -Id 'C1' -Kind 'Runtime' -Outcome 'Passed')
+            (script:New-CaseFixture -Id 'C2' -Kind 'Runtime' -Outcome $Outcome)
+            (script:New-CaseFixture -Id 'C3' -Kind 'File' -Outcome 'Passed')
+        )
+
+        $result = InModuleScope CopilotAtelier -Parameters @{ ClientContract = $clientContract; Hash = $script:boundHash } {
+            param ($ClientContract, $Hash)
+            Resolve-CopilotAtelierClientVerification -ClientContract $ClientContract -Name 'fixture-agent' -ArtifactSha256 $Hash
+        }
+
+        $result.RuntimeReceiptStatus | Should -BeExactly 'Bound'
+        $result.VerificationState | Should -BeExactly 'StructurallyChecked' -Because "C1 passed on the runtime, but the receipt records C2 as '$Outcome'"
+        $result.VerifiedRuntime | Should -BeNullOrEmpty
+        $result.VerifiedClientVersion | Should -BeNullOrEmpty
+        $result.VerifiedCase | Should -Be @('C1', 'C3') -Because 'the result still lists the cases that passed'
+        $result.RuntimeReceipt.ArtifactSha256 | Should -BeExactly $script:boundHash -Because 'the bound receipt still records every outcome'
     }
 
     It 'Should reject a hash that is not lowercase hexadecimal' {
@@ -897,6 +925,44 @@ Describe 'Get-CopilotAtelierClientAdapter' -Tag 'Unit' {
         }
     }
 
+    It 'Should leave the Copilot CLI variant unchanged by a model bump, which retires only the VS Code receipt' {
+        <#
+            The Copilot CLI variant emits no model, so a model bump leaves the
+            composed file as it was; only the profile VS Code loads changes.
+            docs/client-adapter-evals.md says so, and this keeps it true. The
+            variant's half needs no receipt, so it runs after a model bump too;
+            each receipt's half runs while that receipt is bound.
+        #>
+        $shipped = @(Get-CopilotAtelierClientAdapter -Name 'software-engineer')
+        $shippedVsCode = $shipped | Where-Object -Property Client -EQ -Value 'vscode'
+        $shippedCli = $shipped | Where-Object -Property Client -EQ -Value 'copilot-cli'
+
+        $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+        $agentDirectory = Join-Path $root 'com.github.copilot/agents'
+        New-Item -ItemType Directory -Path $agentDirectory -Force | Out-Null
+
+        $text = [System.IO.File]::ReadAllText($shippedCli.SourcePath)
+        $bumped = [regex]::new('(?m)^model:.*$').Replace($text, "model: ['Claude Opus 9 (copilot)', 'Claude Sonnet 9 (copilot)']", 1)
+        $bumped | Should -Not -BeExactly $text -Because 'the copy differs from the shipped profile in its model line alone'
+        [System.IO.File]::WriteAllText((Join-Path $agentDirectory 'software-engineer.agent.md'), $bumped, [System.Text.UTF8Encoding]::new($false))
+
+        $vsCode = Get-CopilotAtelierClientAdapter -Name 'software-engineer' -Client 'vscode' -ContentPath $root
+        $cli = Get-CopilotAtelierClientAdapter -Name 'software-engineer' -Client 'copilot-cli' -ContentPath $root
+
+        $cli.ArtifactSha256 | Should -BeExactly $shippedCli.ArtifactSha256 -Because 'the composed variant emits no model'
+        $vsCode.ArtifactSha256 | Should -Not -BeExactly $shippedVsCode.ArtifactSha256 -Because 'VS Code loads the profile itself, and the bump changed it'
+
+        if ($shippedCli.RuntimeReceiptStatus -eq 'Bound')
+        {
+            $cli.RuntimeReceiptStatus | Should -BeExactly 'Bound' -Because 'a model bump leaves the Copilot CLI receipt bound'
+        }
+
+        if ($shippedVsCode.RuntimeReceiptStatus -eq 'Bound')
+        {
+            $vsCode.RuntimeReceiptStatus | Should -BeExactly 'Stale' -Because 'a model bump retires the VS Code receipt'
+        }
+    }
+
     It 'Should not bind the source profile receipt to a copy whose bytes differ only in line endings' {
         <#
             The receipt vouches for the bytes the runtime read. A CRLF copy reads
@@ -954,9 +1020,11 @@ Describe 'Get-CopilotAtelierClientAdapter' -Tag 'Unit' {
                 $result.VerifiedClientVersion | Should -BeExactly $result.RuntimeReceipt.RuntimeVersion -Because $result.Client
                 $result.VerifiedRuntime | Should -BeExactly $result.RuntimeReceipt.RuntimeId -Because "$($result.Client) names what ran"
 
-                $passed = @($result.RuntimeReceipt.Case | Where-Object -FilterScript { $_.Outcome -eq 'Passed' } | ForEach-Object -Process { $_.Id })
+                $passed = @($result.RuntimeReceipt.Case | Where-Object -FilterScript { $_.Outcome -ceq 'Passed' } | ForEach-Object -Process { $_.Id })
                 $result.VerifiedCase | Should -Not -BeNullOrEmpty -Because $result.Client
                 $result.VerifiedCase | Should -Be $passed -Because "$($result.Client) verifies exactly the cases its receipt records as passed"
+                @($result.RuntimeReceipt.Case | Where-Object -FilterScript { $_.Outcome -cne 'Passed' }) |
+                    Should -BeNullOrEmpty -Because "$($result.Client) claims a runtime result only while every case its receipt records passed"
             }
             else
             {

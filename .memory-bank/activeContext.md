@@ -9,12 +9,12 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 16, the Reddit quarantine (2026-11-14), is done on `ai/reddit-quarantine`**, stacked on brief 13's unmerged branch, not pushed.
-Option 1, decided under the owner's delegation: `quarantined-reader` is user-invocable and hidden from the subagent list
-(`disable-model-invocation: true`); the agent that runs `reddit-read` only points the user to a new chat with the reader and declines to run
-it, and the user, not an agent, checks a decision against the raw files. The reader is told to skip the lifecycle and the session-start note,
-and `reddit-read` refuses unless the harness passes `headless: false`. SHA-256 pins hold the reviewed text of seven places. Review: Request
-changes (1 Major), then Approve with changes, then Approve; full gate 5,878 passed, 0 failed.
+**Brief 17, C2 that fails closed (2026-11-14), is done on `ai/c2-fail-closed`**, stacked on brief 16's branch, not pushed. Option 1
+under the owner's delegation: C2 fails while any delegation tool is offered to the VS Code client, whatever the runtime warns.
+`Get-ClientAdapterCaseVerdict` (`tests/Helpers/ClientAdapterCase.ps1`) decides C1 and C2 for each run and, on every CI leg, for the
+`Observation` each receipt now records; the agent-host runtime has a tool allow-list, and a warning must match the expected notice in full.
+`RuntimeVerified` needs every case of a bound receipt to pass, read exactly (R17-01). Review: Approve with changes (1 Minor, 3 Nit), then
+Approve and a Nit round (R17-05 to R17-07); full gate on `c8b22b7` 5,893 passed, 0 failed, 145 skipped, coverage 91.61 %.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
@@ -44,6 +44,8 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
 
 ## Previous focuses
 
+- **Brief 16, the Reddit quarantine (2026-11-14).** On `ai/reddit-quarantine`, stacked on brief 13, not pushed: `quarantined-reader` is
+  user-invocable and hidden from the subagent list, the agent only runs `reddit-read`, and SHA-256 pins hold seven reviewed places.
 - **Brief 13, S-19 (2026-11-13).** On `ai/s19-replayed-acknowledgement` (#59, checks green, not merged: the push guard denied the merge):
   the ledger client counts the sink before it sends and believes only a later sequence; new appender digest `f55e163b…0572`.
 - **Brief 11, S-20 (2026-11-13).** Merged as #58 (`aea224e`): the appender's and the hook check's exception texts are relayed as
@@ -65,9 +67,6 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
   hashed to `dd415737…2415` on 2026-11-09; a containment profile elsewhere pins that digest.
 - **The agents' models (2026-11-09).** Opus 5.5 and Sonnet 5.5 on `main` (`ea19ba4`, `6.1.0-preview0022`;
   Decision record 0029); the Skill index on `main` (`661c30a`); the R-04 closing test passed.
-- **Decision 0028, steps 7.1 to 7.5 (2026-10-06 to 2026-10-08).** Design `b568c8c`, Amendments 1 to 4, the A12
-  backstop `23a861a`, the frozen reference `30fb3229…9c79`, the latency levels `3bef6b9`, and the VS Code Local
-  backstop `b05efe3`; the RAANDREE3 `FailFast` is a .NET 10.0.6 fault. Evidence: the record's Confirmation.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -99,8 +98,8 @@ Earlier route-selection and trigger-query sets remain unmeasured. ShellPilot's
   `agents:` list (VS Code's built-in Agent), or an agent-host agent holding `agent` while `infer: false` is unverified, can still run `quarantined-reader`
   by name, and its file tool reaches `auth-state/`. Owner's follow-ups (handoff `backlog.md`): a hook that denies that call, a session-start note without
   the Memory Bank line for the reader, and option 2 (encrypt `auth-state/`).
-- **Minor (2026-11-13, re-review of #57, brief 17):** the VS Code C2 case counts delegation as unbounded only when the runtime's warning
-  names `agents` (RR04-01); its `else` branch still asserts `task` (R04-01), and the agent-host runtime has no tool allow-list (R04-07).
+- **Residual (2026-11-14, brief 17, on `ai/c2-fail-closed`):** a receipt edited together with its `Observation` still passes every test that
+  runs without the runtimes (consistency, not provenance: only a run at its version refutes it); the allow-lists bound `software-engineer` only.
 - **Minor (2026-11-13, review R11-01):** at least 26 exception texts of the containment verifier (20 into its evidence), the event
   names of hooks.json, the grants root and the escape-set paths still pass unrelayed; brief 11 closed only the hook check's texts.
 - **Low (2026-11-12, review R04-14):** six private SHA-256 hex helpers in `source/` and the copied SDK lookup in two runtime suites
@@ -160,8 +159,8 @@ unproven — train reached 100 % while validation fell.
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
 3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): #59 (brief 13) waits on the owner's
-   merge and the re-pin of the appender digest (and #58's verifier digest) in any containment profile. Briefs 16 (done), 17, 12, 14, and 15
-   run stacked on its branch, local and unpushed; after #59 is squash-merged, one rebase moves the stack onto `main`. From briefs 03 and 16:
+   merge and the re-pin of the appender digest (and #58's verifier digest) in any containment profile. Briefs 16 and 17 (done), 12 (next), 14,
+   and 15 run stacked on its branch, local and unpushed; after #59 is squash-merged, one rebase moves the stack onto `main`. From briefs 03 and 16:
    delete any leftover `extracted\all-cookies.json`, copy the changed Reddit files into `CareerAuthBrowser`, delete `auth-extract.prompt.md`
    or keep `reddit-read` out of it, and check `reddit-read` and the reader's own chat live. Then close #49 and route R11-01 and the other
    P5 follow-ups (`docs/SECURITY-REVIEW.md`). `ai/travel-photo-diary-skill` exists only on the other machine.

@@ -36,10 +36,11 @@ function Get-CopilotAtelierClientContract
             bound to, and it never claims a runtime result. RuntimeReceipt holds,
             per adapted agent, the receipt of the cases that ran against one
             exact file: that file's SHA-256, the runtime and its version, the
-            date, the harness, and the outcome of each case.
+            date, the harness, what the run observed, and the outcome of each
+            case.
             Resolve-CopilotAtelierClientVerification binds a receipt to an
             artifact by that hash alone, so Get-CopilotAtelierClientAdapter
-            reports RuntimeVerified only for the cases a receipt records as
+            reports RuntimeVerified only while every case a receipt records
             passed, at the runtime version it names, and only while the file is
             unchanged. A one-off observation that a checkout's profile loaded in
             one editor build is kept separately as SourceProfileObservation,
@@ -288,12 +289,22 @@ function Get-CopilotAtelierClientContract
     <#
         The receipts of the model-free cases in docs/client-adapter-evals.md,
         run on 2026-11-12 by tests/ClientAdapterRuntime.Tests.ps1. Each one is
-        bound to the SHA-256 of the file its cases ran on, so editing the
-        profile, or anything that changes the composed variant, retires it
-        until the cases run again. Every case in a receipt ran on one file at
-        one runtime version: a new run replaces the whole receipt, so a later
-        case enters it only together with the earlier ones run again. A Runtime
-        case ran on the runtime; a File case read the file.
+        bound to the SHA-256 of the file its cases ran on: an edit to the
+        profile retires the VS Code receipt, and an edit that changes the
+        composed variant retires the Copilot CLI receipt, until the cases run
+        again. Every case in a receipt ran on one file at one runtime version: a
+        new run replaces the whole receipt, so a later case enters it only
+        together with the earlier ones run again. A Runtime case ran on the
+        runtime; a File case read the file.
+
+        Observation is what that run recorded, each list sorted: whether the
+        runtime listed the profile once, from the scratch agents directory, as a
+        user agent, its load errors and warnings, the tools it kept for the
+        selected profile, and the tools it offered the model before and after
+        the selection. The suite decides every Runtime case from it, also where
+        no runtime is installed, so an outcome its observation refutes fails on
+        every system; a run at the receipt's runtime version must observe the
+        same.
     #>
     $smokeHarness = 'tests/ClientAdapterRuntime.Tests.ps1 through tests/Fixtures/Invoke-CopilotSdkConversation.mjs: a scratch COPILOT_HOME, a loopback fake model, no sign-in, and no model request'
 
@@ -307,6 +318,36 @@ function Get-CopilotAtelierClientContract
             RuntimeVersion = '1.0.108-0'
             VerifiedOn     = '2026-11-12'
             Harness        = $smokeHarness
+            Observation    = [pscustomobject] @{
+                ListedAsUserAgent   = $true
+                LoadError           = @()
+                LoadWarning         = @('agents\software-engineer.agent.md: unknown fields ignored: argument-hint, agents, handoffs')
+                LoadedTool          = @(
+                    'add_artifact_or_reference', 'agent', 'ask_user', 'browser', 'codeInterpreter'
+                    'edit/createDirectory', 'edit/createFile', 'edit/editFiles', 'edit/editNotebook', 'edit/rename'
+                    'execute/createAndRunTask', 'execute/getTerminalOutput', 'execute/runInTerminal', 'execute/runNotebookCell', 'execute/runTask'
+                    'get_current_session', 'get_session_context', 'github', 'glob', 'grep'
+                    'list_artifacts_and_references', 'list_sessions', 'read/getNotebookSummary', 'read/problems', 'read/readFile'
+                    'read/readNotebookCellOutput', 'read/terminalLastCommand', 'read/terminalSelection', 'read/testFailure', 'read/viewImage'
+                    'remove_artifact_or_reference', 'runTests', 'search', 'search/changes', 'search/codebase'
+                    'search/fileSearch', 'search/findTestFiles', 'search/listDirectory', 'search/searchResults', 'search/textSearch'
+                    'search/usages', 'set_workspace', 'thinking', 'todo', 'useMcp'
+                    'vscode/askQuestions', 'vscode/extensions', 'vscode/getProjectSetupInfo', 'vscode/installExtension', 'vscode/newWorkspace'
+                    'vscode/runCommand', 'vscode/vscodeAPI', 'vscodeBrowser/clickElement', 'vscodeBrowser/dragElement', 'vscodeBrowser/handleDialog'
+                    'vscodeBrowser/hoverElement', 'vscodeBrowser/navigatePage', 'vscodeBrowser/openBrowserPage', 'vscodeBrowser/readPage', 'vscodeBrowser/runPlaywrightCode'
+                    'vscodeBrowser/screenshotPage', 'vscodeBrowser/typeInPage', 'web_fetch', 'web/fetch', 'web/githubRepo'
+                    'web/githubTextSearch'
+                )
+                OfferedWithoutAgent = @(
+                    'ask_user', 'create', 'dynamic_workflows_manage', 'edit', 'glob', 'grep', 'list_agents', 'list_powershell'
+                    'powershell', 'probe_tool', 'read_agent', 'read_powershell', 'run_dynamic_workflow', 'semantic_code_search'
+                    'sql', 'stop_powershell', 'task', 'view', 'web_fetch', 'write_agent'
+                )
+                OfferedWithAgent    = @(
+                    'ask_user', 'create', 'edit', 'glob', 'grep', 'list_agents', 'list_powershell', 'powershell', 'read_agent'
+                    'read_powershell', 'sql', 'stop_powershell', 'task', 'update_todo', 'view', 'web_fetch', 'write_agent'
+                )
+            }
             Case           = @(
                 [pscustomobject] @{
                     Id       = 'C1'
@@ -318,7 +359,7 @@ function Get-CopilotAtelierClientContract
                     Id       = 'C2'
                     Kind     = 'Runtime'
                     Outcome  = 'Failed'
-                    Evidence = 'Selected, the profile kept its declared tool list as written, and the model was offered ask_user, create, edit, glob, grep, list_agents, list_powershell, powershell, read_agent, read_powershell, sql, stop_powershell, task, update_todo, view, web_fetch, and write_agent. The runtime ignores the agents: allow-list, so task, list_agents, read_agent, and write_agent are delegation without its bound, which is a privilege widening.'
+                    Evidence = 'Selected, the profile kept its declared tool list as written, and the model was offered ask_user, create, edit, glob, grep, list_agents, list_powershell, powershell, read_agent, read_powershell, sql, stop_powershell, task, update_todo, view, web_fetch, and write_agent. Nothing shows that task, list_agents, read_agent, and write_agent stay inside the agents: allow-list, which the runtime warns it ignores, so they are delegation without its bound, which is a privilege widening: any delegation tool offered to this client fails C2.'
                 }
             )
             NotCovered     = 'Local VS Code chat, the agent host process itself, any other runtime version, and the behavioral cases B1 to B8, which need model requests.'
@@ -335,6 +376,20 @@ function Get-CopilotAtelierClientContract
             RuntimeVersion = '1.0.96'
             VerifiedOn     = '2026-11-12'
             Harness        = $smokeHarness
+            Observation    = [pscustomobject] @{
+                ListedAsUserAgent   = $true
+                LoadError           = @()
+                LoadWarning         = @()
+                LoadedTool          = @('ask_user', 'edit', 'execute', 'glob', 'grep', 'read', 'todo', 'web_fetch')
+                OfferedWithoutAgent = @(
+                    'ask_user', 'create', 'edit', 'glob', 'grep', 'list_agents', 'list_powershell', 'powershell', 'probe_tool'
+                    'read_agent', 'read_powershell', 'skill', 'sql', 'stop_powershell', 'task', 'view', 'web_fetch', 'write_agent'
+                )
+                OfferedWithAgent    = @(
+                    'ask_user', 'create', 'edit', 'glob', 'grep', 'list_powershell', 'powershell', 'read_powershell', 'skill'
+                    'sql', 'stop_powershell', 'view', 'web_fetch'
+                )
+            }
             Case           = @(
                 [pscustomobject] @{
                     Id       = 'C1'

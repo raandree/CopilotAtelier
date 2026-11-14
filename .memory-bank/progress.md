@@ -19,6 +19,10 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
 
 ## Recent milestones
 
+- **2026-11-14**: Brief 17, C2 that fails closed (`software-engineer`, a controller run), on `ai/c2-fail-closed`, stacked on brief 16, not
+  pushed. Option 1 under the owner's delegation: C2 fails while any delegation tool is offered to the VS Code client; one helper decides C1
+  and C2 for each run and, on every CI leg, for each receipt's recorded `Observation`; `RuntimeVerified` needs every case to pass, read
+  exactly. Red first; every reviewer mutant caught. Approve with changes, Approve, a Nit round; gate 5,893 passed, 0 failed, 91.61 %.
 - **2026-11-14**: Brief 16, the Reddit quarantine (`software-engineer`, a controller run), on `ai/reddit-quarantine`, stacked on brief 13,
   not pushed. Option 1 under the owner's delegation: `quarantined-reader` is user-invocable and hidden from the subagent list, the agent only
   runs `reddit-read` and declines to run the reader, and the user reads its summary in a chat of its own; `reddit-read` refuses without
@@ -49,9 +53,6 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
   Deployment record, `IsCurrent`, and `VersionDrift` follow; Install and Test warn about a git working tree as Canonical target. Red first;
   an independent review's Blocker (PowerShellGet 3 reports the label separately) and Major (an update that did not land) fixed test-first.
   The release run pushed the rollover branch but could not open its pull request; #55 merged it with the final newline restored.
-- **2026-11-10**: Brief 03, the travel work (`software-engineer`), merged as #53 (`dc714ba`, `6.1.0-preview0025`): MD013 in UTF-16 units
-  (`dc1dad0`), the file-reading-only `quarantined-reader` (`5e9bb9b`, reworked by brief 16), signed-in Reddit reading through a GET-only
-  allow-list (`15fb67e`), and the Skills `travel-handbook` (`bfd44f0`) and `travel-planning` (`bc27c27`); 17 review findings fixed test-first.
 
 ## Stable capabilities
 

@@ -12,12 +12,17 @@ function Resolve-CopilotAtelierClientVerification
             an artifact by that hash and by nothing else.
 
             While the hash matches, the receipt is bound. The cases it records
-            as passed are verified, and when at least one of them ran on the
-            runtime, the state is RuntimeVerified at the runtime version the
-            receipt names, and VerifiedRuntime names that runtime. A failed
-            case is never reported as verified, and a case that only read the
-            file never raises the state to a runtime claim; such a File case,
-            such as C3, does not depend on a runtime version either.
+            as passed are verified, and when every case it records passed and at
+            least one of them ran on the runtime, the state is RuntimeVerified at
+            the runtime version the receipt names, and VerifiedRuntime names that
+            runtime. A case that did not pass, such as a C2 that failed because
+            the run offered delegation nothing showed to be bounded, withholds
+            the claim: the state stays the client contract's own, VerifiedCase
+            still lists the cases that passed, and the bound receipt records
+            every outcome. Only an outcome of exactly Passed counts as passed. A
+            failed case is never reported as verified, and a case that only read
+            the file never raises the state to a runtime claim; such a File
+            case, such as C3, does not depend on a runtime version either.
 
             Once the hash differs, the receipt is stale. It proves nothing about
             this artifact, so the client contract's own state and version apply
@@ -104,8 +109,12 @@ function Resolve-CopilotAtelierClientVerification
         }
     }
 
-    $passedCase = @($receipt.Case | Where-Object -FilterScript { $_.Outcome -eq 'Passed' })
-    $isRuntimeVerified = @($passedCase | Where-Object -FilterScript { $_.Kind -eq 'Runtime' }).Count -gt 0
+    $passedCase = @($receipt.Case | Where-Object -FilterScript { $_.Outcome -ceq 'Passed' })
+    $notPassedCase = @($receipt.Case | Where-Object -FilterScript { $_.Outcome -cne 'Passed' })
+
+    # Any case that did not pass, a failed C2 above all, withholds the claim that the other cases would raise.
+    $isRuntimeVerified = $notPassedCase.Count -eq 0 -and
+        @($passedCase | Where-Object -FilterScript { $_.Kind -ceq 'Runtime' }).Count -gt 0
 
     return [pscustomobject] @{
         VerificationState     = if ($isRuntimeVerified) { 'RuntimeVerified' } else { $ClientContract.VerificationState }
