@@ -17,13 +17,13 @@ composed variant can be perfectly well-formed and still fail to do the work.
 `Get-CopilotAtelierClientContract` commits one receipt per client for
 `software-engineer`. A receipt records what was true of one file: the cases
 that ran on it, its SHA-256, the runtime that ran them and its version, the
-date, and each outcome. A new run replaces the whole receipt, because every
-case in a receipt ran on one file at one runtime version. The receipts as
-recorded:
+date, what the run observed, and each outcome. A new run replaces the whole
+receipt, because every case in a receipt ran on one file at one runtime
+version. The receipts as recorded:
 
 | Client | Runtime that ran (`RuntimeId`) | Version | File (SHA-256) | Passed | Failed | Not run |
 |---|---|---|---|---|---|---|
-| VS Code Copilot Chat | `vscode-agent-host-runtime`: the Copilot runtime that VS Code 1.146.0 bundles for its agent-host chats | 1.0.108-0 | source profile (`8bb72f5d…9ba5`) | none | C1, C2 | C4, B1 to B8; C3 does not apply |
+| VS Code Copilot Chat | `vscode-agent-host-runtime`: the Copilot runtime that VS Code 1.146.0 bundles for its agent-host chats | 1.0.108-0 | source profile (`8bb72f5d…9ba5`) | none | C1, C2 | B1 to B8; C3 and C4 do not apply |
 | GitHub Copilot CLI | `copilot-cli`: the CLI from the WinGet package `GitHub.Copilot` | 1.0.96 | composed variant (`857662eb…5671`) | C1, C2, C3 | none | C4, B1 to B8 |
 
 A receipt does not say what the command reports today. For that, run:
@@ -39,8 +39,10 @@ least one case that ran on the runtime passed. `VerifiedRuntime` then names
 what ran, `VerifiedClientVersion` its version, and `VerifiedCase` the passed
 cases. A case that only reads the file, such as C3, does not depend on that
 version. With no passed runtime case, the VS Code receipt leaves that client at
-`StructurallyChecked`. After any edit to the profile, such as a model bump,
-both receipts are `Stale` and both clients fall back to `StructurallyChecked`
+`StructurallyChecked`. An edit to the profile retires the VS Code receipt. The
+Copilot CLI receipt is retired only when the composed variant changes: an edit
+to the body or to a field the variant emits. A model bump leaves it bound. A
+retired receipt is `Stale`, and its client falls back to `StructurallyChecked`
 until the cases run again. The observation that the source profile loaded in
 VS Code 1.136.1 on 2026-09-07 stays historical evidence, bound to no file.
 
@@ -55,9 +57,18 @@ records the tools the runtime offers the model before and after the
 selection. The composed variant runs on the standalone Copilot CLI, called by
 its full path, and the source profile on the runtime VS Code bundles. When the
 runtime reports the version a receipt records and the file still has the
-receipt's SHA-256, the suite also checks that it reproduces the receipt's
-outcomes; otherwise it skips that check and logs what it saw. Run it through
-the detached launcher like any other Pester suite.
+receipt's SHA-256, the suite also checks that the run observes what the receipt
+records and reproduces its outcomes; otherwise it skips that check and logs
+what it saw. Run it through the detached launcher like any other Pester suite.
+
+`Get-ClientAdapterCaseVerdict` in
+[`tests/Helpers/ClientAdapterCase.ps1`](../tests/Helpers/ClientAdapterCase.ps1)
+decides C1 and C2 from what a run observed, and names what the suite does not
+accept of a client: a warning it does not expect, or a tool beyond the client's
+allow-list. The suite applies it to each run and, in process, to the
+observation each receipt records and to variations of it, so a receipt that
+records an outcome its own observation refutes fails on every system, also
+where no runtime is installed.
 
 That is the runtime's own agent discovery and the `agent.list` and
 `agent.select` calls that VS Code's agent host also makes. It is not the CLI's
@@ -82,7 +93,7 @@ consumes them and needs explicit approval first.
 | ID | Case | Expected |
 |---|---|---|
 | C1 | Start the runtime against the scratch `COPILOT_HOME` and list its agents through the SDK's `agent.list` | `software-engineer` is listed as a user agent, loaded from the scratch directory, with no load error and no warning |
-| C2 | Inspect the loaded profile's effective tools | Composed variant: exactly `ask_user`, `edit`, `execute`, `glob`, `grep`, `read`, `todo`, `web_fetch`; no delegation tool; nothing offered beyond the runtime names those enable and the runtime's own `skill` and `sql`; no VS Code identifier retained; neither the `web` nor the `search` alias, which enable no tool (github/copilot-cli#4594). Source profile: its tool list kept as written, and delegation (`task` and the background-agent tools) offered only while the runtime honours its `agents:` allow-list. Both: once selected, the profile filters the session's tools, and the model is offered `view`, `edit`, `create`, `powershell`, `grep`, `glob`, `web_fetch`, and `ask_user` |
+| C2 | Inspect the loaded profile's effective tools | Composed variant: exactly `ask_user`, `edit`, `execute`, `glob`, `grep`, `read`, `todo`, `web_fetch`; no delegation tool; nothing offered beyond the runtime names those enable and the runtime's own `skill` and `sql`; no VS Code identifier retained; neither the `web` nor the `search` alias, which enable no tool (github/copilot-cli#4594). Source profile: its tool list kept as written; no delegation tool (`task` and the background-agent tools), because nothing the run records shows that one stays inside the `agents:` allow-list, so C2 fails while one is offered, whatever the runtime warns; and nothing offered beyond the runtime names its entries enable and the runtime's own `sql`. Both: once selected, the profile filters the session's tools, and the model is offered `view`, `edit`, `create`, `powershell`, `grep`, `glob`, `web_fetch`, and `ask_user` |
 | C3 | Read the composed file itself | A client-limitation section precedes the shared body, between the begin and end markers, naming `review: on` and `cycle: full` as unavailable; the SHA-256 in the end marker matches the body that follows it |
 | C4 | Start the CLI interactively against the scratch `COPILOT_HOME` and list agents with `/agent` | `software-engineer` is listed, loaded from the scratch directory, with no warning. Not run yet: it needs an interactive terminal |
 
@@ -135,6 +146,16 @@ profile selected, the model was offered:
   found that it enabled nothing on the runtime of VS Code 1.139.1, and CLI
   1.0.96 still offers no todo tool for it.
 
+Since 2026-11-14, C2 fails closed on delegation: it fails while any delegation
+tool is offered to the VS Code client, whether or not the runtime warns that it
+ignores `agents:`, because nothing the run records shows the bound. Before, it
+failed only while that warning named `agents`, and a runtime that withheld
+delegation, the safe behaviour, failed the suite instead (RR04-01 and R04-01 of
+the re-review of 2026-11-13). The agent-host runtime now also has an
+allow-list, as the CLI has: every other tool it offers must be one the
+profile's entries enable there or its own `sql`. And the suite fails on every
+load warning it does not expect of a client, not only on an unknown field.
+
 **C3 passed** on the composed file: the limitation section sits once between
 its markers and names `review: on` and `cycle: full` as unavailable, and the
 SHA-256 in the end marker,
@@ -150,8 +171,11 @@ the shared body after it.
   as `customAgents` and selects a user agent by the same calls.
 - Any other runtime version: each receipt names one.
 - C1 and C2 on the agent-host runtime, which fail while the source profile
-  carries fields only local VS Code chat reads and the runtime ignores its
-  `agents:` allow-list.
+  carries fields only local VS Code chat reads and the runtime offers
+  delegation.
+- The bound of delegation itself: no case shows that `task` or `list_agents`
+  reaches only the agents the `agents:` list names, so C2 counts every
+  delegation tool offered to the VS Code client as unbounded.
 - The behavioral cases B1 to B8, which need model requests.
 
 ## Behavioral cases — model requests required, unexecuted

@@ -897,6 +897,38 @@ Describe 'Get-CopilotAtelierClientAdapter' -Tag 'Unit' {
         }
     }
 
+    It 'Should keep the Copilot CLI receipt bound through a model bump, which retires only the VS Code receipt' {
+        <#
+            The Copilot CLI variant emits no model, so a model bump leaves the
+            composed file as it was; only the profile VS Code loads changes.
+            docs/client-adapter-evals.md says so, and this keeps it true.
+        #>
+        $shipped = @(Get-CopilotAtelierClientAdapter -Name 'software-engineer')
+        $shippedCli = $shipped | Where-Object -Property Client -EQ -Value 'copilot-cli'
+
+        if (@($shipped | Where-Object -Property RuntimeReceiptStatus -NE -Value 'Bound').Count -gt 0)
+        {
+            Set-ItResult -Skipped -Because 'a receipt is not bound to the shipped profile, so a model bump has nothing to retire'
+            return
+        }
+
+        $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+        $agentDirectory = Join-Path $root 'com.github.copilot/agents'
+        New-Item -ItemType Directory -Path $agentDirectory -Force | Out-Null
+
+        $text = [System.IO.File]::ReadAllText($shippedCli.SourcePath)
+        $bumped = [regex]::new('(?m)^model:.*$').Replace($text, "model: ['Claude Opus 9 (copilot)', 'Claude Sonnet 9 (copilot)']", 1)
+        $bumped | Should -Not -BeExactly $text -Because 'the copy differs from the shipped profile in its model line alone'
+        [System.IO.File]::WriteAllText((Join-Path $agentDirectory 'software-engineer.agent.md'), $bumped, [System.Text.UTF8Encoding]::new($false))
+
+        $vsCode = Get-CopilotAtelierClientAdapter -Name 'software-engineer' -Client 'vscode' -ContentPath $root
+        $cli = Get-CopilotAtelierClientAdapter -Name 'software-engineer' -Client 'copilot-cli' -ContentPath $root
+
+        $vsCode.RuntimeReceiptStatus | Should -BeExactly 'Stale' -Because 'VS Code loads the profile itself, and the bump changed it'
+        $cli.ArtifactSha256 | Should -BeExactly $shippedCli.ArtifactSha256 -Because 'the composed variant emits no model'
+        $cli.RuntimeReceiptStatus | Should -BeExactly 'Bound'
+    }
+
     It 'Should not bind the source profile receipt to a copy whose bytes differ only in line endings' {
         <#
             The receipt vouches for the bytes the runtime read. A CRLF copy reads

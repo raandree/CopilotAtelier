@@ -1,7 +1,13 @@
 <#
     Runs the model-free cases C1 and C2 of docs/client-adapter-evals.md against
-    real Copilot runtimes, and re-checks the outcomes the client contract's
-    committed receipt records for them.
+    real Copilot runtimes, and re-checks the observation and the outcomes the
+    client contract's committed receipt records for them.
+
+    Get-ClientAdapterCaseVerdict in Helpers/ClientAdapterCase.ps1 decides both
+    cases and names what the suite does not accept of a client. The two Unit
+    blocks assert it in process, on what the runtimes recorded and on variations
+    of it, and on the observation each committed receipt records, so the rule is
+    checked on every system, also where no runtime is installed.
 
     Each run stages one artifact byte for byte in a scratch COPILOT_HOME: the
     composed Copilot CLI variant from output/clientAdapters on the standalone
@@ -96,11 +102,162 @@ BeforeDiscovery {
     )
 }
 
+Describe 'Rule of the model-free cases' -Tag 'Unit' {
+    <#
+        Get-ClientAdapterCaseVerdict decides C1 and C2 for the smoke cases below
+        and names what they do not accept of a client. These cases assert it in
+        process, on what runtime 1.0.108-0 recorded for the source profile and on
+        the variations the re-review of 2026-11-13 simulated, so the rule is
+        checked where no runtime is installed, as on a CI runner.
+    #>
+    BeforeAll {
+        . (Join-Path -Path $PSScriptRoot -ChildPath 'Helpers/ClientAdapterCase.ps1')
+
+        # The tools the source profile declares and the runtime kept, cut short: no case here varies them.
+        $script:sourceTool = @('agent', 'ask_user', 'edit/editFiles', 'execute/runInTerminal', 'glob', 'grep', 'read/readFile', 'todo', 'web_fetch')
+        $script:recordedWarning = 'agents\software-engineer.agent.md: unknown fields ignored: argument-hint, agents, handoffs'
+        $script:delegationTool = @('task', 'list_agents', 'read_agent', 'write_agent')
+        $script:offeredByAgentHost = @(
+            'ask_user', 'create', 'edit', 'glob', 'grep', 'list_agents', 'list_powershell', 'powershell', 'read_agent'
+            'read_powershell', 'sql', 'stop_powershell', 'task', 'update_todo', 'view', 'web_fetch', 'write_agent'
+        )
+
+        function script:New-AgentHostObservation
+        {
+            param
+            (
+                [string[]] $LoadWarning = @($script:recordedWarning),
+
+                [string[]] $OfferedWithAgent = $script:offeredByAgentHost
+            )
+
+            [pscustomobject] @{
+                ListedAsUserAgent   = $true
+                LoadError           = @()
+                LoadWarning         = $LoadWarning
+                LoadedTool          = $script:sourceTool
+                OfferedWithoutAgent = @(
+                    'ask_user', 'create', 'dynamic_workflows_manage', 'edit', 'glob', 'grep', 'list_agents', 'list_powershell'
+                    'powershell', 'probe_tool', 'read_agent', 'read_powershell', 'run_dynamic_workflow', 'semantic_code_search'
+                    'sql', 'stop_powershell', 'task', 'view', 'web_fetch', 'write_agent'
+                )
+                OfferedWithAgent    = $OfferedWithAgent
+            }
+        }
+    }
+
+    It 'fails C2 on the delegation the agent-host runtime offered while it warned that it ignores agents:' {
+        $verdict = Get-ClientAdapterCaseVerdict -Client 'vscode' -DeclaredTool $script:sourceTool -Observation (script:New-AgentHostObservation)
+
+        $verdict.Outcome.C2 | Should -BeExactly 'Failed'
+        @($verdict.Check | Where-Object -FilterScript { $_.Case -eq 'C2' -and -not $_.Holds }).Name | Should -Be @('Delegation')
+        $verdict.Violation | Should -BeNullOrEmpty -Because 'the VS Code receipt records this run, so the suite accepts it'
+    }
+
+    It 'fails C2 on delegation offered without a warning that names agents' {
+        $observation = script:New-AgentHostObservation -LoadWarning 'agents\software-engineer.agent.md: unknown fields ignored: argument-hint, handoffs'
+
+        $verdict = Get-ClientAdapterCaseVerdict -Client 'vscode' -DeclaredTool $script:sourceTool -Observation $observation
+
+        $verdict.Outcome.C2 |
+            Should -BeExactly 'Failed' -Because 'nothing shows the bound of task, list_agents, read_agent, and write_agent, whatever the runtime warns'
+        @($verdict.Check | Where-Object -FilterScript { $_.Case -eq 'C2' -and -not $_.Holds }).Name | Should -Be @('Delegation')
+    }
+
+    It 'passes C2 and asks for no delegation tool when the runtime withholds delegation' {
+        $observation = script:New-AgentHostObservation -OfferedWithAgent @($script:offeredByAgentHost | Where-Object -FilterScript { $_ -notin $script:delegationTool })
+
+        $verdict = Get-ClientAdapterCaseVerdict -Client 'vscode' -DeclaredTool $script:sourceTool -Observation $observation
+
+        $verdict.Outcome.C2 | Should -BeExactly 'Passed'
+        $verdict.Violation | Should -BeNullOrEmpty -Because 'withholding delegation is the safe behaviour'
+    }
+
+    It 'fails C2 and the suite on a tool beyond those the VS Code client allows' {
+        $offered = @($script:offeredByAgentHost | Where-Object -FilterScript { $_ -notin $script:delegationTool }) + 'web_search'
+        $observation = script:New-AgentHostObservation -OfferedWithAgent $offered
+
+        $verdict = Get-ClientAdapterCaseVerdict -Client 'vscode' -DeclaredTool $script:sourceTool -Observation $observation
+
+        $verdict.Outcome.C2 | Should -BeExactly 'Failed' -Because 'the profile declares nothing that enables web_search'
+        @($verdict.Check | Where-Object -FilterScript { $_.Case -eq 'C2' -and -not $_.Holds }).Name | Should -Be @('AllowList')
+        @($verdict.Violation | Where-Object -Property Name -EQ -Value 'AllowList').Detail | Should -Match 'web_search'
+    }
+
+    It 'fails the suite on a load warning it does not expect' {
+        $observation = script:New-AgentHostObservation -LoadWarning $script:recordedWarning, 'tool not found: useMcp'
+
+        $verdict = Get-ClientAdapterCaseVerdict -Client 'vscode' -DeclaredTool $script:sourceTool -Observation $observation
+
+        @($verdict.Violation).Name | Should -Be @('ExpectedWarning') -Because 'only the fields local VS Code chat alone reads may be ignored'
+        @($verdict.Violation).Detail | Should -Match 'tool not found: useMcp'
+    }
+
+    It 'fails C2 and the suite when the composed variant is offered delegation' {
+        $variantTool = @('ask_user', 'edit', 'execute', 'glob', 'grep', 'read', 'todo', 'web_fetch')
+        $observation = [pscustomobject] @{
+            ListedAsUserAgent   = $true
+            LoadError           = @()
+            LoadWarning         = @()
+            LoadedTool          = $variantTool
+            OfferedWithoutAgent = @('ask_user', 'create', 'edit', 'glob', 'grep', 'powershell', 'probe_tool', 'skill', 'sql', 'task', 'view', 'web_fetch')
+            OfferedWithAgent    = @('ask_user', 'create', 'edit', 'glob', 'grep', 'powershell', 'skill', 'sql', 'task', 'view', 'web_fetch')
+        }
+
+        $verdict = Get-ClientAdapterCaseVerdict -Client 'copilot-cli' -DeclaredTool $variantTool -Observation $observation
+
+        $verdict.Outcome.C2 | Should -BeExactly 'Failed'
+        @($verdict.Violation).Name | Should -Contain 'Delegation' -Because 'the composed variant withholds delegation it cannot bound'
+    }
+}
+
+Describe 'Committed runtime receipts' -Tag 'Unit' {
+    BeforeAll {
+        $script:projectPath = Convert-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath '..')
+        . (Join-Path -Path $script:projectPath -ChildPath 'tests/Helpers/DeploymentProfile.ps1')
+        . (Join-Path -Path $PSScriptRoot -ChildPath 'Helpers/ClientAdapterCase.ps1')
+        Import-CopilotAtelierTestModule -ProjectPath $script:projectPath
+    }
+
+    It 'decides every runtime case the <Client> receipt records from the observation it records' -ForEach @(
+        @{ Client = 'vscode' }
+        @{ Client = 'copilot-cli' }
+    ) {
+        <#
+            The smoke cases below need the runtimes. A receipt edited to record a
+            pass that its own observation refutes fails here instead, on every
+            system. A receipt that is not bound to the file a client loads claims
+            nothing, so it is skipped.
+        #>
+        $adapter = Get-CopilotAtelierClientAdapter -Name 'software-engineer' -Client $Client -ContentPath $script:projectPath
+
+        if ($adapter.RuntimeReceiptStatus -ne 'Bound')
+        {
+            Set-ItResult -Skipped -Because "the $Client receipt is $($adapter.RuntimeReceiptStatus) for the file a client loads"
+            return
+        }
+
+        $receipt = $adapter.RuntimeReceipt
+        $receipt.PSObject.Properties.Name | Should -Contain 'Observation' -Because 'a receipt records what its run observed'
+
+        $verdict = Get-ClientAdapterCaseVerdict -Client $Client -DeclaredTool $adapter.Tool -Observation $receipt.Observation
+
+        foreach ($case in @($receipt.Case | Where-Object -Property Kind -EQ -Value 'Runtime'))
+        {
+            $verdict.Outcome[$case.Id] |
+                Should -BeExactly $case.Outcome -Because "the receipt records $($case.Id) as $($case.Outcome), and its observation decides the case"
+        }
+
+        $verdict.Violation | Should -BeNullOrEmpty -Because 'a receipt is recorded only from a run the smoke suite accepts'
+    }
+}
+
 Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $script:adapterRuns {
     Context '<Artifact> on <Runtime>' -Skip:(-not $Available) {
         BeforeAll {
             $projectPath = Convert-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath '..')
             . (Join-Path -Path $projectPath -ChildPath 'tests/Helpers/DeploymentProfile.ps1')
+            . (Join-Path -Path $PSScriptRoot -ChildPath 'Helpers/ClientAdapterCase.ps1')
             Import-CopilotAtelierTestModule -ProjectPath $projectPath
 
             $utf8 = [Text.UTF8Encoding]::new($false)
@@ -223,65 +380,23 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
             $script:offeredWithout = @(@($script:run.requests | Where-Object -Property step -EQ -Value 2)[0].toolNames)
             $script:offeredWith = @(@($script:run.requests | Where-Object -Property step -EQ -Value 4)[0].toolNames)
 
-            # The runtime names of read, edit, execute, search, fetch, and ask_user on Windows.
-            $script:workflowTool = @('view', 'edit', 'create', 'powershell', 'grep', 'glob', 'web_fetch', 'ask_user')
-            $script:delegationTool = @('task', 'list_agents', 'read_agent', 'write_agent')
-
-            # Everything the composed variant's eight entries can enable, plus the tools the runtime always offers.
-            $script:cliAllowedTool = @(
-                'ask_user', 'view', 'edit', 'create', 'grep', 'glob', 'web_fetch'
-                'powershell', 'read_powershell', 'write_powershell', 'list_powershell', 'stop_powershell'
-                'update_todo', 'skill', 'sql'
-            )
-
-            # The fields the source profile carries for local VS Code chat only; nothing else may be ignored.
-            $script:vsCodeOnlyField = @('agents', 'argument-hint', 'handoffs')
-
-            $script:ignoredField = @(
-                foreach ($warning in $script:loadWarning)
-                {
-                    if ($warning -match 'unknown fields? ignored:\s*(?<field>.+)$')
-                    {
-                        $Matches['field'] -split ',' | ForEach-Object -Process { $_.Trim() } | Where-Object -FilterScript { $_ }
-                    }
-                }
-            ) | Sort-Object
-
-            $script:isListedFromScratch = $script:listed.Count -eq 1 -and
-                [IO.Path]::GetFullPath([string] $script:listed[0].path) -eq [IO.Path]::GetFullPath($script:stagedPath) -and
-                $script:listed[0].source -eq 'user'
-
-            $loadedTool = @($script:selected.tools | Sort-Object)
-            $declaredTool = @($script:adapter.Tool | Sort-Object)
-            $script:delegationOffered = @($script:offeredWith | Where-Object -FilterScript { $_ -in $script:delegationTool })
-            $script:isAllowListIgnored = 'agents' -in $script:ignoredField
-
-            $c2Holds = ($loadedTool -join ',') -eq ($declaredTool -join ',') -and
-                'probe_tool' -in $script:offeredWithout -and
-                'probe_tool' -notin $script:offeredWith -and
-                @($script:workflowTool | Where-Object -FilterScript { $_ -notin $script:offeredWith }).Count -eq 0
-
-            if ($Client -eq 'copilot-cli')
-            {
-                # C2 also requires the delegation tool withheld, nothing beyond the mapped tools, no VS Code
-                # identifier, and neither dead alias.
-                $c2Holds = $c2Holds -and $script:delegationOffered.Count -eq 0 -and
-                    @($script:offeredWith | Where-Object -FilterScript { $_ -notin $script:cliAllowedTool }).Count -eq 0 -and
-                    @($loadedTool | Where-Object -FilterScript { $_ -match '/' -or $_ -in @('web', 'search') }).Count -eq 0
-            }
-            else
-            {
-                # Delegation without its agents: allow-list is a privilege widening, so it fails C2.
-                $c2Holds = $c2Holds -and -not ($script:isAllowListIgnored -and $script:delegationOffered.Count -gt 0)
+            # What the run observed, in the shape a receipt records it; the helper decides both cases from it.
+            $script:observation = [pscustomobject] @{
+                ListedAsUserAgent   = $script:listed.Count -eq 1 -and
+                    [IO.Path]::GetFullPath([string] $script:listed[0].path) -eq [IO.Path]::GetFullPath($script:stagedPath) -and
+                    $script:listed[0].source -eq 'user'
+                LoadError           = $script:loadError
+                LoadWarning         = $script:loadWarning
+                LoadedTool          = @($script:selected.tools | Sort-Object)
+                OfferedWithoutAgent = @($script:offeredWithout | Sort-Object)
+                OfferedWithAgent    = @($script:offeredWith | Sort-Object)
             }
 
-            $script:outcome = [ordered] @{
-                C1 = if ($script:isListedFromScratch -and $script:loadError.Count -eq 0 -and $script:loadWarning.Count -eq 0) { 'Passed' } else { 'Failed' }
-                C2 = if ($c2Holds) { 'Passed' } else { 'Failed' }
-            }
+            $script:verdict = Get-ClientAdapterCaseVerdict -Client $Client -DeclaredTool $script:adapter.Tool -Observation $script:observation
+            $script:outcome = $script:verdict.Outcome
 
             Write-Information -InformationAction Continue -MessageData (
-                '{0}: {1} at {2}, runtime version {3}; staged {4} (SHA-256 {5}); C1 {6}, C2 {7}; load warnings: {8}; offered without the agent: {9}; offered with it: {10}' -f
+                '{0}: {1} at {2}, runtime version {3}; staged {4} (SHA-256 {5}); C1 {6}, C2 {7}; not accepted: {8}; load warnings: {9}; kept: {10}; offered without the agent: {11}; offered with it: {12}' -f
                 $Client,
                 $Runtime,
                 $(if ($RuntimePath) { $RuntimePath } else { Join-Path -Path $PackageRoot -ChildPath 'prebuilds\win32-x64\copilot-runtime.exe' }),
@@ -290,9 +405,11 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
                 $script:stagedSha256,
                 $script:outcome.C1,
                 $script:outcome.C2,
+                $(if ($script:verdict.Violation) { @($script:verdict.Violation | ForEach-Object -Process { $_.Name }) -join ', ' } else { 'none' }),
                 $(if ($script:loadWarning) { $script:loadWarning -join ' | ' } else { 'none' }),
-                (@($script:offeredWithout | Sort-Object) -join ', '),
-                (@($script:offeredWith | Sort-Object) -join ', ')
+                ($script:observation.LoadedTool -join ', '),
+                ($script:observation.OfferedWithoutAgent -join ', '),
+                ($script:observation.OfferedWithAgent -join ', ')
             )
         }
 
@@ -318,16 +435,9 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
             $script:loadError | Should -BeNullOrEmpty
         }
 
-        It 'C1: warns about nothing but the fields only local VS Code chat reads' {
-            if ($Client -eq 'copilot-cli')
-            {
-                $script:loadWarning | Should -BeNullOrEmpty -Because 'the composed variant emits only fields the client reads'
-            }
-            else
-            {
-                ($script:ignoredField -join ',') |
-                    Should -BeExactly ($script:vsCodeOnlyField -join ',') -Because 'a newly ignored field, or one the runtime starts to read, changes what the receipt shows'
-            }
+        It 'C1: warns about nothing the suite does not expect of this client' {
+            @($script:verdict.Violation | Where-Object -Property Name -EQ -Value 'ExpectedWarning').Detail |
+                Should -BeNullOrEmpty -Because 'the composed variant emits only fields its client reads, and the source profile only fields local VS Code chat reads'
         }
 
         It 'C2: keeps exactly the tools the file declares' {
@@ -340,39 +450,31 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
         }
 
         It 'C2: offers the read, edit, execution, search, fetch, and question tools the workflow needs' {
-            foreach ($name in $script:workflowTool)
-            {
-                $script:offeredWith | Should -Contain $name
-            }
+            @($script:verdict.Violation | Where-Object -Property Name -EQ -Value 'WorkflowTool').Detail | Should -BeNullOrEmpty
         }
 
-        It 'C2: offers delegation only where the profile can bound it' {
+        It 'C2: offers nothing beyond the tools its client allows' {
+            @($script:verdict.Violation | Where-Object -Property Name -EQ -Value 'AllowList').Detail |
+                Should -BeNullOrEmpty -Because 'a tool the file cannot enable on this runtime fails C2 until a review adds it to the allow-list'
+        }
+
+        It 'C2: offers no delegation it cannot bound, or fails' {
+            $delegation = $script:verdict.Check | Where-Object -Property Name -EQ -Value 'Delegation'
+
             if ($Client -eq 'copilot-cli')
             {
-                foreach ($name in $script:delegationTool)
-                {
-                    $script:offeredWith | Should -Not -Contain $name -Because 'the composed variant withholds delegation it cannot bound'
-                }
-
-                @($script:offeredWith | Where-Object -FilterScript { $_ -notin $script:cliAllowedTool }) |
-                    Should -BeNullOrEmpty -Because 'nothing beyond the mapped tools and the tools the runtime always offers'
-                @($script:selected.tools | Where-Object -FilterScript { $_ -match '/' }) |
-                    Should -BeNullOrEmpty -Because 'no VS Code identifier survives the composition'
-                $script:selected.tools | Should -Not -Contain 'web'
-                $script:selected.tools | Should -Not -Contain 'search'
+                $delegation.Detail | Should -BeNullOrEmpty -Because 'the composed variant withholds delegation it cannot bound'
+                @($script:verdict.Violation | Where-Object -Property Name -EQ -Value 'ClientIdentifier').Detail |
+                    Should -BeNullOrEmpty -Because 'no VS Code identifier and neither dead alias survives the composition'
             }
-            elseif ($script:isAllowListIgnored -and $script:delegationOffered.Count -gt 0)
+            elseif (-not $delegation.Holds)
             {
-                $script:outcome.C2 |
-                    Should -BeExactly 'Failed' -Because "the runtime ignores agents: and still offers $($script:delegationOffered -join ', '), which is delegation without its bound"
-            }
-            else
-            {
-                $script:offeredWith | Should -Contain 'task' -Because 'the source profile declares agent, and its allow-list is honoured'
+                # Nothing shows the bound, so any delegation tool offered to this client counts as unbounded.
+                $script:outcome.C2 | Should -BeExactly 'Failed' -Because $delegation.Detail
             }
         }
 
-        It 'reproduces the outcome of every runtime case its committed receipt records' {
+        It 'reproduces the observation and the outcomes its committed receipt records' {
             $contract = InModuleScope CopilotAtelier { Get-CopilotAtelierClientContract }
             $receiptMap = $contract.Client[$Client].RuntimeReceipt
             $receipt = if ($receiptMap -and $receiptMap.Contains($script:agentName)) { $receiptMap[$script:agentName] }
@@ -393,6 +495,14 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
             {
                 Set-ItResult -Skipped -Because "the receipt is bound to $($receipt.ArtifactSha256), and the file now hashes to $script:stagedSha256; run the cases again and record the new receipt"
                 return
+            }
+
+            $receipt.PSObject.Properties.Name | Should -Contain 'Observation' -Because 'a receipt records what its run observed'
+
+            foreach ($name in 'ListedAsUserAgent', 'LoadError', 'LoadWarning', 'LoadedTool', 'OfferedWithoutAgent', 'OfferedWithAgent')
+            {
+                (@($script:observation.$name | Sort-Object) -join ' | ') |
+                    Should -BeExactly (@($receipt.Observation.$name | Sort-Object) -join ' | ') -Because "the receipt records $name as its run observed it"
             }
 
             foreach ($case in @($receipt.Case | Where-Object -Property Kind -EQ -Value 'Runtime'))
