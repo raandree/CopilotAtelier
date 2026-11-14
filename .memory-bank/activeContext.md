@@ -9,12 +9,12 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 17, C2 that fails closed (2026-11-14), is done on `ai/c2-fail-closed`**, stacked on brief 16's branch, not pushed. Option 1
-under the owner's delegation: C2 fails while any delegation tool is offered to the VS Code client, whatever the runtime warns.
-`Get-ClientAdapterCaseVerdict` (`tests/Helpers/ClientAdapterCase.ps1`) decides C1 and C2 for each run and, on every CI leg, for the
-`Observation` each receipt now records; the agent-host runtime has a tool allow-list, and a warning must match the expected notice in full.
-`RuntimeVerified` needs every case of a bound receipt to pass, read exactly (R17-01). Review: Approve with changes (1 Minor, 3 Nit), then
-Approve and a Nit round (R17-05 to R17-07); full gate on `c8b22b7` 5,893 passed, 0 failed, 145 skipped, coverage 91.61 %.
+**Brief 12, the module folders in `WritableRoots` (2026-11-14), is done on `ai/writable-roots-module-folders`**, stacked on brief 17's
+branch, not pushed. Q1 to Q4 under the owner's delegation: beside the escape set, the check measures every place PowerShell loads modules
+from (the verifier's `PSModulePath`, `$PSHOME\Modules`, both `powershell.config.json` folders and files, and on Windows 5.1's two folders, or
+its relative `WindowsPowerShell\Modules` when `Documents` does not resolve), inside a declared root or not; a place this identity can replace
+counts as writable (`DELETE` on Windows, the folder above elsewhere); every path and reason is relayed. Review: Request changes twice (R12-01 to
+R12-09), then Approve; gate on `a137a19` 5,989 passed, 0 failed, 91.61 %. Verifier `d7d2b02f…f869`; the guard's 5.1 exposure goes to brief 18.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
@@ -44,6 +44,8 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
 
 ## Previous focuses
 
+- **Brief 17, C2 that fails closed (2026-11-14).** On `ai/c2-fail-closed`, stacked on brief 16, not pushed: C2 fails while any delegation
+  tool is offered to the VS Code client, and `RuntimeVerified` needs every case of a bound receipt to pass, read exactly; gate 5,893 passed.
 - **Brief 16, the Reddit quarantine (2026-11-14).** On `ai/reddit-quarantine`, stacked on brief 13, not pushed: `quarantined-reader` is
   user-invocable and hidden from the subagent list, the agent only runs `reddit-read`, and SHA-256 pins hold seven reviewed places.
 - **Brief 13, S-19 (2026-11-13).** On `ai/s19-replayed-acknowledgement` (#59, checks green, not merged: the push guard denied the merge):
@@ -62,11 +64,6 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
   rollover is #55 (`f358226`, 23:43 UTC); the reply to #49 is posted.
 - **Brief 03, the travel work (2026-11-10).** Merged as #53 (`dc714ba`, `6.1.0-preview0025`): two Markdown rules, signed-in Reddit
   reading with the `quarantined-reader` agent (reworked by brief 16), and the Skills `travel-handbook` and `travel-planning`.
-- **S-33 and R-04 (#42 to #45, to 2026-11-09).** A second colon in a hook program path is refused (#45, `a481c9d`), and
-  `IdentityPrivilege` refuses a token that is not a standard account's (#42; decision 0025). The deployed verifier
-  hashed to `dd415737…2415` on 2026-11-09; a containment profile elsewhere pins that digest.
-- **The agents' models (2026-11-09).** Opus 5.5 and Sonnet 5.5 on `main` (`ea19ba4`, `6.1.0-preview0022`;
-  Decision record 0029); the Skill index on `main` (`661c30a`); the R-04 closing test passed.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -94,6 +91,9 @@ Earlier route-selection and trigger-query sets remain unmeasured. ShellPilot's
 
 ## Open findings
 
+- **Residual (2026-11-14, brief 12, on `ai/writable-roots-module-folders`):** the push guard's own exposure under Windows PowerShell 5.1
+  (R12-02, R12-08) is brief 18's; a Pass of `WritableRoots` describes the state at the check; the rename of `Documents` through the profile
+  folder, the registry and `USERPROFILE` re-point, `WRITE_DAC` and `WRITE_OWNER` on a place, and modules inside a place are not judged; POSIX unrun.
 - **Residual (2026-11-14, brief 16, on `ai/reddit-quarantine`):** RR03-01 to RR03-04 are fixed; by instruction only, a caller without an explicit
   `agents:` list (VS Code's built-in Agent), or an agent-host agent holding `agent` while `infer: false` is unverified, can still run `quarantined-reader`
   by name, and its file tool reaches `auth-state/`. Owner's follow-ups (handoff `backlog.md`): a hook that denies that call, a session-start note without
@@ -101,7 +101,7 @@ Earlier route-selection and trigger-query sets remain unmeasured. ShellPilot's
 - **Residual (2026-11-14, brief 17, on `ai/c2-fail-closed`):** a receipt edited together with its `Observation` still passes every test that
   runs without the runtimes (consistency, not provenance: only a run at its version refutes it); the allow-lists bound `software-engineer` only.
 - **Minor (2026-11-13, review R11-01):** at least 26 exception texts of the containment verifier (20 into its evidence), the event
-  names of hooks.json, the grants root and the escape-set paths still pass unrelayed; brief 11 closed only the hook check's texts.
+  names of hooks.json and the grants root still pass unrelayed; briefs 11 and 12 closed the hook check's and `WritableRoots`' texts.
 - **Low (2026-11-12, review R04-14):** six private SHA-256 hex helpers in `source/` and the copied SDK lookup in two runtime suites
   could share one helper each; deferred by the owner.
 - **Medium (2026-11-12):** VS Code Local chats are not probed for the hook input of Skill and file tools: their tool names, payload,
@@ -159,8 +159,9 @@ unproven — train reached 100 % while validation fell.
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
 3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): #59 (brief 13) waits on the owner's
-   merge and the re-pin of the appender digest (and #58's verifier digest) in any containment profile. Briefs 16 and 17 (done), 12 (next), 14,
-   and 15 run stacked on its branch, local and unpushed; after #59 is squash-merged, one rebase moves the stack onto `main`. From briefs 03 and 16:
+   merge and the re-pin of the appender digest (and #58's verifier digest) in any containment profile. Briefs 16, 17, and 12 (done), 14 (next),
+   then 15 and 18 run stacked on its branch, local and unpushed; after #59 is squash-merged, one rebase moves the stack onto `main`, and brief
+   12's verifier digest `d7d2b02f…f869` needs a re-pin once merged. From briefs 03 and 16:
    delete any leftover `extracted\all-cookies.json`, copy the changed Reddit files into `CareerAuthBrowser`, delete `auth-extract.prompt.md`
    or keep `reddit-read` out of it, and check `reddit-read` and the reader's own chat live. Then close #49 and route R11-01 and the other
    P5 follow-ups (`docs/SECURITY-REVIEW.md`). `ai/travel-photo-diary-skill` exists only on the other machine.

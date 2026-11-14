@@ -19,6 +19,10 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
 
 ## Recent milestones
 
+- **2026-11-14**: Brief 12, the module folders in `WritableRoots` (`software-engineer`, a controller run), on `ai/writable-roots-module-folders`,
+  stacked on brief 17, not pushed. Q1 to Q4 under the owner's delegation: the check also measures every place PowerShell loads modules from,
+  Windows PowerShell 5.1's included, inside a declared root or not; a place this identity can replace counts as writable; every path and reason
+  is relayed. Red first; 64 mutants, X09 equivalent. Request changes twice (R12-01 to R12-09), then Approve; gate 5,989 passed, 0 failed, 91.61 %.
 - **2026-11-14**: Brief 17, C2 that fails closed (`software-engineer`, a controller run), on `ai/c2-fail-closed`, stacked on brief 16, not
   pushed. Option 1 under the owner's delegation: C2 fails while any delegation tool is offered to the VS Code client; one helper decides C1
   and C2 for each run and, on every CI leg, for each receipt's recorded `Observation`; `RuntimeVerified` needs every case to pass, read
@@ -47,12 +51,6 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
   the agent host's `enableConfigDiscovery`, `enableFileHooks`, and `enableSkills` (44 of 44); a new block pins the hook input for
   `skill`, `view` (`Read`), `edit` (`Edit`), and `create` (`Write`) in that runtime and Copilot CLI 1.0.96, red first (14 failed),
   then 18 of 18. The owner declined a Skill-use and a changed-file collector.
-- **2026-11-11**: Brief 10, GitHub issue #49 (`software-engineer`), merged as #54 (`a3167d8`) and released as `v6.1.0`: the owner-ruled `Update-CopilotAtelier
-  -AllowPrerelease` installs previews, and without it the command names a newer preview. Versions keep and compare their prerelease labels
-  through `Get-CopilotAtelierModuleVersion` and `Compare-CopilotAtelierVersion`, also in Windows PowerShell 5.1 (no `SemanticVersion`); the
-  Deployment record, `IsCurrent`, and `VersionDrift` follow; Install and Test warn about a git working tree as Canonical target. Red first;
-  an independent review's Blocker (PowerShellGet 3 reports the label separately) and Major (an update that did not land) fixed test-first.
-  The release run pushed the rollover branch but could not open its pull request; #55 merged it with the final newline restored.
 
 ## Stable capabilities
 
