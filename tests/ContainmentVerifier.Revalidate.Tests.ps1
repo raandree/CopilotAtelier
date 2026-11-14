@@ -144,6 +144,53 @@ Describe 'Revalidation summary line' -Tag 'Unit' {
 
         $line | Should -Not -Match '[^\x20-\x7E]'
     }
+
+    It 'gives both calls of the script the run id, the role and the count from one set of arguments' {
+        # Review R14-13: no test host reaches the line of a revalidation that passed. Both calls take these
+        # arguments from one set, which the line a test host reaches shows end to end, and neither call
+        # names one of them itself, which would override the set. A unique prefix binds like the name.
+        # The main script names the set only where it builds it and where it splats it, so nothing
+        # changes the set for one of the two calls.
+        $tree = [System.Management.Automation.Language.Parser]::ParseFile($script:verifierScript, [ref]$null, [ref]$null)
+        $call = @($tree.FindAll({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'Format-RevalidationSummary'
+                }, $true))
+        $shared = @($tree.EndBlock.Statements | Where-Object -FilterScript {
+                $_ -is [System.Management.Automation.Language.AssignmentStatementAst] -and $_.Left.Extent.Text -ceq '$summary'
+            })
+        $reference = @($tree.EndBlock.Statements | Where-Object -FilterScript {
+                $_ -isnot [System.Management.Automation.Language.FunctionDefinitionAst]
+            } | ForEach-Object -Process {
+                $_.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.VariableExpressionAst] -and $node.VariablePath.UserPath -match '\A(?:(?:global|local|private|script):)?summary\z'
+                    }, $true)
+            })
+
+        $call | Should -HaveCount 2
+        foreach ($item in $call) {
+            @($item.CommandElements | Where-Object -FilterScript {
+                    $_ -is [System.Management.Automation.Language.VariableExpressionAst] -and $_.Splatted -and $_.VariablePath.UserPath -ceq 'summary'
+                }) | Should -HaveCount 1 -Because $item.Extent.Text
+            @($item.CommandElements | Where-Object -FilterScript {
+                    $parameter = $_
+                    $parameter -is [System.Management.Automation.Language.CommandParameterAst] -and
+                    @('RunId', 'Role', 'CheckCount' | Where-Object -FilterScript { $_.StartsWith($parameter.ParameterName, [System.StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
+                }) | Should -HaveCount 0 -Because $item.Extent.Text
+        }
+
+        $shared | Should -HaveCount 1
+        $reference | Should -HaveCount 3 -Because 'the main script names the set once to build it and twice to splat it'
+        $pair = @{}
+        foreach ($entry in $shared[0].Right.Find({ param($node) $node -is [System.Management.Automation.Language.HashtableAst] }, $true).KeyValuePairs) {
+            $pair[$entry.Item1.Extent.Text] = $entry.Item2.Extent.Text
+        }
+
+        $pair['RunId'] | Should -BeExactly '$revalidatedRun'
+        $pair['Role'] | Should -BeExactly '$Role'
+        $pair['CheckCount'] | Should -BeExactly '$check.Count'
+    }
 }
 
 Describe 'Pinned appender validation' -Tag 'Unit' {

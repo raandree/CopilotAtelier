@@ -5805,9 +5805,13 @@ foreach ($result in $blocking) {
     [Console]::Error.WriteLine("Containment $($result.status): $($result.name) - $($result.evidence)")
 }
 
+# One set of arguments for both summary lines of a revalidation: no test host passes the machine gates, so
+# only the line of a revalidation that did not pass is shown end to end, and it shows what both lines get.
+$summary = @{ Role = $Role; RunId = $revalidatedRun; CheckCount = $check.Count }
+
 if ($verdict -eq 'Pass') {
     if ($mode -eq 'Revalidate') {
-        Write-Output (Format-RevalidationSummary -Verdict 'Pass' -Role $Role -RunId $revalidatedRun -BlockingCount 0 -CheckCount $check.Count)
+        Write-Output (Format-RevalidationSummary -Verdict 'Pass' -BlockingCount 0 @summary)
     } else {
         Write-Output "Containment verified for $Role with $($check.Count) checks passed."
     }
@@ -5816,7 +5820,7 @@ if ($verdict -eq 'Pass') {
 }
 
 if ($mode -eq 'Revalidate') {
-    Write-Output (Format-RevalidationSummary -Verdict 'Fail' -Role $Role -RunId $revalidatedRun -BlockingCount $blocking.Count -CheckCount $check.Count)
+    Write-Output (Format-RevalidationSummary -Verdict 'Fail' -BlockingCount $blocking.Count @summary)
 } else {
     Write-Output "Containment NOT verified for ${Role}: $($blocking.Count) of $($check.Count) checks did not pass."
 }
