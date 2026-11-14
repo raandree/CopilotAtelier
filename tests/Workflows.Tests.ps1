@@ -155,7 +155,7 @@ Describe 'GitHub Actions workflows' -Tag 'Unit' {
     Context 'Dependency resolution from the PowerShell Gallery' {
         <#
             A transient refusal of the PowerShell Gallery failed the Package Module
-            job of run 38637411323 before any repository code ran. The dependency
+            job of run 38637411323 before any build task ran. The dependency
             resolution therefore runs as a step of its own and is retried; the
             build, the tests, and the release run once.
         #>
@@ -163,13 +163,28 @@ Describe 'GitHub Actions workflows' -Tag 'Unit' {
             $script:buildScriptPath = Convert-Path -LiteralPath (Join-Path -Path $script:workflowPath -ChildPath '../../build.ps1')
             $script:pwshPath = (Get-Command -Name 'pwsh' -CommandType 'Application' -ErrorAction 'SilentlyContinue' | Select-Object -First 1).Source
 
-            # Stands in for build.ps1: records each call and whether its session ran an earlier one, and fails the first calls.
-            $script:fakeBuildScript = @'
+            <#
+                Stands in for build.ps1, with its real parameter block, so it binds
+                what build.ps1 binds. It records each call: whether its session ran
+                an earlier one, the parameters bound, and what output/RequiredModules
+                held at its start. It leaves a module of its own there and fails the
+                first calls.
+            #>
+            $buildParamBlock = [System.Management.Automation.Language.Parser]::ParseFile($script:buildScriptPath, [ref] $null, [ref] $null).ParamBlock
+            $script:fakeBuildScript = @(
+                $buildParamBlock.Attributes | ForEach-Object -Process { $_.Extent.Text }
+                $buildParamBlock.Extent.Text
+                @'
 $fresh = -not (Test-Path -LiteralPath 'variable:global:FakeBuildRan')
 $global:FakeBuildRan = $true
+$moduleFolder = Join-Path -Path $PSScriptRoot -ChildPath 'output/RequiredModules'
+$found = @(Get-ChildItem -LiteralPath $moduleFolder -Name -ErrorAction 'SilentlyContinue' | Sort-Object) -join ','
+$bound = @($PSBoundParameters.GetEnumerator() | Sort-Object -Property 'Key' | ForEach-Object -Process { '{0}={1}' -f $_.Key, (@($_.Value) -join ',') }) -join ';'
 $callPath = Join-Path -Path $PSScriptRoot -ChildPath 'calls.log'
-Add-Content -LiteralPath $callPath -Value ('{0}|{1}' -f $fresh, ($args -join ' '))
+Add-Content -LiteralPath $callPath -Value ('{0}|{1}|{2}' -f $fresh, $bound, $found)
 $call = @(Get-Content -LiteralPath $callPath).Count
+$null = New-Item -Path $moduleFolder -ItemType 'Directory' -Force
+Set-Content -LiteralPath (Join-Path -Path $moduleFolder -ChildPath "call$call") -Value $call
 $failedCall, $failure = (Get-Content -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath 'failure.txt')) -split ' '
 if ($call -le [System.Int32] $failedCall)
 {
@@ -184,16 +199,78 @@ if ($call -le [System.Int32] $failedCall)
     }
 }
 '@
+            ) -join [System.Environment]::NewLine
+
+            function ConvertTo-BuildCall
+            {
+                <#
+                    Binds the arguments that follow the script element of a call of
+                    build.ps1 with PowerShell's own parameter binder, against the
+                    parameters of the real build.ps1.
+                #>
+                param
+                (
+                    [Parameter(Mandatory = $true)]
+                    [System.Management.Automation.Language.CommandAst]
+                    $CommandAst,
+
+                    [Parameter(Mandatory = $true)]
+                    [System.Management.Automation.Language.CommandElementAst]
+                    $ScriptElement,
+
+                    [Parameter(Mandatory = $true)]
+                    [System.Boolean]
+                    $InChildProcess,
+
+                    [Parameter(Mandatory = $true)]
+                    [System.Boolean]
+                    $RunsAlone
+                )
+
+                $argumentText = $CommandAst.Extent.Text.Substring($ScriptElement.Extent.EndOffset - $CommandAst.Extent.StartOffset)
+                $bindingAst = [System.Management.Automation.Language.Parser]::ParseInput(
+                    ("& '{0}'{1}" -f $script:buildScriptPath.Replace("'", "''"), $argumentText), [ref] $null, [ref] $null
+                )
+                $binding = [System.Management.Automation.Language.StaticParameterBinder]::BindCommand(
+                    $bindingAst.Find({ param ($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true), $true
+                )
+                $task = @('.')
+
+                if ($binding.BoundParameters.ContainsKey('Tasks'))
+                {
+                    $taskAst = $binding.BoundParameters['Tasks'].Value
+
+                    try
+                    {
+                        $task = @($taskAst.SafeGetValue())
+                    }
+                    catch
+                    {
+                        $task = @($taskAst.Extent.Text)
+                    }
+                }
+
+                [pscustomobject]@{
+                    Text           = $CommandAst.Extent.Text
+                    Bound          = $binding.BindingExceptions.Count -eq 0 -and $CommandAst.Extent.Text -notmatch '\$\{\{'
+                    Parameter      = @($binding.BoundParameters.Keys)
+                    Task           = $task
+                    InChildProcess = $InChildProcess
+                    RunsAlone      = $RunsAlone
+                }
+            }
 
             function Get-BuildCall
             {
                 <#
-                    Each call of build.ps1 in the PowerShell script of a step, also one
-                    the script hands a child pwsh as a string, bound by PowerShell's own
-                    parameter binder, so that the alias -bootstrap and an abbreviated
-                    name count too. A mention of build.ps1 that is no call it can bind,
-                    and a call whose arguments a workflow expression fills in, come
-                    back with Bound set to $false.
+                    Each call of build.ps1 in the PowerShell script of a step: a call
+                    of its own, or one that a pwsh or powershell call starts with
+                    -Command or -File. It is bound by PowerShell's own parameter
+                    binder, so that the alias -bootstrap and an abbreviated name count
+                    too, and comes back with Bound set to $false when it cannot be
+                    bound or a workflow expression fills in its arguments. A comment
+                    or a log line that only names build.ps1 is no call. RunsAlone
+                    says that nothing but comments and line breaks surrounds the call.
                 #>
                 param
                 (
@@ -209,70 +286,58 @@ if ($call -le [System.Int32] $failedCall)
 
                 $token = $null
                 $scriptAst = [System.Management.Automation.Language.Parser]::ParseInput($Script, [ref] $token, [ref] $null)
-                $callAst = @(
-                    $scriptAst.FindAll({
-                            param ($node)
-
-                            $node -is [System.Management.Automation.Language.CommandAst] -and
-                                $node.GetCommandName() -match '(?:^|[\\/])build\.ps1$'
-                        }, $true)
+                $significantToken = @(
+                    $token | Where-Object -FilterScript { $_.Kind -notin 'Comment', 'NewLine', 'LineContinuation', 'EndOfInput' }
                 )
 
-                foreach ($mention in @($token | Where-Object -FilterScript { $_.Kind -ne 'Comment' -and $_.Text -match 'build\.ps1' }))
+                foreach ($commandAst in $scriptAst.FindAll({ param ($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true))
                 {
-                    $call = @(
-                        $callAst | Where-Object -FilterScript {
-                            $_.CommandElements[0].Extent.StartOffset -eq $mention.Extent.StartOffset
-                        }
-                    )
+                    $element = $commandAst.CommandElements
+                    $commandName = $commandAst.GetCommandName()
 
-                    if ($call.Count -eq 1)
+                    if ($commandName -match '(?:^|[\\/])build\.ps1$')
                     {
-                        $argumentText = $call[0].Extent.Text.Substring($call[0].CommandElements[0].Extent.EndOffset - $call[0].Extent.StartOffset)
-                        $bindingAst = [System.Management.Automation.Language.Parser]::ParseInput(
-                            ("& '{0}'{1}" -f $script:buildScriptPath.Replace("'", "''"), $argumentText), [ref] $null, [ref] $null
+                        $tokenOutside = @(
+                            $significantToken | Where-Object -FilterScript {
+                                $_.Extent.StartOffset -lt $commandAst.Extent.StartOffset -or $_.Extent.EndOffset -gt $commandAst.Extent.EndOffset
+                            }
                         )
-                        $binding = [System.Management.Automation.Language.StaticParameterBinder]::BindCommand(
-                            $bindingAst.Find({ param ($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true), $true
-                        )
-                        $task = @('.')
 
-                        if ($binding.BoundParameters.ContainsKey('Tasks'))
+                        ConvertTo-BuildCall -CommandAst $commandAst -ScriptElement $element[0] -InChildProcess $InChildProcess.IsPresent -RunsAlone (
+                            -not $InChildProcess -and $tokenOutside.Count -eq 0
+                        )
+                    }
+                    elseif ($commandName -match '(?:^|[\\/])(?:pwsh|powershell)(?:\.exe)?$')
+                    {
+                        for ($index = 1; $index -lt $element.Count; $index++)
                         {
-                            $taskAst = $binding.BoundParameters['Tasks'].Value
-
-                            try
+                            if ($element[$index] -is [System.Management.Automation.Language.CommandParameterAst] -and
+                                $element[$index].ParameterName.Length -gt 0 -and
+                                'command'.StartsWith($element[$index].ParameterName, [System.StringComparison]::OrdinalIgnoreCase))
                             {
-                                $task = @($taskAst.SafeGetValue())
-                            }
-                            catch
-                            {
-                                $task = @($taskAst.Extent.Text)
-                            }
-                        }
+                                $commandText = $element[$index].Argument
 
-                        [pscustomobject]@{
-                            Text           = $call[0].Extent.Text
-                            Bound          = $binding.BindingExceptions.Count -eq 0 -and $call[0].Extent.Text -notmatch '\$\{\{'
-                            Parameter      = @($binding.BoundParameters.Keys)
-                            Task           = $task
-                            InChildProcess = $InChildProcess.IsPresent
-                            RunsAlone      = -not $InChildProcess -and $Script.Trim() -ceq $call[0].Extent.Text
-                        }
-                    }
-                    elseif ($mention -is [System.Management.Automation.Language.StringToken])
-                    {
-                        Get-BuildCall -Script $mention.Value -InChildProcess
-                    }
-                    else
-                    {
-                        [pscustomobject]@{
-                            Text           = $mention.Text
-                            Bound          = $false
-                            Parameter      = @()
-                            Task           = @()
-                            InChildProcess = $InChildProcess.IsPresent
-                            RunsAlone      = $false
+                                if (-not $commandText -and $index + 1 -lt $element.Count)
+                                {
+                                    $commandText = $element[$index + 1]
+                                }
+
+                                if ($commandText -is [System.Management.Automation.Language.StringConstantExpressionAst] -or
+                                    $commandText -is [System.Management.Automation.Language.ExpandableStringExpressionAst])
+                                {
+                                    Get-BuildCall -Script $commandText.Value -InChildProcess
+                                }
+
+                                break
+                            }
+
+                            if ($element[$index] -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+                                $element[$index].Value -match '(?:^|[\\/])build\.ps1$')
+                            {
+                                # -File ./build.ps1, or the script as the first argument of pwsh.
+                                ConvertTo-BuildCall -CommandAst $commandAst -ScriptElement $element[$index] -InChildProcess $true -RunsAlone $false
+                                break
+                            }
                         }
                     }
                 }
@@ -328,16 +393,19 @@ if ($call -le [System.Int32] $failedCall)
                             }
 
                             [pscustomobject]@{
-                                Workflow = Split-Path -Path $Path -Leaf
-                                Job      = $jobName
-                                Matrix   = $entry.name
-                                Index    = $index
-                                Label    = '{0}: {1}{2} -> {3}' -f (Split-Path -Path $Path -Leaf), $jobName, $(if ($entry.name) { " ($($entry.name))" }), $step[$index].name
-                                Uses     = $step[$index].uses
-                                With     = $step[$index].with
-                                Shell    = $shell
-                                Run      = $run
-                                Call     = @(Get-BuildCall -Script $run)
+                                Workflow           = Split-Path -Path $Path -Leaf
+                                Job                = $jobName
+                                Matrix             = $entry.name
+                                Index              = $index
+                                Label              = '{0}: {1}{2} -> {3}' -f (Split-Path -Path $Path -Leaf), $jobName, $(if ($entry.name) { " ($($entry.name))" }), $step[$index].name
+                                Uses               = $step[$index].uses
+                                With               = $step[$index].with
+                                Shell              = $shell
+                                ContinueOnError    = $step[$index]['continue-on-error']
+                                JobContinueOnError = $job['continue-on-error']
+                                TimeoutMinutes     = $step[$index]['timeout-minutes']
+                                Run                = $run
+                                Call               = @(Get-BuildCall -Script $run)
                             }
                         }
                     }
@@ -346,7 +414,14 @@ if ($call -le [System.Int32] $failedCall)
 
             function Test-ResolutionCall
             {
-                # build.ps1 resolves dependencies itself with -ResolveDependency (alias -bootstrap) or, when modules are missing, -AutoRestore.
+                <#
+                    build.ps1 resolves dependencies itself in three ways: always with
+                    -ResolveDependency (alias -bootstrap), and, while one of the
+                    modules it bootstraps is missing, with -AutoRestore, or with no
+                    -Tasks or build among the tasks. This counts the two explicit
+                    ways; the test that every task step finds its modules in place
+                    first covers the third.
+                #>
                 param
                 (
                     [Parameter(Mandatory = $true)]
@@ -362,9 +437,10 @@ if ($call -le [System.Int32] $failedCall)
                 <#
                     Runs the script of a pwsh step as the GitHub runner does: in a new
                     pwsh, after $ErrorActionPreference = 'stop', and exiting with the
-                    exit code of its last native command. The fake build.ps1 fails
-                    the first calls, Start-Sleep only records its pause, and a failed
-                    native command throws, as it does where
+                    exit code of its last native command. output/RequiredModules
+                    starts with one module, seed. The fake build.ps1 fails the first
+                    calls, Start-Sleep only records its pause, and a failed native
+                    command throws, as it does where
                     $PSNativeCommandUseErrorActionPreference is on.
                 #>
                 param
@@ -384,7 +460,9 @@ if ($call -le [System.Int32] $failedCall)
                 )
 
                 $workingPath = Join-Path -Path $TestDrive -ChildPath ([System.Guid]::NewGuid().ToString('N'))
-                $null = New-Item -Path $workingPath -ItemType 'Directory'
+                $moduleFolder = Join-Path -Path $workingPath -ChildPath 'output/RequiredModules'
+                $null = New-Item -Path $moduleFolder -ItemType 'Directory'
+                Set-Content -LiteralPath (Join-Path -Path $moduleFolder -ChildPath 'seed') -Value 'seed'
                 $pausePath = Join-Path -Path $workingPath -ChildPath 'pauses.log'
                 $stepPath = Join-Path -Path $workingPath -ChildPath 'step.ps1'
 
@@ -413,10 +491,21 @@ if ($call -le [System.Int32] $failedCall)
                 }
 
                 [pscustomobject]@{
-                    ExitCode = $exitCode
-                    Output   = $output -join [System.Environment]::NewLine
-                    Call     = @(Get-Content -LiteralPath (Join-Path -Path $workingPath -ChildPath 'calls.log') -ErrorAction 'SilentlyContinue')
-                    Pause    = @(Get-Content -LiteralPath $pausePath -ErrorAction 'SilentlyContinue')
+                    ExitCode  = $exitCode
+                    Output    = $output -join [System.Environment]::NewLine
+                    Call      = @(
+                        Get-Content -LiteralPath (Join-Path -Path $workingPath -ChildPath 'calls.log') -ErrorAction 'SilentlyContinue' |
+                            ForEach-Object -Process {
+                                $fresh, $bound, $found = $_ -split '\|'
+                                [pscustomobject]@{
+                                    Fresh = $fresh
+                                    Bound = $bound
+                                    Found = $found
+                                }
+                            }
+                    )
+                    Pause     = @(Get-Content -LiteralPath $pausePath -ErrorAction 'SilentlyContinue')
+                    Remaining = @(Get-ChildItem -LiteralPath $moduleFolder -Name -ErrorAction 'SilentlyContinue' | Sort-Object) -join ','
                 }
             }
 
@@ -490,6 +579,32 @@ if ($call -le [System.Int32] $failedCall)
             $offendingStep | Should -BeNullOrEmpty -Because 'a step that runs a task takes its modules from an earlier dependency step or from the build artifact in output/'
         }
 
+        It 'Should let a failed dependency resolution fail its job' {
+            $script:resolutionStep | Should -Not -BeNullOrEmpty -Because 'the Package Module job resolves its dependencies from the PowerShell Gallery'
+
+            $offendingStep = foreach ($step in $script:resolutionStep)
+            {
+                foreach ($scope in @(@{ Name = 'step'; Value = $step.ContinueOnError }, @{ Name = 'job'; Value = $step.JobContinueOnError }))
+                {
+                    if ($null -ne $scope.Value -and -not ($scope.Value -is [System.Boolean] -and -not $scope.Value))
+                    {
+                        '{0}: continue-on-error of the {1} is {2}' -f $step.Label, $scope.Name, $scope.Value
+                    }
+                }
+            }
+
+            $offendingStep | Should -BeNullOrEmpty -Because 'on the step it would build after the third failure, and on the job it would let the run pass with a failed job'
+        }
+
+        It 'Should bound the dependency resolution in time' {
+            $script:resolutionStep | Should -Not -BeNullOrEmpty -Because 'the Package Module job resolves its dependencies from the PowerShell Gallery'
+
+            foreach ($step in $script:resolutionStep)
+            {
+                $step.TimeoutMinutes | Should -BeIn (5..30) -Because ('{0} must fit three cold resolutions and the minute of pauses, and a Gallery that hangs, which no retry catches, must fail the job long before the default of 360 minutes' -f $step.Label)
+            }
+        }
+
         It 'Should <Description>' -Skip:(-not $script:pwshAvailable) -ForEach @(
             @{
                 Description = 'resolve once and go on when the first attempt succeeds'
@@ -498,6 +613,7 @@ if ($call -le [System.Int32] $failedCall)
                 Succeeds    = $true
                 Attempt     = 1
                 Pause       = @()
+                Remaining   = 'call1,seed'
             }
             @{
                 Description = 'retry a refused resolution after a growing pause and go on when an attempt succeeds'
@@ -506,6 +622,7 @@ if ($call -le [System.Int32] $failedCall)
                 Succeeds    = $true
                 Attempt     = 3
                 Pause       = @(15, 45)
+                Remaining   = 'call3'
             }
             @{
                 Description = 'fail the job when the last of three attempts is refused too'
@@ -514,6 +631,7 @@ if ($call -le [System.Int32] $failedCall)
                 Succeeds    = $false
                 Attempt     = 3
                 Pause       = @(15, 45)
+                Remaining   = $null
             }
             @{
                 Description = 'fail an attempt on an error the resolution only writes, as the runner fails the step'
@@ -522,6 +640,7 @@ if ($call -le [System.Int32] $failedCall)
                 Succeeds    = $false
                 Attempt     = 3
                 Pause       = @(15, 45)
+                Remaining   = $null
             }
         ) {
             $script:resolutionStep | Should -Not -BeNullOrEmpty -Because 'the Package Module job resolves its dependencies from the PowerShell Gallery'
@@ -543,14 +662,28 @@ if ($call -le [System.Int32] $failedCall)
                 }
 
                 $result.Call | Should -HaveCount $Attempt -Because $because
-                ($result.Call -join [System.Environment]::NewLine) | Should -BeExactly (
-                    (@('True|-ResolveDependency -Tasks noop') * $Attempt) -join [System.Environment]::NewLine
-                ) -Because 'each attempt resolves the dependencies and runs nothing else, in a session that no earlier attempt touched'
+                (@($result.Call.Bound) -join [System.Environment]::NewLine) | Should -BeExactly (
+                    (@('ResolveDependency=True;Tasks=noop') * $Attempt) -join [System.Environment]::NewLine
+                ) -Because 'each attempt resolves the dependencies and runs nothing else'
+                (@($result.Call.Fresh) -join ',') | Should -BeExactly ((@('True') * $Attempt) -join ',') -Because 'each attempt runs in a session that no earlier attempt touched'
+                (@($result.Call.Found) -join '|') | Should -BeExactly ((@('seed') + @(@('') * ($Attempt - 1))) -join '|') -Because 'the first attempt finds output/RequiredModules as it was, and each retry starts without what a failed attempt saved'
                 ($result.Pause -join ',') | Should -BeExactly ($Pause -join ',') -Because 'a pause precedes each retry and none follows the last attempt'
+
+                if ($Remaining)
+                {
+                    $result.Remaining | Should -BeExactly $Remaining -Because 'the modules of the attempt that succeeded stay for the build'
+                }
 
                 foreach ($number in @(1..$Attempt | Where-Object -FilterScript { $_ -le $FailedCall }))
                 {
-                    $result.Output | Should -Match ('\battempt {0}\b' -f $number) -Because 'the log names each failed attempt by its number'
+                    if ($number -lt $Attempt)
+                    {
+                        $result.Output | Should -Match ('(?m)^::warning::.*\battempt {0} of 3\b' -f $number) -Because 'each attempt that fails and is retried is a warning annotation that names its number'
+                    }
+                    else
+                    {
+                        $result.Output | Should -Match ('\battempt {0}\b' -f $number) -Because 'the error that fails the job names the last attempt'
+                    }
                 }
             }
         }

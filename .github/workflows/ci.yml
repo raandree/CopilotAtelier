@@ -201,12 +201,15 @@ jobs:
           "## CopilotAtelier $($gitVersionObject.FullSemVer)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
 
       # The PowerShell Gallery refuses a request now and then: run 38637411323
-      # failed here with HTTP 403 before any repository code ran. Only the
-      # dependency resolution is retried, each attempt in a new pwsh, so that no
-      # module a failed attempt imported shapes the next one; the build below,
-      # the tests, and the release run once.
+      # failed here with HTTP 403 before any build task ran. Only the dependency
+      # resolution is retried: each attempt in a new pwsh, so that no module a
+      # failed attempt imported shapes the next one, and each retry without the
+      # modules a failed attempt saved. The build below, the tests, and the
+      # release run once. The timeout fits three cold resolutions and the pauses,
+      # and fails the job when the Gallery hangs, which no retry catches.
       - name: Resolve Dependencies
         shell: pwsh
+        timeout-minutes: 15
         run: |
           # A failed attempt must reach the retry instead of throwing out of the step.
           $PSNativeCommandUseErrorActionPreference = $false
@@ -215,6 +218,11 @@ jobs:
 
           for ($attempt = 1; $attempt -le $attemptCount; $attempt++)
           {
+              if ($attempt -gt 1 -and (Test-Path -LiteralPath 'output/RequiredModules'))
+              {
+                  Remove-Item -LiteralPath 'output/RequiredModules' -Recurse -Force
+              }
+
               pwsh -NoProfile -NonInteractive -Command '$ErrorActionPreference = ''Stop''; ./build.ps1 -ResolveDependency -Tasks noop'
 
               if ($LASTEXITCODE -eq 0)
