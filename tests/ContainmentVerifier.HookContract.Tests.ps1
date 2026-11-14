@@ -23,6 +23,9 @@ BeforeAll {
             'Get-HookWrapper'
             'Get-HookWrapperProblem'
             'Measure-HookWrapper'
+            'Get-HookTripwireName'
+            'New-HookTripwire'
+            'Get-HookTripwireEnvironment'
             'Test-HookContract'
         ))
 
@@ -613,7 +616,10 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Why = 'an exclamation mark'; Line = '"C:\Windows\System32\cmd.exe" /c echo !X!'; Match = 'expands' }
         @{ Why = 'parentheses outside quotes'; Line = '"C:\Windows\System32\cmd.exe" /c (echo a)'; Match = 'unquoted' }
         @{ Why = 'a semicolon followed by anything but the closing statement of the shipped command'; Line = '"C:\Windows\System32\cmd.exe" /c exit ; calc.exe'; Match = 'semicolon' }
-        @{ Why = 'a second statement after the closing statement of the shipped command'; Line = '"C:\Windows\System32\cmd.exe" /c exit ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0] ; calc.exe'; Match = 'semicolon' }
+        @{ Why = 'a second statement after the closing statement of the shipped command'; Line = '"C:\Windows\System32\cmd.exe" /c exit ; {tail} ; calc.exe'; Match = 'semicolon' }
+        # Brief 18: the closing statement before the fix resolved Get-Variable in the outer PowerShell before anything pinned its
+        # module path, so a module first on that path answered for it and turned the guard's exit 2 into 0.
+        @{ Why = 'the closing statement that resolves Get-Variable before it pins the module path'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'; Match = 'semicolon' }
         @{ Why = 'PowerShell given a session configuration'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -ConfigurationFile x.pssc -File y.ps1'; Match = 'ConfigurationFile' }
         @{ Why = 'PowerShell given a settings file'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -NoProfile -SettingsFile x.json -File y.ps1'; Match = 'SettingsFile' }
         @{ Why = 'a working directory that swallows what looks like -NoProfile'; Line = '"C:\Program Files\PowerShell\7\pwsh.exe" -WorkingDirectory -nop -File y.ps1'; Match = 'NoProfile' }
@@ -640,8 +646,8 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Why = 'a dot segment written with forward slashes'; Line = 'C:/Windows/System32/../System32/WindowsPowerShell/v1.0/powershell.exe -NoProfile -Command exit'; Match = 'dot segment' }
         # Review pass 3 part C, S-21: refusing a list of characters is never complete. Each line below was
         # accepted by that scan and is read three ways by cmd.exe, a PowerShell wrapper and a POSIX shell.
-        @{ Why = 'a comment that hides the closing statement from PowerShell'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" # ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'; Match = 'shape' }
-        @{ Why = 'a comment marker glued to the semicolon'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" #; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'; Match = 'shape' }
+        @{ Why = 'a comment that hides the closing statement from PowerShell'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" # ; {tail}'; Match = 'shape' }
+        @{ Why = 'a comment marker glued to the semicolon'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" #; {tail}'; Match = 'shape' }
         @{ Why = 'a quoted part that is never closed'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "exit 0'; Match = 'shape' }
         @{ Why = 'a doubled quote inside a quoted part'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File x.ps1 "a ""b ; c"" d" e'; Match = 'shape' }
         @{ Why = 'a backslash before a quote outside a quoted part, which a POSIX shell reads as a literal quote'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command x \"; calc.exe; \" y'; Match = 'shape' }
@@ -657,7 +663,7 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         @{ Why = 'an equals sign in an unquoted program word'; Line = 'C:\Tools\a=b\powershell.exe -NoProfile -File x.ps1'; Match = 'program word' }
         # Review pass 3 part D, S-25: PowerShell reads a word that starts with a dash as a parameter, and binds
         # '-name:' to the next word or fails to parse it; cmd.exe passes it through. Reproduced on the shipped body.
-        @{ Why = 'a dash word that ends in a colon, before the closing statement'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" -x: ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'; Match = 'shape' }
+        @{ Why = 'a dash word that ends in a colon, before the closing statement'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" -x: ; {tail}'; Match = 'shape' }
         @{ Why = 'a dash word that ends in a colon, as the last word'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command "exit 0" -x:'; Match = 'shape' }
         @{ Why = 'a dash word that PowerShell splits at a dot'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File x.ps1 -Z.7'; Match = 'shape' }
         @{ Why = 'a dash word that ends in a dot'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File x.ps1 -y.'; Match = 'shape' }
@@ -690,7 +696,8 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         # wrapper pass on, so the shape does not read an empty quoted word.
         @{ Why = 'an empty quoted word'; Line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File x.ps1 ""'; Match = 'shape' }
     ) {
-        $result = Get-HookInterpreter -CommandLine $Line
+        # {tail} in a row stands for the closing statement the check accepts.
+        $result = Get-HookInterpreter -CommandLine $Line.Replace('{tail}', $script:HookExitTail)
 
         $result.Path | Should -BeNullOrEmpty
         $result.Problem | Should -Match $Match
@@ -752,7 +759,8 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
     }
 
     It 'reads the statement the shipped Windows command ends with, which only an outer PowerShell understands' {
-        $line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'
+        # Brief 18: the statement pins the module path of the outer PowerShell before it resolves Get-Variable.
+        $line = '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "exit 0" ; exit (@([Environment]::SetEnvironmentVariable(''PSModulePath'', [IO.Path]::Combine([AppContext]::BaseDirectory, ''Modules''))) + @(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'
 
         (Get-HookInterpreter -CommandLine $line).Problem | Should -BeNullOrEmpty
     }
@@ -1236,6 +1244,20 @@ Describe 'Hook command runner' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         }
     }
 
+    # Brief 18: Windows PowerShell 5.1 searches WindowsPowerShell\Modules in its working directory when the documents folder
+    # does not resolve (R12-08), so HookContract's tripwire has to be able to stand there under the 5.1 wrapper.
+    It 'puts the module it is given into WindowsPowerShell\Modules of the folder it starts the command in' {
+        $module = Join-Path $TestDrive 'runner-module\SomeModule'
+        $null = New-Item -Path $module -ItemType Directory -Force
+        [System.IO.File]::WriteAllText((Join-Path $module 'SomeModule.psm1'), 'function Get-Nothing { }')
+
+        Invoke-HookPayload -CommandLine 'if exist WindowsPowerShell\Modules\SomeModule\SomeModule.psm1 (exit 5) else (exit 6)' -Payload '{}' -EnvironmentVariable @{} -WorkingDirectoryModule $module | Should -Be 5
+    }
+
+    It 'starts the command in a folder that holds no module when it is given none' {
+        Invoke-HookPayload -CommandLine 'if exist WindowsPowerShell (exit 5) else (exit 6)' -Payload '{}' -EnvironmentVariable @{} | Should -Be 6
+    }
+
     It 'stops a command that does not finish in time' {
         $clock = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -1302,6 +1324,138 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
         It 'says nothing about a quoted program path when the path is not quoted' {
             $script:shippedRun.evidence | Should -Not -Match 'quoted'
+        }
+    }
+
+    # Brief 18 (R12-02, R12-08): Windows PowerShell 5.1 and pwsh load a command from the first module on PSModulePath that
+    # exports it, and a run identity can put a module where they look first: the account's own module folders, or, for 5.1
+    # whose documents folder does not resolve, its working directory. The check therefore stands a tripwire module of its own
+    # there, so that a pinned line that resolves a command by name before it pins its module path loads it and fails.
+    Context 'the tripwire module it plants' {
+        BeforeAll {
+            $script:modulePathPin = "[Environment]::SetEnvironmentVariable('PSModulePath', [IO.Path]::Combine([AppContext]::BaseDirectory, 'Modules'))"
+            $script:machineModulePath = [System.Environment]::GetEnvironmentVariable('PSModulePath', [System.EnvironmentVariableTarget]::Machine)
+        }
+
+        It 'fails a pinned line that resolves a command through the module path it inherits, and names the spawn' {
+            $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
+            $text = [string]@($shipped.hooks.PreToolUse)[0].windows
+            $unpinned = $script:systemPowerShell + $text.Substring('powershell'.Length).Replace("try { $($script:modulePathPin); ", 'try { ')
+            $tree = New-PluginTree -Name 'unpinned-inner' -Command $unpinned
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match 'tripwire'
+            $result.evidence | Should -Match 'loaded this check''s tripwire under cmd\.exe'
+        }
+
+        It 'passes the contained shipped line, which pins the module path first in every process, and says where the tripwire stood' {
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be 'Pass' -Because $result.evidence
+            $result.evidence | Should -Match 'no spawn loaded this check''s tripwire'
+            $result.evidence | Should -Match 'first entry of PSModulePath'
+            $result.evidence | Should -Match 'both personal module folders'
+            $result.evidence | Should -Match 'working directory'
+        }
+
+        It 'stands the tripwire where the interpreter of each spawn looks first' {
+            $script:spawnSeen = [System.Collections.Generic.List[object]]::new()
+            $script:runPayload = ${function:Invoke-HookPayload}
+            Mock -CommandName Invoke-HookPayload -MockWith {
+                $environment = @{}
+                foreach ($key in $EnvironmentVariable.Keys) { $environment[$key] = $EnvironmentVariable[$key] }
+                $profileFolder = [string]$environment['USERPROFILE']
+                $firstEntry = @(([string]$environment['PSModulePath']).Split([System.IO.Path]::PathSeparator))[0]
+                $script:spawnSeen.Add([pscustomobject]@{
+                        Spawn = if ($null -ne $Wrapper) { $Wrapper.Host } else { 'cmd' }
+                        PluginRoot = [string]$environment['PLUGIN_ROOT']
+                        Environment = $environment
+                        FirstEntry = -not [string]::IsNullOrEmpty($firstEntry) -and (Test-Path -LiteralPath (Join-Path $firstEntry 'ContainmentTripwire\ContainmentTripwire.psm1'))
+                        PersonalPwsh = Test-Path -LiteralPath (Join-Path $profileFolder 'Documents\PowerShell\Modules\ContainmentTripwire\ContainmentTripwire.psm1')
+                        Personal51 = Test-Path -LiteralPath (Join-Path $profileFolder 'Documents\WindowsPowerShell\Modules\ContainmentTripwire\ContainmentTripwire.psm1')
+                        Documents = Test-Path -LiteralPath (Join-Path $profileFolder 'Documents')
+                        WorkingDirectory = -not [string]::IsNullOrEmpty($WorkingDirectoryModule) -and (Test-Path -LiteralPath (Join-Path $WorkingDirectoryModule 'ContainmentTripwire.psm1'))
+                    })
+
+                & $script:runPayload @PesterBoundParameters
+            }
+
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be 'Pass' -Because $result.evidence
+            $root = [System.IO.Path]::GetFullPath($script:plugin.Root)
+            $payloadRun = @($script:spawnSeen | Where-Object -FilterScript { [System.IO.Path]::GetFullPath($_.PluginRoot) -eq $root })
+            $payloadRun | Should -HaveCount 9 -Because 'the three payloads run through cmd.exe and under each of the two wrappers'
+
+            foreach ($run in $payloadRun) {
+                $run.Environment['HOME'] | Should -Be $run.Environment['USERPROFILE']
+
+                if ($run.Spawn -eq 'VS Code Local harness' -and -not [string]::IsNullOrWhiteSpace($script:machineModulePath)) {
+                    $run.Documents | Should -BeFalse -Because 'Windows PowerShell 5.1 searches its working directory only when the documents folder does not resolve'
+                    $run.Environment['PSModulePath'] | Should -BeExactly $script:machineModulePath -Because '5.1 puts its own folders first only when PSModulePath is the machine value'
+                    $run.WorkingDirectory | Should -BeTrue
+                } else {
+                    $run.FirstEntry | Should -BeTrue -Because "the tripwire stands first on PSModulePath under $($run.Spawn)"
+                    $run.PersonalPwsh | Should -BeTrue -Because "the tripwire stands in pwsh's personal folder under $($run.Spawn)"
+                    $run.Personal51 | Should -BeTrue -Because "the tripwire stands in Windows PowerShell's personal folder under $($run.Spawn)"
+                }
+            }
+        }
+
+        It 'loads the tripwire under <Label> for a line that resolves a command before it pins its module path, and not for one that pins first' -ForEach @(
+            @{ Label = 'cmd.exe'; Index = -1; WithoutDocuments = $false }
+            @{ Label = 'the Windows PowerShell 5.1 wrapper'; Index = 0; WithoutDocuments = $true }
+            @{ Label = 'the PowerShell 7 wrapper'; Index = 1; WithoutDocuments = $false }
+        ) {
+            if ($WithoutDocuments -and [string]::IsNullOrWhiteSpace($script:machineModulePath)) {
+                Set-ItResult -Skipped -Because 'the machine sets no PSModulePath, so Windows PowerShell 5.1 adds no folder of its own'
+            }
+
+            $root = Join-Path $TestDrive "tripwire-reach-$($Index + 1)"
+            $tripwire = New-HookTripwire -Root $root -CommandName @('Get-Variable')
+            $environment = Get-HookTripwireEnvironment -Tripwire $tripwire -PluginRoot $root -WithoutDocuments:$WithoutDocuments
+            $module = if ($WithoutDocuments) { $tripwire.ModuleFolder } else { $null }
+            $wrapper = if ($Index -ge 0) { @(Get-HookWrapper)[$Index] } else { $null }
+            $body = 'exit ((Get-Variable -Name PID -ValueOnly) - (Get-Variable -Name PID -ValueOnly) + 3)'
+            $line = { param($Text) if ($null -eq $wrapper) { "$($script:systemPowerShell) -NoProfile -NonInteractive -Command `"$Text`"" } else { $Text } }
+
+            $unpinned = Invoke-HookPayload -CommandLine (& $line $body) -Payload '{}' -EnvironmentVariable $environment -Wrapper $wrapper -WorkingDirectoryModule $module
+            $loaded = Test-Path -LiteralPath $tripwire.Marker
+            Remove-Item -LiteralPath $tripwire.Marker -Force -ErrorAction SilentlyContinue
+            $pinned = Invoke-HookPayload -CommandLine (& $line "$($script:modulePathPin); $body") -Payload '{}' -EnvironmentVariable $environment -Wrapper $wrapper -WorkingDirectoryModule $module
+
+            $loaded | Should -BeTrue -Because 'a line that resolves Get-Variable before it pins has to reach the tripwire'
+            $unpinned | Should -Be 0 -Because 'the tripwire ends the process with exit 0, as a module that answers for the guard would'
+            Test-Path -LiteralPath $tripwire.Marker | Should -BeFalse -Because 'a line that pins first does not reach it'
+            $pinned | Should -Be 3
+        }
+
+        It 'names the commands of the inner command and of the closing statement, and those the script resolves without defining them' {
+            $line = 'C:\x\powershell.exe -NoProfile -Command "try { Get-Item -LiteralPath x | Select-Object -First 1 } catch { exit 2 }" ; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly) + 2)[0]'
+            $scriptText = "function Use-Own { ConvertFrom-Json }`nUse-Own`nSort-Object`n& `$dynamic`ngit status"
+
+            Get-HookTripwireName -CommandLine $line -ScriptText $scriptText |
+                Should -Be @('ConvertFrom-Json', 'Get-Item', 'Get-Variable', 'Select-Object', 'Sort-Object')
+        }
+
+        It 'writes a tripwire that exports the names it is given, records its import and ends the process with exit 0' {
+            $root = Join-Path $TestDrive 'tripwire-text'
+            $tripwire = New-HookTripwire -Root $root -CommandName @('Get-Item', 'Write-Verbose')
+            $text = [System.IO.File]::ReadAllText((Join-Path $tripwire.ModuleFolder 'ContainmentTripwire.psm1'))
+            $tokens = $null
+            $parseError = $null
+            $tree = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$parseError)
+
+            $parseError | Should -BeNullOrEmpty
+            @($tree.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) | ForEach-Object -Process { $_.Name }) |
+                Should -Be @('Get-Item', 'Write-Verbose')
+            $text | Should -Match ([regex]::Escape($tripwire.Marker.Replace("'", "''")))
+            $text | Should -Match 'Exit\(0\)'
         }
     }
 
@@ -1617,6 +1771,13 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
                 $Wrapper.Path -eq $script:aWrapper.Path -and $CommandLine -ceq 'the pinned line' -and
                 $EnvironmentVariable.PLUGIN_ROOT -eq 'C:\root' -and $EnvironmentVariable.HOME -eq 'C:\empty'
             }
+        }
+
+        # Brief 18: the tripwire stands in the working directory of the Windows PowerShell 5.1 wrapper.
+        It 'hands each spawn the module for its working directory that it was given' {
+            $null = Measure-HookWrapper -Wrapper $script:aWrapper -CommandLine 'the pinned line' -Case $script:case -EnvironmentVariable $script:given -TimeoutSecond 20 -WorkingDirectoryModule 'C:\containment\tripwire'
+
+            Should -Invoke Invoke-HookPayload -Times 3 -Exactly -ParameterFilter { $WorkingDirectoryModule -ceq 'C:\containment\tripwire' }
         }
 
         It 'fails a payload that gets <Measured> and still measures the others' -ForEach @(

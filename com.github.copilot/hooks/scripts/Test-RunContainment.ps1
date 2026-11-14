@@ -172,8 +172,10 @@ $script:RunIdShape = '\A[A-Za-z0-9._-]{1,64}\z'
 $script:CommandKey = @('command', 'windows', 'powershell', 'bash', 'linux', 'osx')
 $script:EntryKeySet = [System.Collections.Generic.HashSet[string]]::new([string[]](@('type', 'timeout') + $script:CommandKey), [System.StringComparer]::Ordinal)
 # The one statement the shipped Windows hook command ends with, after a semicolon, for the PowerShell a host
-# wraps it in: it makes that wrapper exit with the code of the command. Nothing else may follow a semicolon.
-$script:HookExitTail = 'exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'
+# wraps it in: it makes that wrapper exit with the code of the command. It first sets that wrapper's module path
+# to its own Modules folder, inside the same expression, so that Get-Variable comes from no module the wrapper
+# inherited a path to (brief 18). Nothing else may follow a semicolon.
+$script:HookExitTail = 'exit (@([Environment]::SetEnvironmentVariable(''PSModulePath'', [IO.Path]::Combine([AppContext]::BaseDirectory, ''Modules''))) + @(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]'
 # What may follow the program on a hook command line, as a shape and not as a list of characters to refuse.
 # A list is never complete: a '#' makes PowerShell read the closing statement as a comment, and a doubled
 # quote, a quote after a backslash and an unterminated quote are read three ways by cmd.exe, a PowerShell
@@ -2450,6 +2452,11 @@ function Invoke-HookPayload {
         applied after the caller's variables and cannot be removed by them.
         A command that does not finish is stopped and refused, never waited for.
 
+        WorkingDirectoryModule names a module folder that the folder then holds as well, under
+        WindowsPowerShell\Modules: Windows PowerShell 5.1 searches that relative entry first when the
+        documents folder of its profile does not resolve, and Test-HookContract stands its tripwire
+        there. Only the files at the top of the module folder are copied.
+
         With a wrapper the line is run the way a documented host runs it: the wrapper's program is started with the arguments
         the README table of hosts gives for it and the whole line as the one argument that follows, with no script file, and
         in the same folder, with the same environment and under the same time limit. Its exit code is the wrapper's own,
@@ -2475,7 +2482,12 @@ function Invoke-HookPayload {
 
         [Parameter()]
         [AllowNull()]
-        [pscustomobject]$Wrapper = $null
+        [pscustomobject]$Wrapper = $null,
+
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string]$WorkingDirectoryModule
     )
 
     $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) "containment-hook-$([guid]::NewGuid().ToString('N'))"
@@ -2483,6 +2495,15 @@ function Invoke-HookPayload {
     $process = $null
 
     try {
+        if (-not [string]::IsNullOrEmpty($WorkingDirectoryModule)) {
+            $moduleTarget = [System.IO.Path]::Combine($workRoot, 'WindowsPowerShell', 'Modules', [System.IO.Path]::GetFileName($WorkingDirectoryModule.TrimEnd([char[]]@('\', '/'))))
+            $null = [System.IO.Directory]::CreateDirectory($moduleTarget)
+
+            foreach ($file in [System.IO.Directory]::GetFiles($WorkingDirectoryModule)) {
+                [System.IO.File]::Copy($file, [System.IO.Path]::Combine($moduleTarget, [System.IO.Path]::GetFileName($file)))
+            }
+        }
+
         $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
 
         if ($null -ne $Wrapper) {
@@ -2661,6 +2682,7 @@ function Measure-HookWrapper {
         The result carries a verdict (Pass, Fail or Unavailable), the name of the wrapper, and evidence that names the wrapper,
         the host it stands for, the program and arguments it is started with, and the codes or the reason. The exit code is the
         only thing read from a spawn: what it wrote is text from the identity under test and is dropped by Invoke-HookPayload.
+        WorkingDirectoryModule is handed to every spawn, which stands that module in its working directory.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -2679,7 +2701,12 @@ function Measure-HookWrapper {
 
         [Parameter(Mandatory)]
         [ValidateRange(1, 600)]
-        [int]$TimeoutSecond
+        [int]$TimeoutSecond,
+
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string]$WorkingDirectoryModule
     )
 
     $prefix = "under $($Wrapper.Name) as the $($Wrapper.Host) starts it ($(Format-RelayedText -Text $Wrapper.Path) $(@($Wrapper.Argument) -join ' ') <line>)"
@@ -2690,7 +2717,7 @@ function Measure-HookWrapper {
     foreach ($name in $Case.Keys) {
         try {
             $clock.Restart()
-            $exitCode = Invoke-HookPayload -CommandLine $CommandLine -Payload $Case[$name].payload -EnvironmentVariable $EnvironmentVariable -Wrapper $Wrapper
+            $exitCode = Invoke-HookPayload -CommandLine $CommandLine -Payload $Case[$name].payload -EnvironmentVariable $EnvironmentVariable -Wrapper $Wrapper -WorkingDirectoryModule $WorkingDirectoryModule
         } catch {
             return [pscustomobject]@{ Name = $Wrapper.Name; Status = 'Unavailable'; Evidence = "${prefix}: could not run the $name payload: $(Format-RelayedText -Text $_.Exception.Message)" }
         }
@@ -2707,6 +2734,188 @@ function Measure-HookWrapper {
     }
 
     return [pscustomobject]@{ Name = $Wrapper.Name; Status = $verdict; Evidence = "${prefix}: measured $($measured -join ' ')" }
+}
+
+function Get-HookTripwireName {
+    <#
+        The names a hook line and its script resolve by name, which the tripwire of Test-HookContract exports: every command
+        of the line itself, its closing statement included, every command of each quoted word read as PowerShell (the
+        -Command text), and every command the script calls without defining it. Only names of the Verb-Noun shape are kept,
+        which is the shape of what a module exports for a cmdlet; a program such as git is looked up in PATH before any
+        module, and a name the line builds while it runs is not seen here. The names are sorted, so the module a check writes
+        is the same for the same line.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$CommandLine,
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string]$ScriptText = ''
+    )
+
+    $name = [System.Collections.Generic.SortedSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $none = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $collect = {
+        param([System.Management.Automation.Language.Ast]$Tree, [System.Collections.Generic.HashSet[string]]$Defined)
+
+        foreach ($command in $Tree.FindAll({ param($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true)) {
+            $commandName = $command.GetCommandName()
+
+            if ($commandName -and $commandName -cmatch '\A[A-Za-z]+-[A-Za-z0-9]+\z' -and -not $Defined.Contains($commandName)) {
+                $null = $name.Add($commandName)
+            }
+        }
+    }
+
+    $tokens = $null
+    $parseError = $null
+    $lineTree = [System.Management.Automation.Language.Parser]::ParseInput($CommandLine, [ref]$tokens, [ref]$parseError)
+    & $collect $lineTree $none
+
+    foreach ($word in $lineTree.FindAll({ param($node) $node -is [System.Management.Automation.Language.StringConstantExpressionAst] }, $true)) {
+        & $collect ([System.Management.Automation.Language.Parser]::ParseInput($word.Value, [ref]$tokens, [ref]$parseError)) $none
+    }
+
+    if (-not [string]::IsNullOrEmpty($ScriptText)) {
+        $scriptTree = [System.Management.Automation.Language.Parser]::ParseInput($ScriptText, [ref]$tokens, [ref]$parseError)
+        $defined = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+        foreach ($function in $scriptTree.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+            $null = $defined.Add($function.Name)
+        }
+
+        & $collect $scriptTree $defined
+    }
+
+    return [string[]]@($name)
+}
+
+function New-HookTripwire {
+    <#
+        Writes the tripwire of Test-HookContract under Root and says where it stands. The module, ContainmentTripwire,
+        exports every name in CommandName (those of the Verb-Noun shape, so no text of the line reaches it as code), and
+        importing it appends a line to the marker file and ends the process with exit 0, as a module that answers for the
+        guard would. A line that loads it therefore fails twice: by its exit codes and by the marker, which names the spawn.
+
+        It stands in the places a hook line's PowerShell looks first: ModuleRoot holds it, to stand first on PSModulePath,
+        and the decoy profile Home holds it in both personal module folders, Documents\PowerShell\Modules for pwsh and
+        Documents\WindowsPowerShell\Modules for Windows PowerShell 5.1, and off Windows in .local/share/powershell/Modules,
+        pwsh's folder there. HomeWithoutDocuments is a profile without a documents folder, with which Windows PowerShell 5.1
+        searches WindowsPowerShell\Modules in its working directory; Invoke-HookPayload copies ModuleFolder there. The module
+        is written with a byte order mark, so that Windows PowerShell 5.1 reads a marker path outside ASCII as written.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Writes only under the work folder of the check that calls it.')]
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Root,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [string[]]$CommandName
+    )
+
+    $moduleName = 'ContainmentTripwire'
+    $marker = [System.IO.Path]::Combine($Root, 'tripwire-loaded.txt')
+    $quotedMarker = $marker.Replace("'", "''")
+    $exported = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($candidate in $CommandName) {
+        if ($candidate -cmatch '\A[A-Za-z]+-[A-Za-z0-9]+\z' -and -not $exported.Contains($candidate)) {
+            $exported.Add($candidate)
+        }
+    }
+
+    $text = [System.Text.StringBuilder]::new()
+    $null = $text.AppendLine("[System.IO.File]::AppendAllText('$quotedMarker', 'loaded' + [System.Environment]::NewLine)")
+    $null = $text.AppendLine('[System.Environment]::Exit(0)')
+
+    foreach ($candidate in $exported) {
+        $null = $text.AppendLine("function $candidate { [System.Environment]::Exit(0) }")
+    }
+
+    if ($exported.Count -gt 0) {
+        $null = $text.AppendLine('Export-ModuleMember -Function ' + (@($exported | ForEach-Object -Process { "'$_'" }) -join ', '))
+    }
+
+    $moduleRoot = [System.IO.Path]::Combine($Root, 'tripwire-path')
+    $decoyHome = [System.IO.Path]::Combine($Root, 'tripwire-home')
+    $homeWithoutDocuments = [System.IO.Path]::Combine($Root, 'tripwire-home-without-documents')
+    $place = @(
+        [System.IO.Path]::Combine($moduleRoot, $moduleName)
+        [System.IO.Path]::Combine($decoyHome, 'Documents', 'PowerShell', 'Modules', $moduleName)
+        [System.IO.Path]::Combine($decoyHome, 'Documents', 'WindowsPowerShell', 'Modules', $moduleName)
+    )
+
+    if (-not $script:OnWindows) {
+        $place += [System.IO.Path]::Combine($decoyHome, '.local', 'share', 'powershell', 'Modules', $moduleName)
+    }
+
+    foreach ($folder in $place) {
+        $null = [System.IO.Directory]::CreateDirectory($folder)
+        [System.IO.File]::WriteAllText([System.IO.Path]::Combine($folder, "$moduleName.psm1"), $text.ToString(), [System.Text.UTF8Encoding]::new($true))
+    }
+
+    $null = [System.IO.Directory]::CreateDirectory($homeWithoutDocuments)
+
+    return [pscustomobject]@{
+        Name = $moduleName
+        Marker = $marker
+        ModuleRoot = $moduleRoot
+        ModuleFolder = $place[0]
+        Home = $decoyHome
+        HomeWithoutDocuments = $homeWithoutDocuments
+    }
+}
+
+function Get-HookTripwireEnvironment {
+    <#
+        The environment a spawn of Test-HookContract runs the pinned line with, the tripwire standing where its PowerShell
+        looks first. PLUGIN_ROOT is the root of the pinned script. By default USERPROFILE and HOME name the decoy profile
+        whose personal module folders hold the tripwire, and PSModulePath is the tripwire's folder followed by the module
+        path of this verifier, which names $PSHOME\Modules, so that pwsh keeps the tripwire ahead of it instead of putting its
+        own folders first. With WithoutDocuments, USERPROFILE and HOME name the decoy profile without a documents folder,
+        and PSModulePath is the machine's value, as a logon environment hands it on: Windows PowerShell 5.1 then puts
+        WindowsPowerShell\Modules in its working directory first, where the caller stands the tripwire. A machine that sets
+        no value gets the variable removed.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        [pscustomobject]$Tripwire,
+
+        [Parameter(Mandatory)]
+        [string]$PluginRoot,
+
+        [Parameter()]
+        [switch]$WithoutDocuments
+    )
+
+    if ($WithoutDocuments) {
+        $machine = if ($script:OnWindows) { [System.Environment]::GetEnvironmentVariable('PSModulePath', [System.EnvironmentVariableTarget]::Machine) } else { $null }
+
+        return @{
+            PLUGIN_ROOT = $PluginRoot
+            USERPROFILE = $Tripwire.HomeWithoutDocuments
+            HOME = $Tripwire.HomeWithoutDocuments
+            PSModulePath = if ([string]::IsNullOrEmpty($machine)) { $null } else { $machine }
+        }
+    }
+
+    $inherited = [System.Environment]::GetEnvironmentVariable('PSModulePath')
+
+    return @{
+        PLUGIN_ROOT = $PluginRoot
+        USERPROFILE = $Tripwire.Home
+        HOME = $Tripwire.Home
+        PSModulePath = if ([string]::IsNullOrEmpty($inherited)) { $Tripwire.ModuleRoot } else { $Tripwire.ModuleRoot + [System.IO.Path]::PathSeparator + $inherited }
+    }
 }
 
 function Test-HookContract {
@@ -2743,6 +2952,13 @@ function Test-HookContract {
         passes under cmd.exe and fails under a wrapper fails, which is how a quoted program path, a dash word or a comment
         marker is caught by measurement and not by a rule. Each wrapper is shown closed to this identity first, and nothing runs
         under one that is not. A host's own spawn code is not run, so the Pass says what was rebuilt and not that a host ran it.
+
+        Which module answers for a command the line names is decided by the module path of each PowerShell process (brief 18):
+        a module this identity puts first on PSModulePath, into its own module folders, or, for a Windows PowerShell 5.1 whose
+        documents folder does not resolve, into the working directory, answers ahead of the system's. Every spawn of the
+        payloads therefore runs with a tripwire of this check's own in those places (New-HookTripwire), and a line that loads
+        it fails, naming the spawn. The shipped line pins PSModulePath to the interpreter's own Modules folder before it
+        resolves a command, in the inner command and in the closing statement, and loads none.
 
         The message of an exception, a reason of the access check and the path of the interpreter are cut to printable ASCII
         and to a length before they go into the evidence, as the texts about a wrapper are.
@@ -2956,11 +3172,14 @@ function Test-HookContract {
 
     $resolvedScript = [System.IO.Path]::GetFullPath($HookScriptPath)
     $workRoot = Join-Path ([System.IO.Path]::GetTempPath()) "containment-hook-contract-$([guid]::NewGuid().ToString('N'))"
+    $shell = if ($script:OnWindows) { 'cmd.exe /d /c' } else { '/bin/sh' }
+    # The spawns under which the line loaded the tripwire, and whether the Windows PowerShell 5.1 wrapper ran with the
+    # decoy profile without a documents folder.
+    $tripwireSpawn = [System.Collections.Generic.List[string]]::new()
+    $fallbackUsed = $false
 
     try {
         $null = New-Item -Path $workRoot -ItemType Directory -Force
-        $emptyHome = Join-Path $workRoot 'empty-home'
-        $null = New-Item -Path $emptyHome -ItemType Directory -Force
 
         # Two decoy scripts: one where the command looks first, one in the user profile it falls
         # back to. Only a command that takes PLUGIN_ROOT ahead of the profile runs the first.
@@ -3003,6 +3222,18 @@ function Test-HookContract {
             return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence "the hook command does not take its script from PLUGIN_ROOT ahead of the user profile (a decoy under PLUGIN_ROOT gave exit $canaryExit; the PLUGIN_ROOT decoy ran: $pluginDecoyRan; the user-profile decoy ran: $profileDecoyRan), so the pinned script cannot be shown to be the one it runs"
         }
 
+        # The tripwire (brief 18). Windows PowerShell 5.1 and pwsh load a command from the first module on PSModulePath that
+        # exports it, and a run identity can put a module where they look first: its own module folders, or, for 5.1 whose
+        # documents folder does not resolve, the working directory. The tripwire, a module of this check's own that exports
+        # every command the line and the pinned script name, stands there for every spawn of the payloads, so a line that
+        # resolves a command by name before it pins its module path loads it and fails. The canary above runs without it,
+        # because it shows where the script comes from and not what the line resolves.
+        $scriptText = [System.Text.Encoding]::UTF8.GetString($scriptBytes).TrimStart([char]0xFEFF)
+        $tripwire = New-HookTripwire -Root (Join-Path $workRoot 'tripwire') -CommandName (Get-HookTripwireName -CommandLine $commandLine -ScriptText $scriptText)
+        $probeEnvironment = Get-HookTripwireEnvironment -Tripwire $tripwire -PluginRoot $binding.Root
+        $fallbackEnvironment = Get-HookTripwireEnvironment -Tripwire $tripwire -PluginRoot $binding.Root -WithoutDocuments
+        $fallbackUsed = $script:OnWindows -and -not [string]::IsNullOrEmpty([string]$fallbackEnvironment['PSModulePath'])
+
         # Fixed synthetic payloads: one benign, one remote mutation, one issue
         # mutation. Nothing here is derived from the repository under test.
         $case = [ordered]@{
@@ -3018,11 +3249,7 @@ function Test-HookContract {
         foreach ($name in $case.Keys) {
             try {
                 $clock.Restart()
-                $exitCode = Invoke-HookPayload -CommandLine $commandLine -Payload $case[$name].payload -EnvironmentVariable @{
-                    PLUGIN_ROOT = $binding.Root
-                    USERPROFILE = $emptyHome
-                    HOME = $emptyHome
-                }
+                $exitCode = Invoke-HookPayload -CommandLine $commandLine -Payload $case[$name].payload -EnvironmentVariable $probeEnvironment
             } catch {
                 return New-CheckResult -Name 'HookContract' -Status 'Unavailable' -Evidence "could not run the $name payload: $(Format-RelayedText -Text $_.Exception.Message)"
             }
@@ -3038,25 +3265,38 @@ function Test-HookContract {
             }
         }
 
+        if (Test-Path -LiteralPath $tripwire.Marker) {
+            $tripwireSpawn.Add($shell)
+            Remove-Item -LiteralPath $tripwire.Marker -Force
+            $failed = $true
+        }
+
         # The documented hosts wrap the line in PowerShell, so a line that passed under cmd.exe is run under both wrappers as well,
         # and both are measured even when the first one fails. (VS Code does so only when ComSpec names cmd.exe and SystemRoot or
         # WINDIR is set; otherwise Node runs the line as cmd.exe /d /s /c, which the first spawn here approximates with a script file
         # under cmd.exe /d /c, or as <ComSpec> -c for another shell, which no spawn here approximates.) A line that
         # already failed is not run again: that verdict does not need them, and nothing more of it has to run as this identity.
+        # Windows PowerShell 5.1 runs with the decoy profile without a documents folder and the machine's PSModulePath, with
+        # the tripwire in its working directory, where it then looks first; a machine that sets no PSModulePath gives 5.1 no
+        # such folder, and the wrapper runs with the tripwire first on PSModulePath instead.
         if (-not $failed) {
             foreach ($candidate in $wrapper) {
-                $wrapperResult.Add((Measure-HookWrapper -Wrapper $candidate -CommandLine $commandLine -Case $case -TimeoutSecond $timeoutSeconds -EnvironmentVariable @{
-                            PLUGIN_ROOT = $binding.Root
-                            USERPROFILE = $emptyHome
-                            HOME = $emptyHome
-                        }))
+                if ($fallbackUsed -and [string]::Equals([System.IO.Path]::GetFileName([string]$candidate.Path), 'powershell.exe', [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $wrapperResult.Add((Measure-HookWrapper -Wrapper $candidate -CommandLine $commandLine -Case $case -TimeoutSecond $timeoutSeconds -EnvironmentVariable $fallbackEnvironment -WorkingDirectoryModule $tripwire.ModuleFolder))
+                } else {
+                    $wrapperResult.Add((Measure-HookWrapper -Wrapper $candidate -CommandLine $commandLine -Case $case -TimeoutSecond $timeoutSeconds -EnvironmentVariable $probeEnvironment))
+                }
+
+                if (Test-Path -LiteralPath $tripwire.Marker) {
+                    $tripwireSpawn.Add("the $($candidate.Name) wrapper")
+                    Remove-Item -LiteralPath $tripwire.Marker -Force
+                }
             }
         }
     } finally {
         Remove-Item -LiteralPath $workRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    $shell = if ($script:OnWindows) { 'cmd.exe /d /c' } else { '/bin/sh' }
     $evidence = 'expected 0,2,2 and measured ' + ($measured -join ' ') + " from the pinned script $resolvedScript through the interpreter $interpreterShown, with the line run through $shell"
     $wrapperFailed = @($wrapperResult | Where-Object -FilterScript { $_.Status -eq 'Fail' }).Count -gt 0
     $wrapperUnmeasured = @($wrapperResult | Where-Object -FilterScript { $_.Status -eq 'Unavailable' }).Count -gt 0
@@ -3069,11 +3309,25 @@ function Test-HookContract {
         $evidence += '; ' + (@($wrapperResult | ForEach-Object -Process { $_.Evidence }) -join '; ') + '. Each wrapper is rebuilt here from the README table of hosts: the arguments are the ones the table gives for that host, and the program is this check''s own choice, by absolute path. No host ran the line'
     }
 
+    if ($tripwireSpawn.Count -gt 0) {
+        $evidence += "; the line loaded this check's tripwire under $($tripwireSpawn -join ' and '): it resolves a command by name before it pins PSModulePath to the interpreter's own Modules folder, so a module that stands first on the module path it inherits answers for that command, as a module this identity puts into its own module folders, or into the working directory of a Windows PowerShell 5.1 whose documents folder does not resolve, would answer for the guard. Pin the module path first in every PowerShell process of the line, as the shipped command does"
+    } elseif (-not $failed) {
+        $placement = if (-not $script:OnWindows) {
+            'as the first entry of PSModulePath and in the personal module folders of a decoy profile'
+        } elseif ($fallbackUsed) {
+            "as the first entry of PSModulePath and in both personal module folders of a decoy profile for $shell and the PowerShell wrapper of the Copilot SDK host, and, for the Windows PowerShell 5.1 wrapper, in its working directory, with a decoy profile without a documents folder and the machine's PSModulePath"
+        } else {
+            'as the first entry of PSModulePath and in both personal module folders of a decoy profile, for every spawn, because the machine sets no PSModulePath that would make Windows PowerShell 5.1 look in its working directory'
+        }
+
+        $evidence += "; no spawn loaded this check's tripwire, a module that exports every command the line and the pinned script name and that stood where the PowerShell of each spawn looks first: $placement. That shows what the line resolves before it pins its module path, not what a host passes in the environment or a module planted after the check"
+    }
+
     if ($interpreter.Quoted -and $wrapperFailed) {
         $evidence += '. The program path is quoted: PowerShell reads a quoted program path as an expression and not as a command unless a leading ampersand comes first, which this check refuses, and a wrapper that exits 1 for every payload has not parsed the line. As the hooks README states, exit 1 is a warning in VS Code, so a push would go ahead there, and the Copilot SDK host denies every call on it. Pin a program path that has no space and is not quoted'
     }
 
-    if ($failed -or $wrapperFailed) {
+    if ($failed -or $wrapperFailed -or $tripwireSpawn.Count -gt 0) {
         return New-CheckResult -Name 'HookContract' -Status 'Fail' -Evidence $evidence
     }
 
