@@ -3,6 +3,30 @@
 # it would collide with the read-only automatic $IsWindows and abort the file.
 $script:onWindows = $IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop'
 
+BeforeDiscovery {
+    # Every PowerShell line the repository ships, the 15 of hooks.json and the 3 of the contributor-profile asset, which
+    # the check of the pin has to accept (brief 18, R18-01).
+    $discoveryRoot = Split-Path -Parent $PSScriptRoot
+    $script:shippedLineCase = @(
+        foreach ($source in @(
+                @{ Source = 'hooks.json'; Path = 'com.github.copilot/hooks/hooks.json' }
+                @{ Source = 'the contributor-profile asset'; Path = 'skills/contributor-profile/assets/contributor-profile.hooks.json' }
+            )) {
+            $config = [System.IO.File]::ReadAllText((Join-Path $discoveryRoot $source.Path)) | ConvertFrom-Json
+
+            foreach ($hookEvent in $config.hooks.PSObject.Properties) {
+                foreach ($entry in @($hookEvent.Value)) {
+                    foreach ($key in 'windows', 'powershell', 'command') {
+                        if ($null -ne $entry.PSObject.Properties[$key]) {
+                            @{ Source = $source.Source; Event = $hookEvent.Name; Key = $key; Line = [string]$entry.$key }
+                        }
+                    }
+                }
+            }
+        }
+    )
+}
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
     $script:verifierScript = Join-Path $script:repoRoot 'com.github.copilot/hooks/scripts/Test-RunContainment.ps1'
@@ -23,6 +47,8 @@ BeforeAll {
             'Get-HookWrapper'
             'Get-HookWrapperProblem'
             'Measure-HookWrapper'
+            'Get-HookPinProblem'
+            'Get-HookMachineModulePath'
             'Get-HookTripwireName'
             'New-HookTripwire'
             'Get-HookTripwireEnvironment'
@@ -31,6 +57,58 @@ BeforeAll {
 
     # The interpreter a contained deployment names by absolute path in place of the bare name the shipped file uses.
     $script:systemPowerShell = [System.IO.Path]::Combine([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::System), 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+
+    <#
+        The contained form of the shipped guard line, with Windows PowerShell from the system folder named by absolute path,
+        and the hand edits that the review of brief 18 ran against HookContract (R18-01). Each of E1 to E3 passed the check
+        and let a planted module answer for the guard: E1 resolves two aliases before anything else and has no pin, E2 names
+        every command module-qualified and has no pin, and E3 pins a folder of the profile ahead of the interpreter's own. E4
+        keeps the pin and assigns the module path again after it, Late moves the pin behind the statement that resolves the
+        script, and File, Encoded and None give the interpreter no -Command text at all. Every edit keeps the closing
+        statement, so that only the -Command text differs from the contained line.
+    #>
+    function script:Get-EditedHookLine {
+        param(
+            [Parameter(Mandatory)]
+            [ValidateSet('Contained', 'E1', 'E2', 'E3', 'E4', 'Late', 'File', 'Encoded', 'None')]
+            [string]$Edit
+        )
+
+        $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
+        $contained = $script:systemPowerShell + ([string]@($shipped.hooks.PreToolUse)[0].windows).Substring('powershell'.Length)
+        $closing = ' ; ' + $script:HookExitTail
+
+        switch ($Edit) {
+            'File' { return $script:systemPowerShell + ' -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\x\Block-RemoteMutation.ps1"' + $closing }
+            'Encoded' { return $script:systemPowerShell + ' -NoProfile -NonInteractive -EncodedCommand ZQB4AGkAdAAgADAA' + $closing }
+            'None' { return $script:systemPowerShell + ' -NoProfile -NonInteractive' + $closing }
+        }
+
+        $head = 'try { ' + $script:HookModulePathPin + '; '
+        $start = $contained.IndexOf('-Command "') + '-Command "'.Length
+        $end = $contained.IndexOf('"', $start)
+        $inner = $contained.Substring($start, $end - $start)
+        $profileFirst = "[Environment]::SetEnvironmentVariable('PSModulePath', [IO.Path]::Combine([Environment]::GetFolderPath('LocalApplicationData'), 'M') + ';' + [IO.Path]::Combine([AppContext]::BaseDirectory, 'Modules'))"
+        $assignAgain = "[Environment]::SetEnvironmentVariable('PSModulePath', [IO.Path]::Combine([Environment]::GetFolderPath('LocalApplicationData'), 'M') + ';' + [Environment]::GetEnvironmentVariable('PSModulePath'))"
+
+        $edited = switch ($Edit) {
+            'Contained' { $inner }
+            'E1' { $inner.Replace($head, 'try { gl | Out-Null; echo x | Out-Null; ') }
+            'E2' {
+                $qualified = $inner.Replace($head, 'try { ').Replace('Set-Variable', 'Microsoft.PowerShell.Utility\Set-Variable').Replace('Get-Variable', 'Microsoft.PowerShell.Utility\Get-Variable')
+                $qualified.Replace('Get-Item', 'Microsoft.PowerShell.Management\Get-Item').Replace('Select-Object', 'Microsoft.PowerShell.Utility\Select-Object')
+            }
+            'E3' { $inner.Replace($script:HookModulePathPin, $profileFirst) }
+            'E4' { $inner.Replace($head, $head + $assignAgain + '; ') }
+            'Late' { $inner.Replace($head, 'try { ').Replace('-ExpandProperty FullName); ', '-ExpandProperty FullName); ' + $script:HookModulePathPin + '; ') }
+        }
+
+        if ($Edit -ne 'Contained' -and [string]::Equals($edited, $inner, [System.StringComparison]::Ordinal)) {
+            throw "the edit $Edit changed nothing, so a test of it would mean nothing"
+        }
+
+        return $contained.Substring(0, $start) + $edited + $contained.Substring($end)
+    }
 
     function script:Get-FileDigest {
         param(
@@ -564,6 +642,94 @@ Describe 'Containment gate' -Tag 'Unit' {
     }
 }
 
+# Brief 18, R18-05: off Windows the verifier never reaches HookContract, because IdentityPrivilege reads the access token on
+# Windows only, so no check runs the tripwire there. These cases run on every platform: where the tripwire stands, the
+# environment a spawn gets, and a real pwsh that reaches it from each place it looks first and does not once it pins.
+Describe 'Hook tripwire' -Tag 'Unit' {
+    BeforeAll {
+        $script:ownPwsh = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        $script:separator = [System.IO.Path]::PathSeparator
+    }
+
+    It 'stands the tripwire in every place where the PowerShell of this platform looks for a module first' {
+        $root = Join-Path $TestDrive 'placement'
+        $tripwire = New-HookTripwire -Root $root -CommandName @('Get-Variable')
+        $place = @(
+            $tripwire.ModuleFolder
+            [System.IO.Path]::Combine($tripwire.Home, 'Documents', 'PowerShell', 'Modules', 'ContainmentTripwire')
+            [System.IO.Path]::Combine($tripwire.Home, 'Documents', 'WindowsPowerShell', 'Modules', 'ContainmentTripwire')
+        )
+
+        if (-not $script:onWindows) {
+            $place += [System.IO.Path]::Combine($tripwire.Home, '.local', 'share', 'powershell', 'Modules', 'ContainmentTripwire')
+        }
+
+        $text = @($place | ForEach-Object -Process { [System.IO.File]::ReadAllText((Join-Path $_ 'ContainmentTripwire.psm1')) })
+        $text | Should -HaveCount $place.Count
+        @($text | Select-Object -Unique) | Should -HaveCount 1 -Because 'every place holds the same module'
+        $tripwire.Marker | Should -Be (Join-Path $root 'tripwire-loaded.txt')
+        $text[0] | Should -Match ([regex]::Escape($tripwire.Marker.Replace("'", "''")))
+        @(Get-ChildItem -LiteralPath $tripwire.HomeWithoutDocuments -Force) | Should -HaveCount 0 -Because 'that profile has no documents folder'
+    }
+
+    It 'hands a spawn the tripwire first on PSModulePath, the decoy profile, and no XDG_DATA_HOME' {
+        $tripwire = New-HookTripwire -Root (Join-Path $TestDrive 'environment') -CommandName @('Get-Variable')
+        $environment = Get-HookTripwireEnvironment -Tripwire $tripwire -PluginRoot 'plugin-root'
+
+        $environment['PLUGIN_ROOT'] | Should -Be 'plugin-root'
+        $environment['USERPROFILE'] | Should -Be $tripwire.Home
+        $environment['HOME'] | Should -Be $tripwire.Home
+        $environment['PSModulePath'] | Should -Be ($tripwire.ModuleRoot + $script:separator + $env:PSModulePath)
+        $environment.ContainsKey('XDG_DATA_HOME') | Should -BeTrue
+        $environment['XDG_DATA_HOME'] | Should -BeNullOrEmpty -Because 'pwsh off Windows takes its personal module folder from XDG_DATA_HOME when that is set'
+    }
+
+    It 'hands the Windows PowerShell 5.1 wrapper the profile without a documents folder and <Why>' -ForEach @(
+        @{ Why = 'the machine''s PSModulePath'; Machine = 'C:\machine\one;C:\machine\two' }
+        @{ Why = 'no PSModulePath where the machine sets none'; Machine = $null }
+    ) {
+        $script:mockedMachinePath = $Machine
+        Mock -CommandName Get-HookMachineModulePath -MockWith { $script:mockedMachinePath }
+        $tripwire = New-HookTripwire -Root (Join-Path $TestDrive "without-documents-$([bool]$Machine)") -CommandName @('Get-Variable')
+        $environment = Get-HookTripwireEnvironment -Tripwire $tripwire -PluginRoot 'plugin-root' -WithoutDocuments
+
+        $environment['USERPROFILE'] | Should -Be $tripwire.HomeWithoutDocuments
+        $environment['HOME'] | Should -Be $tripwire.HomeWithoutDocuments
+        $environment.ContainsKey('PSModulePath') | Should -BeTrue -Because 'a variable the spawn would otherwise inherit is removed, not left as it is'
+        $environment['PSModulePath'] | Should -Be $Machine
+        $environment['XDG_DATA_HOME'] | Should -BeNullOrEmpty
+    }
+
+    It 'loads the tripwire under pwsh from <Place> for a line that resolves a command before it pins, and not once it pins' -ForEach @(
+        @{ Place = 'the first entry of PSModulePath'; FirstEntry = $true }
+        @{ Place = 'the personal module folder of the decoy profile'; FirstEntry = $false }
+    ) {
+        $tripwire = New-HookTripwire -Root (Join-Path $TestDrive "pwsh-first-entry-$FirstEntry") -CommandName @('Get-Variable')
+        $environment = Get-HookTripwireEnvironment -Tripwire $tripwire -PluginRoot $TestDrive
+
+        if ($FirstEntry) {
+            # A profile with no module folder, so that only the first entry of the path holds the tripwire.
+            $environment['USERPROFILE'] = $tripwire.HomeWithoutDocuments
+            $environment['HOME'] = $tripwire.HomeWithoutDocuments
+        } else {
+            $environment['PSModulePath'] = $env:PSModulePath
+        }
+
+        $body = 'exit ((Get-Variable -Name PID -ValueOnly) - (Get-Variable -Name PID -ValueOnly) + 3)'
+        $line = { param($Text) '"' + $script:ownPwsh + '" -NoProfile -NonInteractive -Command "' + $Text + '"' }
+
+        $unpinned = Invoke-HookPayload -CommandLine (& $line $body) -Payload '{}' -EnvironmentVariable $environment
+        $loaded = Test-Path -LiteralPath $tripwire.Marker
+        Remove-Item -LiteralPath $tripwire.Marker -Force -ErrorAction SilentlyContinue
+        $pinned = Invoke-HookPayload -CommandLine (& $line "$($script:HookModulePathPin); $body") -Payload '{}' -EnvironmentVariable $environment
+
+        $loaded | Should -BeTrue -Because "pwsh looks in $Place before its own Modules folder"
+        $unpinned | Should -Be 0 -Because 'the tripwire ends the process with exit 0'
+        Test-Path -LiteralPath $tripwire.Marker | Should -BeFalse -Because 'a line that pins first does not reach it'
+        $pinned | Should -Be 3
+    }
+}
+
 Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
     It 'reads an unquoted absolute path' {
         $result = Get-HookInterpreter -CommandLine 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -Command exit'
@@ -776,6 +942,44 @@ Describe 'Hook interpreter' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
         $result.Problem | Should -BeNullOrEmpty
         $result.Path | Should -Be ([System.IO.Path]::GetFullPath($interpreter))
+    }
+
+    # Brief 18, R18-01: the -Command text of a pinned line is held to the pin of the shipped command, as its closing statement
+    # is held to HookExitTail. Every line the repository ships has to keep passing. The closing statement is held on its own,
+    # and a lifecycle line ends with the failure code 1, so it is cut off here and only the -Command text is read.
+    It 'holds the -Command text of the <Key> line of <Event> in <Source> to the pin, and accepts it' -ForEach $script:shippedLineCase {
+        $bare = if ($Line.StartsWith('powershell ')) { 'powershell' } else { 'pwsh' }
+        $closing = $Line.IndexOf('" ; exit (')
+        $head = if ($closing -ge 0) { $Line.Substring(0, $closing + 1) } else { $Line }
+        $interpreter = Get-HookInterpreter -CommandLine ('C:\x\' + $bare + '.exe' + $head.Substring($bare.Length))
+
+        $interpreter.Problem | Should -BeNullOrEmpty
+        $interpreter.StopKind | Should -BeExactly 'Command'
+        $interpreter.Command.StartsWith($script:HookCommandHead, [System.StringComparison]::Ordinal) | Should -BeTrue
+        Get-HookPinProblem -Interpreter $interpreter | Should -BeNullOrEmpty
+    }
+
+    It 'refuses a pinned line whose -Command text does not pin first: <Why>' -ForEach @(
+        @{ Why = 'the review''s E1, two aliases first and no pin'; Edit = 'E1'; Match = 'does not start with' }
+        @{ Why = 'the review''s E2, every name module-qualified and no pin'; Edit = 'E2'; Match = 'does not start with' }
+        @{ Why = 'the review''s E3, a pin with a folder of the profile first'; Edit = 'E3'; Match = 'does not start with' }
+        @{ Why = 'a second assignment of the module path after the pin'; Edit = 'E4'; Match = 'names PSModulePath again' }
+        @{ Why = 'the pin behind the statement that resolves the script'; Edit = 'Late'; Match = 'does not start with' }
+        @{ Why = 'a script that -File runs'; Edit = 'File'; Match = '-File' }
+        @{ Why = 'an encoded command'; Edit = 'Encoded'; Match = '-EncodedCommand' }
+        @{ Why = 'no command at all'; Edit = 'None'; Match = 'names no command' }
+    ) {
+        $interpreter = Get-HookInterpreter -CommandLine (Get-EditedHookLine -Edit $Edit)
+
+        $interpreter.Problem | Should -BeNullOrEmpty -Because 'the line has a shape the check reads, so only the pin can refuse it'
+        Get-HookPinProblem -Interpreter $interpreter | Should -Match $Match
+    }
+
+    It 'hands the -Command text on as PowerShell joins it: every word after the option, one space apart' {
+        $interpreter = Get-HookInterpreter -CommandLine 'C:\x\powershell.exe -NoProfile -c "try { exit 0 }" one "two words"'
+
+        $interpreter.StopKind | Should -BeExactly 'Command'
+        $interpreter.Command | Should -BeExactly 'try { exit 0 } one two words'
     }
 
     It 'reads -NoProfile as PowerShell does: by prefix, and after other options' -ForEach @(
@@ -1327,17 +1531,85 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         }
     }
 
+    # Brief 18, R18-01: the review ran three hand edits of the contained line against this check, and each passed it although a
+    # planted module then answered for the guard: E1 resolves two aliases before anything else and has no pin, E2 names every
+    # command module-qualified and has no pin, and E3 pins a folder of the profile ahead of the interpreter's own. The tripwire
+    # exports only the names a line spells and stands only where a logon module path looks, so it saw none of them. The check
+    # now holds the -Command text to the pin, as it holds the closing statement to HookExitTail, and runs nothing it refuses.
+    Context 'a line whose -Command text does not pin its module path first' {
+        BeforeAll {
+            $script:runPayload = ${function:Invoke-HookPayload}
+        }
+
+        It 'fails <Why>, and runs nothing' -ForEach @(
+            @{ Why = 'the review''s E1, two aliases first and no pin'; Edit = 'E1' }
+            @{ Why = 'the review''s E2, every name module-qualified and no pin'; Edit = 'E2' }
+            @{ Why = 'the review''s E3, a pin with a folder of the profile first'; Edit = 'E3' }
+            @{ Why = 'a second assignment of the module path after the pin'; Edit = 'E4' }
+            @{ Why = 'a script that -File runs, which no -Command text pins'; Edit = 'File' }
+        ) {
+            Mock -CommandName Invoke-HookPayload -MockWith { & $script:runPayload @PesterBoundParameters }
+            $tree = New-PluginTree -Name "unpinned-$Edit" -Command (Get-EditedHookLine -Edit $Edit)
+
+            $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
+                -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match 'does not pin its module path first'
+            $result.evidence | Should -Match 'It was not run'
+            Should -Invoke -CommandName Invoke-HookPayload -Times 0 -Exactly
+        }
+    }
+
     # Brief 18 (R12-02, R12-08): Windows PowerShell 5.1 and pwsh load a command from the first module on PSModulePath that
     # exports it, and a run identity can put a module where they look first: the account's own module folders, or, for 5.1
     # whose documents folder does not resolve, its working directory. The check therefore stands a tripwire module of its own
-    # there, so that a pinned line that resolves a command by name before it pins its module path loads it and fails.
+    # there, a second net behind the text of the pin, so that a line that resolves a command it spells before it pins loads it.
     Context 'the tripwire module it plants' {
         BeforeAll {
             $script:modulePathPin = "[Environment]::SetEnvironmentVariable('PSModulePath', [IO.Path]::Combine([AppContext]::BaseDirectory, 'Modules'))"
-            $script:machineModulePath = [System.Environment]::GetEnvironmentVariable('PSModulePath', [System.EnvironmentVariableTarget]::Machine)
+            $script:machineModulePath = Get-HookMachineModulePath
+            $script:runPayload = ${function:Invoke-HookPayload}
+
+            # Records every run of a line, and answers the question the check asks Windows PowerShell 5.1 with ProbeAnswer
+            # when a test sets one, so that a test can stand for a machine whose 5.1 does not look in its working directory.
+            function script:Register-SpawnSpy {
+                $script:spawnSeen = [System.Collections.Generic.List[object]]::new()
+                Mock -CommandName Invoke-HookPayload -MockWith {
+                    $environment = @{}
+                    foreach ($key in $EnvironmentVariable.Keys) { $environment[$key] = $EnvironmentVariable[$key] }
+                    $profileFolder = [string]$environment['USERPROFILE']
+                    $firstEntry = @(([string]$environment['PSModulePath']).Split([System.IO.Path]::PathSeparator))[0]
+                    $probe = [string]::Equals($CommandLine, $script:HookFirstEntryProbe, [System.StringComparison]::Ordinal)
+                    $script:spawnSeen.Add([pscustomobject]@{
+                            Probe = $probe
+                            Spawn = if ($null -ne $Wrapper) { $Wrapper.Host } else { 'cmd' }
+                            PluginRoot = [string]$environment['PLUGIN_ROOT']
+                            Environment = $environment
+                            FirstEntry = -not [string]::IsNullOrEmpty($firstEntry) -and (Test-Path -LiteralPath (Join-Path $firstEntry 'ContainmentTripwire\ContainmentTripwire.psm1'))
+                            PersonalPwsh = Test-Path -LiteralPath (Join-Path $profileFolder 'Documents\PowerShell\Modules\ContainmentTripwire\ContainmentTripwire.psm1')
+                            Personal51 = Test-Path -LiteralPath (Join-Path $profileFolder 'Documents\WindowsPowerShell\Modules\ContainmentTripwire\ContainmentTripwire.psm1')
+                            Documents = Test-Path -LiteralPath (Join-Path $profileFolder 'Documents')
+                            WorkingDirectory = -not [string]::IsNullOrEmpty($WorkingDirectoryModule) -and (Test-Path -LiteralPath (Join-Path $WorkingDirectoryModule 'ContainmentTripwire.psm1'))
+                        })
+
+                    if ($probe -and $null -ne $script:probeAnswer) {
+                        return $script:probeAnswer
+                    }
+
+                    & $script:runPayload @PesterBoundParameters
+                }
+            }
         }
 
-        It 'fails a pinned line that resolves a command through the module path it inherits, and names the spawn' {
+        BeforeEach {
+            $script:probeAnswer = $null
+        }
+
+        It 'still fails, through the tripwire, a line that resolves a command before it pins when the text is let through, and names the spawn' {
+            # The text of the pin refuses this line before anything runs; with that check out of the way, the tripwire has to
+            # catch it on its own, as the second net it is.
+            Mock -CommandName Get-HookPinProblem -MockWith { $null }
             $shipped = [System.IO.File]::ReadAllText($script:realConfig) | ConvertFrom-Json
             $text = [string]@($shipped.hooks.PreToolUse)[0].windows
             $unpinned = $script:systemPowerShell + $text.Substring('powershell'.Length).Replace("try { $($script:modulePathPin); ", 'try { ')
@@ -1356,48 +1628,35 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
                 -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
 
             $result.status | Should -Be 'Pass' -Because $result.evidence
+            $result.evidence | Should -Match 'starts with the pin of the shipped command'
             $result.evidence | Should -Match 'no spawn loaded this check''s tripwire'
             $result.evidence | Should -Match 'first entry of PSModulePath'
             $result.evidence | Should -Match 'both personal module folders'
-            $result.evidence | Should -Match 'working directory'
+            $result.evidence | Should -Match 'working directory, which that 5\.1 named first'
         }
 
-        It 'stands the tripwire where the interpreter of each spawn looks first' {
-            $script:spawnSeen = [System.Collections.Generic.List[object]]::new()
-            $script:runPayload = ${function:Invoke-HookPayload}
-            Mock -CommandName Invoke-HookPayload -MockWith {
-                $environment = @{}
-                foreach ($key in $EnvironmentVariable.Keys) { $environment[$key] = $EnvironmentVariable[$key] }
-                $profileFolder = [string]$environment['USERPROFILE']
-                $firstEntry = @(([string]$environment['PSModulePath']).Split([System.IO.Path]::PathSeparator))[0]
-                $script:spawnSeen.Add([pscustomobject]@{
-                        Spawn = if ($null -ne $Wrapper) { $Wrapper.Host } else { 'cmd' }
-                        PluginRoot = [string]$environment['PLUGIN_ROOT']
-                        Environment = $environment
-                        FirstEntry = -not [string]::IsNullOrEmpty($firstEntry) -and (Test-Path -LiteralPath (Join-Path $firstEntry 'ContainmentTripwire\ContainmentTripwire.psm1'))
-                        PersonalPwsh = Test-Path -LiteralPath (Join-Path $profileFolder 'Documents\PowerShell\Modules\ContainmentTripwire\ContainmentTripwire.psm1')
-                        Personal51 = Test-Path -LiteralPath (Join-Path $profileFolder 'Documents\WindowsPowerShell\Modules\ContainmentTripwire\ContainmentTripwire.psm1')
-                        Documents = Test-Path -LiteralPath (Join-Path $profileFolder 'Documents')
-                        WorkingDirectory = -not [string]::IsNullOrEmpty($WorkingDirectoryModule) -and (Test-Path -LiteralPath (Join-Path $WorkingDirectoryModule 'ContainmentTripwire.psm1'))
-                    })
-
-                & $script:runPayload @PesterBoundParameters
-            }
+        It 'stands the tripwire where the interpreter of each spawn looks first, after asking Windows PowerShell 5.1 once' {
+            Register-SpawnSpy
 
             $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
                 -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
 
             $result.status | Should -Be 'Pass' -Because $result.evidence
             $root = [System.IO.Path]::GetFullPath($script:plugin.Root)
-            $payloadRun = @($script:spawnSeen | Where-Object -FilterScript { [System.IO.Path]::GetFullPath($_.PluginRoot) -eq $root })
+            $probeRun = @($script:spawnSeen | Where-Object -FilterScript { $_.Probe })
+            $payloadRun = @($script:spawnSeen | Where-Object -FilterScript { -not $_.Probe -and [System.IO.Path]::GetFullPath($_.PluginRoot) -eq $root })
             $payloadRun | Should -HaveCount 9 -Because 'the three payloads run through cmd.exe and under each of the two wrappers'
+            $probeRun | Should -HaveCount 1 -Because 'the check asks Windows PowerShell 5.1 once where it looks first'
+            $probeRun[0].Spawn | Should -Be 'VS Code Local harness'
+            $probeRun[0].Documents | Should -BeFalse
+            $probeRun[0].WorkingDirectory | Should -BeTrue -Because 'it asks in the place the payloads then run in'
 
             foreach ($run in $payloadRun) {
                 $run.Environment['HOME'] | Should -Be $run.Environment['USERPROFILE']
 
-                if ($run.Spawn -eq 'VS Code Local harness' -and -not [string]::IsNullOrWhiteSpace($script:machineModulePath)) {
+                if ($run.Spawn -eq 'VS Code Local harness') {
                     $run.Documents | Should -BeFalse -Because 'Windows PowerShell 5.1 searches its working directory only when the documents folder does not resolve'
-                    $run.Environment['PSModulePath'] | Should -BeExactly $script:machineModulePath -Because '5.1 puts its own folders first only when PSModulePath is the machine value'
+                    $run.Environment['PSModulePath'] | Should -BeExactly $script:machineModulePath -Because '5.1 puts its own folder first when PSModulePath is the machine value, or unset where the machine sets none'
                     $run.WorkingDirectory | Should -BeTrue
                 } else {
                     $run.FirstEntry | Should -BeTrue -Because "the tripwire stands first on PSModulePath under $($run.Spawn)"
@@ -1407,15 +1666,60 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
             }
         }
 
+        # Brief 18, R18-06: the decoy profile moves the documents folder of 5.1 only while that folder is built from USERPROFILE;
+        # a documents folder redirected to a fixed path, or a PSModulePath of the account, keeps 5.1 from looking in its working
+        # directory first. The check asks, and stands the tripwire first on the path of that wrapper when the answer is no.
+        It 'stands the tripwire first on the path of the Windows PowerShell 5.1 wrapper when that 5.1 <Why>, and says so' -ForEach @(
+            @{ Why = 'names a rooted folder first'; Answer = 1; Says = 'named a rooted folder first' }
+            @{ Why = 'cannot be asked'; Answer = 9; Says = 'could not be asked which folder it looks in first \(it exited 9\)' }
+        ) {
+            Register-SpawnSpy
+            $script:probeAnswer = $Answer
+
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be 'Pass' -Because $result.evidence
+            $result.evidence | Should -Match $Says
+            $result.evidence | Should -Not -Match 'which that 5\.1 named first'
+            $windowsPowerShellRun = @($script:spawnSeen | Where-Object -FilterScript { -not $_.Probe -and $_.Spawn -eq 'VS Code Local harness' })
+            $windowsPowerShellRun | Should -HaveCount 3
+
+            foreach ($run in $windowsPowerShellRun) {
+                $run.FirstEntry | Should -BeTrue -Because 'the tripwire stands first on the path of a 5.1 that does not look in its working directory'
+                $run.Personal51 | Should -BeTrue
+                $run.WorkingDirectory | Should -BeFalse
+            }
+        }
+
+        # Brief 18, R18-04: with PSModulePath unset, Windows PowerShell 5.1 builds its path from its own personal folder and the
+        # machine's folders, so where the machine sets no value the wrapper runs without the variable, and still looks in its
+        # working directory first when the documents folder does not resolve.
+        It 'runs the Windows PowerShell 5.1 wrapper without PSModulePath, and with the tripwire in its working directory, where the machine sets none' {
+            Mock -CommandName Get-HookMachineModulePath -MockWith { $null }
+            Register-SpawnSpy
+
+            $result = Test-HookContract -HookConfigPath $script:plugin.Config -HookConfigSha256 $script:plugin.ConfigDigest `
+                -HookScriptPath $script:plugin.Script -HookScriptSha256 $script:plugin.ScriptDigest
+
+            $result.status | Should -Be 'Pass' -Because $result.evidence
+            $windowsPowerShellRun = @($script:spawnSeen | Where-Object -FilterScript { $_.Spawn -eq 'VS Code Local harness' })
+            $windowsPowerShellRun | Should -HaveCount 4 -Because 'the question and the three payloads'
+
+            foreach ($run in $windowsPowerShellRun) {
+                $run.Environment.ContainsKey('PSModulePath') | Should -BeTrue
+                $run.Environment['PSModulePath'] | Should -BeNullOrEmpty -Because 'the variable is removed where the machine sets none'
+                $run.WorkingDirectory | Should -BeTrue -Because '5.1 without PSModulePath and without a documents folder looks in its working directory first'
+            }
+
+            $result.evidence | Should -Match 'which that 5\.1 named first'
+        }
+
         It 'loads the tripwire under <Label> for a line that resolves a command before it pins its module path, and not for one that pins first' -ForEach @(
             @{ Label = 'cmd.exe'; Index = -1; WithoutDocuments = $false }
             @{ Label = 'the Windows PowerShell 5.1 wrapper'; Index = 0; WithoutDocuments = $true }
             @{ Label = 'the PowerShell 7 wrapper'; Index = 1; WithoutDocuments = $false }
         ) {
-            if ($WithoutDocuments -and [string]::IsNullOrWhiteSpace($script:machineModulePath)) {
-                Set-ItResult -Skipped -Because 'the machine sets no PSModulePath, so Windows PowerShell 5.1 adds no folder of its own'
-            }
-
             $root = Join-Path $TestDrive "tripwire-reach-$($Index + 1)"
             $tripwire = New-HookTripwire -Root $root -CommandName @('Get-Variable')
             $environment = Get-HookTripwireEnvironment -Tripwire $tripwire -PluginRoot $root -WithoutDocuments:$WithoutDocuments
@@ -2222,7 +2526,10 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
 
     Context 'when the command does not resolve its script from PLUGIN_ROOT' {
         It 'fails, because the pinned script cannot be shown to be the one that runs' {
-            $tree = New-PluginTree -Name 'fixed-path' -Command ('"' + $script:systemPowerShell + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $script:realScript + '"')
+            # The line pins its module path first, as the check requires before it runs anything, and then runs the
+            # guard from a fixed path instead of resolving it from PLUGIN_ROOT.
+            $fixed = "try { $($script:HookModulePathPin); & '$($script:realScript)'; exit (Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction SilentlyContinue) } catch { exit 2 }"
+            $tree = New-PluginTree -Name 'fixed-path' -Command ('"' + $script:systemPowerShell + '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "' + $fixed + '"')
 
             $result = Test-HookContract -HookConfigPath $tree.Config -HookConfigSha256 $tree.ConfigDigest `
                 -HookScriptPath $tree.Script -HookScriptSha256 $tree.ScriptDigest
@@ -2435,7 +2742,7 @@ Describe 'Hook contract' -Tag 'Unit' -Skip:(-not $script:onWindows) {
         }
 
         It 'fails a command that takes as long as the timeout the host would enforce' {
-            $slow = ('"' + $script:systemPowerShell + '" -NoProfile -NonInteractive -Command "Start-Sleep -Seconds 3"').Replace('\', '\\').Replace('"', '\"')
+            $slow = ('"' + $script:systemPowerShell + '" -NoProfile -NonInteractive -Command "' + $script:HookCommandHead + 'Start-Sleep -Seconds 3 } catch { exit 2 }"').Replace('\', '\\').Replace('"', '\"')
             $tree = New-PluginTree -Name 'entry-slow'
             $json = '{"hooks":{"PreToolUse":[{"type":"command","timeout":1,"command":"' + $slow + '","windows":"' + $slow + '"}]}}'
             $digest = Set-PluginConfig -Tree $tree -Json $json

@@ -92,7 +92,6 @@ BeforeDiscovery {
     # `shell: true`, which HookContract approximates, runs `windows` under cmd.exe. Each spawn gets the places its
     # interpreters search: Windows PowerShell 5.1 does not read pwsh's personal folder, and pwsh does not read 5.1's
     # or fall back to its working directory.
-    $machineModulePath = if ($script:isWindowsPlatform) { [Environment]::GetEnvironmentVariable('PSModulePath', 'Machine') }
     $plantedSpawn = @(
         @{ Mode = 'vscode'; Branch = 'windows'; Place = @('FirstEntry', 'Personal51', 'WorkingDirectory') }
         @{ Mode = 'sdk'; Branch = 'powershell'; Place = @('FirstEntry', 'PersonalPwsh') }
@@ -107,15 +106,21 @@ BeforeDiscovery {
         foreach ($spawn in $plantedSpawn) {
             foreach ($place in $spawn.Place) {
                 foreach ($payload in $plantedPayload) {
-                    $skipReason = ''
-                    if ($place -in 'Personal51', 'WorkingDirectory' -and [string]::IsNullOrWhiteSpace($machineModulePath)) {
-                        $skipReason = 'the machine sets no PSModulePath, so Windows PowerShell 5.1 adds no folder of its own'
-                    } elseif ($spawn.Mode -eq 'sdk' -and -not $pwshAvailable) {
-                        $skipReason = 'pwsh is not on PATH'
-                    }
+                    $skipReason = if ($spawn.Mode -eq 'sdk' -and -not $pwshAvailable) { 'pwsh is not on PATH' } else { '' }
 
                     @{ Mode = $spawn.Mode; Branch = $spawn.Branch; Place = $place; Payload = $payload.Payload; Command = $payload.Command; ExitCode = $payload.ExitCode; SkipReason = $skipReason }
                 }
+            }
+        }
+    )
+
+    # One control per spawn and place: the launcher without its pins has to load the planted module (R18-08).
+    $script:plantedControlCase = @(
+        foreach ($spawn in $plantedSpawn) {
+            foreach ($place in $spawn.Place) {
+                $skipReason = if ($spawn.Mode -eq 'sdk' -and -not $pwshAvailable) { 'pwsh is not on PATH' } else { '' }
+
+                @{ Mode = $spawn.Mode; Branch = $spawn.Branch; Place = $place; SkipReason = $skipReason }
             }
         }
     )
@@ -175,9 +180,31 @@ BeforeAll {
     $script:isWindowsPlatform = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
     $script:pwshPath = Get-Command -Name 'pwsh' -CommandType Application -ErrorAction SilentlyContinue |
         Select-Object -First 1 -ExpandProperty Source
-    # What a logon environment hands a process on this machine; Windows PowerShell 5.1 puts its own folders first only then.
+    # What a logon environment hands a process on this machine. Windows PowerShell 5.1 puts its own personal folder first
+    # when PSModulePath is this value, and also when the variable is not set at all, so a machine without one runs without it.
     $script:machineModulePath = if ($script:isWindowsPlatform) { [Environment]::GetEnvironmentVariable('PSModulePath', 'Machine') }
     $script:utf8 = [Text.UTF8Encoding]::new($false)
+
+    <#
+        Text from a child process, made safe for a test message: pwsh colours its errors with ANSI escape
+        sequences, and Pester's NUnit report stops at the first character that XML cannot hold, so one
+        failing case would cut off the report of every case after it. Escape sequences are dropped, and
+        every other character outside printable ASCII, line breaks and tabs apart, becomes a question mark.
+    #>
+    function Format-ChildText {
+        param(
+            [Parameter()]
+            [AllowNull()]
+            [AllowEmptyString()]
+            [string]$Text
+        )
+
+        if ([string]::IsNullOrEmpty($Text)) {
+            return ''
+        }
+
+        [regex]::Replace([regex]::Replace($Text, '\x1B\[[0-?]*[ -/]*[@-~]', ''), '[^\x09\x0A\x0D\x20-\x7E]', '?')
+    }
     $script:pluginScriptDirectory = 'com.github.copilot/hooks/scripts'
     $script:homeScriptDirectory = '.copilot/hooks/scripts'
 
@@ -295,7 +322,8 @@ BeforeAll {
           value a pwsh hands its children does.
         - Personal51: Windows PowerShell 5.1's folder in the documents folder;
           5.1 puts it first when PSModulePath equals the machine's value, as in
-          a logon environment.
+          a logon environment, and when the variable is not set, which is what a
+          machine without a value of its own hands on.
         - PersonalPwsh: pwsh's folder in the documents folder, which pwsh
           always puts first.
         - WorkingDirectory: WindowsPowerShell\Modules in the working directory,
@@ -335,6 +363,7 @@ BeforeAll {
 
         $systemModules = Join-Path -Path $env:SystemRoot -ChildPath 'System32\WindowsPowerShell\v1.0\Modules'
         $pwshModules = Join-Path -Path (Split-Path -Parent $script:pwshPath) -ChildPath 'Modules'
+        $logonModulePath = if ([string]::IsNullOrWhiteSpace($script:machineModulePath)) { $null } else { $script:machineModulePath }
 
         switch ($Place) {
             'FirstEntry' {
@@ -343,7 +372,7 @@ BeforeAll {
             }
             'Personal51' {
                 $moduleDirectory = Join-Path -Path $userProfile -ChildPath 'Documents\WindowsPowerShell\Modules'
-                $modulePath = $script:machineModulePath
+                $modulePath = $logonModulePath
             }
             'PersonalPwsh' {
                 $moduleDirectory = Join-Path -Path $userProfile -ChildPath 'Documents\PowerShell\Modules'
@@ -351,7 +380,7 @@ BeforeAll {
             }
             'WorkingDirectory' {
                 $moduleDirectory = Join-Path -Path $workingDirectory -ChildPath 'WindowsPowerShell\Modules'
-                $modulePath = $script:machineModulePath
+                $modulePath = $logonModulePath
             }
         }
 
@@ -884,7 +913,7 @@ Describe 'Hook launcher behavior' -Tag 'Unit' {
                 }
 
                 $result.ExitCode |
-                    Should -Be (Get-ObservedExitCode -Mode $Mode -Branch $Branch -ExitCode $exitCode) -Because "the stub exited $exitCode. $($result.StandardError)"
+                    Should -Be (Get-ObservedExitCode -Mode $Mode -Branch $Branch -ExitCode $exitCode) -Because "the stub exited $exitCode. $(Format-ChildText $result.StandardError)"
                 (Get-StubRecord -Sandbox $sandbox).Candidate | Should -BeExactly 'USERPROFILE'
             }
         }
@@ -903,7 +932,7 @@ Describe 'Hook launcher behavior' -Tag 'Unit' {
                 USERPROFILE = $sandbox.UserProfileRoot
             }
 
-            $result.ExitCode | Should -Be 0 -Because $result.StandardError
+            $result.ExitCode | Should -Be 0 -Because (Format-ChildText $result.StandardError)
             (Get-StubRecord -Sandbox $sandbox).Candidate | Should -BeExactly 'PLUGIN_ROOT'
         }
 
@@ -918,7 +947,7 @@ Describe 'Hook launcher behavior' -Tag 'Unit' {
                 USERPROFILE = $null
             }
 
-            $result.ExitCode | Should -Be 0 -Because $result.StandardError
+            $result.ExitCode | Should -Be 0 -Because (Format-ChildText $result.StandardError)
             (Get-StubRecord -Sandbox $sandbox).Candidate | Should -BeExactly 'HOME'
         }
 
@@ -934,7 +963,7 @@ Describe 'Hook launcher behavior' -Tag 'Unit' {
                 USERPROFILE = $sandbox.UserProfileRoot
             }
 
-            $result.ExitCode | Should -Be 0 -Because $result.StandardError
+            $result.ExitCode | Should -Be 0 -Because (Format-ChildText $result.StandardError)
             (Get-StubRecord -Sandbox $sandbox).Candidate | Should -BeExactly 'USERPROFILE'
         }
 
@@ -949,7 +978,7 @@ Describe 'Hook launcher behavior' -Tag 'Unit' {
                 USERPROFILE = $sandbox.UserProfileRoot
             }
 
-            $result.ExitCode | Should -Be $ObservedFailureCode -Because $result.StandardError
+            $result.ExitCode | Should -Be $ObservedFailureCode -Because (Format-ChildText $result.StandardError)
             $result.StandardError |
                 Should -Match ([regex]::Escape("CopilotAtelier hook $($sandbox.StubName) failed: ") + 'could not resolve')
         }
@@ -970,7 +999,7 @@ Describe 'Hook launcher behavior' -Tag 'Unit' {
                 USERPROFILE = $sandbox.UserProfileRoot
             }
 
-            $result.ExitCode | Should -Be $ObservedFailureCode -Because $result.StandardError
+            $result.ExitCode | Should -Be $ObservedFailureCode -Because (Format-ChildText $result.StandardError)
             $result.StandardError | Should -Match ([regex]::Escape("CopilotAtelier hook $($sandbox.StubName) failed: "))
             $result.StandardError | Should -Match ([regex]::Escape($failureMessage))
         }
@@ -990,7 +1019,7 @@ Describe 'Hook launcher behavior' -Tag 'Unit' {
                 USERPROFILE = $sandbox.UserProfileRoot
             }
 
-            $result.ExitCode | Should -Be 0 -Because $result.StandardError
+            $result.ExitCode | Should -Be 0 -Because (Format-ChildText $result.StandardError)
             [BitConverter]::ToString((Get-StubRecord -Sandbox $sandbox).Payload) |
                 Should -BeExactly ([BitConverter]::ToString($script:utf8.GetBytes($payload)))
         }
@@ -1020,7 +1049,7 @@ Describe 'Hook launcher behavior' -Tag 'Unit' {
                 USERPROFILE = $sandbox.UserProfileRoot
             }
 
-            $result.ExitCode | Should -Be 0 -Because $result.StandardError
+            $result.ExitCode | Should -Be 0 -Because (Format-ChildText $result.StandardError)
             (Get-StubRecord -Sandbox $sandbox).Candidate | Should -BeExactly 'USERPROFILE'
         }
     }
@@ -1046,7 +1075,7 @@ Describe 'Hook launcher user profile fallback' -Tag 'Unit' {
             -WorkingDirectory $TestDrive `
             -Environment @{ HOME = $null; USERPROFILE = $null }
 
-        $result.ExitCode | Should -Be 0 -Because $result.StandardError
+        $result.ExitCode | Should -Be 0 -Because (Format-ChildText $result.StandardError)
         $profileFolder = $result.StandardOutput.Trim()
         $profileFolder | Should -Not -BeExactly '*'
         [IO.Path]::IsPathRooted($profileFolder) | Should -BeTrue -Because "'$profileFolder' must be an absolute path"
@@ -1120,7 +1149,7 @@ Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration
             -Environment @{ USERPROFILE = $userProfile } `
             -Payload $payload
 
-        $result.ExitCode | Should -Be $ExitCode -Because $result.StandardError
+        $result.ExitCode | Should -Be $ExitCode -Because (Format-ChildText $result.StandardError)
     }
 
     It 'hands the Copilot SDK host the block reason on standard output' {
@@ -1152,7 +1181,7 @@ Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration
             -Environment @{ USERPROFILE = $userProfile } `
             -Payload $payload
 
-        $result.ExitCode | Should -Be 2 -Because $result.StandardError
+        $result.ExitCode | Should -Be 2 -Because (Format-ChildText $result.StandardError)
         $decision = $result.StandardOutput | ConvertFrom-Json
         $decision.PSObject.Properties.Name | Should -Be @('permissionDecision', 'permissionDecisionReason')
         $decision.permissionDecision | Should -BeExactly 'deny'
@@ -1191,7 +1220,7 @@ Describe 'Hook launcher integration with Block-RemoteMutation' -Tag 'Integration
             -Payload $payload
         $stopwatch.Stop()
 
-        $result.ExitCode | Should -Be 0 -Because $result.StandardError
+        $result.ExitCode | Should -Be 0 -Because (Format-ChildText $result.StandardError)
         $stopwatch.Elapsed.TotalSeconds | Should -BeLessThan 10 -Because 'the launcher must not wait on the unreachable HOME'
     }
 }
@@ -1233,7 +1262,7 @@ Describe 'Hook launcher closing statement' -Tag 'Unit' -Skip:(-not $script:isWin
         }
 
         $called = if (Test-Path -LiteralPath $script:closingMarker) { [IO.File]::ReadAllText($script:closingMarker).Trim() } else { 'nothing' }
-        $result.ExitCode | Should -Be $Expected -Because "the planted module recorded: $called. $($result.StandardError)"
+        $result.ExitCode | Should -Be $Expected -Because "the planted module recorded: $called. $(Format-ChildText $result.StandardError)"
         $called | Should -BeExactly 'nothing' -Because 'the closing statement pins the module path before it resolves Get-Variable'
     }
 }
@@ -1312,6 +1341,41 @@ Describe 'Hook launcher under a planted module' -Tag 'Integration' -Skip:(-not $
                 tool_input = [ordered]@{ command = $Command }
             } | ConvertTo-Json -Depth 5 -Compress
         }
+
+        # The launcher as it shipped before brief 18: the same text without the pin in the inner command and in the closing
+        # statement, so that it resolves its commands through the module path it inherits.
+        function script:Get-UnpinnedLauncher {
+            param(
+                [Parameter(Mandatory)]
+                [string]$Launcher
+            )
+
+            $unpinned = $Launcher.Replace("try { $($script:modulePathPin); ", 'try { ').Replace("@($($script:modulePathPin)) + ", '')
+            if ([string]::Equals($unpinned, $Launcher, [StringComparison]::Ordinal)) {
+                throw 'the launcher holds no pin to remove, so the control would test nothing'
+            }
+
+            $unpinned
+        }
+    }
+
+    # R18-08: the positive control of the place cases below. They pass when a pinned launcher loads nothing, and that would
+    # also hold where the interpreter never looks in the planted place, as on a runner whose PSModulePath or documents folder
+    # differs from this one. The same launcher without its pins has to load the module from each place.
+    It 'loads the module from <Place> under <Mode> for the launcher without its pins (control)' -ForEach $script:plantedControlCase {
+        if ($SkipReason) { Set-ItResult -Skipped -Because $SkipReason }
+
+        $case = New-PlantedCase -Place $Place -Mode $Mode -ScriptName 'Block-RemoteMutation.ps1'
+        New-PlantedModule -Directory $case.ModuleDirectory -Marker $case.Marker -Shadow $script:everyName -ExitOnImport
+
+        $result = Invoke-HookLauncher `
+            -Launcher (Get-UnpinnedLauncher -Launcher (Get-HookLauncher -EventName 'PreToolUse' -Branch $Branch)) `
+            -Mode $Mode `
+            -WorkingDirectory $case.WorkingDirectory `
+            -Environment $case.Environment `
+            -Payload (New-PlantedPayload -Command 'git status --short')
+
+        Get-PlantedRecord -Case $case | Should -Match 'imported' -Because "$Mode has to look in $Place before its own folders, or the cases of that place test nothing here. $(Format-ChildText $result.StandardError)"
     }
 
     It 'gives <ExitCode> for the <Payload> payload under <Mode> and never loads a module that answers for every command from <Place>' -ForEach $script:plantedPlaceCase {
@@ -1328,7 +1392,7 @@ Describe 'Hook launcher under a planted module' -Tag 'Integration' -Skip:(-not $
             -Payload (New-PlantedPayload -Command $Command)
 
         $record = Get-PlantedRecord -Case $case
-        $result.ExitCode | Should -Be $ExitCode -Because "the planted module recorded '$record'. $($result.StandardError)"
+        $result.ExitCode | Should -Be $ExitCode -Because "the planted module recorded '$record'. $(Format-ChildText $result.StandardError)"
         $record | Should -BeExactly '' -Because 'every PowerShell process of the launcher pins its module path before it resolves a command'
     }
 
@@ -1346,7 +1410,7 @@ Describe 'Hook launcher under a planted module' -Tag 'Integration' -Skip:(-not $
             -Payload (New-PlantedPayload -Command $Command)
 
         $record = Get-PlantedRecord -Case $case
-        $result.ExitCode | Should -Be $ExitCode -Because "the planted module recorded '$record'. $($result.StandardError)"
+        $result.ExitCode | Should -Be $ExitCode -Because "the planted module recorded '$record'. $(Format-ChildText $result.StandardError)"
         $record | Should -BeExactly '' -Because "no module on the inherited path is imported, so none can answer for $Name"
     }
 
@@ -1378,7 +1442,7 @@ Describe 'Hook launcher under a planted module' -Tag 'Integration' -Skip:(-not $
             -Payload '{"hook_event_name":"UserPromptSubmit","prompt":"hello"}'
 
         $record = Get-PlantedRecord -Case $case
-        $result.ExitCode | Should -Be 0 -Because $result.StandardError
+        $result.ExitCode | Should -Be 0 -Because (Format-ChildText $result.StandardError)
         $result.StandardError | Should -Match 'names no usable session; recording no grant' -Because "the recorder has to run on the payload it was given; the planted module recorded '$record'"
         $record | Should -BeExactly '' -Because 'no module on the inherited path is imported'
     }
