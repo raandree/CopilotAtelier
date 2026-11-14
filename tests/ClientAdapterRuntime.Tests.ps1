@@ -270,6 +270,7 @@ Describe 'Committed runtime receipts' -Tag 'Unit' {
 
         $verdict = Get-ClientAdapterCaseVerdict -Client $Client -DeclaredTool $adapter.Tool -Observation $receipt.Observation
 
+        # Any letter case, so that a misspelt kind cannot keep a case out of this check; the shape test pins the exact kind.
         foreach ($case in @($receipt.Case | Where-Object -Property Kind -EQ -Value 'Runtime'))
         {
             $verdict.Outcome[$case.Id] |
@@ -539,6 +540,7 @@ Describe 'Client adapter smoke cases for <Client>' -Tag 'Integration' -ForEach $
                     Should -BeExactly (@($receipt.Observation.$name | Sort-Object) -join ' | ') -Because "the receipt records $name as its run observed it"
             }
 
+            # Any letter case, so that a misspelt kind cannot keep a case out of this check; the shape test pins the exact kind.
             foreach ($case in @($receipt.Case | Where-Object -Property Kind -EQ -Value 'Runtime'))
             {
                 $script:outcome[$case.Id] | Should -BeExactly $case.Outcome -Because "the receipt records $($case.Id) as $($case.Outcome)"

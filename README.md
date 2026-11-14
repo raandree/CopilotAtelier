@@ -1170,10 +1170,12 @@ allow-list. `Get-CopilotAtelierClientAdapter` reports `RuntimeVerified` only
 while every case of a receipt passed and one of them ran on a runtime, naming
 that runtime and version (`VerifiedRuntime`, `VerifiedClientVersion`), and only
 while the file a client loads still has the receipt's SHA-256. Run it for the
-current state: after any edit, the state falls back to `StructurallyChecked`.
-The CLI's interactive `/agent` list, local VS Code chat, and every behavioral
-case remain unverified, and the observation that the source profile loaded in
-VS Code 1.136.1 is kept as historical evidence, bound to no file.
+current state: after an edit to the file a client loads, the state falls back
+to `StructurallyChecked`: any edit of the profile for VS Code, and for the
+Copilot CLI an edit that changes the composed variant, which a model bump does
+not. The CLI's interactive `/agent` list, local VS Code chat, and every
+behavioral case remain unverified, and the observation that the source profile
+loaded in VS Code 1.136.1 is kept as historical evidence, bound to no file.
 A composed variant loses handoff buttons, so a workflow that advances through a
 handoff cannot advance on that client. Notebook, task, problem, browser,
 GitHub-toolset, MCP, and VS Code-command tools have no documented client

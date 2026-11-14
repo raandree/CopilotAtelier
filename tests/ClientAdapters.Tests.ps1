@@ -295,7 +295,7 @@ Describe 'Client adapter build artifact' -Tag 'Unit' {
 
         if ($receipt -and $receipt.ArtifactSha256 -ceq (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant())
         {
-            @($receipt.Case | Where-Object -FilterScript { $_.Id -eq 'C3' }).Outcome | Should -Be 'Passed'
+            @($receipt.Case | Where-Object -FilterScript { $_.Id -eq 'C3' }).Outcome | Should -BeExactly 'Passed'
         }
     }
 

@@ -126,8 +126,9 @@ Describe 'Client capability contract' -Tag 'Unit' {
                 foreach ($entry in $case)
                 {
                     $entry.Id | Should -MatchExactly '^[BC][1-9]$' -Because "$label names a case of docs/client-adapter-evals.md"
-                    $entry.Kind | Should -BeIn @('Runtime', 'File') -Because "$label/$($entry.Id)"
-                    $entry.Outcome | Should -BeIn @('Passed', 'Failed') -Because "$label/$($entry.Id)"
+                    # Exact, as the resolver reads them: a kind or an outcome in another letter case would silently withdraw a claim.
+                    $entry.Kind | Should -MatchExactly '^(Runtime|File)\z' -Because "$label/$($entry.Id)"
+                    $entry.Outcome | Should -MatchExactly '^(Passed|Failed)\z' -Because "$label/$($entry.Id)"
                     $entry.Evidence | Should -Not -BeNullOrEmpty -Because "$label/$($entry.Id)"
                 }
             }
