@@ -64,7 +64,7 @@ cd $dst; npm install
 
 `npm install` pulls Playwright (msedge channel reuses the system Edge install — no Chromium download needed). The user-data-dir, auth-state, and extracted output folders are created lazily on first run.
 
-An installation that predates Reddit reading needs only the `lib` folder and the four Reddit lines: `scripts\extract.mjs`, `tasks\check-logins.mjs`, `tasks\reddit-read.mjs`, and `lib\reddit-url.mjs`.
+An installation that predates Reddit reading needs only the `lib` folder and five lines of the recipe: `scripts\extract.mjs`, `tasks\check-logins.mjs`, `tasks\dump-cookies.mjs`, `tasks\reddit-read.mjs`, and `lib\reddit-url.mjs`; an older `dump-cookies.mjs` writes cookie values into `extracted\`.
 
 ## Standard Workflow
 

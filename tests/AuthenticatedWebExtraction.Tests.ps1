@@ -244,7 +244,9 @@ Describe 'authenticated-web-extraction keeps Reddit text away from every agent t
 
     It 'keeps every agent that can run subagents from reaching the reader by name' {
         # R16-02: VS Code refuses a call by name only through the caller's own
-        # agents: list, and infer: wins over disable-model-invocation.
+        # agents: list, and infer: wins over disable-model-invocation. N11: VS
+        # Code 1.146.0 names the subagent tool runSubagent, in the tool set
+        # agent, so either name in tools: counts as holding it.
         $script:readerFrontmatter | Should -Not -Match '(?m)^infer\s*:' -Because 'VS Code and its agent host let infer win over disable-model-invocation'
 
         foreach ($agentFile in Get-ChildItem -LiteralPath $script:agentsRoot -Filter '*.agent.md' -File)
@@ -252,7 +254,7 @@ Describe 'authenticated-web-extraction keeps Reddit text away from every agent t
             $head = [regex]::Match((Get-Content -LiteralPath $agentFile.FullName -Raw -Encoding UTF8), '\A---\r?\n(?<head>.*?)\r?\n---', 'Singleline').Groups['head'].Value
             $toolsMatch = [regex]::Match($head, '(?m)^tools:\s*\[(?<list>.*)\]\s*$')
             $tools = @([regex]::Matches($toolsMatch.Groups['list'].Value, '''([^'']+)''') | ForEach-Object -Process { $_.Groups[1].Value })
-            if ($toolsMatch.Success -and -not ($tools -match '^agent(/|$)'))
+            if ($toolsMatch.Success -and -not ($tools -match '(?i)^(agent(/|$)|runSubagent$)'))
             {
                 continue
             }
@@ -392,13 +394,15 @@ Describe 'authenticated-web-extraction keeps Reddit text away from every agent t
 Describe 'authenticated-web-extraction bootstrap recipe' -Tag 'Unit' {
     It 'names every file an installation from before Reddit reading needs' {
         # R16-08: an extract.mjs from before Reddit reading passes no headless
-        # flag, so reddit-read refuses every run until it is copied in too.
+        # flag, so reddit-read refuses every run until it is copied in too. A
+        # dump-cookies.mjs from before 6.1.0 writes cookie values into
+        # extracted/, where step 3 of the Standard Workflow sends the agent.
         $upgrade = [regex]::Match($script:skillText, '(?m)^An installation that predates Reddit reading[^\r\n]*').Value
 
         $upgrade | Should -Not -BeNullOrEmpty
-        foreach ($file in 'scripts\extract.mjs', 'tasks\check-logins.mjs', 'tasks\reddit-read.mjs', 'lib\reddit-url.mjs')
+        foreach ($file in 'scripts\extract.mjs', 'tasks\check-logins.mjs', 'tasks\dump-cookies.mjs', 'tasks\reddit-read.mjs', 'lib\reddit-url.mjs')
         {
-            $upgrade | Should -Match ([regex]::Escape($file)) -Because "reddit-read needs $file"
+            $upgrade | Should -Match ([regex]::Escape($file)) -Because "an installation from before Reddit reading needs $file"
         }
     }
 
