@@ -4,6 +4,127 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-11-14: the module folders in `WritableRoots`, the S-18 follow-up (follow-up of prompt P5)
+
+Brief 12 does the follow-up that S-18 of the review of 2026-10-14 left open. pwsh puts the account's
+own module folder ahead of every folder a launcher names, and the later commands of the verifier
+auto-load modules from it, but `WritableRoots` measured only its escape set, which reached that
+folder at most through the user profile above it. The check now names a second set beside the
+escape set, the module search set: every entry of the verifier's own `PSModulePath`, the `Modules`
+folder of `$PSHOME`, and the folders of the user's and of `$PSHOME`'s `powershell.config.json`, with
+each file that exists, because a `PSModulePath` key in either file chooses a module folder of the
+next start. A place of that set fails the check when this identity can write it, even inside a
+declared root; a place of either set that does not exist is judged by the nearest existing folder
+above it; an entry that is relative, or names a network or device path, is reported unmeasured
+without being opened; and every path and reason that the check puts into its evidence is relayed.
+The four questions of the brief were decided under the owner's delegation for the local branch (the
+handoff ledger, 2026-11-14); merging brief 12 is the owner's explicit answer. The independent review
+(`review: on`) has not run yet.
+
+### Measurement
+
+- On this machine (Windows Server 2025, build 26100; pwsh 7.6.10), a pwsh started through
+  `ProcessStartInfo` with `Environment.Clear()`, `SystemRoot`, and a `PSModulePath` of the system
+  folder only searched the account's `Documents\PowerShell\Modules`, `C:\Program Files\PowerShell\Modules`,
+  `$PSHOME\Modules`, and the system folder, in that order. With `PSModulePath` unset, or set to an
+  unrelated folder, the first three still came first.
+- Under a filtered token of the measuring account (`CreateRestrictedToken` with `LUA_TOKEN`, Medium
+  integrity, as the Privilege suite makes one), the account's module folder and its
+  `Documents\PowerShell` were writable and the other folders closed. The account is an elevated
+  administrator, which holds every right, so the filtered token is the nearer stand-in for a run
+  identity.
+- pwsh's own merge function puts a `PSModulePath` from the user's `powershell.config.json` first,
+  as about_PSModulePath documents, and the account holds `KEY_SET_VALUE` on the `User Shell
+  Folders` key that places its documents folder, measured by opening the key; nothing was written.
+- No containment profile exists on this machine, and no profile or fixture of the repository
+  declares a root that covers a module folder.
+
+### Scope of the review
+
+- Can a place that pwsh auto-loads modules from, or reads its module path from, be writable by this
+  identity while `WritableRoots` passes?
+- Can an entry of the module search set make the check open a network or device path, or
+  authenticate to another machine?
+- Can a place that does not exist read closed while this identity could create it?
+- Does every path and every reason reach the evidence relayed and cut, and does each list stop at
+  1,000 characters?
+- Do the hooks README, the CHANGELOG and this entry claim only what is shown?
+
+### Verdict
+
+Pending. The independent review reads this change next, and its verdict and findings go here.
+
+### Earlier findings
+
+| ID | Severity | Where | Finding | Resolution |
+|---|---|---|---|---|
+| S-18 | Nit | The review of 2026-10-14 | The module path was closed only for the three firewall cmdlets; adding the folders pwsh searches to the escape set of `WritableRoots` was a follow-up | Done: the module search set of this entry |
+| R11-01 | Minor | The review of 2026-11-13 | At least 26 exception texts of the verifier, the grants root and the paths of the escape set reached the evidence as they came, and `WritableRoots` joined its unmeasured lines without a cap | Partly resolved: every path and every reason that `WritableRoots` puts into its evidence is relayed, cut at 200 characters, and every list at 1,000, among them the two reasons of `Get-ObjectRight` that take the text of an exception (its lines 616 and 643) as `WritableRoots` uses them. Those reasons still reach `ControlImmutability` and `LedgerProtection` through `Test-PathProtection` as they come, and so do the other exception texts, the event names of `hooks.json` and the grants root: a brief of their own |
+
+### Tests
+
+- Test first, in groups, with the new functions present as stubs that returned nothing and a
+  `-ModuleSet` that was ignored, so that each group failed on its assertion: of 124 tests in the
+  Flow and Filesystem suites, 34 failed for the stated reason and 90 passed, the controls among
+  them. The Flow case of the brief's Task 2 passed `WritableRoots` with a writable module folder
+  ("Expected 'Fail', but got 'Pass'"), and its control with a closed one passed throughout; the
+  wiring case saw no call of `Get-ModuleSearchSet`; nine cases of the module search set got an empty
+  set; five cases of a place that does not exist read Pass where they expect Fail or Unavailable,
+  while the controls with a closed folder above, with only the rights to add a file and delete a
+  child above, and with a file above passed; ten cases of the module search set in `WritableRoots`
+  passed where they expect Fail or Unavailable; and eight rows of `Get-SearchPathProblem` got
+  nothing. Then 124 of 124 passed.
+- The relay table, 29 rows, was written against that code, before any relay: every row failed for
+  the stated reason, unprintable characters in the evidence or a path or a list that was not cut,
+  and the other 60 tests of its suite passed. Then 153 of 153 passed. Two cases were added after the
+  code they test, the refusal when the host sets no profile path and a configuration folder that is
+  not opened and not asked whether its file exists; their mutants fail them.
+- Mutants, on copies outside the working tree: 34, all caught. In the first round 6 of 32 survived:
+  the relay of each path and reason was hidden by the relay of the joined list, which makes every
+  text printable ASCII as well. The rows now use texts of more than 200 characters, so that only the
+  cut of each text shows its relay, and all six are caught.
+- Every `tests/ContainmentVerifier*.Tests.ps1` with Pester 5.7.1: 1,094 passed, 0 failed, 3 skipped
+  by design (a POSIX case, the property test whose fresh seed only CI draws, and an elevation type
+  this token does not have), in 252 seconds.
+- PSScriptAnalyzer 1.25.0 with default rules: 0 findings on the verifier and both suites.
+  markdownlint: 0 issues.
+- The new tests are tagged `Unit`, mock every right they read, and build their paths with the
+  separators of the platform, so they run on every leg of CI; the rows of network and device entries
+  run on Windows only. Nothing ran on Ubuntu or macOS here, and the full gate runs after the review.
+
+### Remaining risks
+
+- A module loaded before the check. The check runs in the process it protects: pwsh auto-loads a
+  module from these places as soon as a command of the verifier needs one, long before
+  `WritableRoots` runs. A Pass says what the next start of pwsh finds writable, not what the
+  measuring process already loaded.
+- A re-pointed module folder. The account can re-point its documents folder, and with it its module
+  folder and its configuration file, through its own `User Shell Folders` key, and a launcher can
+  set another `PSModulePath`. The check measures where this process looks, not where the next start
+  will.
+- Rights the check does not judge. Writable means that this identity can add a file or a folder, or
+  delete a child. `WRITE_DAC`, `WRITE_OWNER` and `DELETE` on a place, and every right on the folders
+  above a place that exists, are not judged, so a folder that the identity owns reads closed and can
+  be reopened, and a folder above that it can rename lets it replace a closed one. The hooks README
+  tells operators to have an administrator own the module and configuration folders and to grant
+  the run identity read access only.
+- Only the text decides what is not opened: a drive letter that is mapped or substituted to a share
+  is opened like a local one, and the escape set is opened wherever it points, a temp folder on a
+  share included.
+- On Windows a junction or a symbolic link, the place itself or a folder above it, is measured as
+  the link and not as its target. Off Windows the write probe goes through a link, and a place that
+  does not exist is probed with a short-lived file in the nearest existing folder above it.
+- When the host sets no profile path, the folder of the user's `powershell.config.json` cannot be
+  named, and `Get-ModuleSearchSet` throws, so the verifier exits 1 and nothing is verified. A
+  `pwsh -File` start always sets one.
+- The new digest of the verifier, as checked out (CRLF on every system, by `.gitattributes`):
+  `2cea2d645d4bc8cbbfadbd88a4f172e19f3060225e47b6d639d7dc1ee0aab8c3`. The appender is unchanged on
+  this branch at `f55e163b02fe4db6d318bc3e8c3d8cc6c86c2bf365496ddf22cda5e812030572` (brief 13), and
+  `hooks.json` and the guard are unchanged. Every containment profile has to re-pin the verifier,
+  and `~/.copilot` has to be refreshed with `./Setup-CopilotSettings.ps1`.
+- The remaining risks of the earlier entries that this change does not touch stay open: the rest of
+  R11-01, the run id of `-Revalidate`, and the second Windows account.
+
 ## 2026-11-13: a replayed acknowledgement, S-19 (follow-up of prompt P5)
 
 The Custom `security-reviewer` agent reviewed the change that closes S-19 of the review of
@@ -891,7 +1012,7 @@ fraction of ten digits, all fail closed.
 | ID | Severity | Area | Finding | Resolution |
 |---|---|---|---|---|
 | S-17 | Minor | Verifier | The hook-line scan reads `cmd.exe` rules only: `-Command "$(calc.exe)"`, `"$env:PLUGIN_ROOT"`, a backtick inside quotes and `-Command x '"' ; calc.exe '"'` were accepted, and a PowerShell wrapper or a POSIX shell reads them differently from a scan that toggles on the ASCII double quote. | Fixed (`25cedd4`): no `$` or backtick anywhere, no `'` outside double quotes, and, beyond what was asked, nothing outside printable ASCII (checked on the text as given; PowerShell reads curly quotes as quotes) and no dot segment in the program path. The 15 shipped command strings carry none of them. Thirteen new rows failed first; five mutations, one per rule, broke exactly those rows. |
-| S-18 | Nit | Docs | The README launcher recipe (`Environment.Clear()` and a `PSModulePath` of system folders) does not do what it says: pwsh adds the account's own module folder first. | Fixed in the README, after reproducing it. The module path is closed only where the verifier measures it (the three firewall cmdlets); adding the folders pwsh searches to the escape set of `WritableRoots` is a follow-up. |
+| S-18 | Nit | Docs | The README launcher recipe (`Environment.Clear()` and a `PSModulePath` of system folders) does not do what it says: pwsh adds the account's own module folder first. | Fixed in the README, after reproducing it. The module path is closed only where the verifier measures it (the three firewall cmdlets); adding the folders pwsh searches to the escape set of `WritableRoots` is a follow-up. The follow-up was done on 2026-11-14; see the entry of that date. |
 | S-19 | Nit | Docs | "Cannot make a record that was not stored read as stored" has an exception: a server that replays the earlier acknowledgement of a record identical to one already stored. | Fixed in the README: the exception and what the client cannot prove (how many times the record was stored). The reviewer's hardening, `sequence == head before send + 1`, needs the client to read the chain before it sends, and is not done. Closed on 2026-11-13, as `sequence > n` with n counted from the sink before the send; see the entry on S-19 of that date. |
 | S-20 | Nit | Both | Two service-side `[Console]::Error.WriteLine` lines print raw exception text; the S-04 and S-05 appender tests are Windows-only although three of the functions are platform-neutral; `..` in the program word is normalized textually. | The `..` item is fixed with S-17. The first is not changed: no client text reaches those lines (`Test-RecordSchema` returns canonicalization errors to the client inside a `try`, and `Add-Record` runs only after it passed), so there is nothing to provoke in a test; part C accepted that as a Nit and still recommends routing both lines through `Format-RefusalText`. The second is a follow-up, because Ubuntu and macOS cannot be run here. Closed on 2026-11-13; see the entry of that date. |
 
@@ -989,7 +1110,8 @@ change. Nothing could run on Ubuntu or macOS here.
   account's own module folder ahead of the system ones whatever `PSModulePath` a
   launcher sets (reproduced), so a module that the verifier's other commands would
   auto-load from it is not measured; adding the folders pwsh searches to the escape
-  set of `WritableRoots` is a follow-up.
+  set of `WritableRoots` is a follow-up. It was done on 2026-11-14; see the entry
+  of that date.
 - A process of the service's own account can take or join the pipe name and make
   an append fail (S-09). An open handle on the chain head stops the service by
   design, and a silent connection holds it for as long as it stays open.

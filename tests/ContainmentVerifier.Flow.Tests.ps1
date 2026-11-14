@@ -28,10 +28,35 @@ BeforeAll {
             'Test-CredentialAbsence'
             'Test-WritableRoot'
             'Get-EscapeSet'
+            'Get-ModuleSearchSet'
+            'Get-SearchPathProblem'
+            'Measure-EscapePath'
+            'Get-ObjectRight'
+            'Get-PathChain'
+            'Test-PathInside'
+            'Format-RelayedText'
             'Test-LedgerProtection'
         ))
 
     $script:base = if ($script:onWindows) { 'C:\containment' } else { '/containment' }
+
+    # What Get-ObjectRight reports for a folder: every right Denied except the ones named.
+    function script:New-FlowRight {
+        param(
+            [Parameter(Mandatory)]
+            [string]$Path,
+
+            [Parameter()]
+            [string[]]$Granted = @()
+        )
+
+        $right = @{}
+        foreach ($name in $script:RightName) {
+            $right[$name] = if ($name -in $Granted) { 'Granted' } else { 'Denied' }
+        }
+
+        return [pscustomobject]@{ Path = $Path; State = 'Measured'; IsDirectory = $true; IsReparsePoint = $false; ReadOnly = $false; Right = $right; Reason = '' }
+    }
 
     function script:New-FlowProfile {
         $entry = {
@@ -58,6 +83,12 @@ BeforeAll {
     }
 
     function script:Set-AllChecksPass {
+        param(
+            # Commands that run as they are, for a case that measures them through the flow.
+            [Parameter()]
+            [string[]]$Except = @()
+        )
+
         Mock Test-VerifierBinding { New-CheckResult -Name 'VerifierBinding' -Status 'Pass' -Evidence 'mock' }
         Mock Test-ControlDigest { New-CheckResult -Name 'ControlDigest' -Status 'Pass' -Evidence 'mock' }
         Mock Test-ControlImmutability { New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'mock' }
@@ -68,8 +99,19 @@ BeforeAll {
         Mock Test-EgressPolicy { New-CheckResult -Name 'EgressPolicy' -Status 'Pass' -Evidence 'mock' }
         Mock Test-RemoteUnreachable { New-CheckResult -Name 'RemoteUnreachable' -Status 'Pass' -Evidence 'mock' }
         Mock Test-CredentialAbsence { New-CheckResult -Name 'CredentialAbsence' -Status 'Pass' -Evidence 'mock' }
-        Mock Test-WritableRoot { New-CheckResult -Name 'WritableRoots' -Status 'Pass' -Evidence 'mock' }
-        Mock Get-EscapeSet { @('escape-a', 'escape-b') }
+
+        if ('Test-WritableRoot' -notin $Except) {
+            Mock Test-WritableRoot { New-CheckResult -Name 'WritableRoots' -Status 'Pass' -Evidence 'mock' }
+        }
+
+        if ('Get-EscapeSet' -notin $Except) {
+            Mock Get-EscapeSet { @('escape-a', 'escape-b') }
+        }
+
+        if ('Get-ModuleSearchSet' -notin $Except) {
+            Mock Get-ModuleSearchSet { @('module-a', 'module-b') }
+        }
+
         Mock Test-LedgerProtection { New-CheckResult -Name 'LedgerProtection' -Status 'Pass' -Evidence 'mock' }
         Mock Test-LiveArtifact { New-CheckResult -Name 'LiveArtifacts' -Status 'Pass' -Evidence 'mock' }
     }
@@ -260,6 +302,15 @@ Describe 'Containment check flow' -Tag 'Unit' {
         }
     }
 
+    It 'gives the writable roots check the places pwsh loads modules from' {
+        $null = Invoke-Flow
+
+        Should -Invoke Get-ModuleSearchSet -Times 1 -Exactly
+        Should -Invoke Test-WritableRoot -Times 1 -Exactly -ParameterFilter {
+            $ModuleSet -contains 'module-a' -and $ModuleSet -contains 'module-b'
+        }
+    }
+
     It 'builds the escape set from the profile, the ledger and the head it was given' {
         $null = Invoke-Flow
 
@@ -334,6 +385,160 @@ Describe 'Containment escape set' -Tag 'Unit' {
 
         $set | Should -Contain ([System.IO.Path]::TrimEndingDirectorySeparator($osTemp)) -Because 'the temp variables are the caller''s to set'
         $set | Should -Contain ([System.IO.Path]::TrimEndingDirectorySeparator($elsewhere)) -Because 'the folder the caller chose is still a way out'
+    }
+}
+
+# Brief 12, S-18: pwsh puts the module folder of the account ahead of every folder a launcher names, and auto-loads
+# modules from it into the later commands of the verifier, so the writable roots check measures it. The check runs
+# here as it is, through the flow, on rights this identity is given: the declared root takes files and folders, the
+# folder at the front of the module path is as each case says, and every other place is a closed folder.
+Describe 'Containment module folders in the flow' -Tag 'Unit' {
+    BeforeAll {
+        $script:accountModules = [System.IO.Path]::Combine($script:base, 'account', 'Documents', 'PowerShell', 'Modules')
+
+        function script:Invoke-ModuleFlow {
+            param(
+                [Parameter(Mandatory)]
+                [bool]$Writable
+            )
+
+            $script:accountModulesWritable = $Writable
+            Mock Get-ObjectRight -MockWith {
+                if ($Path -eq (Join-Path $script:base 'work')) {
+                    return New-FlowRight -Path $Path -Granted @('WriteData', 'AppendData')
+                }
+
+                if ($Path -eq $script:accountModules -and $script:accountModulesWritable) {
+                    return New-FlowRight -Path $Path -Granted @('WriteData', 'AppendData', 'DeleteChild')
+                }
+
+                return New-FlowRight -Path $Path
+            }
+
+            $previous = [System.Environment]::GetEnvironmentVariable('PSModulePath')
+
+            try {
+                [System.Environment]::SetEnvironmentVariable('PSModulePath', $script:accountModules)
+                $result = Invoke-Flow
+            } finally {
+                [System.Environment]::SetEnvironmentVariable('PSModulePath', $previous)
+            }
+
+            return ($result | Where-Object { $_.name -ceq 'WritableRoots' })
+        }
+    }
+
+    BeforeEach {
+        Set-AllChecksPass -Except @('Test-WritableRoot', 'Get-EscapeSet', 'Get-ModuleSearchSet')
+    }
+
+    It 'fails WritableRoots when the module folder first on the module path is writable by this identity' {
+        $check = Invoke-ModuleFlow -Writable $true
+
+        $check.status | Should -Be 'Fail' -Because $check.evidence
+        $check.evidence | Should -Match ([regex]::Escape($script:accountModules))
+    }
+
+    It 'leaves WritableRoots as it was when that folder is closed to this identity' {
+        $check = Invoke-ModuleFlow -Writable $false
+
+        $check.status | Should -Be 'Pass' -Because $check.evidence
+    }
+}
+
+Describe 'Containment module search set' -Tag 'Unit' {
+    BeforeAll {
+        $script:search = Join-Path $TestDrive 'search'
+        $script:userConfiguration = Join-Path $script:search 'user-configuration'
+        $script:powerShellHome = Join-Path $script:search 'pshome'
+        $null = New-Item -ItemType Directory -Path $script:userConfiguration, $script:powerShellHome -Force
+        [System.IO.File]::WriteAllText((Join-Path $script:powerShellHome 'powershell.config.json'), '{}')
+        $script:separator = [string][System.IO.Path]::PathSeparator
+
+        function script:Get-TestSearchSet {
+            param(
+                [Parameter()]
+                [AllowEmptyString()]
+                [string]$ModulePath = ''
+            )
+
+            return @(Get-ModuleSearchSet -ModulePath $ModulePath -PowerShellHome $script:powerShellHome -UserConfigurationFolder $script:userConfiguration)
+        }
+    }
+
+    It 'names every entry of the module path, split on the path separator of this platform and on nothing else' {
+        # A drive letter puts a colon into every entry on Windows, and a semicolon is a plain character of a folder name
+        # elsewhere, so both entries survive only a split on the separator the platform uses.
+        $first = Join-Path $script:search 'first'
+        $second = if ($script:separator -eq ';') { Join-Path $script:search 'second' } else { Join-Path $script:search 'sec;ond' }
+
+        $set = Get-TestSearchSet -ModulePath ($first + $script:separator + $second)
+
+        $set | Should -Contain $first
+        $set | Should -Contain $second
+    }
+
+    It 'names the module folder of PSHOME even when the module path leaves it out' {
+        Get-TestSearchSet -ModulePath (Join-Path $script:search 'other') | Should -Contain (Join-Path $script:powerShellHome 'Modules')
+    }
+
+    It 'names the folders of both powershell.config.json files, and a file only where it exists' {
+        $set = Get-TestSearchSet
+
+        $set | Should -Contain $script:userConfiguration
+        $set | Should -Contain $script:powerShellHome
+        $set | Should -Contain (Join-Path $script:powerShellHome 'powershell.config.json')
+        $set | Should -Not -Contain (Join-Path $script:userConfiguration 'powershell.config.json')
+    }
+
+    It 'drops empty entries and names a place once' {
+        $first = Join-Path $script:search 'first'
+
+        $set = Get-TestSearchSet -ModulePath ($script:separator + $first + $script:separator + ' ' + $script:separator + $first + [System.IO.Path]::DirectorySeparatorChar)
+
+        @($set | Where-Object { [string]::IsNullOrWhiteSpace($_) }) | Should -HaveCount 0
+        @($set | Where-Object { [System.IO.Path]::TrimEndingDirectorySeparator($_) -eq $first }) | Should -HaveCount 1
+    }
+
+    It 'names a place once whatever the case of its letters' -Skip:(-not $script:onWindows) {
+        $first = Join-Path $script:search 'first'
+
+        $set = Get-TestSearchSet -ModulePath ($first + ';' + $first.ToUpperInvariant())
+
+        @($set | Where-Object { $_ -eq $first }) | Should -HaveCount 1
+    }
+
+    It 'keeps an entry that <Kind> as written, so that the check can name it without opening it' -ForEach @(
+        @{ Kind = 'is relative'; Entry = 'relative-modules' }
+        if ($script:onWindows) {
+            @{ Kind = 'names a network share'; Entry = '\\server\share\Modules' }
+            @{ Kind = 'names a device path'; Entry = '\\?\C:\Modules' }
+        }
+    ) {
+        Get-TestSearchSet -ModulePath $Entry | Should -Contain $Entry
+    }
+
+    It 'reads the folder of the user''s powershell.config.json where pwsh does, from the profile path of the host' {
+        $set = @(Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome)
+
+        $set | Should -Contain ([System.IO.Path]::TrimEndingDirectorySeparator([System.IO.Path]::GetFullPath((Split-Path -Parent $PROFILE.CurrentUserCurrentHost))))
+    }
+
+    It 'throws, rather than leave the folder of the user''s powershell.config.json out, when the host set no profile path' {
+        # A profile path without the properties a host gives it, in this scope only.
+        Set-Variable -Name PROFILE -Value 'a profile path without the properties of the host' -Scope Local
+
+        { Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome } | Should -Throw -ExpectedMessage '*cannot be named*'
+    }
+
+    It 'does not ask a configuration folder it will not open whether its file exists' -Skip:(-not $script:onWindows) {
+        # A device spelling of a real folder that holds the file: the folder is kept as written, and the file is not probed.
+        $device = '\\?\' + $script:powerShellHome
+
+        $set = @(Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome -UserConfigurationFolder $device)
+
+        $set | Should -Contain $device
+        $set | Should -Not -Contain ($device + '\powershell.config.json')
     }
 }
 
