@@ -167,8 +167,9 @@ Describe 'GitHub Actions workflows' -Tag 'Unit' {
                 Stands in for build.ps1, with its real parameter block, so it binds
                 what build.ps1 binds. It records each call: whether its session ran
                 an earlier one, the parameters bound, and what output/RequiredModules
-                held at its start. It leaves a module of its own there and fails the
-                first calls.
+                held at its start. It leaves a module of its own there, holding a
+                hidden dot-file as a signed module holds .signature.p7s, which a
+                removal without -Force cannot take, and fails the first calls.
             #>
             $buildParamBlock = [System.Management.Automation.Language.Parser]::ParseFile($script:buildScriptPath, [ref] $null, [ref] $null).ParamBlock
             $script:fakeBuildScript = @(
@@ -183,8 +184,13 @@ $bound = @($PSBoundParameters.GetEnumerator() | Sort-Object -Property 'Key' | Fo
 $callPath = Join-Path -Path $PSScriptRoot -ChildPath 'calls.log'
 Add-Content -LiteralPath $callPath -Value ('{0}|{1}|{2}' -f $fresh, $bound, $found)
 $call = @(Get-Content -LiteralPath $callPath).Count
-$null = New-Item -Path $moduleFolder -ItemType 'Directory' -Force
-Set-Content -LiteralPath (Join-Path -Path $moduleFolder -ChildPath "call$call") -Value $call
+$moduleCopy = New-Item -Path (Join-Path -Path $moduleFolder -ChildPath "call$call") -ItemType 'Directory' -Force
+$signaturePath = Join-Path -Path $moduleCopy.FullName -ChildPath '.signature.p7s'
+Set-Content -LiteralPath $signaturePath -Value $call
+if ($IsWindows)
+{
+    [System.IO.File]::SetAttributes($signaturePath, [System.IO.File]::GetAttributes($signaturePath) -bor [System.IO.FileAttributes]::Hidden)
+}
 $failedCall, $failure = (Get-Content -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath 'failure.txt')) -split ' '
 if ($call -le [System.Int32] $failedCall)
 {
@@ -269,8 +275,11 @@ if ($call -le [System.Int32] $failedCall)
                     binder, so that the alias -bootstrap and an abbreviated name count
                     too, and comes back with Bound set to $false when it cannot be
                     bound or a workflow expression fills in its arguments. A comment
-                    or a log line that only names build.ps1 is no call. RunsAlone
-                    says that nothing but comments and line breaks surrounds the call.
+                    or a Write-* line that only names build.ps1 is no call; any other
+                    mention outside these calls, such as a call whose script path is
+                    computed, comes back unbound too, so that a test sees it. An
+                    encoded command stays unseen. RunsAlone says that nothing but
+                    comments and line breaks surrounds the call.
                 #>
                 param
                 (
@@ -289,8 +298,9 @@ if ($call -le [System.Int32] $failedCall)
                 $significantToken = @(
                     $token | Where-Object -FilterScript { $_.Kind -notin 'Comment', 'NewLine', 'LineContinuation', 'EndOfInput' }
                 )
+                $allCommandAst = @($scriptAst.FindAll({ param ($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true))
 
-                foreach ($commandAst in $scriptAst.FindAll({ param ($node) $node -is [System.Management.Automation.Language.CommandAst] }, $true))
+                foreach ($commandAst in $allCommandAst)
                 {
                     $element = $commandAst.CommandElements
                     $commandName = $commandAst.GetCommandName()
@@ -338,6 +348,34 @@ if ($call -le [System.Int32] $failedCall)
                                 ConvertTo-BuildCall -CommandAst $commandAst -ScriptElement $element[$index] -InChildProcess $true -RunsAlone $false
                                 break
                             }
+                        }
+                    }
+                }
+
+                # The calls read above and the log lines; a mention of build.ps1 outside all of them is a call no test can read.
+                $readExtent = @(
+                    $allCommandAst | Where-Object -FilterScript {
+                        $_.GetCommandName() -match '(?:^|[\\/])(?:build\.ps1|pwsh(?:\.exe)?|powershell(?:\.exe)?|Write-\w+)$'
+                    } | ForEach-Object -Process { $_.Extent }
+                )
+
+                foreach ($mention in @($token | Where-Object -FilterScript { $_.Kind -ne 'Comment' -and $_.Text -match 'build\.ps1' }))
+                {
+                    $insideRead = @(
+                        $readExtent | Where-Object -FilterScript {
+                            $_.StartOffset -le $mention.Extent.StartOffset -and $_.EndOffset -ge $mention.Extent.EndOffset
+                        }
+                    )
+
+                    if ($insideRead.Count -eq 0)
+                    {
+                        [pscustomobject]@{
+                            Text           = $mention.Text
+                            Bound          = $false
+                            Parameter      = @()
+                            Task           = @()
+                            InChildProcess = $InChildProcess.IsPresent
+                            RunsAlone      = $false
                         }
                     }
                 }
