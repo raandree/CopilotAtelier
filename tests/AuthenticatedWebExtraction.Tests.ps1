@@ -232,6 +232,13 @@ Describe 'authenticated-web-extraction keeps Reddit text away from every agent t
             $entry.Value | Should -Match '(?i)\bbuilt-in Agent\b' -Because "$($entry.Key) must name the caller that VS Code still lets run the reader by name"
             $entry.Value | Should -Match '(?i)`infer: false`' -Because "$($entry.Key) must say what the agent host makes of the flag"
             $entry.Value | Should -Match '(?i)\bhook\b' -Because "$($entry.Key) must name the deterministic close that is still open"
+
+            # R16-10: the CLI evidence is the 1.0.73 that Copilot Chat bundles,
+            # and the risk covers every caller the flag does not stop.
+            $entry.Value | Should -Match '(?i)\bCopilot CLI 1\.0\.73\b' -Because "$($entry.Key) must name the CLI version whose code was read"
+            $entry.Value | Should -Match '(?i)\b1\.0\.96\b[^.;]*\bnot inspected\b' -Because "$($entry.Key) must not extend the CLI claim to a version nobody read"
+            $entry.Value | Should -Match '(?i)\bany caller without an explicit `agents:` list\b' -Because "$($entry.Key) must name every caller VS Code still lets run the reader by name"
+            $entry.Value | Should -Match '(?i)\bin agent-host sessions,(?: from)? any agent that holds `agent`' -Because "$($entry.Key) must name the agent-host callers while the enforcement of infer: false is unverified"
         }
     }
 
@@ -260,23 +267,42 @@ Describe 'authenticated-web-extraction keeps Reddit text away from every agent t
     }
 
     It 'pins the reviewed text of the Reddit quarantine' {
-        # R16-04: word lists let a reworded instruction through, so the text a
-        # reviewer approved is pinned whole. Re-pin a value only after an
-        # independent review of the new text; the tests above give the reasons
-        # it has to hold.
+        # R16-04 and R16-09: word lists let a reworded instruction through, so
+        # the text a reviewer approved is pinned whole: every place in the
+        # Skill that speaks of Reddit, the reader's README section, and the
+        # reader's body. Re-pin a value only after an independent review of the
+        # new text; the tests above give the reasons it has to hold.
         $workflow = [regex]::Match($script:skillText, '(?ms)^## Standard Workflow\r?$(?<body>.*?)(?=^## )').Groups['body'].Value
+        $existingTasks = [regex]::Match($script:skillText, '(?ms)^## Existing Tasks\r?$(?<body>.*?)(?=^## )').Groups['body'].Value
+        $failureModes = [regex]::Match($script:skillText, '(?ms)^## Failure Modes & Diagnosis\r?$(?<body>.*?)(?=^## )').Groups['body'].Value
         $pinned = [ordered] @{
-            'SKILL.md, Standard Workflow steps 3 and 4' = @{
+            'SKILL.md, Standard Workflow steps 3 and 4'           = @{
                 Text   = [regex]::Match($workflow, '(?ms)^3\. .*').Value
                 Sha256 = '6b6c4a86e93736b30cac75bd3e2149c2a94a4d905eedff4db6a07aa7faaa2b4c'
             }
-            'SKILL.md, Signed-in Reddit Reading'        = @{
+            'SKILL.md, Signed-in Reddit Reading'                  = @{
                 Text   = $script:redditSection
-                Sha256 = '3031b9c9fdc40f22ee049cfef643d6a613cdee7a4fb35f6dc8de1b2918279105'
+                Sha256 = '4970e38dd48673de4075138d1c46c0a7832d87f9b5606a2430bc72d0da746b3c'
             }
-            'the reader''s README section'              = @{
+            'SKILL.md, the Reddit lines of Existing Tasks'        = @{
+                Text   = @($existingTasks -split '\r?\n' | Where-Object -FilterScript { $_ -match '(?i)reddit' }) -join "`n"
+                Sha256 = '85c3e810b3cd6d3ade5d0c184f0d4b42b9b1481d9f4d29790fc470ef201eed83'
+            }
+            'SKILL.md, the Reddit rows of Failure Modes'          = @{
+                Text   = @($failureModes -split '\r?\n' | Where-Object -FilterScript { $_ -match '^\|' -and $_ -match '(?i)reddit' }) -join "`n"
+                Sha256 = 'd64ff5740ce70f7a9894ff7a4babc010cfcc380cd1a0293e7d3a4a0014808b7c'
+            }
+            'SKILL.md, Companion Prompt'                          = @{
+                Text   = [regex]::Match($script:skillText, '(?ms)^## Companion Prompt\r?$.*?(?=^## |\z)').Value
+                Sha256 = '7a8ff36ec7dc66d03f7a2709240054bf6bd4aa8beba06452d97688c81a500275'
+            }
+            'the reader''s README section'                        = @{
                 Text   = $script:readerReadme
-                Sha256 = '8cdc11cf22a3d4e888bc8c5ae9ab35290dff57344bf6365c6e177af1048cbba5'
+                Sha256 = '33dbdd63f3823beb94506a0d8a66c770f7e37b687bb49e0739d1f319cc0dfb5b'
+            }
+            'quarantined-reader.agent.md, below its frontmatter'  = @{
+                Text   = [regex]::Match($script:readerText, '\A---\r?\n.*?\r?\n---\r?\n(?<body>.*)\z', 'Singleline').Groups['body'].Value
+                Sha256 = '58ecfb989dff61c48fb0e062acf7caf88df66ba80a216a83c64f428a06208ede'
             }
         }
 
@@ -303,7 +329,7 @@ Describe 'authenticated-web-extraction keeps Reddit text away from every agent t
         # Option 1 of brief 16: the user starts the reader in a new chat, so no
         # agent that can act starts it or receives its summary.
         $script:readerFrontmatter | Should -Match '(?m)^user-invocable:\s*true\s*$' -Because 'the user starts the reader from the agent picker'
-        $script:readerFrontmatter | Should -Match '(?m)^disable-model-invocation:\s*true\s*$' -Because 'the flag hides the reader from the subagent list in VS Code and makes the Copilot CLI refuse it by name'
+        $script:readerFrontmatter | Should -Match '(?m)^disable-model-invocation:\s*true\s*$' -Because 'the flag hides the reader from the subagent list in VS Code, and the Copilot CLI 1.0.73 that Copilot Chat bundles refuses it by name'
         $script:readerText | Should -Not -Match '(?i)\bcall(er|ers|ing agent)\b' -Because 'the reader answers the user, not an agent that called it'
 
         $namingAgent = @(
