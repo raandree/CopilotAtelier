@@ -66,6 +66,13 @@ commands, credentials, secrets, and non-empty controller or worker egress
 lists. The measured OS policy must enforce default-deny outbound access before
 either agent may operate.
 
+The containment profile names the run with `runId`, which the operator draws
+new for every run, so each run has a profile, a ledger sink, and a chain head of
+its own. The run cannot choose them: they come from the profile, which is closed
+to it. Use that `runId` as the run's identifier wherever this agent names the
+run, and never invent another one. No check can tell whether a run id was used
+before, so the operator alone keeps run ids apart.
+
 Before invoking the verifier, hash the profile and require its SHA-256 to equal
 the direct argument. Require OS policy evidence that the profile and verifier
 are not writable by the controller, worker, live-runner, or any run identity.
@@ -217,7 +224,8 @@ Blocker and forbids further terminal or agent work except cleanup and reporting.
    security, and packaging commands from tracked configuration and existing
    successful test artifacts. Do not invent a parallel harness.
 4. Atomically create a stable machine-scoped lock keyed by the canonical
-  repository path and carrying run ID, PID, process start, and UTC. Stop with
+  repository path and carrying the profile's `runId` as the run ID, PID, process
+  start, and UTC. Stop with
   `BlockedConcurrentRun` when a live owner holds it. Reconcile a stale lock and
   prior run artifacts before continuing. Verify no equivalent build or test
   run is active. Never overlap a command whose clean step can invalidate
@@ -227,7 +235,8 @@ Blocker and forbids further terminal or agent work except cleanup and reporting.
 6. Create an integration branch, a controller-owned run directory outside the
   repository, and one network-disabled isolated worktree and branch per work
   item.
-7. Send fixed-schema records to the pinned ledger appender. It assigns a
+7. Send fixed-schema records to the pinned ledger appender. Every record carries
+  the profile's `runId` as its `runId`. It assigns a
   monotonic sequence, `prevSha256`, and `recordSha256` to every JSONL record,
   persists the record before acknowledging it, and updates a chain head at each
   checkpoint. Validate the complete chain from genesis before using any ledger
@@ -452,7 +461,8 @@ local implementation as live-verified.
   profile, its direct digest, and the report path. It runs the pinned
   appender's profile-bound
   validation of the complete chain, requires the seal and the protected chain
-  head, and requires the report's digest in the `FinalReport` record; require
+  head, requires every record to carry the profile's `runId`, and requires the
+  report's digest in the `FinalReport` record; require
   exit code 0 before returning the report. Never return a report the verifier
   did not revalidate as final.
 9. Return a concise summary and report path. Never claim success while tests,

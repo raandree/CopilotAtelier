@@ -22,7 +22,8 @@
     and the ledger's protection. It does not enumerate the filesystem.
 
     -Revalidate runs the pinned appender's profile-bound validation of the sealed
-    ledger, again only on controls already measured, and checks that the ledger
+    ledger, again only on controls already measured, and checks that every record
+    of the ledger carries the run id the profile names and that the ledger
     records the digest of the final report.
 
     It runs only as the entry script of a process of its own, and refuses a
@@ -56,7 +57,7 @@
 .PARAMETER Verify
     Runs the fixed verification set.
 .PARAMETER Revalidate
-    Revalidates the sealed ledger and the final report instead.
+    Revalidates the sealed ledger, its run, and the final report instead.
 .PARAMETER ProfilePath
     Containment profile to measure against.
 .PARAMETER ProfileSha256
@@ -146,6 +147,7 @@ $script:RightLabel = @{
 }
 $script:AllowedKey = @(
     'schemaVersion'
+    'runId'
     'verifier'
     'hooksConfig'
     'hookScript'
@@ -162,6 +164,10 @@ $script:AllowedKey = @(
 # Names read from a document are compared exactly. -in and -notin compare by culture, and a culture
 # ignores characters such as a zero-width space, so a name that only looks like a known one would pass.
 $script:AllowedKeySet = [System.Collections.Generic.HashSet[string]]::new([string[]]$script:AllowedKey, [System.StringComparer]::Ordinal)
+# The run a profile is for. Printable ASCII, because it reaches evidence that a model reads, and no ':' or
+# '/', because ConvertFrom-Json, which reads the profile, turns an ISO date-time or a '/Date(...)/' string
+# into a DateTime. Matched case-sensitively: a match that ignores case reads the Kelvin sign as a K.
+$script:RunIdShape = '\A[A-Za-z0-9._-]{1,64}\z'
 # The keys a host reads a command from, and the whole set of keys the guard's hook entry may carry.
 $script:CommandKey = @('command', 'windows', 'powershell', 'bash', 'linux', 'osx')
 $script:EntryKeySet = [System.Collections.Generic.HashSet[string]]::new([string[]](@('type', 'timeout') + $script:CommandKey), [System.StringComparer]::Ordinal)
@@ -2055,7 +2061,7 @@ function Test-ProfileSchema {
     }
 
     $required = @(
-        'schemaVersion', 'verifier', 'hooksConfig', 'hookScript', 'ledgerAppender'
+        'schemaVersion', 'runId', 'verifier', 'hooksConfig', 'hookScript', 'ledgerAppender'
         'ledgerSink', 'chainHead', 'controllerEgressAllow', 'workerEgressAllow'
         'controllerIdentity', 'workerIdentity', 'immutableControlPaths', 'writableRoots'
     )
@@ -2067,12 +2073,25 @@ function Test-ProfileSchema {
     }
 
     if ($present.Contains('schemaVersion')) {
-        # A loose comparison with 1 also accepts "1", $true, 1.0 and [1], none of which is the
+        # A loose comparison with 2 also accepts "2", 2.0 and [2], none of which is the
         # integer the schema names.
         $version = $ContainmentProfile.schemaVersion
+        $integer = $version -is [int] -or $version -is [long]
 
-        if (($version -isnot [int] -and $version -isnot [long]) -or [long]$version -ne 1) {
-            $problem.Add("'schemaVersion' must be the integer 1")
+        if (-not $integer -or [long]$version -ne 2) {
+            $problem.Add("'schemaVersion' must be the integer 2")
+
+            if ($integer -and [long]$version -eq 1) {
+                $problem.Add("a version-1 profile names no run: add a 'runId' that is new for each run, and set 'schemaVersion' to 2")
+            }
+        }
+    }
+
+    if ($present.Contains('runId')) {
+        $runId = $ContainmentProfile.runId
+
+        if ($runId -isnot [string] -or $runId -cnotmatch $script:RunIdShape) {
+            $problem.Add("'runId' must be a string of 1 to 64 letters, digits, '.', '_' or '-'")
         }
     }
 
@@ -5047,6 +5066,7 @@ function Get-RevalidationCheckName {
         'IdentityBinding'
         'IdentityPrivilege'
         'LedgerChain'
+        'LedgerRun'
         'FinalReport'
         'LedgerProtection'
     )
@@ -5247,6 +5267,112 @@ function Get-LedgerChainResult {
     }
 }
 
+function Test-LedgerRun {
+    <#
+        The ledger must belong to the run the profile names: every record of the chain the pinned
+        appender validated carries the profile's runId, as a JSON string equal to it code unit for code
+        unit. The records are read from the bytes of the sink the caller snapshotted around the
+        validation, and tied to what the appender validated by their count. Each is read with
+        System.Text.Json, never with ConvertFrom-Json, which turns a date-like string into a DateTime.
+        A runId that is no JSON string fails: the appender refuses one when a record is appended, but
+        its reader accepts a stored line whose runId is a number, so a line that a writer of the sink
+        put there could carry the digits of the run id.
+
+        This tells another run's ledger at the paths the profile names from the run's own. The run id is
+        not secret and the chain is not keyed, so an identity that can write the sink and the head can
+        still write a chain that carries it, and two runs given one run id are not told apart.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [byte[]]$SinkBytes,
+
+        [Parameter(Mandatory)]
+        [string]$RunId,
+
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        $ChainSummary
+    )
+
+    if ($null -eq $ChainSummary) {
+        return New-CheckResult -Name 'LedgerRun' -Status 'Unavailable' -Evidence 'there is no validated chain to read the run id of its records from'
+    }
+
+    try {
+        $text = [System.Text.UTF8Encoding]::new($false, $true).GetString($SinkBytes)
+    } catch {
+        return New-CheckResult -Name 'LedgerRun' -Status 'Fail' -Evidence 'the ledger sink is not valid UTF-8'
+    }
+
+    $line = @($text -split "`n" | ForEach-Object -Process { $_.TrimEnd("`r") } | Where-Object -FilterScript { $_.Length -gt 0 })
+
+    if ($line.Count -ne [long]$ChainSummary.records) {
+        return New-CheckResult -Name 'LedgerRun' -Status 'Fail' -Evidence "the ledger sink holds $($line.Count) records, but the pinned appender validated $($ChainSummary.records) records"
+    }
+
+    if ($line.Count -eq 0) {
+        return New-CheckResult -Name 'LedgerRun' -Status 'Fail' -Evidence 'the ledger holds no record that could carry the run id'
+    }
+
+    $ordinal = [System.StringComparison]::Ordinal
+    $expected = Format-RelayedText -Text $RunId -Limit 64
+
+    for ($index = 0; $index -lt $line.Count; $index++) {
+        $sequence = $index + 1
+        $problem = $null
+
+        try {
+            $document = [System.Text.Json.JsonDocument]::Parse($line[$index])
+        } catch {
+            return New-CheckResult -Name 'LedgerRun' -Status 'Fail' -Evidence "record $sequence is not valid JSON"
+        }
+
+        try {
+            $root = $document.RootElement
+
+            if ($root.ValueKind -ne [System.Text.Json.JsonValueKind]::Object) {
+                $problem = "record $sequence is not a JSON object"
+            } else {
+                # Every member named runId by code unit, so that a repeated one cannot hide behind the one a
+                # reader picks.
+                $kind = [System.Collections.Generic.List[System.Text.Json.JsonValueKind]]::new()
+                $found = [System.Collections.Generic.List[string]]::new()
+
+                foreach ($property in $root.EnumerateObject()) {
+                    if ([string]::Equals($property.Name, 'runId', $ordinal)) {
+                        $kind.Add($property.Value.ValueKind)
+
+                        if ($property.Value.ValueKind -eq [System.Text.Json.JsonValueKind]::String) {
+                            $found.Add($property.Value.GetString())
+                        }
+                    }
+                }
+
+                if ($kind.Count -eq 0) {
+                    $problem = "record $sequence carries no runId"
+                } elseif ($kind.Count -gt 1) {
+                    $problem = "record $sequence carries runId $($kind.Count) times"
+                } elseif ($kind[0] -ne [System.Text.Json.JsonValueKind]::String) {
+                    $problem = "record $sequence carries a runId that is not a JSON string but $($kind[0])"
+                } elseif (-not [string]::Equals($found[0], $RunId, $ordinal)) {
+                    $problem = "record $sequence carries the run id '$(Format-RelayedText -Text $found[0])', not '$expected', which the profile names"
+                }
+            }
+        } finally {
+            $document.Dispose()
+        }
+
+        if ($null -ne $problem) {
+            return New-CheckResult -Name 'LedgerRun' -Status 'Fail' -Evidence $problem
+        }
+    }
+
+    return New-CheckResult -Name 'LedgerRun' -Status 'Pass' -Evidence "all $($line.Count) records carry the run id '$expected', which the profile names"
+}
+
 function Test-FinalReport {
     <#
         The ledger must say that this report is the final one. Directly before the seal there is a
@@ -5356,9 +5482,10 @@ function Get-RevalidationCheck {
         control digests, the immutability of the controls, the binding of that identity to the
         role and the reading of its token were measured and passed, exactly like the hook probe. The sink
         is snapshotted before and after the appender validates it: a sink that changed in between
-        was not the one that was validated, and fails the chain. The report is looked for only in a
-        chain that validated, in the bytes of the second snapshot. The protection of the ledger is
-        measured again whatever else happened.
+        was not the one that was validated, and fails the chain. The run of the records and the report
+        are looked for only in a chain that validated, in the bytes of the second snapshot, and both
+        are checked, so that the evidence names every way the ledger falls short. The protection of
+        the ledger is measured again whatever else happened.
     #>
     [CmdletBinding()]
     [OutputType([object[]])]
@@ -5396,7 +5523,7 @@ function Get-RevalidationCheck {
     $unmet = @(Get-GateFailure -Check @($check) -Require @('VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'IdentityPrivilege'))
 
     if ($unmet.Count -gt 0) {
-        foreach ($notRun in @(Get-NotRunCheck -Name @('LedgerChain', 'FinalReport') -Reason "the pinned appender is executed as this identity, and is trusted only after $($unmet -join ', ') passed")) {
+        foreach ($notRun in @(Get-NotRunCheck -Name @('LedgerChain', 'LedgerRun', 'FinalReport') -Reason "the pinned appender is executed as this identity, and is trusted only after $($unmet -join ', ') passed")) {
             $check.Add($notRun)
         }
     } else {
@@ -5412,7 +5539,7 @@ function Get-RevalidationCheck {
         if ($null -ne $readProblem -or $null -eq $before) {
             $check.Add((New-CheckResult -Name 'LedgerChain' -Status 'Unavailable' -Evidence $readProblem))
 
-            foreach ($notRun in @(Get-NotRunCheck -Name @('FinalReport') -Reason 'the ledger sink could not be read, so no chain was validated')) {
+            foreach ($notRun in @(Get-NotRunCheck -Name @('LedgerRun', 'FinalReport') -Reason 'the ledger sink could not be read, so no chain was validated')) {
                 $check.Add($notRun)
             }
         } else {
@@ -5437,9 +5564,10 @@ function Get-RevalidationCheck {
             $check.Add($chainCheck)
 
             if ($chainCheck.status -ceq 'Pass') {
+                $check.Add((Test-LedgerRun -SinkBytes $after.Bytes -RunId ([string]$ContainmentProfile.runId) -ChainSummary $chain.Summary))
                 $check.Add((Test-FinalReport -SinkBytes $after.Bytes -FinalReportPath $FinalReportPath -ChainSummary $chain.Summary))
             } else {
-                foreach ($notRun in @(Get-NotRunCheck -Name @('FinalReport') -Reason 'the ledger chain did not validate')) {
+                foreach ($notRun in @(Get-NotRunCheck -Name @('LedgerRun', 'FinalReport') -Reason 'the ledger chain did not validate')) {
                     $check.Add($notRun)
                 }
             }
@@ -5577,6 +5705,14 @@ $outcome = Get-Verdict -Check @($check)
 $blocking = @($outcome.Blocking)
 $verdict = $outcome.Verdict
 
+# The run a revalidation is for, named only from a profile that satisfied the schema, so that it is a
+# string of the run id's shape.
+$revalidatedRun = ''
+
+if ($mode -eq 'Revalidate' -and $schemaProblem.Count -eq 0) {
+    $revalidatedRun = [string]$containmentProfile.runId
+}
+
 $report = [ordered]@{
     verdict = $verdict
     mode = $mode
@@ -5585,6 +5721,10 @@ $report = [ordered]@{
 
 if ($mode -eq 'Revalidate') {
     $report['finalReportPath'] = $canonicalFinalReportPath
+
+    if ($revalidatedRun) {
+        $report['runId'] = $revalidatedRun
+    }
 } else {
     $report['liveMode'] = $LiveMode
 }
@@ -5607,9 +5747,11 @@ foreach ($result in $blocking) {
     [Console]::Error.WriteLine("Containment $($result.status): $($result.name) - $($result.evidence)")
 }
 
+$runPart = if ($revalidatedRun) { ", run $revalidatedRun," } else { '' }
+
 if ($verdict -eq 'Pass') {
     if ($mode -eq 'Revalidate') {
-        Write-Output "Ledger and final report revalidated for $Role with $($check.Count) checks passed."
+        Write-Output "Ledger and final report revalidated for $Role$runPart with $($check.Count) checks passed."
     } else {
         Write-Output "Containment verified for $Role with $($check.Count) checks passed."
     }
@@ -5618,7 +5760,7 @@ if ($verdict -eq 'Pass') {
 }
 
 if ($mode -eq 'Revalidate') {
-    Write-Output "Ledger and final report NOT revalidated for ${Role}: $($blocking.Count) of $($check.Count) checks did not pass."
+    Write-Output "Ledger and final report NOT revalidated for $Role$($runPart.TrimEnd(',')): $($blocking.Count) of $($check.Count) checks did not pass."
 } else {
     Write-Output "Containment NOT verified for ${Role}: $($blocking.Count) of $($check.Count) checks did not pass."
 }

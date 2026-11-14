@@ -253,7 +253,8 @@ exit `$LASTEXITCODE
 
         $pinned = @{ path = $AppenderPath; sha256 = $AppenderSha256 }
         $content = [ordered]@{
-            schemaVersion = 1
+            schemaVersion = 2
+            runId = 'run-0001'
             verifier = $pinned
             hooksConfig = $pinned
             hookScript = $pinned

@@ -7,25 +7,15 @@ BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
     $script:verifierScript = Join-Path $script:repoRoot 'com.github.copilot/hooks/scripts/Test-RunContainment.ps1'
     . (Join-Path $script:repoRoot 'tests/Helpers/ScriptFunction.ps1')
-    . (Get-ScriptFunctionDefinition -Path $script:verifierScript -Name @(
-            'New-CheckResult'
-            'Get-BytesDigest'
-            'Get-GateFailure'
-            'Get-NotRunCheck'
-            'Get-RevalidationCheckName'
-            'Get-RevalidationCheck'
-            'Invoke-ChainValidation'
-            'Format-RelayedText'
-            'Get-SinkSnapshot'
-            'Get-LedgerChainResult'
-            'Test-FinalReport'
-            'Test-VerifierBinding'
-            'Test-ControlDigest'
-            'Test-ControlImmutability'
-            'Test-IdentityBinding'
-            'Test-IdentityPrivilege'
-            'Test-LedgerProtection'
-        ))
+
+    # Every function the script defines, so that the revalidation runs with the checks the script wires
+    # into it, and a test of a check names what that check does instead of failing at the load.
+    $script:verifierFunction = @(
+        [System.Management.Automation.Language.Parser]::ParseFile($script:verifierScript, [ref]$null, [ref]$null).EndBlock.Statements |
+            Where-Object -FilterScript { $_ -is [System.Management.Automation.Language.FunctionDefinitionAst] } |
+            ForEach-Object -MemberName Name
+    )
+    . (Get-ScriptFunctionDefinition -Path $script:verifierScript -Name $script:verifierFunction)
 
     $script:good = 'a' * 64
     $script:head = 'b' * 64
@@ -76,7 +66,7 @@ BeforeAll {
         return [pscustomobject]@{ ExitCode = $ExitCode; Output = $Output; Error = $ErrorText }
     }
 
-    # One canonical ledger line of the shape the appender writes.
+    # One canonical ledger line of the shape the appender writes. The run id is any JSON value, or absent.
     function script:New-LedgerLine {
         param(
             [Parameter(Mandatory)]
@@ -92,26 +82,39 @@ BeforeAll {
             [string]$Type,
 
             [Parameter()]
-            [hashtable]$Data = @{}
+            [hashtable]$Data = @{},
+
+            [Parameter()]
+            [AllowNull()]
+            [object]$RunId = 'run-1',
+
+            [Parameter()]
+            [switch]$NoRunId
         )
 
-        return ([ordered]@{
-                sequence = $Sequence
-                prevSha256 = $Previous
-                type = $Type
-                runId = 'run-1'
-                utc = '2026-10-14T12:00:00Z'
-                data = $Data
-                recordSha256 = $Digest
-            } | ConvertTo-Json -Compress -Depth 6)
+        $record = [ordered]@{
+            sequence = $Sequence
+            prevSha256 = $Previous
+            type = $Type
+            runId = $RunId
+            utc = '2026-10-14T12:00:00Z'
+            data = $Data
+            recordSha256 = $Digest
+        }
+
+        if ($NoRunId) {
+            $record.Remove('runId')
+        }
+
+        return ($record | ConvertTo-Json -Compress -Depth 6)
     }
 }
 
 Describe 'Revalidation check names' -Tag 'Unit' {
-    It 'names the eight checks of a revalidation, the chain and the report after the controls that gate them' {
+    It 'names the nine checks of a revalidation, the chain, its run and the report after the controls that gate them' {
         $name = @(Get-RevalidationCheckName)
 
-        $name | Should -Be @('VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'IdentityPrivilege', 'LedgerChain', 'FinalReport', 'LedgerProtection')
+        $name | Should -Be @('VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'IdentityPrivilege', 'LedgerChain', 'LedgerRun', 'FinalReport', 'LedgerProtection')
     }
 }
 
@@ -508,6 +511,166 @@ Describe 'Final report' -Tag 'Unit' {
     }
 }
 
+Describe 'Ledger run' -Tag 'Unit' {
+    BeforeAll {
+        # The bytes of a sink that holds these lines, as the appender writes them: one per record, each ended
+        # by a line feed.
+        function script:ConvertTo-SinkByte {
+            param(
+                [Parameter(Mandatory)]
+                [string[]]$Line
+            )
+
+            return [System.Text.UTF8Encoding]::new($false).GetBytes(($Line -join "`n") + "`n")
+        }
+
+        # A ledger of three records, Started, FinalReport and Seal, whose run ids are the ones given.
+        function script:New-RunLedger {
+            param(
+                [Parameter()]
+                [AllowNull()]
+                [object[]]$RunId = @('run-1', 'run-1', 'run-1')
+            )
+
+            $type = @('Started', 'FinalReport', 'Seal')
+            $line = for ($index = 0; $index -lt 3; $index++) {
+                New-LedgerLine -Sequence ($index + 1) -Previous ([string]$index * 64) -Digest ([string]($index + 1) * 64) -Type $type[$index] -RunId $RunId[$index]
+            }
+
+            return (ConvertTo-SinkByte -Line $line)
+        }
+    }
+
+    It 'passes when every record carries the run id the profile names, and says so' {
+        $result = Test-LedgerRun -SinkBytes (New-RunLedger) -RunId 'run-1' -ChainSummary (New-Summary)
+
+        $result.name | Should -Be 'LedgerRun'
+        $result.status | Should -Be 'Pass' -Because $result.evidence
+        $result.evidence | Should -Match "'run-1'"
+        $result.evidence | Should -Match '3 records'
+    }
+
+    It 'fails the ledger of another run, and names both run ids' {
+        $result = Test-LedgerRun -SinkBytes (New-RunLedger -RunId @('run-2', 'run-2', 'run-2')) -RunId 'run-1' -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match "'run-2'"
+        $result.evidence | Should -Match "'run-1'"
+    }
+
+    It 'fails a ledger whose <Position> record belongs to another run, and names that record' -ForEach @(
+        @{ Position = 'first'; RunId = @('run-2', 'run-1', 'run-1'); Sequence = 1 }
+        @{ Position = 'middle'; RunId = @('run-1', 'run-2', 'run-1'); Sequence = 2 }
+        @{ Position = 'last'; RunId = @('run-1', 'run-1', 'run-2'); Sequence = 3 }
+    ) {
+        $result = Test-LedgerRun -SinkBytes (New-RunLedger -RunId $RunId) -RunId 'run-1' -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match "record $Sequence\b"
+        $result.evidence | Should -Match "'run-2'"
+    }
+
+    It 'does not take a run id that only looks like the run id for it: <Reason>' -ForEach @(
+        @{ Reason = 'a zero-width space after it'; Found = ('run-1' + [char]0x200B) }
+        @{ Reason = 'another letter case'; Found = 'Run-1' }
+        @{ Reason = 'a space after it'; Found = 'run-1 ' }
+    ) {
+        $result = Test-LedgerRun -SinkBytes (New-RunLedger -RunId @('run-1', $Found, 'run-1')) -RunId 'run-1' -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match 'record 2\b'
+    }
+
+    It 'fails a record whose run id is <Reason>' -ForEach @(
+        @{ Reason = 'a number whose digits are the run id'; Found = 1234; Expected = '1234'; Match = 'not a JSON string' }
+        @{ Reason = 'an object'; Found = [ordered]@{ id = 'run-1' }; Expected = 'run-1'; Match = 'not a JSON string' }
+        @{ Reason = 'null'; Found = $null; Expected = 'run-1'; Match = 'not a JSON string' }
+        @{ Reason = 'an empty string'; Found = ''; Expected = 'run-1'; Match = "''" }
+    ) {
+        $result = Test-LedgerRun -SinkBytes (New-RunLedger -RunId @($Expected, $Found, $Expected)) -RunId $Expected -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match 'record 2\b'
+        $result.evidence | Should -Match $Match
+    }
+
+    It 'fails a record that carries no run id' {
+        $line = @(
+            (New-LedgerLine -Sequence 1 -Previous ('0' * 64) -Digest ('1' * 64) -Type 'Started')
+            (New-LedgerLine -Sequence 2 -Previous ('1' * 64) -Digest ('2' * 64) -Type 'FinalReport' -NoRunId)
+            (New-LedgerLine -Sequence 3 -Previous ('2' * 64) -Digest ('3' * 64) -Type 'Seal')
+        )
+
+        $result = Test-LedgerRun -SinkBytes (ConvertTo-SinkByte -Line $line) -RunId 'run-1' -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match 'record 2\b'
+    }
+
+    It 'fails a record that carries the run id twice, whichever of the two a reader would take' {
+        # The appender refuses a repeated field in a stored line; this check does not lean on that.
+        $line = @(
+            (New-LedgerLine -Sequence 1 -Previous ('0' * 64) -Digest ('1' * 64) -Type 'Started')
+            '{"data":{},"prevSha256":"' + ('1' * 64) + '","recordSha256":"' + ('2' * 64) + '","runId":"run-2","runId":"run-1","sequence":2,"type":"Note","utc":"2026-10-14T12:00:00Z"}'
+            (New-LedgerLine -Sequence 3 -Previous ('2' * 64) -Digest ('3' * 64) -Type 'Seal')
+        )
+
+        $result = Test-LedgerRun -SinkBytes (ConvertTo-SinkByte -Line $line) -RunId 'run-1' -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match 'record 2\b'
+    }
+
+    It 'fails a record that is not a JSON object' {
+        $line = @(
+            (New-LedgerLine -Sequence 1 -Previous ('0' * 64) -Digest ('1' * 64) -Type 'Started')
+            '["run-1"]'
+            (New-LedgerLine -Sequence 3 -Previous ('2' * 64) -Digest ('3' * 64) -Type 'Seal')
+        )
+
+        $result = Test-LedgerRun -SinkBytes (ConvertTo-SinkByte -Line $line) -RunId 'run-1' -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match 'record 2\b'
+    }
+
+    It 'fails a sink that holds another number of records than the appender validated' {
+        $result = Test-LedgerRun -SinkBytes (New-RunLedger) -RunId 'run-1' -ChainSummary (New-Summary -Override @{ records = 4 })
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match 'validated 4 records'
+    }
+
+    It 'fails a sink that holds no record' {
+        $result = Test-LedgerRun -SinkBytes ([byte[]]@()) -RunId 'run-1' -ChainSummary (New-Summary -Override @{ records = 0 })
+
+        $result.status | Should -Be 'Fail'
+    }
+
+    It 'fails a ledger that is not valid UTF-8' {
+        $result = Test-LedgerRun -SinkBytes ([byte[]](0x7B, 0xFF, 0xFE, 0x7D, 0x0A)) -RunId 'run-1' -ChainSummary (New-Summary -Override @{ records = 1 })
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match 'UTF-8'
+    }
+
+    It 'reports the absence of a validated chain as unmeasured' {
+        (Test-LedgerRun -SinkBytes ([byte[]]@()) -RunId 'run-1' -ChainSummary $null).status | Should -Be 'Unavailable'
+    }
+
+    It 'does not carry control characters or an unbounded run id into the evidence' {
+        # The run id of a record is chosen by whoever appended it.
+        $found = "Evil`e[2J" + ('y' * 500)
+
+        $result = Test-LedgerRun -SinkBytes (New-RunLedger -RunId @('run-1', $found, 'run-1')) -RunId 'run-1' -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match 'Evil'
+        $result.evidence | Should -Not -Match '\p{Cc}'
+        $result.evidence.Length | Should -BeLessThan 600
+    }
+}
+
 Describe 'Revalidation flow' -Tag 'Unit' {
     BeforeAll {
         $script:base = if ($script:onWindows) { 'C:\containment' } else { '/containment' }
@@ -516,7 +679,8 @@ Describe 'Revalidation flow' -Tag 'Unit' {
             $entry = { param($name) [pscustomobject]@{ path = (Join-Path $script:base $name); sha256 = ('a' * 64) } }
 
             return [pscustomobject]@{
-                schemaVersion = 1
+                schemaVersion = 2
+                runId = 'run-1'
                 verifier = & $entry 'verifier.ps1'
                 hooksConfig = & $entry 'hooks.json'
                 hookScript = & $entry 'hook.ps1'
@@ -530,6 +694,22 @@ Describe 'Revalidation flow' -Tag 'Unit' {
                 immutableControlPaths = @()
                 writableRoots = @((Join-Path $script:base 'work'))
             }
+        }
+
+        # The bytes of a sealed ledger of three records that carry the run id given.
+        function script:New-FlowLedger {
+            param(
+                [Parameter(Mandatory)]
+                [string]$RunId
+            )
+
+            $line = @(
+                (New-LedgerLine -Sequence 1 -Previous ('0' * 64) -Digest ('1' * 64) -Type 'Started' -RunId $RunId)
+                (New-LedgerLine -Sequence 2 -Previous ('1' * 64) -Digest ('2' * 64) -Type 'FinalReport' -RunId $RunId)
+                (New-LedgerLine -Sequence 3 -Previous ('2' * 64) -Digest ('3' * 64) -Type 'Seal' -RunId $RunId)
+            )
+
+            return [System.Text.UTF8Encoding]::new($false).GetBytes(($line -join "`n") + "`n")
         }
 
         function script:Invoke-Revalidation {
@@ -678,6 +858,71 @@ Describe 'Revalidation flow' -Tag 'Unit' {
         $null = Invoke-Revalidation
 
         Should -Invoke Get-SinkSnapshot -Times 1 -Exactly
+    }
+
+    It 'checks every record in the bytes it read against the run id the profile names' {
+        $script:snapshotBytes = New-FlowLedger -RunId 'run-1'
+
+        $run = (Invoke-Revalidation) | Where-Object { $_.name -ceq 'LedgerRun' }
+
+        $run.status | Should -Be 'Pass' -Because $run.evidence
+        $run.evidence | Should -Match "'run-1'"
+    }
+
+    It 'does not revalidate the sealed ledger of another run, and still checks its final report' {
+        $script:snapshotBytes = New-FlowLedger -RunId 'run-2'
+
+        $result = Invoke-Revalidation
+
+        (Get-Verdict -Check $result).Verdict | Should -Be 'Fail' -Because 'the chain and the report pass, and only the run tells the ledgers apart'
+        $run = $result | Where-Object { $_.name -ceq 'LedgerRun' }
+        $run.status | Should -Be 'Fail'
+        $run.evidence | Should -Match "'run-2'"
+        $run.evidence | Should -Match "'run-1'"
+        Should -Invoke Test-FinalReport -Times 1 -Exactly
+    }
+
+    It 'reports the run check as not run when a control that gates the appender failed' {
+        $script:snapshotBytes = New-FlowLedger -RunId 'run-1'
+        Mock -CommandName Test-ControlDigest -MockWith { New-CheckResult -Name 'ControlDigest' -Status 'Fail' -Evidence 'mock breach' }
+
+        $run = (Invoke-Revalidation) | Where-Object { $_.name -ceq 'LedgerRun' }
+
+        $run.status | Should -Be 'Unavailable'
+        $run.evidence | Should -Match 'not run'
+    }
+
+    It 'reports the run check as not run when the sink cannot be read' {
+        Mock -CommandName Get-SinkSnapshot -MockWith { throw 'Could not find file run.jsonl.' }
+
+        $run = (Invoke-Revalidation) | Where-Object { $_.name -ceq 'LedgerRun' }
+
+        $run.status | Should -Be 'Unavailable'
+        $run.evidence | Should -Match 'not run'
+    }
+
+    It 'reports the run check as not run when the chain did not validate' {
+        $script:snapshotBytes = New-FlowLedger -RunId 'run-1'
+        Mock -CommandName Get-LedgerChainResult -MockWith { [pscustomobject]@{ Check = (New-CheckResult -Name 'LedgerChain' -Status 'Fail' -Evidence 'mock breach'); Summary = $null } }
+
+        $run = (Invoke-Revalidation) | Where-Object { $_.name -ceq 'LedgerRun' }
+
+        $run.status | Should -Be 'Unavailable'
+        $run.evidence | Should -Match 'not run'
+    }
+
+    It 'reports the run check as not run when the sink changed while it was validated' {
+        $script:snapshotBytes = New-FlowLedger -RunId 'run-1'
+        $script:calls = 0
+        Mock -CommandName Get-SinkSnapshot -MockWith {
+            $script:calls++
+            [pscustomobject]@{ Bytes = $script:snapshotBytes; Sha256 = $(if ($script:calls -eq 1) { 'c' * 64 } else { 'd' * 64 }) }
+        }
+
+        $run = (Invoke-Revalidation) | Where-Object { $_.name -ceq 'LedgerRun' }
+
+        $run.status | Should -Be 'Unavailable'
+        $run.evidence | Should -Match 'not run'
     }
 }
 

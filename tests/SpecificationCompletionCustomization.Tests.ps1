@@ -364,6 +364,16 @@ agents: []
         $controller | Should -Match 'require\s+exit code 0 before returning'
     }
 
+    It 'binds the ledger to the run id the containment profile names' {
+        $controller = Get-Content -LiteralPath $script:controllerPath -Raw -Encoding UTF8
+
+        $controller | Should -Match '(?s)containment\s+profile.*`runId`.*new\s+for\s+every\s+run'
+        $controller | Should -Match '(?s)no\s+check\s+can\s+tell.*run\s+id.*used\s+before'
+        $controller | Should -Match '(?s)lock.*carrying\s+the\s+profile''s\s+`runId`\s+as\s+the\s+run\s+ID'
+        $controller | Should -Match '(?s)Every\s+record\s+carries\s+the\s+profile''s\s+`runId`\s+as\s+its\s+`runId`'
+        $controller | Should -Match '(?s)`Revalidate`.*requires\s+every\s+record\s+to\s+carry\s+the\s+profile''s\s+`runId`'
+    }
+
     It 'retains dirty-tree, issue, injection, budget, and remote safety gates' {
         $controller = Get-Content -LiteralPath $script:controllerPath -Raw -Encoding UTF8
         $workers = @(
