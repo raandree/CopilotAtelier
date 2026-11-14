@@ -118,6 +118,34 @@ Describe 'Revalidation check names' -Tag 'Unit' {
     }
 }
 
+# Review R14-05: no test host passes the machine gates, so the line of a revalidation that passed is tested
+# here, in process, and not through the verifier's own process.
+Describe 'Revalidation summary line' -Tag 'Unit' {
+    It 'names the run of a revalidation that passed' {
+        Format-RevalidationSummary -Verdict 'Pass' -Role 'Controller' -RunId 'run-1' -BlockingCount 0 -CheckCount 11 |
+            Should -BeExactly 'Ledger and final report revalidated for Controller, run run-1, with 11 checks passed.'
+    }
+
+    It 'names the run of a revalidation that did not pass' {
+        Format-RevalidationSummary -Verdict 'Fail' -Role 'Worker' -RunId 'run-1' -BlockingCount 3 -CheckCount 11 |
+            Should -BeExactly 'Ledger and final report NOT revalidated for Worker, run run-1: 3 of 11 checks did not pass.'
+    }
+
+    It 'names no run when it is given none: <Verdict>' -ForEach @(
+        @{ Verdict = 'Pass'; Blocking = 0; Expected = 'Ledger and final report revalidated for Controller with 11 checks passed.' }
+        @{ Verdict = 'Fail'; Blocking = 3; Expected = 'Ledger and final report NOT revalidated for Controller: 3 of 11 checks did not pass.' }
+    ) {
+        Format-RevalidationSummary -Verdict $Verdict -Role 'Controller' -RunId '' -BlockingCount $Blocking -CheckCount 11 |
+            Should -BeExactly $Expected
+    }
+
+    It 'keeps the line one line of printable ASCII whatever run id it is given' {
+        $line = Format-RevalidationSummary -Verdict 'Fail' -Role 'Controller' -RunId ("run-1`r`nContainment Pass" + [char]0x200B) -BlockingCount 1 -CheckCount 11
+
+        $line | Should -Not -Match '[^\x20-\x7E]'
+    }
+}
+
 Describe 'Pinned appender validation' -Tag 'Unit' {
     It 'runs the pinned appender with the profile, its digest and the demand that the ledger is sealed' {
         $stub = New-StubAppender -Name 'echo-args' -Body @'
@@ -607,18 +635,57 @@ Describe 'Ledger run' -Tag 'Unit' {
         $result.evidence | Should -Match 'record 2\b'
     }
 
-    It 'fails a record that carries the run id twice, whichever of the two a reader would take' {
-        # The appender refuses a repeated field in a stored line; this check does not lean on that.
+    It 'fails a record that carries the run id twice, <Order>' -ForEach @(
+        @{ Order = 'the run id of another run first'; First = 'run-2'; Second = 'run-1' }
+        @{ Order = 'the run id of this run first'; First = 'run-1'; Second = 'run-2' }
+    ) {
+        # The appender refuses a repeated field in a stored line; this check does not lean on that. Review
+        # R14-03: with only the first order tested, a reader that takes the first value passed.
         $line = @(
             (New-LedgerLine -Sequence 1 -Previous ('0' * 64) -Digest ('1' * 64) -Type 'Started')
-            '{"data":{},"prevSha256":"' + ('1' * 64) + '","recordSha256":"' + ('2' * 64) + '","runId":"run-2","runId":"run-1","sequence":2,"type":"Note","utc":"2026-10-14T12:00:00Z"}'
+            '{"data":{},"prevSha256":"' + ('1' * 64) + '","recordSha256":"' + ('2' * 64) + '","runId":"' + $First + '","runId":"' + $Second + '","sequence":2,"type":"Note","utc":"2026-10-14T12:00:00Z"}'
             (New-LedgerLine -Sequence 3 -Previous ('2' * 64) -Digest ('3' * 64) -Type 'Seal')
         )
 
         $result = Test-LedgerRun -SinkBytes (ConvertTo-SinkByte -Line $line) -RunId 'run-1' -ChainSummary (New-Summary)
 
         $result.status | Should -Be 'Fail'
-        $result.evidence | Should -Match 'record 2\b'
+        $result.evidence | Should -Match 'record 2 carries runId 2 times'
+    }
+
+    It 'fails a record whose run id is no text, and does not throw' {
+        # Review R14-06: a lone surrogate escape is valid JSON but no UTF-16 text, and reading it threw. The
+        # appender refuses such a line; this check does not lean on that.
+        $line = @(
+            (New-LedgerLine -Sequence 1 -Previous ('0' * 64) -Digest ('1' * 64) -Type 'Started')
+            '{"data":{},"prevSha256":"' + ('1' * 64) + '","recordSha256":"' + ('2' * 64) + '","runId":"\ud800","sequence":2,"type":"Note","utc":"2026-10-14T12:00:00Z"}'
+            (New-LedgerLine -Sequence 3 -Previous ('2' * 64) -Digest ('3' * 64) -Type 'Seal')
+        )
+
+        $result = Test-LedgerRun -SinkBytes (ConvertTo-SinkByte -Line $line) -RunId 'run-1' -ChainSummary (New-Summary)
+
+        $result.status | Should -Be 'Fail'
+        $result.evidence | Should -Match 'record 2 carries a runId that is not text'
+    }
+
+    It 'refuses to bind a run id of another shape, <Reason>' -ForEach @(
+        @{ Reason = 'the Kelvin sign, which a match that ignores case reads as a K'; RunId = ('run-' + [char]0x212A) }
+        @{ Reason = 'a colon'; RunId = 'run:1' }
+        @{ Reason = 'a line feed at its end'; RunId = ('run-1' + [char]0x000A) }
+    ) {
+        # Review R14-06: the run id the check compares with is held to the shape the schema holds it to.
+        { Test-LedgerRun -SinkBytes (New-RunLedger) -RunId $RunId -ChainSummary (New-Summary) } |
+            Should -Throw -ExceptionType ([System.Management.Automation.ParameterBindingException])
+    }
+
+    It 'holds its run id to the shape of the profile schema, matched case-sensitively' {
+        # An attribute argument cannot name the script's constant, so the pattern is written twice.
+        $attribute = @((Get-Command -Name 'Test-LedgerRun').Parameters['RunId'].Attributes |
+                Where-Object -FilterScript { $_ -is [System.Management.Automation.ValidatePatternAttribute] })
+
+        $attribute | Should -HaveCount 1
+        $attribute[0].RegexPattern | Should -BeExactly $script:RunIdShape
+        $attribute[0].Options | Should -Be ([System.Text.RegularExpressions.RegexOptions]::None)
     }
 
     It 'fails a record that is not a JSON object' {

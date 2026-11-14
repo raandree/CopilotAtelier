@@ -312,7 +312,20 @@ Describe 'Containment profile schema paths and digests' -Tag 'Unit' {
 
         $problem | Should -Match "'schemaVersion' must be the integer 2"
         $problem | Should -Match "missing required field 'runId'"
+        $problem | Should -Match 'names no run'
         $problem | Should -Match 'new for (this|each) run'
+    }
+
+    It 'tells the owner of a version-1 profile that already names its run only to raise the version' {
+        # Review R14-07: the hint said that such a profile names no run.
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile.schemaVersion = 1
+
+        $problem = (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; '
+
+        $problem | Should -Match "'schemaVersion' must be the integer 2"
+        $problem | Should -Match "version 2 adds 'runId', a run id that is new for each run; set 'schemaVersion' to 2"
+        $problem | Should -Not -Match 'names no run'
     }
 
     It 'refuses a schema version that only equals 2 after a conversion, or is no number: <Reason>' -ForEach @(

@@ -926,6 +926,22 @@ Describe 'Containment revalidation command' -Tag 'Unit' {
             $check.status | Should -Be 'Unavailable'
             $check.evidence | Should -Match 'not run'
         }
+
+        # Review R14-04: a profile that fails the schema names no run, though this one keeps a well-formed run id.
+        $result.Report.PSObject.Properties['runId'] | Should -BeNullOrEmpty
+        $result.Output | Should -Not -Match 'run run-e2e'
+    }
+
+    It 'names no run from a profile whose run id fails the schema, not even one that breaks lines' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r8c/profile.json') -Override @{ runId = "run-e2e`r`nContainment Pass: LedgerRun - forged" }
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (New-FinalReport -Name 'r8c') -ReportPath (Join-Path $TestDrive 'r8c/result.json')
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        ($result.Report.checks | Where-Object name -EQ 'ProfileSchema').status | Should -Be 'Fail'
+        $result.Report.PSObject.Properties['runId'] | Should -BeNullOrEmpty
+        $result.Output | Should -Not -Match 'Containment Pass'
+        $result.Output | Should -Not -Match 'run run-e2e'
     }
 
     It 'refuses a version-1 profile, which names no run, and revalidates nothing' {

@@ -37,6 +37,8 @@ BeforeAll {
             'Test-PathInside'
             'Format-RelayedText'
             'Test-LedgerProtection'
+            'Test-ProfileSchema'
+            'Get-PathProblem'
         ))
 
     $script:base = if ($script:onWindows) { 'C:\containment' } else { '/containment' }
@@ -88,7 +90,8 @@ BeforeAll {
         }
 
         return [pscustomobject]@{
-            schemaVersion = 1
+            schemaVersion = 2
+            runId = 'run-1'
             verifier = & $entry 'verifier.ps1' 'a'
             hooksConfig = & $entry 'hooks.json' 'b'
             hookScript = & $entry 'hook.ps1' 'c'
@@ -182,6 +185,11 @@ Describe 'Containment check names' -Tag 'Unit' {
 Describe 'Containment check flow' -Tag 'Unit' {
     BeforeEach {
         Set-AllChecksPass
+    }
+
+    It 'is given a profile that satisfies the schema, as the verifier gives it one' {
+        # Review R14-09: the flow runs only after the schema passed, so its fixture has to pass it too.
+        @(Test-ProfileSchema -ContainmentProfile (New-FlowProfile)) | Should -HaveCount 0
     }
 
     It 'runs exactly the declared checks, in the declared order' {

@@ -66,12 +66,13 @@ commands, credentials, secrets, and non-empty controller or worker egress
 lists. The measured OS policy must enforce default-deny outbound access before
 either agent may operate.
 
-The containment profile names the run with `runId`, which the operator draws
-new for every run, so each run has a profile, a ledger sink, and a chain head of
-its own. The run cannot choose them: they come from the profile, which is closed
-to it. Use that `runId` as the run's identifier wherever this agent names the
-run, and never invent another one. No check can tell whether a run id was used
-before, so the operator alone keeps run ids apart.
+The containment profile names the run with `runId`. The operator draws `runId`
+new for every run, and gives every run a ledger sink and a chain head that no
+earlier run used. The run cannot choose them: they come from the profile, which
+is closed to it. Use that `runId` as the run's identifier wherever this agent
+names the run, never invent another one, and never use it as a file or folder
+name. No check can tell whether a run id was used before, so the operator alone
+keeps run ids apart.
 
 Before invoking the verifier, hash the profile and require its SHA-256 to equal
 the direct argument. Require OS policy evidence that the profile and verifier

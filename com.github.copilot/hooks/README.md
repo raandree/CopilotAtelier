@@ -130,12 +130,16 @@ another case, or with an invisible character in it, is an unknown field and does
 not stand in for the field it imitates. Credential material is not a profile field: it is
 measured on the machine, and any that is reachable fails the run.
 
+A profile is valid only for the verifier whose digest it pins. Its schema may
+change with any change to the verifier, as version 2 added `runId`, and the
+CHANGELOG entry of that change gives the migration.
+
 | Field | Meaning |
 |---|---|
 | `schemaVersion` | The integer `2`; any other value, and any other type, is refused. Version 1 had no `runId`, and the refusal of a version-1 profile says what to add |
 | `runId` | The run this profile is for: a JSON string of 1 to 64 letters, digits, `.`, `_` or `-`, matched case-sensitively, so no `:` or `/`, which the profile's JSON reader would turn into a date. Draw a new one for every run, such as a GUID, and so write a profile for every run. The controller writes it as the `runId` of every ledger record and of its lock, and `-Revalidate` requires every record of the sealed ledger to carry it. No check can see that a run id was used before: two runs given one run id are not told apart |
 | `verifier`, `hooksConfig`, `hookScript`, `ledgerAppender` | Pinned control, each `{ path, sha256 }`. The verifier that runs must be the pinned file |
-| `ledgerSink`, `chainHead` | Ledger paths, which must be closed to the run. The run cannot choose them, so a ledger of its own for every run comes from a profile for every run, or from moving the old ledger away |
+| `ledgerSink`, `chainHead` | Ledger paths, which must be closed to the run. The run cannot choose them, so a ledger of its own for every run comes from a profile for every run that names a sink and a head no earlier run used, or from moving the old ledger away |
 | `controllerEgressAllow`, `workerEgressAllow` | Must both be empty |
 | `controllerIdentity`, `workerIdentity` | The account, by name or SID, the verifier must run as for each role; the two must differ |
 | `immutableControlPaths` | Further paths that must be closed to the run; the profile, the four pinned controls, and every live artifact are always measured |
@@ -408,8 +412,8 @@ and nothing was verified.
 
 `-Revalidate` is the second use of the verifier, after a run. It runs the same
 five gates, and the pinned appender only after they pass. Its JSON report and
-its summary line name the run id of a profile that satisfies the schema, so the
-operator sees which run was revalidated.
+its summary line name the run id of a profile that satisfies the schema, so an
+operator who runs it sees which run was revalidated.
 
 ```powershell
 pwsh -NoProfile -NonInteractive -File $verifierPath -Revalidate -ProfilePath $profilePath -ProfileSha256 $digest -Role Controller -FinalReportPath $report
@@ -419,7 +423,7 @@ pwsh -NoProfile -NonInteractive -File $verifierPath -Revalidate -ProfilePath $pr
 |---|---|---|
 | `VerifierBinding`, `ControlDigest`, `ControlImmutability`, `IdentityBinding`, `IdentityPrivilege` | As above | |
 | `LedgerChain` | The pinned appender, run bound to the pinned profile, says the sink and the chain head form a valid chain from genesis and that the chain is sealed. The sink is read before and after the appender validates it, and the two reads must hash alike | That what was validated is what was read, against a writer that restores the same bytes between the two reads: `LedgerProtection` for this identity is what excludes a writer. And that the ledger belongs to this run, which `LedgerRun` checks |
-| `LedgerRun` | Every record of the chain the appender validated, read from the bytes it validated, carries the profile's `runId` once, as a JSON string equal to it code unit for code unit. So the sealed ledger of another run at the paths the profile names fails, with its report or without, and so does a ledger that holds a record of another run. It runs only on a chain that validated, and is reported as not run otherwise | That no other run was given the same run id: drawing a new one for every run is the operator's duty, which no check can see. That this run wrote the ledger: the run id is not secret and the chain is not keyed, so an identity that can write the sink and the head can write a chain that carries it. And that the profile is the one the operator started the run with: the controller runs `-Revalidate` with the profile path and digest it was given, so only the operator's own digest, passed to `-Revalidate` again or compared with the `profileSha256` and the `runId` of the report, binds a revalidation to the run the operator started |
+| `LedgerRun` | Every record of the chain the appender validated, read from the bytes it validated, carries the profile's `runId` once, as a JSON string equal to it code unit for code unit. So the sealed ledger of another run at the paths the profile names fails, with its report or without, and so does a ledger that holds a record of another run. It runs only on a chain that validated, and is reported as not run otherwise | That no other run was given the same run id: drawing a new one for every run is the operator's duty, which no check can see. That this run wrote the ledger: the run id is not secret and the chain is not keyed, so an identity that can write the sink and the head can write a chain that carries it. That this run sent the records: whoever can append chooses the `runId` of what they append, so a later run whose profile reuses the paths of an earlier, unsealed run can complete that run's ledger. And that the profile is the one the operator started the run with: the controller runs `-Revalidate` with the profile path and digest it was given. Only the operator's own `-Revalidate`, run after the run with the profile path and the digest they handed it, binds a revalidation to the run they started. The JSON report that the controller returns names the run id and the profile digest, and its summary line names the run id. That catches a controller that was given the wrong profile, but the controller can write both, so they bind nothing against a controller that means to pass another run's evidence |
 | `FinalReport` | The record directly before the `Seal` is a `FinalReport` record whose `data.sha256` is the digest of the report file, compared as written and in lowercase, the seal chains to it, and the seal is the head the appender validated | That the report says anything true |
 | `LedgerProtection` | As above, measured again | |
 

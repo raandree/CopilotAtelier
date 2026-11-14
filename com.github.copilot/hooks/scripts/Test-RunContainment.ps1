@@ -2082,7 +2082,11 @@ function Test-ProfileSchema {
             $problem.Add("'schemaVersion' must be the integer 2")
 
             if ($integer -and [long]$version -eq 1) {
-                $problem.Add("a version-1 profile names no run: add a 'runId' that is new for each run, and set 'schemaVersion' to 2")
+                if ($present.Contains('runId')) {
+                    $problem.Add("version 2 adds 'runId', a run id that is new for each run; set 'schemaVersion' to 2")
+                } else {
+                    $problem.Add("a version-1 profile names no run: add a 'runId' that is new for each run, and set 'schemaVersion' to 2")
+                }
             }
         }
     }
@@ -5289,7 +5293,11 @@ function Test-LedgerRun {
         [AllowEmptyCollection()]
         [byte[]]$SinkBytes,
 
+        # The shape the profile schema holds a run id to, matched case-sensitively: the default options of
+        # ValidatePattern ignore case and would let the Kelvin sign pass. An attribute cannot name
+        # $script:RunIdShape, so the pattern is written here again.
         [Parameter(Mandatory)]
+        [ValidatePattern('\A[A-Za-z0-9._-]{1,64}\z', Options = 'None')]
         [string]$RunId,
 
         [Parameter(Mandatory)]
@@ -5340,13 +5348,20 @@ function Test-LedgerRun {
                 # reader picks.
                 $kind = [System.Collections.Generic.List[System.Text.Json.JsonValueKind]]::new()
                 $found = [System.Collections.Generic.List[string]]::new()
+                $unreadable = $false
 
                 foreach ($property in $root.EnumerateObject()) {
                     if ([string]::Equals($property.Name, 'runId', $ordinal)) {
                         $kind.Add($property.Value.ValueKind)
 
                         if ($property.Value.ValueKind -eq [System.Text.Json.JsonValueKind]::String) {
-                            $found.Add($property.Value.GetString())
+                            # A string that is valid JSON can still be no UTF-16 text, such as a lone
+                            # surrogate escape, and reading it throws.
+                            try {
+                                $found.Add($property.Value.GetString())
+                            } catch {
+                                $unreadable = $true
+                            }
                         }
                     }
                 }
@@ -5357,6 +5372,8 @@ function Test-LedgerRun {
                     $problem = "record $sequence carries runId $($kind.Count) times"
                 } elseif ($kind[0] -ne [System.Text.Json.JsonValueKind]::String) {
                     $problem = "record $sequence carries a runId that is not a JSON string but $($kind[0])"
+                } elseif ($unreadable) {
+                    $problem = "record $sequence carries a runId that is not text"
                 } elseif (-not [string]::Equals($found[0], $RunId, $ordinal)) {
                     $problem = "record $sequence carries the run id '$(Format-RelayedText -Text $found[0])', not '$expected', which the profile names"
                 }
@@ -5482,10 +5499,10 @@ function Get-RevalidationCheck {
         control digests, the immutability of the controls, the binding of that identity to the
         role and the reading of its token were measured and passed, exactly like the hook probe. The sink
         is snapshotted before and after the appender validates it: a sink that changed in between
-        was not the one that was validated, and fails the chain. The run of the records and the report
-        are looked for only in a chain that validated, in the bytes of the second snapshot, and both
-        are checked, so that the evidence names every way the ledger falls short. The protection of
-        the ledger is measured again whatever else happened.
+        was not the one that was validated, and fails the chain. The run id of the records and the final
+        report are checked only in a chain that validated, in the bytes of the second snapshot, and both
+        checks run, so that the evidence names every way the ledger falls short. The protection of the
+        ledger is measured again whatever else happened.
     #>
     [CmdletBinding()]
     [OutputType([object[]])]
@@ -5577,6 +5594,47 @@ function Get-RevalidationCheck {
     $check.Add((Test-LedgerProtection -SinkPath $sinkPath -ChainHeadPath ([string]$ContainmentProfile.chainHead) -WritableRoot $writableRoot))
 
     return @($check)
+}
+
+function Format-RevalidationSummary {
+    <#
+        The one line a revalidation ends with. The caller passes the run id only from a profile that
+        satisfied the schema, and an empty one otherwise, so that the line names no run that could not
+        be trusted. The run id is relayed all the same, so that no caller can add a line with it.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('Pass', 'Fail')]
+        [string]$Verdict,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Controller', 'Worker')]
+        [string]$Role,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$RunId,
+
+        [Parameter(Mandatory)]
+        [ValidateRange(0, [int]::MaxValue)]
+        [int]$BlockingCount,
+
+        [Parameter(Mandatory)]
+        [ValidateRange(0, [int]::MaxValue)]
+        [int]$CheckCount
+    )
+
+    $run = if ($RunId) { ", run $(Format-RelayedText -Text $RunId -Limit 64)" } else { '' }
+
+    if ($Verdict -ceq 'Pass') {
+        $pause = if ($run) { ',' } else { '' }
+
+        return "Ledger and final report revalidated for $Role$run$pause with $CheckCount checks passed."
+    }
+
+    return "Ledger and final report NOT revalidated for $Role${run}: $BlockingCount of $CheckCount checks did not pass."
 }
 
 $mode = $PSCmdlet.ParameterSetName
@@ -5747,11 +5805,9 @@ foreach ($result in $blocking) {
     [Console]::Error.WriteLine("Containment $($result.status): $($result.name) - $($result.evidence)")
 }
 
-$runPart = if ($revalidatedRun) { ", run $revalidatedRun," } else { '' }
-
 if ($verdict -eq 'Pass') {
     if ($mode -eq 'Revalidate') {
-        Write-Output "Ledger and final report revalidated for $Role$runPart with $($check.Count) checks passed."
+        Write-Output (Format-RevalidationSummary -Verdict 'Pass' -Role $Role -RunId $revalidatedRun -BlockingCount 0 -CheckCount $check.Count)
     } else {
         Write-Output "Containment verified for $Role with $($check.Count) checks passed."
     }
@@ -5760,7 +5816,7 @@ if ($verdict -eq 'Pass') {
 }
 
 if ($mode -eq 'Revalidate') {
-    Write-Output "Ledger and final report NOT revalidated for $Role$($runPart.TrimEnd(',')): $($blocking.Count) of $($check.Count) checks did not pass."
+    Write-Output (Format-RevalidationSummary -Verdict 'Fail' -Role $Role -RunId $revalidatedRun -BlockingCount $blocking.Count -CheckCount $check.Count)
 } else {
     Write-Output "Containment NOT verified for ${Role}: $($blocking.Count) of $($check.Count) checks did not pass."
 }

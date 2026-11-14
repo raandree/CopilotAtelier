@@ -19,8 +19,13 @@ JSON string equal to it code unit for code unit. The JSON report and the summary
 record that the appender writes, a `-RunId` argument, the profile's run id echoed by the appender,
 and the profile digest as the run id, and was decided with its seven details under the owner's
 delegation for the local branch (the handoff ledger, 2026-11-14); merging brief 14 is the owner's
-explicit answer. Only the verifier changes; the appender keeps the digest of brief 13. The
-independent review of the change follows this commit and is recorded here once it has run.
+explicit answer. Only the verifier changes; the appender keeps the digest of brief 13. The Custom
+`security-reviewer` agent reviewed `e943713` in a fresh context, read-only, reproduced the red-first
+run and the suites on copies, ran six mutants and eight probes of its own on copies under TEMP, and
+said **Approve with changes**: no Blocker and no Major, two Minors (R14-01, R14-02), both claims in
+the documentation, and nine Nits (R14-03 to R14-11). The controller ruled to fix all eleven as the
+reviewer proposed, under the owner's delegation (the handoff ledger, 2026-11-14), and declined one
+optional step; the fix round does that, and a scoped re-review by the same reviewer follows.
 
 ### Scope
 
@@ -52,17 +57,47 @@ independent review of the change follows this commit and is recorded here once i
   `runId`, a JSON string equal to the profile's by code unit. The appender refuses a `runId` that is
   not a non-empty string when a record is appended, but its reader of stored lines does not check
   the type (measured: a number, an object, null and an empty string read back without error and with
-  a matching digest), so a number whose digits are the run id fails here as well. The check runs only
-  on a chain that validated, and `FinalReport` runs beside it, so the evidence names both.
+  a matching digest), so a number whose digits are the run id fails here as well, and since the fix
+  round so does a string that is valid JSON but no UTF-16 text, such as a lone surrogate escape,
+  where reading it threw before. The run id the check is given is held to the profile's shape on its
+  parameter too, case-sensitively. The check runs only on a chain that validated, and `FinalReport`
+  runs beside it, so the evidence names both.
 - **What does not change.** The appender's bound `-Validate` reads only `ledgerSink`, `chainHead` and
   `ledgerAppender` from a profile, so it reads a version-2 profile unchanged, and its `bound` still
   means the paths and the pin. `-Verify` checks the new field as part of the schema and nothing
   more: a start check was not added, because a run that means to deceive could skip it.
-- **Compatibility.** A version-1 profile pins the verifier it was written for and fails
-  `VerifierBinding` against any new one, so the schema change breaks nothing that the re-pin does
-  not; an older verifier refuses a version-2 profile, to which `runId` is an unknown field
+- **Compatibility.** A profile is valid only for the verifier whose digest it pins, so its schema
+  may change with any change to the verifier, and the CHANGELOG gives the migration; the hooks README
+  says so since the fix round (R14-11). A version-1 profile fails `VerifierBinding` against any new
+  verifier; an older verifier refuses a version-2 profile, to which `runId` is an unknown field
   (measured). A ledger written before the change revalidates only under a profile that names the one
-  run id all its records carry.
+  run id all its records carry, and only when that run id fits the new shape.
+
+### Verdict
+
+**Approve with changes.** The reviewer found the ruling implemented in all seven details, no run
+identity able to choose the expected run id for a given profile, every look-alike, other JSON type,
+date string, repeated key and empty ledger it tried failing closed, and every new outside text
+relayed. It reproduced the red-first run (81 of 272) and the suites (1,346 passed, 0 failed, 3
+skipped), and both digests. The gaps were in what the documentation promised and in what the tests
+pinned: two of its six mutants survived beside the declared equivalent one, and the summary line of
+a revalidation that passed was untested.
+
+### Findings
+
+| ID | Severity | Where | Finding | Resolution |
+|---|---|---|---|---|
+| R14-01 | Minor | hooks README, CHANGELOG, this entry | All three said that the operator's digest, passed to `-Revalidate` again or compared with the `profileSha256` and the `runId` of the report, binds a revalidation to the run. The second half does not hold against a controller that means to pass another run's evidence: the verifier writes its report with the rights of the controller, to the path the controller chose, and the summary line reaches the operator through the controller | Fixed in the reviewer's wording, in all three places and in the README's sentence on what the operator sees: only the operator's own `-Revalidate` binds a revalidation to the run; the report and the summary line catch a controller that was given the wrong profile, and bind nothing against one that means to pass another run's evidence. The summary line names the run id and not the digest, so the wording says that the report names both |
+| R14-02 | Minor | controller agent; hooks README | The agent said that a new run id gives each run a sink and a chain head of its own; a profile written for a new run can still name paths an earlier run used. Then an honest run fails late, and a later run can complete an earlier, unsealed run's ledger with records that carry the earlier run's id, because whoever can append chooses the `runId` | Fixed as proposed: the agent says that the operator gives every run a ledger sink and a chain head that no earlier run used; the README's `ledgerSink` row says the same, and its `LedgerRun` row says that a later run that reuses an unsealed run's paths can complete that run's ledger. The optional controller step, validating the chain before the first append, was declined, for the reason that kept the start check out of `-Verify`. Recorded under Remaining risks |
+| R14-03 | Nit | `tests/ContainmentVerifier.Revalidate.Tests.ps1` | Only the order with the other run's id first was tested for a repeated `runId`, so a reader that takes the first value and lacks the branch for a repeated key passed (the reviewer's mutant M1) | Fixed: both orders are tested, and each asserts "carries runId 2 times". M1 is caught |
+| R14-04 | Nit | the verifier's main flow; `tests/ContainmentVerifier.Tests.ps1` | Nothing pinned that a profile that fails the schema names no run id in the report or the summary line (M6) | Fixed: the case of a profile that fails on another field asserts that neither names its run id, and a new case gives a run id with a carriage return, a line feed and `Containment Pass`, which reaches neither. M6 is caught |
+| R14-05 | Nit | the verifier's summary lines | The line of a revalidation that passed was untested, because no test host passes the machine gates (M2) | Fixed: the two lines are one function, `Format-RevalidationSummary`, tested in process in both forms, with and without a run id; it relays the run id as well. M2 is caught |
+| R14-06 | Nit | `Test-LedgerRun` | A `runId` that is a lone surrogate escape made the read of its text throw, so the script exited 1 without a report, which fails closed but returns no check | Fixed: such a record fails with "record N carries a runId that is not text". Also, as offered, the parameter that carries the profile's run id has a case-sensitive `ValidatePattern` of the run id's shape; a test pins that it equals the schema's, since an attribute cannot name the constant, and the Kelvin sign is refused at binding |
+| R14-07 | Nit | `Test-ProfileSchema` | A version-1 profile that already carries `runId` was told that it names no run | Fixed: that hint comes only when `runId` is absent; otherwise the refusal says "version 2 adds 'runId', a run id that is new for each run; set 'schemaVersion' to 2" |
+| R14-08 | Nit | the run id's shape; controller agent | The ruled shape admits `.`, `..`, a trailing dot and device names, which are unsafe as file or folder names, and the agent asked for the run id wherever the run is named | Fixed in the agent, which now says never to use the run id as a file or folder name; the ruled shape stays |
+| R14-09 | Nit | `tests/ContainmentVerifier.Flow.Tests.ps1` | The `-Verify` flow fixture still built a version-1 profile without `runId` | Fixed: version 2 with a run id, and a test that the fixture satisfies the schema, as every profile the flow gets does |
+| R14-10 | Nit | CHANGELOG | The migration note did not say that the run id of an old ledger must fit the new shape | Fixed: "and that fits the new shape" |
+| R14-11 | Nit | the commit message; versioning | `fix:` without `!` is defensible only on a policy that was not written down: a profile is valid only for the verifier digest it pins | Fixed: the hooks README states that policy once, in its section on the containment profile, so the next schema change has a written basis. The squash title stays `fix(containment):` |
 
 ### Tests
 
@@ -94,6 +129,21 @@ independent review of the change follows this commit and is recorded here once i
   hashed alike.
 - PSScriptAnalyzer 1.25.0 with default rules: 0 findings on the verifier and the six changed test
   files. markdownlint: 0 issues.
+- The fix round, test first: before the code, 13 tests failed for their stated reasons in the five
+  files it touches, which now hold 351. That was the hint for version 1 (1 test),
+  `Format-RevalidationSummary`, which did not exist (5), a run id that is no text, which threw, and a
+  run id of another shape, the Kelvin sign included, that bound without a refusal (5), the
+  version-1 fixture of the flow against the schema (1), and the agent's text (1). The pins of R14-03
+  and R14-04 hold behaviour that was already right, so they passed before the code and fail under the
+  reviewer's mutants M1 and M6. After the code: 351 passed, 0 failed. Mutants, on copies under TEMP,
+  after a control copy passed every test: 29 of 29 caught. That is the reviewer's M1, M2 and M6, the
+  18 above again, M17 now on the new function, and eight new ones: no `ValidatePattern` on
+  `-RunId`, its default options that ignore case, `^`/`$` in it, no catch around the read of a run
+  id, an unreadable run id not reported, the hint for version 1 whatever the profile holds, the run
+  id not relayed into the summary line, and the NOT line without the run. One of the 18 ran
+  malformed first and was run again. The declared equivalent mutant survived again. Then the
+  brief's suites: 1,360 passed, 0 failed, the same 3 skipped, in 450 seconds. PSScriptAnalyzer: 0
+  findings on the verifier and the five changed test files; markdownlint: 0 issues.
 
 ### Remaining risks
 
@@ -105,15 +155,26 @@ independent review of the change follows this commit and is recorded here once i
 - No check can tell that a run id was used before, so two runs given one run id are not told apart.
   Drawing a new run id for every run, and so writing a profile for every run, is the operator's
   duty, which the hooks README and the controller agent state.
+- A later run whose profile reuses the ledger sink and the chain head of an earlier, unsealed run
+  can complete that run's ledger: whoever can append chooses the `runId` of what they append, so
+  its records can carry the earlier run's id through the pinned service, and a revalidation under
+  the earlier run's profile then passes with content that the later run chose, although no identity
+  wrote the sink or the head directly (R14-02). Giving every run a ledger sink and a chain head that
+  no earlier run used is the operator's duty, which the hooks README and the controller agent state.
 - The controller runs `-Revalidate` itself, with the profile path and digest it was given. A
   controller that names another run's complete evidence, that run's profile, its digest and its
-  report, passes, because they agree with one another. Only the operator's own digest, passed to
-  `-Revalidate` again or compared with the `profileSha256` and the `runId` that the report names,
-  binds a revalidation to the run the operator started.
+  report, passes, because they agree with one another. Only the operator's own `-Revalidate`, run
+  after the run with the profile path and the digest they handed it, binds a revalidation to the run
+  they started. The JSON report that the controller returns names the run id and the profile digest,
+  and its summary line names the run id. That catches a controller that was given the wrong profile,
+  but the controller can write both, so they bind nothing against a controller that means to pass
+  another run's evidence (R14-01).
 - The appender's bound `-Validate`, run alone, still passes the sealed ledger of another run at the
   paths a profile names; the run is the check of `-Revalidate`.
 - The new digest of the verifier, as checked out (CRLF on every system, by `.gitattributes`):
-  `e5bb595fcad5aa5a6d6c5dab3b592d23499decff86e10f53a83b9a468a49c324`. The appender is unchanged at
+  `66bb9ee2999c13db4255b41f555e08a1e11fb198983f6a06023cf21d23d37970`, after the fix round; the
+  reviewed `e943713` hashed to `e5bb595fcad5aa5a6d6c5dab3b592d23499decff86e10f53a83b9a468a49c324`.
+  The appender is unchanged at
   `f55e163b02fe4db6d318bc3e8c3d8cc6c86c2bf365496ddf22cda5e812030572` (brief 13), and `hooks.json` and
   the guard are unchanged. Every containment profile has to move to version 2, with a new run id for
   every run, and re-pin the verifier, and `~/.copilot` has to be refreshed with
