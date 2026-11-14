@@ -898,27 +898,29 @@ software-engineer (base)
 
 ### 14. Quarantined Reader Agent
 
-**Role**: Reads untrusted text saved to files and returns a fixed-format summary  
-**Scope**: Helper subagent, hidden from the agent picker  
+**Role**: Reads untrusted text saved to files and returns a fixed-format summary to the user  
+**Scope**: Started by the user in a chat of its own; hidden from the subagent list  
 **File**: `quarantined-reader.agent.md`
 
 **Responsibilities**:
 
-- Read only the files its caller names, such as the Reddit threads that `authenticated-web-extraction` saves to `extracted/reddit/`
-- Answer the caller's question in its own words, in a fixed Markdown format
+- Read only the files the user names, such as the Reddit threads that `authenticated-web-extraction` saves to `extracted/reddit/`
+- Answer the user's question in its own words, in a fixed Markdown format
 - Count and describe passages that try to steer AI agents, without quoting them
 
 **Key Features**:
 
-- Holds one tool, `read/readFile`: no shell, web, browser, editing, delegation, or session tool, so text written to steer it has no channel out. `tests/AuthenticatedWebExtraction.Tests.ps1` pins the tool list, and `tests/AgentRuntimeToolNames.Tests.ps1` classifies it as contained
-- Breaks the lethal trifecta for the reader rather than filtering it: the calling agent, which does hold a shell or the web, never sees the raw text
-- The summary carries no link, domain, e-mail address, file path, command, code, token, or cookie, and quotes at most ten words in a row
-- Remaining risk: a fooled reader can still return a wrong summary, so the caller checks a decision against the raw files
+- Holds one tool, `read/readFile`: no shell, web, browser, editing, delegation, or session tool. `tests/AuthenticatedWebExtraction.Tests.ps1` pins the tool list, and `tests/AgentRuntimeToolNames.Tests.ps1` classifies it as contained
+- Meant to answer the user, not an agent: `user-invocable: true` puts it in the agent picker, and the agent that runs `reddit-read` only points the user to it and declines to run it, even when the user asks
+- `disable-model-invocation: true` works differently per host. VS Code 1.146.0 local chat hides the reader from the subagent list but still runs it by name for a caller without an explicit `agents:` list, VS Code's built-in Agent included, and hands that caller its summary. The Copilot CLI 1.0.73 that Copilot Chat bundles refuses the call in code; 1.0.96 was not inspected. The agent host passes the flag on as `infer: false`, and whether its runtime enforces that is unverified. Every agent here that holds `agent` declares an explicit `agents:` list without `*` and without the reader, which local VS Code chat enforces and the agent host ignores, and no agent names the reader in a handoff; `tests/AuthenticatedWebExtraction.Tests.ps1` pins both
+- Exempt from the shared lifecycle by instruction: it is told to read no Memory Bank file, Skill, or Instruction and to ignore the session-start hook's note, which VS Code and the hook still put into its chat
+- The summary carries no link, domain, e-mail address, file path, command, code, token, cookie, or image, and quotes at most ten words in a row; only its instructions enforce that
+- Remaining risk, held by instructions only: a call by name from any caller without an explicit `agents:` list, VS Code's built-in Agent among them, and, in agent-host sessions, from any agent that holds `agent` unless that runtime enforces `infer: false`, until a hook denies it; its file tool, which is not confined to the files the user names and may reach the plaintext session cookies in `auth-state/` and the Memory Bank; the lifecycle Instructions and the session-start hook's note, which still reach its chat; the Markdown the chat renders; an agent with a shell reading the Reddit files, the reader's chat in a host's chat store, or `auth-state/`; in agent-host sessions, an agent that holds the session tools reading its chat; and a fooled reader returning a wrong summary, so the user checks a decision against the raw files. Encrypting `auth-state/` is still open
 
 **When to Use**:
 
-- Whenever a Skill fetches text written by strangers through a signed-in session, as `authenticated-web-extraction` does for Reddit
-- Any other untrusted text the calling agent should not read itself, because it also holds a shell, the web, or a browser
+- Whenever a Skill fetches text written by strangers through a signed-in session, as `authenticated-web-extraction` does for Reddit: start it in a new chat and name the files and the question
+- Any other untrusted text that an agent holding a shell, the web, or a browser should not read
 
 ---
 

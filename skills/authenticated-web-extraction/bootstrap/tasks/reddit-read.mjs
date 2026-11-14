@@ -1,5 +1,6 @@
 // Reads Reddit threads and subreddit searches as JSON through the signed-in
-// persistent profile. Run it in a visible window; it refuses --headless.
+// persistent profile. Run it in a visible window; it refuses --headless, and
+// any harness that does not pass headless: false.
 //   node scripts/extract.mjs reddit-read thread <subreddit> <post id> [search <subreddit> "<query>" ...]
 // Every address comes from lib/reddit-url.mjs. Nothing read from Reddit is ever
 // fetched, opened, or followed, and the task only reads: no post, vote, or message.
@@ -69,9 +70,11 @@ function refusalReason(body) {
   }
 }
 
-export default async function redditRead({ context, page, args, outDir, headless = false }) {
-  if (headless) {
-    throw new Error('reddit-read runs only in a visible window: run it again without --headless.');
+export default async function redditRead({ context, page, args, outDir, headless }) {
+  // Only an explicit false says that the harness opened a visible window; a
+  // harness that leaves the flag out may have launched the browser headless.
+  if (headless !== false) {
+    throw new Error('reddit-read runs only in a visible window: run it through scripts/extract.mjs, without --headless.');
   }
   const requests = parseRequests(args);
 
