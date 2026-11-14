@@ -198,7 +198,7 @@ check as not run instead of leaving it out.
 | `EgressPolicy` | The three firewall cmdlets come from a module under the system folder, every firewall profile of the active store is enabled and defaults outbound to Block, and no enabled outbound allow rule could apply to this identity by its user condition | A system-wide proxy, and the program, service, port and address scoping of a rule. A host that reaches NetSecurity through the Windows PowerShell compatibility layer resolves it outside the system folder, so the check is unmeasured there until the module loads natively |
 | `RemoteUnreachable` | The probe works against a loopback listener, and local policy denied the connection to both canary addresses | A network that is silent or down: a timeout is unmeasured, not closed |
 | `CredentialAbsence` | None of the credential and git steering variables is set, `XDG_CONFIG_HOME` among them, and a git that is closed to the run reports no credential helper. git runs only after the checks that gate the hook command passed; otherwise it is not run, and the check is unmeasured. The git child gets the caller's environment without the `GIT_` variables, `SSH_ASKPASS` and `XDG_CONFIG_HOME`, with `HOME` and `USERPROFILE`, and on Windows `PROGRAMDATA`, pinned to the operating system's own folders. Evidence names variables and configuration keys, never their values | The files git itself loads from its own installation, and package feeds, browsers, web and GitHub tooling, and MCP servers, none of which this verifier measures |
-| `WritableRoots` | Every declared root accepts new files and folders; none of the escape set is writable outside them: the user profile, the temp folder, the temp folder of the operating system, the folder of the profile, and the folders of the ledger sink and chain head; and none of the module search set is writable, inside a declared root or not: every folder of the verifier's own `PSModulePath`, the `Modules` folder of `$PSHOME`, and the folders of the user's and of `$PSHOME`'s `powershell.config.json`, with each file that exists. pwsh auto-loads modules from these places into every later process of this identity, the next run of the verifier included, and a `PSModulePath` key in either file chooses a module folder of the next start, so a declared root does not exempt them. A place is writable when this identity can add a file or a folder to it or delete a child. A place that does not exist is judged by the nearest existing folder above it: writable when this identity can add a folder there, closed when that is a file, and unmeasured when nothing on its path exists. An entry of the module search set that is relative, or names a network or device path (`\\?\`, `\\.\`), is unmeasured and not opened, so the check makes no network connection for it. Every path and every reason in the evidence is relayed as printable ASCII, cut at 200 characters, and every list at 1,000 | The rest of the filesystem, which is not enumerated. A module that the measuring process auto-loaded before the check ran, and where the next start will look: the account can re-point its documents folder, and with it its module folder and its configuration file, through its own registry, and a launcher can set another `PSModulePath`. `WRITE_DAC`, `WRITE_OWNER`, and `DELETE` on a place, and every right on the folders above a place that exists, so a folder the identity owns, or one whose parent it can rename, reads closed and can be reopened (see the launcher paragraph below). A drive letter that is mapped or substituted to a share, which is opened like a local one, and the escape set, which is opened wherever it points, a temp folder on a share included. On Windows a junction or a symbolic link is measured as the link, not as its target. Off Windows the write measurement creates and removes a short-lived probe file in each place it measures, or in the nearest existing folder above a place that does not exist, and goes through a link to its target |
+| `WritableRoots` | Every declared root accepts new files and folders; none of the escape set is writable outside them: the user profile, the temp folder, the temp folder of the operating system, the folder of the profile, and the folders of the ledger sink and chain head; and none of the module search set is writable or replaceable, inside a declared root or not: every folder of the verifier's own `PSModulePath`, the `Modules` folder of `$PSHOME`, the folders of the user's and of `$PSHOME`'s `powershell.config.json`, with each file that exists, and on Windows the two module folders that Windows PowerShell 5.1 adds to its own path, `WindowsPowerShell\Modules` in the account's documents folder and in the program files folder, named without opening them. PowerShell auto-loads modules from these places into every later process of this identity, the next run of the verifier and the hook line under VS Code included, and a `PSModulePath` key in either file chooses a module folder of the next start, so a declared root does not exempt them. A place is writable when this identity can add a file or a folder to it or delete a child. A place of the module search set is also replaceable when this identity can delete it or move it aside: on Windows when it holds `DELETE` on it, which the kernel also grants through `FILE_DELETE_CHILD` on the folder that holds it, and elsewhere when it can write that folder. A place that does not exist is judged by the nearest existing place above it: writable when that is a folder this identity can add a folder to, or a file it can replace (`DELETE` on it, or elsewhere write access to its folder); closed when it is neither; and unmeasured when nothing on its path exists. An entry of the module search set that is relative, or names a network or device path (`\\?\`, `\\.\`), is unmeasured and not opened. Every path and every reason in the evidence is relayed as printable ASCII, cut at 200 characters, and every list at 1,000. A module search set that cannot be named, because the host set no profile path, makes the check unmeasured, and the run still gets its report | The rest of the filesystem, which is not enumerated, and the modules inside a place: only each place is judged. A module that the measuring process auto-loaded before the check ran, and where the next start will look: the account can re-point its documents folder, and with it its module folders and its configuration file, through its own registry, and whatever starts the next pwsh can re-point them through `USERPROFILE` or set another `PSModulePath`. `WRITE_DAC` and `WRITE_OWNER` on a place, `DELETE` on a place of the escape set, and the rights on the folders above a place, beyond the `FILE_DELETE_CHILD` that the kernel folds into `DELETE` on a place of the module search set, so a folder the identity owns reads closed and can be reopened, and a folder further up that it can rename, as an account can rename its documents folder through its profile folder, lets it put its own in the stead of a closed one (see the launcher paragraph below). Windows PowerShell 5.1 itself: it runs the hook line under VS Code, and `HookContract` tests that line with the verifier's module path, not with the one a logon gives 5.1, so a module that shadows a cmdlet of the hook line is not seen there. A drive letter that is mapped or substituted to a share, and a symbolic link on the way to a share, which are opened like a local path, and the escape set, which is opened wherever it points, a temp folder on a share included. On Windows only the last component of a path is opened as a link: a junction or a symbolic link at a place, or at the place above an absent one that the check opens, is measured as the link and not as its target, and one above an existing place is followed, so the place is measured in the target. Off Windows the write measurement creates and removes a short-lived probe file in each folder it measures (a place, the nearest existing folder above a place that does not exist, and the folder that holds a place of the module search set or a file above an absent place), and goes through a link to its target |
 | `LedgerProtection` | This identity cannot replace or loosen the sink or the chain head, or a directory above them | The chain is not signed: whoever can write both files can write a chain that validates |
 | `LiveArtifacts` | Live mode only: the live artifacts are pinned and match | |
 
@@ -290,37 +290,72 @@ the rest of the module path: every folder of the verifier's own `PSModulePath`,
 the `Modules` folder of `$PSHOME`, and the folders of the user's and of
 `$PSHOME`'s `powershell.config.json`, with each file that exists, because a
 `PSModulePath` key in either file chooses a module folder of the next start
-(about_PSModulePath; measured again on 2026-11-14 with pwsh 7.6.10). It fails
-when this identity can write one of them, inside a declared root or not. A
-deployment that declares the identity's profile, or its documents folder, as a
-writable root therefore fails until it closes them.
+(about_PSModulePath; measured again on 2026-11-14 with pwsh 7.6.10). On Windows
+it also measures the two module folders that Windows PowerShell 5.1 adds to its
+own path, `WindowsPowerShell\Modules` in the account's documents folder and in
+the program files folder, because 5.1 runs the hook line under VS Code. It fails
+when this identity can write one of them, or replace it, inside a declared root
+or not: on Windows when it holds `DELETE` on the place, which the kernel also
+grants through `FILE_DELETE_CHILD` on the folder that holds it, and elsewhere
+when it can write that folder. A deployment that declares the identity's
+profile, or its documents folder, as a writable root therefore fails until it
+closes them.
 
-To close a worker's module and configuration folders, create them before the
-first run: the `PowerShell` folder in the account's documents folder, its
-`Modules` folder, and, to pin the configuration too, an empty
-`powershell.config.json` in it. Have an administrator own them, turn off the
-access they inherit from the profile, and grant the run identity read access
+To close a worker's module and configuration folders, create them empty before
+the first run: the `PowerShell` and `WindowsPowerShell` folders in the account's
+documents folder, a `Modules` folder in each, and, to pin the configuration
+too, an empty `powershell.config.json` in `PowerShell`. Where either folder
+already exists, have an administrator take ownership of the whole tree and reset
+its access (`takeown /R`, `icacls /reset /T`) first, because the check judges
+each folder, not the modules inside it. Have an administrator own them, turn off
+the access they inherit from the profile, and grant the run identity read access
 only. Ownership matters: the owner of a folder holds `WRITE_DAC` whatever its
 access list says, and the check does not judge `WRITE_DAC`, so a folder the
 identity owns reads closed and can be reopened by the identity.
 
-Three gaps remain:
+These steps close the folders against writing, not against replacement. An
+account holds full control of its profile by default, so the run identity can
+move an administrator-owned `Documents\PowerShell` aside (`FILE_DELETE_CHILD` on
+`Documents`) and create its own. The check fails a place that this identity can
+replace that way, so also remove `FILE_DELETE_CHILD` and `DELETE` for the
+identity on `Documents`. The folders above `Documents`, up to the profile, are
+not judged, and an account can rename `Documents` itself through the profile
+folder by default; the registry re-point (gap 2) stays open either way.
+
+Four gaps remain:
 
 - **A module loaded before the check.** The check runs inside the process it
   protects: pwsh auto-loads a module from these places as soon as a command of
-  the verifier needs it, before `WritableRoots` runs. A Pass says what the next
-  start of pwsh finds writable, not what the measuring process already loaded.
+  the verifier needs it, before `WritableRoots` runs. A Pass says that the
+  places this process searches were neither writable nor replaceable when it
+  measured them, not what the measuring process already loaded.
 - **A re-pointed module folder.** The account can re-point its documents folder,
-  and with it its module folder and its configuration file, through its own
-  registry (`HKCU\...\Explorer\User Shell Folders`), which it can write; and a
-  launcher can set another `PSModulePath`. The check measures where this process
-  looks, not where the next start will look.
+  and with it its module folders and its configuration file, through its own
+  registry (`HKCU\...\Explorer\User Shell Folders`), which it can write; and
+  whatever starts the next pwsh can re-point them through `USERPROFILE`, or set
+  another `PSModulePath`. The check measures where this process looks, not where
+  the next start will look.
 - **Rights the check does not judge.** Writable means that this identity can add
-  a file or a folder, or delete a child. `WRITE_DAC`, `WRITE_OWNER`, and
-  `DELETE` on the place, and every right on the folders above an existing place,
-  are not judged, so an identity that can rename a folder above can move a
-  closed folder aside and create its own; the next measurement fails that, after
-  the next start has loaded from it.
+  a file or a folder, or delete a child, and for a place of the module search
+  set also that it can replace the place. `WRITE_DAC` and `WRITE_OWNER` on a
+  place, `DELETE` on a place of the escape set, and the rights on the folders
+  above a place are not judged, beyond the `FILE_DELETE_CHILD` that the kernel
+  folds into `DELETE` on a place of the module search set. So an identity that
+  holds `FILE_DELETE_CHILD` on a folder further up, as an account does on its
+  own profile folder, can move a closed folder aside and create its own. The
+  next start loads from it before any check runs, so a later measurement fails
+  it only if what was loaded does not interfere. Only each place is judged, not
+  the modules inside it.
+- **Windows PowerShell 5.1 runs the hook line.** Under VS Code, Windows
+  PowerShell 5.1 runs each hook line, the guard's included. Started from a logon
+  environment, it searches `Documents\WindowsPowerShell\Modules` first, so a
+  module there shadows a built-in cmdlet: on a copy, a module that exports
+  `Get-Variable` turned the exit 2 of a denial into exit 0 in the closing
+  statement of the shipped hook line. `WritableRoots` now measures that folder,
+  but `HookContract` starts its 5.1 wrapper with the verifier's own module path,
+  not the one a logon gives 5.1, so nothing tests the hook line as the host runs
+  it. That exposure of the guard stays open, for a change of its own (R12-02 in
+  `docs/SECURITY-REVIEW.md`).
 
 ```powershell
 $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $profilePath).Hash.ToLowerInvariant()

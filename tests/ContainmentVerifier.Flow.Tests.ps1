@@ -30,6 +30,7 @@ BeforeAll {
             'Get-EscapeSet'
             'Get-ModuleSearchSet'
             'Get-SearchPathProblem'
+            'Get-ReplacementRight'
             'Measure-EscapePath'
             'Get-ObjectRight'
             'Get-PathChain'
@@ -39,6 +40,27 @@ BeforeAll {
         ))
 
     $script:base = if ($script:onWindows) { 'C:\containment' } else { '/containment' }
+
+    # Runs a script block as the verifier runs on the platform named, through the flag its functions read, so that
+    # both branches are tested on every system.
+    function script:Invoke-AsPlatform {
+        param(
+            [Parameter(Mandatory)]
+            [bool]$Windows,
+
+            [Parameter(Mandatory)]
+            [scriptblock]$Action
+        )
+
+        $previous = $script:OnWindows
+
+        try {
+            $script:OnWindows = $Windows
+            & $Action
+        } finally {
+            $script:OnWindows = $previous
+        }
+    }
 
     # What Get-ObjectRight reports for a folder: every right Denied except the ones named.
     function script:New-FlowRight {
@@ -311,6 +333,20 @@ Describe 'Containment check flow' -Tag 'Unit' {
         }
     }
 
+    # Review R12-05: a run whose module search set cannot be named still gets a report, with every other check in it.
+    It 'reports WritableRoots as unmeasured, with the reason relayed, when the places pwsh loads modules from cannot be named' {
+        Mock Get-ModuleSearchSet { throw ('the profile path ' + [char]0x1B + '[31m' + "`r`n" + 'is gone') }
+
+        $result = Invoke-Flow
+
+        @($result.name) | Should -Be @(Get-ContainmentCheckName -LiveMode 'off')
+        $check = $result | Where-Object { $_.name -ceq 'WritableRoots' }
+        $check.status | Should -Be 'Unavailable'
+        $check.evidence | Should -Match '\A[\x20-\x7E]*\z'
+        $check.evidence | Should -Match ([regex]::Escape('the profile path ?[31m??is gone'))
+        Should -Invoke Test-WritableRoot -Times 0 -Exactly
+    }
+
     It 'builds the escape set from the profile, the ledger and the head it was given' {
         $null = Invoke-Flow
 
@@ -528,7 +564,7 @@ Describe 'Containment module search set' -Tag 'Unit' {
         # A profile path without the properties a host gives it, in this scope only.
         Set-Variable -Name PROFILE -Value 'a profile path without the properties of the host' -Scope Local
 
-        { Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome } | Should -Throw -ExpectedMessage '*cannot be named*'
+        { Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome } | Should -Throw -ExpectedMessage '*cannot be named: the host set no profile path*'
     }
 
     It 'does not ask a configuration folder it will not open whether its file exists' -Skip:(-not $script:onWindows) {
@@ -539,6 +575,73 @@ Describe 'Containment module search set' -Tag 'Unit' {
 
         $set | Should -Contain $device
         $set | Should -Not -Contain ($device + '\powershell.config.json')
+    }
+
+    # Review R12-05: a profile path without a folder part names no folder either.
+    It 'throws, rather than leave the folder of the user''s powershell.config.json out, when the profile path has no folder part' {
+        $hostProfile = [psobject]'a profile path without a folder' | Add-Member -NotePropertyName CurrentUserCurrentHost -NotePropertyValue 'Microsoft.PowerShell_profile.ps1' -PassThru
+        Set-Variable -Name PROFILE -Value $hostProfile -Scope Local
+
+        { Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome } | Should -Throw -ExpectedMessage '*cannot be named: the profile path of the host has no folder part*'
+    }
+
+    # Review R12-02: Windows PowerShell 5.1 runs the hook line under VS Code, and it searches these two folders.
+    It 'names the two module folders of Windows PowerShell 5.1 on Windows' {
+        $documents = Join-Path $script:search 'Documents'
+        $programFiles = Join-Path $script:search 'ProgramFiles'
+
+        $set = Invoke-AsPlatform -Windows $true -Action {
+            @(Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome -UserConfigurationFolder $script:userConfiguration -DocumentsFolder $documents -ProgramFilesFolder $programFiles)
+        }
+
+        $set | Should -Contain ([System.IO.Path]::Combine($documents, 'WindowsPowerShell', 'Modules'))
+        $set | Should -Contain ([System.IO.Path]::Combine($programFiles, 'WindowsPowerShell', 'Modules'))
+    }
+
+    It 'does not name the module folders of Windows PowerShell 5.1 on another system' {
+        $documents = Join-Path $script:search 'Documents'
+        $programFiles = Join-Path $script:search 'ProgramFiles'
+
+        $set = Invoke-AsPlatform -Windows $false -Action {
+            @(Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome -UserConfigurationFolder $script:userConfiguration -DocumentsFolder $documents -ProgramFilesFolder $programFiles)
+        }
+
+        $set | Should -Not -Contain ([System.IO.Path]::Combine($documents, 'WindowsPowerShell', 'Modules'))
+        $set | Should -Not -Contain ([System.IO.Path]::Combine($programFiles, 'WindowsPowerShell', 'Modules'))
+    }
+
+    It 'keeps the folder of Windows PowerShell 5.1 in a documents folder on a share as written, so that the check does not open it' {
+        $share = '\\server\share\Documents'
+
+        $set = Invoke-AsPlatform -Windows $true -Action {
+            @(Get-ModuleSearchSet -ModulePath '' -PowerShellHome $script:powerShellHome -UserConfigurationFolder $script:userConfiguration -DocumentsFolder $share -ProgramFilesFolder (Join-Path $script:search 'ProgramFiles'))
+        }
+
+        $set | Should -Contain ([System.IO.Path]::Combine($share, 'WindowsPowerShell', 'Modules'))
+    }
+
+    # Review R12-07: pwsh trims an entry and resolves a trailing dot, and finds its modules there.
+    It 'names an entry padded with spaces as the folder it names' {
+        $first = Join-Path $script:search 'first'
+
+        Get-TestSearchSet -ModulePath "  $first  " | Should -Contain $first
+    }
+
+    It 'names an entry with a trailing dot as the folder it names' -Skip:(-not $script:onWindows) {
+        $first = Join-Path $script:search 'first'
+
+        Get-TestSearchSet -ModulePath ($first + '.') | Should -Contain $first
+    }
+
+    It 'splits the module path on the separator of <Platform> and on nothing else' -ForEach @(
+        @{ Platform = 'Windows'; Windows = $true; Value = 'first;se:cond'; Expected = @('first', 'se:cond') }
+        @{ Platform = 'a POSIX system'; Windows = $false; Value = 'first:se;cond'; Expected = @('first', 'se;cond') }
+    ) {
+        $set = Invoke-AsPlatform -Windows $Windows -Action { @(Get-TestSearchSet -ModulePath $Value) }
+
+        foreach ($entry in $Expected) {
+            $set | Should -Contain $entry
+        }
     }
 }
 

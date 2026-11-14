@@ -17,10 +17,32 @@ BeforeAll {
             'Test-ControlImmutability'
             'Format-RelayedText'
             'Get-SearchPathProblem'
+            'Get-ReplacementRight'
             'Measure-EscapePath'
             'Test-WritableRoot'
             'Test-LedgerProtection'
         ))
+
+    # Runs a script block as the verifier runs on the platform named, through the flag its functions read, so that
+    # both branches are tested on every system. The rights are mocked, so no platform call is made.
+    function script:Invoke-AsPlatform {
+        param(
+            [Parameter(Mandatory)]
+            [bool]$Windows,
+
+            [Parameter(Mandatory)]
+            [scriptblock]$Action
+        )
+
+        $previous = $script:OnWindows
+
+        try {
+            $script:OnWindows = $Windows
+            & $Action
+        } finally {
+            $script:OnWindows = $previous
+        }
+    }
 
     # What Get-ObjectRight reports for one object: every right Denied except the ones named.
     function script:New-ObjectRight {
@@ -279,13 +301,61 @@ Describe 'Containment writable roots' -Tag 'Unit' {
             (Test-WritableRoot -Declared @($script:work) -EscapeSet @($script:temp)).status | Should -Be 'Pass'
         }
 
-        It 'treats an escape path below a file as closed, because a file holds no folder' {
+        It 'treats an escape path below a file that this identity cannot replace as closed, because a file holds no folder' {
             Set-ObjectRight -Map @{
                 $script:work = $script:workRight
                 $script:aboveTemp = (New-ObjectRight -Path $script:aboveTemp -IsDirectory $false -Granted @('WriteData', 'AppendData'))
+                (Get-ParentPath -Path $script:aboveTemp) = (New-ObjectRight -Path (Get-ParentPath -Path $script:aboveTemp))
             }
 
             (Test-WritableRoot -Declared @($script:work) -EscapeSet @($script:temp)).status | Should -Be 'Pass'
+        }
+
+        # Review R12-04: an identity that can delete the file can put a folder in its place.
+        It 'fails an escape path below a file that this identity can delete' {
+            Set-ObjectRight -Map @{
+                $script:work = $script:workRight
+                $script:aboveTemp = (New-ObjectRight -Path $script:aboveTemp -IsDirectory $false -Granted @('Delete'))
+            }
+
+            $result = Invoke-AsPlatform -Windows $true -Action { Test-WritableRoot -Declared @($script:work) -EscapeSet @($script:temp) }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match 'DELETE'
+            $result.evidence | Should -Match ([regex]::Escape($script:aboveTemp))
+        }
+
+        It 'fails an escape path below a file in a folder this identity can write, where deletion is not measured' {
+            $folderOfFile = Get-ParentPath -Path $script:aboveTemp
+            Set-ObjectRight -Map @{
+                $script:work = $script:workRight
+                $script:aboveTemp = (New-ObjectRight -Path $script:aboveTemp -IsDirectory $false -Unknown @('Delete', 'WriteDac', 'WriteOwner'))
+                $folderOfFile = (New-ObjectRight -Path $folderOfFile -Granted @('WriteData') -Unknown @('Delete', 'WriteDac', 'WriteOwner'))
+            }
+
+            $result = Invoke-AsPlatform -Windows $false -Action { Test-WritableRoot -Declared @($script:work) -EscapeSet @($script:temp) }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match ([regex]::Escape($folderOfFile))
+        }
+
+        It 'reports an escape path below a file as unmeasured when it cannot be measured whether the file can be deleted' {
+            Set-ObjectRight -Map @{
+                $script:work = $script:workRight
+                $script:aboveTemp = (New-ObjectRight -Path $script:aboveTemp -IsDirectory $false -Unknown @('Delete'))
+            }
+
+            (Invoke-AsPlatform -Windows $true -Action { Test-WritableRoot -Declared @($script:work) -EscapeSet @($script:temp) }).status | Should -Be 'Unavailable'
+        }
+
+        # The ruling keeps DELETE on the six places of the escape set out of the check, for a later brief.
+        It 'does not count DELETE on an escape path that exists' {
+            Set-ObjectRight -Map @{
+                $script:work = $script:workRight
+                $script:temp = (New-ObjectRight -Path $script:temp -Granted @('Delete'))
+            }
+
+            (Invoke-AsPlatform -Windows $true -Action { Test-WritableRoot -Declared @($script:work) -EscapeSet @($script:temp) }).status | Should -Be 'Pass'
         }
 
         It 'reports an escape path as unmeasured when nothing on its path exists' {
@@ -444,6 +514,7 @@ Describe 'Containment writable roots' -Tag 'Unit' {
             Set-ObjectRight -Map @{
                 $script:work = $script:workRight
                 $script:modules = (New-ObjectRight -Path $script:modules)
+                (Get-ParentPath -Path $script:modules) = (New-ObjectRight -Path (Get-ParentPath -Path $script:modules))
             }
 
             $result = Test-WritableRoot -Declared @($script:work) -EscapeSet @() -ModuleSet @($script:modules)
@@ -451,6 +522,84 @@ Describe 'Containment writable roots' -Tag 'Unit' {
             $result.status | Should -Be 'Pass' -Because $result.evidence
             $result.evidence | Should -Match ([regex]::Escape($script:modules))
             $result.evidence | Should -Match 'auto-loads modules'
+        }
+
+        # Review R12-01: an identity that can delete a place can move it aside and create its own. On Windows the kernel
+        # answers DELETE through FILE_DELETE_CHILD on the folder above too, whatever the place's own access list says.
+        It 'fails a module place this identity can delete, because it can put its own in its place' {
+            Set-ObjectRight -Map @{
+                $script:work = $script:workRight
+                $script:modules = (New-ObjectRight -Path $script:modules -Granted @('Delete'))
+            }
+
+            $result = Invoke-AsPlatform -Windows $true -Action { Test-WritableRoot -Declared @($script:work) -EscapeSet @() -ModuleSet @($script:modules) }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match 'DELETE'
+        }
+
+        It 'reports a module place as unmeasured when DELETE on it cannot be measured' {
+            Set-ObjectRight -Map @{
+                $script:work = $script:workRight
+                $script:modules = (New-ObjectRight -Path $script:modules -Unknown @('Delete'))
+            }
+
+            (Invoke-AsPlatform -Windows $true -Action { Test-WritableRoot -Declared @($script:work) -EscapeSet @() -ModuleSet @($script:modules) }).status | Should -Be 'Unavailable'
+        }
+
+        # Off Windows DELETE is not measured, and renaming or deleting an entry takes write access to its folder.
+        It 'fails a module place off Windows when this identity can write the folder above it' {
+            $above = Get-ParentPath -Path $script:modules
+            Set-ObjectRight -Map @{
+                $script:work = $script:workRight
+                $script:modules = (New-ObjectRight -Path $script:modules -Unknown @('Delete', 'WriteDac', 'WriteOwner'))
+                $above = (New-ObjectRight -Path $above -Granted @('WriteData') -Unknown @('Delete', 'WriteDac', 'WriteOwner'))
+            }
+
+            $result = Invoke-AsPlatform -Windows $false -Action { Test-WritableRoot -Declared @($script:work) -EscapeSet @() -ModuleSet @($script:modules) }
+
+            $result.status | Should -Be 'Fail' -Because $result.evidence
+            $result.evidence | Should -Match ([regex]::Escape($above))
+        }
+
+        It 'passes a closed module place off Windows, where DELETE is not measured, when the folder above it is closed' {
+            $above = Get-ParentPath -Path $script:modules
+            Set-ObjectRight -Map @{
+                $script:work = $script:workRight
+                $script:modules = (New-ObjectRight -Path $script:modules -Unknown @('Delete', 'WriteDac', 'WriteOwner'))
+                $above = (New-ObjectRight -Path $above -Unknown @('Delete', 'WriteDac', 'WriteOwner'))
+            }
+
+            $result = Invoke-AsPlatform -Windows $false -Action { Test-WritableRoot -Declared @($script:work) -EscapeSet @() -ModuleSet @($script:modules) }
+
+            $result.status | Should -Be 'Pass' -Because 'an unmeasured DELETE must not make every run off Windows unmeasured'
+        }
+
+        It 'reports a module place off Windows as unmeasured when the folder above it cannot be measured' {
+            $above = Get-ParentPath -Path $script:modules
+            Set-ObjectRight -Map @{
+                $script:work = $script:workRight
+                $script:modules = (New-ObjectRight -Path $script:modules -Unknown @('Delete', 'WriteDac', 'WriteOwner'))
+                $above = (New-ObjectRight -Path $above -State 'Unknown' -Reason 'the probe could not run')
+            }
+
+            $result = Invoke-AsPlatform -Windows $false -Action { Test-WritableRoot -Declared @($script:work) -EscapeSet @() -ModuleSet @($script:modules) }
+
+            $result.status | Should -Be 'Unavailable' -Because $result.evidence
+            $result.evidence | Should -Match 'the probe could not run'
+        }
+
+        # Review answer 3: a state the check does not name never reads as closed.
+        It 'reports a place of <Set> in a state it does not know as unmeasured' -ForEach @(
+            @{ Set = 'the escape set' }
+            @{ Set = 'the module search set' }
+        ) {
+            Set-ObjectRight -Map @{ $script:work = $script:workRight }
+            Mock -CommandName Measure-EscapePath -MockWith { [pscustomobject]@{ State = 'Unforeseen'; Detail = 'a state no branch names' } }
+            $escape = if ($Set -eq 'the escape set') { @($script:modules) } else { @() }
+            $module = if ($Set -eq 'the module search set') { @($script:modules) } else { @() }
+
+            (Test-WritableRoot -Declared @($script:work) -EscapeSet $escape -ModuleSet $module).status | Should -Be 'Unavailable'
         }
 
         It 'does not open a module search entry that <Kind>, and reports it unmeasured' -ForEach @(
@@ -624,6 +773,7 @@ Describe 'Containment writable roots relay' -Tag 'Unit' {
                 'a closed module folder' {
                     $module = @($script:hostilePlace)
                     $map[$script:hostilePlace] = New-ObjectRight -Path $script:hostilePlace
+                    $map[$script:relayBase] = New-ObjectRight -Path $script:relayBase
                 }
                 'the reason a module folder could not be measured' {
                     $module = @($script:hostilePlace)
@@ -632,6 +782,25 @@ Describe 'Containment writable roots relay' -Tag 'Unit' {
                 'a module folder below a writable folder' {
                     $module = @($script:belowHostile)
                     $map[$script:hostileFolder] = New-ObjectRight -Path $script:hostileFolder -Granted @('AppendData')
+                }
+                'a module folder whose folder above this identity can write' {
+                    $module = @(Join-Path $script:hostileFolder 'Modules')
+                    $map[$module[0]] = New-ObjectRight -Path $module[0] -Unknown @('Delete', 'WriteDac', 'WriteOwner')
+                    $map[$script:hostileFolder] = New-ObjectRight -Path $script:hostileFolder -Granted @('WriteData')
+                }
+                'the reason the folder above a module folder could not be measured' {
+                    $module = @(Join-Path $script:hostileFolder 'Modules')
+                    $map[$module[0]] = New-ObjectRight -Path $module[0] -Unknown @('Delete', 'WriteDac', 'WriteOwner')
+                    $map[$script:hostileFolder] = New-ObjectRight -Path $script:hostileFolder -State 'Unknown' -Reason $script:attributeReason
+                }
+                'an escape path below a file that this identity can delete' {
+                    $escape = @($script:belowHostile)
+                    $map[$script:hostileFolder] = New-ObjectRight -Path $script:hostileFolder -IsDirectory $false -Granted @('Delete')
+                }
+                'an escape path below a file in a folder this identity can write' {
+                    $escape = @($script:belowHostile)
+                    $map[$script:hostileFolder] = New-ObjectRight -Path $script:hostileFolder -IsDirectory $false
+                    $map[$script:relayBase] = New-ObjectRight -Path $script:relayBase -Granted @('WriteData')
                 }
                 'a path of 5,000 characters' {
                     $script:longPath = Join-Path $script:relayBase ('x' * 5000)
@@ -665,6 +834,7 @@ Describe 'Containment writable roots relay' -Tag 'Unit' {
                 'the notes of the module places' {
                     $module = $long
                     foreach ($path in $long) { $map[$path] = New-ObjectRight -Path $path }
+                    $map[$script:relayBase] = New-ObjectRight -Path $script:relayBase
                 }
                 'the declared roots of a long Pass' {
                     $declared = $long
@@ -702,6 +872,10 @@ Describe 'Containment writable roots relay' -Tag 'Unit' {
         @{ Site = 'a closed module folder'; Status = 'Pass'; Text = 'place' }
         @{ Site = 'the reason a module folder could not be measured'; Status = 'Unavailable'; Text = 'probeReason' }
         @{ Site = 'a module folder below a writable folder'; Status = 'Fail'; Text = 'folder' }
+        @{ Site = 'a module folder whose folder above this identity can write'; Status = 'Fail'; Text = 'folder'; Platform = 'Posix' }
+        @{ Site = 'the reason the folder above a module folder could not be measured'; Status = 'Unavailable'; Text = 'attributeReason'; Platform = 'Posix' }
+        @{ Site = 'an escape path below a file that this identity can delete'; Status = 'Fail'; Text = 'folder'; Platform = 'Windows' }
+        @{ Site = 'an escape path below a file in a folder this identity can write'; Status = 'Fail'; Text = 'folder'; Platform = 'Posix' }
         @{ Site = 'a path of 5,000 characters'; Status = 'Fail'; Text = 'long' }
         @{ Site = 'the list of roots that are unusable'; Status = 'Fail'; List = 'declared roots unusable: \[(?<list>[^\]]*)\]' }
         @{ Site = 'the list of escape paths this identity can write'; Status = 'Fail'; List = 'writable outside the declared roots: \[(?<list>[^\]]*)\]' }
@@ -712,7 +886,12 @@ Describe 'Containment writable roots relay' -Tag 'Unit' {
         @{ Site = 'the notes of the module places'; Status = 'Pass'; List = 'inside a declared root or not: (?<list>.*); the rest of the filesystem is not enumerated\z' }
         @{ Site = 'the declared roots of a long Pass'; Status = 'Pass'; List = '\Aevery declared root accepts new files and folders \((?<list>.*?)\), and none of the escape set' }
     ) {
-        $result = Invoke-RelayCase -Site $Site
+        # A row that names a platform runs as the verifier runs there; the others run as on this system.
+        $result = if ($_.Platform) {
+            Invoke-AsPlatform -Windows ($_.Platform -eq 'Windows') -Action { Invoke-RelayCase -Site $Site }
+        } else {
+            Invoke-RelayCase -Site $Site
+        }
 
         $result.status | Should -Be $Status -Because $result.evidence
         $result.evidence | Should -Match '\A[\x20-\x7E]*\z'

@@ -4184,21 +4184,28 @@ function Get-EscapeSet {
 
 function Get-ModuleSearchSet {
     <#
-        The places pwsh loads modules from, and reads where to load them from: each entry of the
-        PSModulePath of this process, which pwsh built at its start with the module folder of the
+        The places PowerShell loads modules from, and reads where to load them from: each entry of
+        the PSModulePath of this process, which pwsh built at its start with the module folder of the
         account in front of whatever the launcher set; the module folder of $PSHOME, which pwsh adds
-        to that path at every start; and the folders of the two powershell.config.json files, with
-        each file itself when it exists. A PSModulePath key in the file of the user replaces the
-        module folder of the account at the next start of pwsh, and one in the file of $PSHOME the
-        shared folder, so whoever can write either file chooses where the next pwsh of this identity
-        loads modules from. The user's file is read from the folder of the profile path that the host
-        sets, which is where pwsh reads it.
+        to that path at every start; the folders of the two powershell.config.json files, with each
+        file itself when it exists; and on Windows the two module folders that Windows PowerShell 5.1
+        adds to its own path, in the documents folder of the account and in the program files
+        folder, because 5.1 runs the hook line under VS Code. A PSModulePath key in the file of the
+        user replaces the module folder of the account at the next start of pwsh, and one in the
+        file of $PSHOME the shared folder, so whoever can write either file chooses where the next
+        pwsh of this identity loads modules from. The user's file is read from the folder of the
+        profile path that the host sets, which is where pwsh reads it.
 
-        The set is fixed and named, like the escape set, and nothing is opened here. An entry that is
-        relative, or names a network or device path (Get-SearchPathProblem), keeps its spelling, so
-        that the check names it without opening it, and only a configuration folder that passes that
-        test is asked whether its file exists. When the host set no profile path, the folder of the
-        user's file cannot be named, and this throws instead of leaving it out.
+        The set is fixed and named, like the escape set, and nothing is opened here: the documents
+        and program files folders are named as the registry and the environment name them, without
+        asking whether they exist, which on a documents folder redirected to a share would reach the
+        share. The module path is split on the separator of the platform the check measures (';' on
+        Windows, ':' elsewhere), and each entry is trimmed. An entry that is relative, or names a
+        network or device path (Get-SearchPathProblem), keeps its spelling, so that the check names
+        it without opening it, and only a configuration folder that passes that test is asked
+        whether its file exists; a documents folder that cannot be named leaves its entry relative,
+        and so unmeasured. When the host set no profile path, or one without a folder part, the
+        folder of the user's file cannot be named, and this throws instead of leaving it out.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]
@@ -4214,7 +4221,15 @@ function Get-ModuleSearchSet {
 
         [Parameter()]
         [AllowEmptyString()]
-        [string]$UserConfigurationFolder
+        [string]$UserConfigurationFolder,
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string]$DocumentsFolder,
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string]$ProgramFilesFolder
     )
 
     if (-not $PSBoundParameters.ContainsKey('UserConfigurationFolder')) {
@@ -4226,17 +4241,35 @@ function Get-ModuleSearchSet {
         }
 
         $UserConfigurationFolder = [System.IO.Path]::GetDirectoryName([string]$property.Value)
+
+        if ([string]::IsNullOrWhiteSpace($UserConfigurationFolder)) {
+            throw 'the folder of the powershell.config.json of this user cannot be named: the profile path of the host has no folder part'
+        }
     }
 
     $candidate = [System.Collections.Generic.List[string]]::new()
+    $separator = if ($script:OnWindows) { [char]';' } else { [char]':' }
 
     if (-not [string]::IsNullOrEmpty($ModulePath)) {
-        foreach ($entry in $ModulePath.Split([System.IO.Path]::PathSeparator)) {
+        foreach ($entry in $ModulePath.Split($separator)) {
             $candidate.Add($entry.Trim())
         }
     }
 
     $candidate.Add([System.IO.Path]::Combine($PowerShellHome, 'Modules'))
+
+    if ($script:OnWindows) {
+        if (-not $PSBoundParameters.ContainsKey('DocumentsFolder')) {
+            $DocumentsFolder = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments, [System.Environment+SpecialFolderOption]::DoNotVerify)
+        }
+
+        if (-not $PSBoundParameters.ContainsKey('ProgramFilesFolder')) {
+            $ProgramFilesFolder = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFiles, [System.Environment+SpecialFolderOption]::DoNotVerify)
+        }
+
+        $candidate.Add([System.IO.Path]::Combine($DocumentsFolder, 'WindowsPowerShell', 'Modules'))
+        $candidate.Add([System.IO.Path]::Combine($ProgramFilesFolder, 'WindowsPowerShell', 'Modules'))
+    }
 
     foreach ($folder in @($UserConfigurationFolder, $PowerShellHome)) {
         if ([string]::IsNullOrWhiteSpace($folder)) {
@@ -4309,27 +4342,78 @@ function Get-SearchPathProblem {
     return $null
 }
 
-function Measure-EscapePath {
+function Get-ReplacementRight {
     <#
-        Whether this identity can write one place of the escape set, measured without changing it. A
-        place that exists is writable when this identity can add a file or a folder to it, or delete
-        its children. A place that does not exist is judged by the nearest folder above it that
-        does, because that is where it would be created: it is writable when this identity can add a
-        folder there, closed when that nearest existing place is a file, which holds no folder, and
-        unmeasured when nothing on its path exists.
+        Whether this identity can put its own object in the place of one that Get-ObjectRight measured,
+        by deleting it or moving it aside, judged without changing it. State is Granted, Denied, or
+        Unknown; Right names what was judged, so that the evidence can say it, and Reason, relayed,
+        why it is unknown.
 
-        Every element is measured by Get-ObjectRight and taken as it reports. On Windows a junction
-        or a symbolic link, the place itself or one above it, is measured as the link: the probe
-        opens the reparse point and not the place it points at. Elsewhere the write probe goes
-        through a link and lands in its target. The detail is relayed text (Format-RelayedText),
-        because the reason of a measurement and the path of a folder above come from outside this
-        script.
+        On Windows that is DELETE on the object as Get-ObjectRight measured it: the kernel grants
+        DELETE also when the folder above grants FILE_DELETE_CHILD, so the one right answers both.
+        Elsewhere DELETE is not measured, and deleting or renaming an entry takes write access to the
+        folder that holds it, so that folder is measured, which creates and removes a short-lived
+        probe file in it (Get-WriteAccess). A sticky bit on that folder can refuse the identity what
+        the probe grants it, so the measurement errs towards replaceable.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory)]
-        [string]$Path
+        [pscustomobject]$Object
+    )
+
+    if ($script:OnWindows) {
+        return [pscustomobject]@{ State = [string]$Object.Right['Delete']; Right = 'DELETE on it'; Reason = '' }
+    }
+
+    $parent = [System.IO.Path]::GetDirectoryName([System.IO.Path]::TrimEndingDirectorySeparator([System.IO.Path]::GetFullPath($Object.Path)))
+
+    if ([string]::IsNullOrEmpty($parent)) {
+        # The root of a filesystem is held by no folder, so nothing can move it aside.
+        return [pscustomobject]@{ State = 'Denied'; Right = 'write access to a folder that holds it, and none does'; Reason = '' }
+    }
+
+    $right = "write access to the folder $(Format-RelayedText -Text $parent) that holds it"
+    $above = Get-ObjectRight -Path $parent
+
+    if ($above.State -ne 'Measured') {
+        return [pscustomobject]@{ State = 'Unknown'; Right = $right; Reason = (Format-RelayedText -Text $above.Reason) }
+    }
+
+    return [pscustomobject]@{ State = [string]$above.Right['WriteData']; Right = $right; Reason = '' }
+}
+
+function Measure-EscapePath {
+    <#
+        Whether this identity can write one place of the escape set or of the module search set,
+        measured without changing it. A place that exists is writable when this identity can add a
+        file or a folder to it, or delete its children, and, with -Replaceable, which the module
+        search set asks for, also when it can put its own object in the place's stead
+        (Get-ReplacementRight). A place that does not exist is judged by the nearest place above it
+        that does, because that is where it would be created: it is writable when that is a folder
+        this identity can add a folder to, or a file it can replace with one; closed when it is a
+        folder closed to that, or a file this identity cannot replace; and unmeasured when nothing
+        on its path exists.
+
+        Every element is measured by Get-ObjectRight and taken as it reports. On Windows the probe
+        opens the last component of the path it is given without following it, and follows every
+        link above it. So a junction or a symbolic link at the place itself, or at the place above
+        an absent one that the walk opens, is measured as the link and not as its target; a link
+        above an existing place is followed, so that the place is measured in the target, which is
+        also where pwsh loads from; and an absent place below a link that the walk measured would be
+        created in that link's target. Elsewhere the write probe goes through every link and lands
+        in the target. The detail is relayed text (Format-RelayedText), because the reason of a
+        measurement and the path of a place above come from outside this script.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter()]
+        [switch]$Replaceable
     )
 
     $object = Get-ObjectRight -Path $Path
@@ -4352,7 +4436,19 @@ function Measure-EscapePath {
             }
 
             if (-not $above.IsDirectory) {
-                return [pscustomobject]@{ State = 'Closed'; Detail = "absent, and $shown above it is a file, which holds no folder" }
+                # A file holds no folder, but an identity that can delete the file can put a folder in its place.
+                $replace = Get-ReplacementRight -Object $above
+
+                if ($replace.State -eq 'Granted') {
+                    return [pscustomobject]@{ State = 'Writable'; Detail = "absent, and this identity can replace the file $shown above it with a folder: it holds $($replace.Right)" }
+                }
+
+                if ($replace.State -eq 'Denied') {
+                    return [pscustomobject]@{ State = 'Closed'; Detail = "absent, and $shown above it is a file, which holds no folder, and this identity lacks $($replace.Right)" }
+                }
+
+                $because = if ($replace.Reason) { ": $($replace.Reason)" } else { '' }
+                return [pscustomobject]@{ State = 'Unmeasured'; Detail = "absent, and $shown above it is a file, and whether this identity holds $($replace.Right) could not be measured$because" }
             }
 
             if ($above.Right['AppendData'] -eq 'Granted') {
@@ -4376,14 +4472,32 @@ function Measure-EscapePath {
     $kind = [int]$object.IsDirectory
     $name = @('WriteData', 'AppendData', 'DeleteChild')
     $granted = @($name | Where-Object -FilterScript { $object.Right[$_] -eq 'Granted' })
-    $unknown = @($name | Where-Object -FilterScript { $object.Right[$_] -eq 'Unknown' })
+    $doubt = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($right in @($name | Where-Object -FilterScript { $object.Right[$_] -eq 'Unknown' })) {
+        $doubt.Add($script:RightLabel[$right][$kind])
+    }
 
     if ($granted.Count -gt 0) {
         return [pscustomobject]@{ State = 'Writable'; Detail = 'this identity holds ' + (($granted | ForEach-Object -Process { $script:RightLabel[$_][$kind] }) -join ', ') }
     }
 
-    if ($unknown.Count -gt 0) {
-        return [pscustomobject]@{ State = 'Unmeasured'; Detail = 'could not measure ' + (($unknown | ForEach-Object -Process { $script:RightLabel[$_][$kind] }) -join ', ') }
+    if ($Replaceable) {
+        # pwsh loads from whatever holds the name of the place, so putting another object there writes it too.
+        $replace = Get-ReplacementRight -Object $object
+
+        if ($replace.State -eq 'Granted') {
+            return [pscustomobject]@{ State = 'Writable'; Detail = "this identity can replace it: it holds $($replace.Right)" }
+        }
+
+        if ($replace.State -ne 'Denied') {
+            $because = if ($replace.Reason) { " ($($replace.Reason))" } else { '' }
+            $doubt.Add("whether this identity holds $($replace.Right)$because")
+        }
+    }
+
+    if ($doubt.Count -gt 0) {
+        return [pscustomobject]@{ State = 'Unmeasured'; Detail = 'could not measure ' + ($doubt -join ', ') }
     }
 
     return [pscustomobject]@{ State = 'Closed'; Detail = 'closed' }
@@ -4394,20 +4508,23 @@ function Test-WritableRoot {
         What a Pass here says, and no more: every declared root is a directory this identity can add
         files and folders to; none of the escape set is writable outside the declared roots; and none
         of the module search set, the places pwsh auto-loads modules from and reads where to load them
-        from (Get-ModuleSearchSet), is writable by this identity, inside a declared root or not. A
-        place of the escape set that a declared root covers is not an escape, and a place wider than
-        a declared root is. A place of the module search set is judged whether a declared root covers
-        it or not: pwsh auto-loads modules from it into every later process of this identity, the
-        next run of this verifier included, so code written there runs before that run measures
-        anything. A place that does not exist is judged by the nearest folder above it
-        (Measure-EscapePath). An entry of the module search set that is relative, or names a network
-        or device path, is not opened and is reported unmeasured.
+        from (Get-ModuleSearchSet), is writable or replaceable by this identity, inside a declared
+        root or not. A place of the escape set that a declared root covers is not an escape, and a
+        place wider than a declared root is. A place of the module search set is judged whether a
+        declared root covers it or not: pwsh auto-loads modules from it into every later process of
+        this identity, the next run of this verifier included, so code written there runs before that
+        run measures anything. For the same reason a place of that set that this identity can delete
+        or move aside counts as writable (Get-ReplacementRight); the escape set does not judge that.
+        A place that does not exist is judged by the nearest place above it (Measure-EscapePath). An
+        entry of the module search set that is relative, or names a network or device path, is not
+        opened and is reported unmeasured. Only each place is judged, not the modules inside it.
 
         On Windows rights are measured, not exercised, so the check creates nothing; elsewhere the
-        measurement of a directory creates and removes a short-lived probe file in it, or in the
-        nearest folder above a place that does not exist. The filesystem is not enumerated: a writable
-        path outside the declared roots, the escape set and the module search set is not found by this
-        check, and the filesystem policy of the deployment has to close it.
+        measurement of a directory creates and removes a short-lived probe file in it: in a place,
+        in the nearest folder above a place that does not exist, and in the folder that holds a
+        place of the module search set, or a file above an absent place. The filesystem is not
+        enumerated: a writable path outside the declared roots, the escape set and the module search
+        set is not found by this check, and the filesystem policy of the deployment has to close it.
 
         Every path and every reason of a measurement reaches the evidence relayed (Format-RelayedText),
         cut at 200 characters, and every list the evidence joins at 1,000: the paths come from the
@@ -4487,10 +4604,11 @@ function Test-WritableRoot {
         $place = Measure-EscapePath -Path $escape
         $line = "$shown ($($place.Detail))"
 
+        # A state this switch does not name never reads as closed.
         switch ($place.State) {
             'Writable' { $escapable.Add($line) }
-            'Unmeasured' { $unmeasured.Add($line) }
-            default { $escapeNote.Add($line) }
+            'Closed' { $escapeNote.Add($line) }
+            default { $unmeasured.Add($line) }
         }
     }
 
@@ -4506,14 +4624,14 @@ function Test-WritableRoot {
             continue
         }
 
-        $place = Measure-EscapePath -Path $entry
+        $place = Measure-EscapePath -Path $entry -Replaceable
         $covered = if (Test-PathInside -Path $entry -Root $root) { ', and a declared root covers it' } else { '' }
         $line = "$shown ($($place.Detail)$covered)"
 
         switch ($place.State) {
             'Writable' { $loadable.Add($line) }
-            'Unmeasured' { $unmeasured.Add($line) }
-            default { $moduleNote.Add($line) }
+            'Closed' { $moduleNote.Add($line) }
+            default { $unmeasured.Add($line) }
         }
     }
 
@@ -4521,7 +4639,7 @@ function Test-WritableRoot {
         $evidence = 'declared roots unusable: [' + (Format-RelayedText -Text ($unusable -join '; ') -Limit 1000) + ']; writable outside the declared roots: [' + (Format-RelayedText -Text ($escapable -join '; ') -Limit 1000) + ']'
 
         if ($loadable.Count -gt 0) {
-            $evidence += '; writable where pwsh auto-loads modules from, or reads where to load them from, inside a declared root or not: [' + (Format-RelayedText -Text ($loadable -join '; ') -Limit 1000) + ']'
+            $evidence += '; writable or replaceable where PowerShell auto-loads modules from, or reads where to load them from, inside a declared root or not: [' + (Format-RelayedText -Text ($loadable -join '; ') -Limit 1000) + ']'
         }
 
         if ($unmeasured.Count -gt 0) {
@@ -4539,7 +4657,7 @@ function Test-WritableRoot {
     $evidence = "every declared root accepts new files and folders ($rootList), and none of the escape set is writable outside them: $(Format-RelayedText -Text ($escapeNote -join '; ') -Limit 1000)"
 
     if ($module.Count -gt 0) {
-        $evidence += "; none of the places pwsh auto-loads modules from, or reads where to load them from, is writable, inside a declared root or not: $(Format-RelayedText -Text ($moduleNote -join '; ') -Limit 1000)"
+        $evidence += "; none of the places PowerShell auto-loads modules from, or reads where to load them from, is writable or replaceable, inside a declared root or not: $(Format-RelayedText -Text ($moduleNote -join '; ') -Limit 1000)"
     }
 
     return New-CheckResult -Name 'WritableRoots' -Status 'Pass' -Evidence ($evidence + '; the rest of the filesystem is not enumerated')
@@ -4807,8 +4925,19 @@ function Get-ContainmentCheck {
     $check.Add((Test-CredentialAbsence -WritableRoot $writableRoot -GitGateReason $gitGate))
 
     $escapeSet = @(Get-EscapeSet -ProfilePath $ProfilePath -SinkPath ([string]$ContainmentProfile.ledgerSink) -ChainHeadPath ([string]$ContainmentProfile.chainHead))
-    $moduleSet = @(Get-ModuleSearchSet)
-    $check.Add((Test-WritableRoot -Declared $writableRoot -EscapeSet $escapeSet -ModuleSet $moduleSet))
+    $moduleSet = $null
+
+    # A module search set that cannot be named leaves the check unmeasured, and the run still gets its report.
+    try {
+        $moduleSet = @(Get-ModuleSearchSet)
+    } catch {
+        $check.Add((New-CheckResult -Name 'WritableRoots' -Status 'Unavailable' -Evidence ('the places PowerShell loads modules from could not be named, so the writable roots were not judged: ' + (Format-RelayedText -Text $_.Exception.Message))))
+    }
+
+    if ($null -ne $moduleSet) {
+        $check.Add((Test-WritableRoot -Declared $writableRoot -EscapeSet $escapeSet -ModuleSet $moduleSet))
+    }
+
     $check.Add((Test-LedgerProtection -SinkPath ([string]$ContainmentProfile.ledgerSink) -ChainHeadPath ([string]$ContainmentProfile.chainHead) -WritableRoot $writableRoot))
 
     if ($LiveMode -ne 'off') {
