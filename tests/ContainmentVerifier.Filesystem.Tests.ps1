@@ -762,6 +762,8 @@ Describe 'Containment writable roots relay' -Tag 'Unit' {
                 'an escape path below a file' {
                     $escape = @($script:belowHostile)
                     $map[$script:hostileFolder] = New-ObjectRight -Path $script:hostileFolder -IsDirectory $false
+                    # Off Windows the verifier measures the folder that holds the file (Get-ReplacementRight).
+                    $map[$script:relayBase] = New-ObjectRight -Path $script:relayBase
                 }
                 'a module entry that is not opened' {
                     $module = @($script:hostileEntry)
@@ -866,7 +868,8 @@ Describe 'Containment writable roots relay' -Tag 'Unit' {
         @{ Site = 'an escape path below a closed folder'; Status = 'Pass'; Text = 'folder' }
         @{ Site = 'an escape path below a writable folder'; Status = 'Fail'; Text = 'folder' }
         @{ Site = 'an escape path below a folder that could not be measured'; Status = 'Unavailable'; Text = 'attributeReason' }
-        @{ Site = 'an escape path below a file'; Status = 'Pass'; Text = 'folder' }
+        @{ Site = 'an escape path below a file'; Status = 'Pass'; Text = 'folder'; Platform = 'Posix' }
+        @{ Site = 'an escape path below a file'; Status = 'Pass'; Text = 'folder'; Platform = 'Windows' }
         @{ Site = 'a module entry that is not opened'; Status = 'Unavailable'; Text = 'entry' }
         @{ Site = 'a module folder this identity can write'; Status = 'Fail'; Text = 'place' }
         @{ Site = 'a closed module folder'; Status = 'Pass'; Text = 'place' }
