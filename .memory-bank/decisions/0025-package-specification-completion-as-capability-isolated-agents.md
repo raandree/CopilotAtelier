@@ -97,7 +97,17 @@ claims for them.
   temp folders, the folder of the profile, the folders of the ledger sink and
   the chain head) is not writable outside them. It does not enumerate the
   filesystem, so closing every other path is the deployment's filesystem policy,
-  and the controller never reports the writable set as exact.
+  and the controller never reports the writable set as exact. Dated 2026-11-14
+  (brief 12): the check also names the places pwsh loads modules from, which are
+  the verifier's own `PSModulePath`, the `Modules` folder of `$PSHOME`, and the
+  folders of both `powershell.config.json` files, and fails one that this
+  identity can write even inside a declared root; after the review of that
+  change, it also names on Windows the two module folders of Windows PowerShell
+  5.1, and fails a place of that set that this identity can replace, by
+  `DELETE` on Windows and by writing the folder that holds it elsewhere. The
+  guard's own exposure under Windows PowerShell 5.1, which runs the hook line,
+  stays open (R12-02, brief 18); see the entry of that date in
+  `docs/SECURITY-REVIEW.md`.
 - **One identity per run, in a fresh process.** A verifier measures the identity
   and network namespace it runs in, so the controller runs it once per role. It
   runs only as the entry script of a `pwsh -NoProfile -File` process, read from
