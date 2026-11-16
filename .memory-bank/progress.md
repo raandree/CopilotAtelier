@@ -1,6 +1,6 @@
 ---
 status: current
-last-verified: 2026-11-14
+last-verified: 2026-11-16
 owner: software-engineer
 source: CHANGELOG.md and git history
 ---
@@ -14,11 +14,15 @@ at 19:56 UTC to GitHub and the PowerShell Gallery from `a3167d8` (#54), the
 commit CI had published as `6.1.0-preview0026`. The changelog rollover #55
 (`f358226`) followed at 23:43 UTC; its CI run (43122012334, GitVersion
 `6.1.1-preview.1`) published nothing (Deploy skipped, confirmed 2026-11-12). The newest
-pre-release is `6.2.0-preview0002`, which CI published from #58 (`aea224e`, run 43431374837) on 2026-11-13
-at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`.
+pre-release is `6.2.0-preview0008`, which CI published from #64 (`5edc716`, run 43939582551) on 2026-11-16
+at 20:17 UTC; #65's merge run (43949992903) was still running at this record. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`.
 
 ## Recent milestones
 
+- **2026-11-16**: Brief 19, the publish step (`software-engineer`, three chats, every remote step the owner's): #59 to #65 merged as `10fd024`,
+  `a71f63f`, `f3f41ec`, `deca98d`, `ce189c5`, `5edc716` and `bd28133`, each squash tree equal to its rebased tip and each CI green on three
+  systems. #62's first CI failed one relay row off Windows (a fixture gap); a test-only fix, on the owner's ruling, rode in its squash; an
+  early read of the stack's top (`ai/stack-preview`) showed 14, 15 and 18 green first. `~/.copilot` redeployed from `bd28133`, 277 files equal.
 - **2026-11-14**: Brief 18, the module path of every hook line (`software-engineer`, a controller run), on `ai/guard-module-shadowing`, stacked
   on brief 15, not pushed. Option 3 under the owner's delegation: all 18 PowerShell hook lines set `PSModulePath` to their own `Modules` folder
   through .NET types before any command, and `HookContract` holds a line to that pin and plants a tripwire module (R12-02, R12-08). Red first;
@@ -50,10 +54,6 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
   records before it sends and believes only a later sequence (`sequence > n`, the owner's ruling), so a replayed identical record is refused,
   and a sink it cannot count stops the send. Red first (the replay exited 0 on `aea224e`); 14 mutants caught. Review: Approve with changes,
   then Approve on re-review; R13-01 to R13-09 fixed. New appender digest `f55e163b…0572`.
-- **2026-11-13**: Brief 11, S-20 (`software-engineer`), merged as #58 (`aea224e`, 13:10 UTC): the appender's two lines about a dropped
-  connection and the hook check's four exception texts, two closure details and interpreter path are relayed as printable ASCII,
-  closing S-20, V-05 and W-03 (red first, 8 and then 2 tests; 12 mutants caught). The S-04/S-05 functions and the `-Validate`
-  stored-line case run on every system. Review: Approve with changes; R11-02 to R11-06 fixed, R11-01 (26+ verifier texts) a follow-up.
 
 ## Stable capabilities
 
