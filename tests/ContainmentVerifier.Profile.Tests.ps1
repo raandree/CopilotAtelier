@@ -30,7 +30,8 @@ BeforeAll {
         $base = if ($script:onWindows) { 'C:\containment' } else { '/containment' }
         $entry = { param($name) [pscustomobject]@{ path = (Join-Path $base $name); sha256 = ('a' * 64) } }
         $document = [ordered]@{
-            schemaVersion = 1
+            schemaVersion = 2
+            runId = 'run-1'
             verifier = & $entry 'verifier.ps1'
             hooksConfig = & $entry 'hooks.json'
             hookScript = & $entry 'hook.ps1'
@@ -291,27 +292,56 @@ Describe 'Containment profile schema paths and digests' -Tag 'Unit' {
         (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match 'short name'
     }
 
-    It 'refuses a schema version other than 1' {
-        # Review of 2026-10-12: the documentation said "always 1" and nothing enforced it.
-        $containmentProfile = New-SchemaProfile -Override @{ schemaVersion = 2 }
+    It 'refuses a schema version other than 2: <Version>' -ForEach @(
+        @{ Version = 1 }
+        @{ Version = 3 }
+    ) {
+        # Review of 2026-10-12: the documentation said "always 1" and nothing enforced it. Version 2 names the run.
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile.schemaVersion = $Version
 
-        (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match 'schemaVersion'
+        (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match "'schemaVersion' must be the integer 2"
     }
 
-    It 'refuses a schema version that only equals 1 after a conversion: <Reason>' -ForEach @(
-        @{ Reason = 'a string'; Version = '1' }
+    It 'tells the owner of a version-1 profile what version 2 adds' {
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile.schemaVersion = 1
+        $containmentProfile.PSObject.Properties.Remove('runId')
+
+        $problem = (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; '
+
+        $problem | Should -Match "'schemaVersion' must be the integer 2"
+        $problem | Should -Match "missing required field 'runId'"
+        $problem | Should -Match 'names no run'
+        $problem | Should -Match 'new for (this|each) run'
+    }
+
+    It 'tells the owner of a version-1 profile that already names its run only to raise the version' {
+        # Review R14-07: the hint said that such a profile names no run.
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile.schemaVersion = 1
+
+        $problem = (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; '
+
+        $problem | Should -Match "'schemaVersion' must be the integer 2"
+        $problem | Should -Match "version 2 adds 'runId', a run id that is new for each run; set 'schemaVersion' to 2"
+        $problem | Should -Not -Match 'names no run'
+    }
+
+    It 'refuses a schema version that only equals 2 after a conversion, or is no number: <Reason>' -ForEach @(
+        @{ Reason = 'a string'; Version = '2' }
         @{ Reason = 'a boolean'; Version = $true }
-        @{ Reason = 'a fraction'; Version = [double]1.0 }
-        @{ Reason = 'an array'; Version = @(1) }
+        @{ Reason = 'a fraction'; Version = [double]2.0 }
+        @{ Reason = 'an array'; Version = @(2) }
     ) {
-        # Review pass 1, R-10: each of these passed a loose comparison with 1.
+        # Review pass 1, R-10: each of these passed a loose comparison with the version.
         $containmentProfile = New-SchemaProfile
         $containmentProfile.schemaVersion = $Version
 
         (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match 'schemaVersion'
     }
 
-    It 'accepts the integer 1 as a JSON document spells it' {
+    It 'accepts the integer 2 as a JSON document spells it' {
         $containmentProfile = New-SchemaProfile
 
         @(Test-ProfileSchema -ContainmentProfile $containmentProfile) | Should -HaveCount 0
@@ -399,5 +429,70 @@ Describe 'Containment profile schema paths and digests' -Tag 'Unit' {
 
         $problem | Should -Match "unknown field 'LedgerSink'"
         $problem | Should -Match "missing required field 'ledgerSink'"
+    }
+}
+
+Describe 'Containment profile run id' -Tag 'Unit' {
+    It 'accepts a run id of <Reason>' -ForEach @(
+        @{ Reason = 'a GUID'; RunId = '3f2504e0-4f89-11d3-9a0c-0305e82c3301' }
+        @{ Reason = 'one character'; RunId = 'a' }
+        @{ Reason = 'sixty-four characters'; RunId = ('r' * 64) }
+        @{ Reason = 'letters, digits, dots, underscores and hyphens'; RunId = 'Run_2026-11-14.1' }
+    ) {
+        @(Test-ProfileSchema -ContainmentProfile (New-SchemaProfile -Override @{ runId = $RunId })) | Should -HaveCount 0
+    }
+
+    It 'refuses a profile that names no run id' {
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile.PSObject.Properties.Remove('runId')
+
+        (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match "missing required field 'runId'"
+    }
+
+    It 'refuses a run id that is <Reason>, and does not throw' -ForEach @(
+        @{ Reason = 'a number'; RunId = 1234 }
+        @{ Reason = 'a boolean'; RunId = $true }
+        @{ Reason = 'an array'; RunId = @('run-1') }
+        @{ Reason = 'an object'; RunId = [pscustomobject]@{ id = 'run-1' } }
+        @{ Reason = 'null'; RunId = $null }
+        @{ Reason = 'empty'; RunId = '' }
+        @{ Reason = 'blank'; RunId = '   ' }
+        @{ Reason = 'sixty-five characters long'; RunId = ('r' * 65) }
+        @{ Reason = 'spelled with a space'; RunId = 'run 1' }
+        @{ Reason = 'spelled with a colon'; RunId = 'run:1' }
+        @{ Reason = 'spelled with a slash'; RunId = 'run/1' }
+        @{ Reason = 'spelled with a zero-width space'; RunId = ('run-1' + [char]0x200B) }
+        @{ Reason = 'spelled with the Kelvin sign, which a match that ignores case reads as a K'; RunId = ('run-' + [char]0x212A) }
+        @{ Reason = 'spelled with a letter outside ASCII'; RunId = ('r' + [char]0x00FC + 'n') }
+        @{ Reason = 'ended by a line feed'; RunId = ('run-1' + [char]0x000A) }
+    ) {
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile.runId = $RunId
+
+        { Test-ProfileSchema -ContainmentProfile $containmentProfile } | Should -Not -Throw
+        (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match "'runId' must be"
+    }
+
+    It 'refuses a run id that the JSON reader of the profile turns into a date: <Value>' -ForEach @(
+        @{ Value = '2026-11-14T08:00:00Z' }
+        @{ Value = '/Date(1700000000000)/' }
+    ) {
+        # ConvertFrom-Json, which reads the profile, returns a DateTime for these strings (pwsh 7.6.10), so the
+        # value the verifier compares would not be the text the operator wrote.
+        $containmentProfile = New-SchemaProfile -Override @{ runId = $Value }
+
+        $containmentProfile.runId | Should -BeOfType [datetime] -Because 'the fixture reads the profile as the verifier does'
+        (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; ' | Should -Match "'runId' must be"
+    }
+
+    It 'does not let a run id spelled in another case stand in for it' {
+        $containmentProfile = New-SchemaProfile
+        $containmentProfile.PSObject.Properties.Remove('runId')
+        $containmentProfile | Add-Member -NotePropertyName 'RunId' -NotePropertyValue 'run-1'
+
+        $problem = (Test-ProfileSchema -ContainmentProfile $containmentProfile) -join '; '
+
+        $problem | Should -Match "unknown field 'RunId'"
+        $problem | Should -Match "missing required field 'runId'"
     }
 }

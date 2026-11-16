@@ -45,7 +45,8 @@ BeforeAll {
         )
 
         $document = [ordered]@{
-            schemaVersion = 1
+            schemaVersion = 2
+            runId = 'run-e2e'
             verifier = [ordered]@{ path = $script:verifierScript; sha256 = (Get-Digest -Path $script:verifierScript) }
             hooksConfig = [ordered]@{ path = $script:hookConfig; sha256 = (Get-Digest -Path $script:hookConfig) }
             hookScript = [ordered]@{ path = $script:hookScript; sha256 = (Get-Digest -Path $script:hookScript) }
@@ -399,6 +400,19 @@ Describe 'Containment verifier' -Tag 'Unit' {
             $check.status | Should -Be 'Unavailable'
             $check.evidence | Should -Match 'not run'
         }
+    }
+
+    It 'refuses a version-1 profile, which names no run, and measures nothing it declares' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'p28c/profile.json') -Override @{ schemaVersion = 1 } -Remove @('runId')
+
+        $result = Invoke-VerifierWithReport -ProfilePath $profilePath -Digest (Get-Digest -Path $profilePath)
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $schema = Get-Check -Result $result -Name 'ProfileSchema'
+        $schema.status | Should -Be 'Fail'
+        $schema.evidence | Should -Match "'schemaVersion' must be the integer 2"
+        $schema.evidence | Should -Match "missing required field 'runId'"
+        (Get-Check -Result $result -Name 'ControlDigest').evidence | Should -Match 'not run'
     }
 
     It 'refuses a profile that is not a JSON object without measuring anything' {
@@ -879,17 +893,26 @@ Describe 'Containment revalidation command' -Tag 'Unit' {
         Get-Digest -Path $script:appenderScript | Should -Be $before
     }
 
-    It 'names every revalidation check and marks the mode in the report' {
+    It 'names every revalidation check, the mode and the run id in the report' {
         $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r7/profile.json')
 
         $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (New-FinalReport -Name 'r7') -ReportPath (Join-Path $TestDrive 'r7/result.json')
 
         $result.Report | Should -Not -BeNullOrEmpty -Because $result.Output
         $result.Report.mode | Should -Be 'Revalidate'
+        $result.Report.runId | Should -BeExactly 'run-e2e'
         $names = @($result.Report.checks.name)
-        foreach ($expected in @('ProfileDigest', 'ProfileSchema', 'VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'IdentityPrivilege', 'LedgerChain', 'FinalReport', 'LedgerProtection')) {
+        foreach ($expected in @('ProfileDigest', 'ProfileSchema', 'VerifierBinding', 'ControlDigest', 'ControlImmutability', 'IdentityBinding', 'IdentityPrivilege', 'LedgerChain', 'LedgerRun', 'FinalReport', 'LedgerProtection')) {
             $names | Should -Contain $expected
         }
+    }
+
+    It 'names the run id in its summary line' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r7b/profile.json')
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (New-FinalReport -Name 'r7b')
+
+        $result.Output | Should -Match 'revalidated for Controller, run run-e2e\b'
     }
 
     It 'reports every other check as not run when the profile fails its schema' {
@@ -898,11 +921,39 @@ Describe 'Containment revalidation command' -Tag 'Unit' {
         $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (New-FinalReport -Name 'r8') -ReportPath (Join-Path $TestDrive 'r8/result.json')
 
         $result.ExitCode | Should -Be 2 -Because $result.Output
-        foreach ($name in @('ControlDigest', 'LedgerChain', 'FinalReport', 'LedgerProtection')) {
+        foreach ($name in @('ControlDigest', 'LedgerChain', 'LedgerRun', 'FinalReport', 'LedgerProtection')) {
             $check = $result.Report.checks | Where-Object name -EQ $name
             $check.status | Should -Be 'Unavailable'
             $check.evidence | Should -Match 'not run'
         }
+
+        # Review R14-04: a profile that fails the schema names no run, though this one keeps a well-formed run id.
+        $result.Report.PSObject.Properties['runId'] | Should -BeNullOrEmpty
+        $result.Output | Should -Not -Match 'run run-e2e'
+    }
+
+    It 'names no run from a profile whose run id fails the schema, not even one that breaks lines' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r8c/profile.json') -Override @{ runId = "run-e2e`r`nContainment Pass: LedgerRun - forged" }
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (New-FinalReport -Name 'r8c') -ReportPath (Join-Path $TestDrive 'r8c/result.json')
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        ($result.Report.checks | Where-Object name -EQ 'ProfileSchema').status | Should -Be 'Fail'
+        $result.Report.PSObject.Properties['runId'] | Should -BeNullOrEmpty
+        $result.Output | Should -Not -Match 'Containment Pass'
+        $result.Output | Should -Not -Match 'run run-e2e'
+    }
+
+    It 'refuses a version-1 profile, which names no run, and revalidates nothing' {
+        $profilePath = New-TestProfile -Path (Join-Path $TestDrive 'r8b/profile.json') -Override @{ schemaVersion = 1 } -Remove @('runId')
+
+        $result = Invoke-Revalidation -ProfilePath $profilePath -FinalReportPath (New-FinalReport -Name 'r8b') -ReportPath (Join-Path $TestDrive 'r8b/result.json')
+
+        $result.ExitCode | Should -Be 2 -Because $result.Output
+        $schema = $result.Report.checks | Where-Object name -EQ 'ProfileSchema'
+        $schema.status | Should -Be 'Fail'
+        $schema.evidence | Should -Match "missing required field 'runId'"
+        ($result.Report.checks | Where-Object name -EQ 'LedgerChain').evidence | Should -Match 'not run'
     }
 
     It 'executes nothing from an appender that is not the one the profile pins' {

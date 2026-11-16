@@ -9,15 +9,15 @@ BeforeAll {
     $script:appenderScript = Join-Path $script:repoRoot 'com.github.copilot/hooks/scripts/Invoke-LedgerAppender.ps1'
     $script:powerShellPath = (Get-Process -Id $PID).Path
     . (Join-Path $script:repoRoot 'tests/Helpers/ScriptFunction.ps1')
-    . (Get-ScriptFunctionDefinition -Path $script:verifierScript -Name @(
-            'New-CheckResult'
-            'Get-BytesDigest'
-            'Format-RelayedText'
-            'Get-SinkSnapshot'
-            'Invoke-ChainValidation'
-            'Get-LedgerChainResult'
-            'Test-FinalReport'
-        ))
+
+    # Every function the verifier defines, so that its revalidation runs with the checks the script wires
+    # into it, and a test of a check names what that check does instead of failing at the load.
+    $script:verifierFunction = @(
+        [System.Management.Automation.Language.Parser]::ParseFile($script:verifierScript, [ref]$null, [ref]$null).EndBlock.Statements |
+            Where-Object -FilterScript { $_ -is [System.Management.Automation.Language.FunctionDefinitionAst] } |
+            ForEach-Object -MemberName Name
+    )
+    . (Get-ScriptFunctionDefinition -Path $script:verifierScript -Name $script:verifierFunction)
 
     # Runs the appender as the controller does, as its own process, and keeps its streams.
     function script:Invoke-ContractAppender {
@@ -122,12 +122,15 @@ BeforeAll {
             [string]$Type,
 
             [Parameter()]
-            [hashtable]$Data = @{ note = 'contract' }
+            [hashtable]$Data = @{ note = 'contract' },
+
+            [Parameter()]
+            [string]$RunId = 'run-contract'
         )
 
         return ([ordered]@{
                 type = $Type
-                runId = 'run-contract'
+                runId = $RunId
                 utc = '2026-10-14T12:00:00Z'
                 data = $Data
             } | ConvertTo-Json -Depth 8 -Compress)
@@ -143,12 +146,16 @@ BeforeAll {
             [string]$SinkPath,
 
             [Parameter(Mandatory)]
-            [string]$ChainHeadPath
+            [string]$ChainHeadPath,
+
+            [Parameter()]
+            [string]$RunId = 'run-contract'
         )
 
         $pinned = @{ path = $script:appenderScript; sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $script:appenderScript).Hash.ToLowerInvariant() }
         $content = [ordered]@{
-            schemaVersion = 1
+            schemaVersion = 2
+            runId = $RunId
             verifier = $pinned
             hooksConfig = $pinned
             hookScript = $pinned
@@ -171,7 +178,9 @@ BeforeAll {
     <#
         A ledger built the way a controller builds one: the real service, one process per append, and
         the seal as the last operation. FinalReport says which digest the FinalReport record carries:
-        None leaves the record out, Lower and Upper record the report's digest in that case.
+        None leaves the record out, Lower and Upper record the report's digest in that case. RunId is
+        the run id of every record and of the profile; StrayRunId adds a second record that carries
+        another one.
     #>
     function script:New-ContractLedger {
         param(
@@ -183,7 +192,13 @@ BeforeAll {
             [string]$FinalReport = 'Lower',
 
             [Parameter()]
-            [switch]$NoSeal
+            [switch]$NoSeal,
+
+            [Parameter()]
+            [string]$RunId = 'run-contract',
+
+            [Parameter()]
+            [string]$StrayRunId
         )
 
         $directory = Join-Path $TestDrive $Name
@@ -191,22 +206,26 @@ BeforeAll {
         $sink = Join-Path $directory 'run.jsonl'
         $head = Join-Path $directory 'run.head.json'
         $report = Join-Path $directory 'final-report.md'
-        [System.IO.File]::WriteAllText($report, "# Final report`n`nThe run is complete.`n", [System.Text.UTF8Encoding]::new($false))
+        [System.IO.File]::WriteAllText($report, "# Final report`n`nThe run $RunId is complete.`n", [System.Text.UTF8Encoding]::new($false))
         $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $report).Hash.ToLowerInvariant()
         $pipe = "ca-contract-$([guid]::NewGuid().ToString('N'))"
         $service = Start-ContractService -PipeName $pipe -SinkPath $sink -ChainHeadPath $head
 
         try {
             $record = [System.Collections.Generic.List[hashtable]]::new()
-            $record.Add(@{ Operation = '-Append'; Json = (New-ContractRecordJson -Type 'Baseline') })
+            $record.Add(@{ Operation = '-Append'; Json = (New-ContractRecordJson -Type 'Baseline' -RunId $RunId) })
+
+            if ($StrayRunId) {
+                $record.Add(@{ Operation = '-Append'; Json = (New-ContractRecordJson -Type 'Note' -RunId $StrayRunId) })
+            }
 
             if ($FinalReport -ne 'None') {
                 $recorded = if ($FinalReport -eq 'Upper') { $digest.ToUpperInvariant() } else { $digest }
-                $record.Add(@{ Operation = '-Append'; Json = (New-ContractRecordJson -Type 'FinalReport' -Data @{ sha256 = $recorded }) })
+                $record.Add(@{ Operation = '-Append'; Json = (New-ContractRecordJson -Type 'FinalReport' -Data @{ sha256 = $recorded } -RunId $RunId) })
             }
 
             if (-not $NoSeal) {
-                $record.Add(@{ Operation = '-Seal'; Json = (New-ContractRecordJson -Type 'Seal' -Data @{ reason = 'run complete' }) })
+                $record.Add(@{ Operation = '-Seal'; Json = (New-ContractRecordJson -Type 'Seal' -Data @{ reason = 'run complete' } -RunId $RunId) })
             }
 
             foreach ($item in $record) {
@@ -227,8 +246,110 @@ BeforeAll {
             Head = $head
             Report = $report
             ProfilePath = $profilePath
-            ProfileSha256 = (New-ContractProfile -ProfilePath $profilePath -SinkPath $sink -ChainHeadPath $head)
+            ProfileSha256 = (New-ContractProfile -ProfilePath $profilePath -SinkPath $sink -ChainHeadPath $head -RunId $RunId)
         }
+    }
+
+    <#
+        A sealed ledger of three records, Baseline, FinalReport and Seal, that carry the run id given,
+        written straight to the sink and the head in the stored form, as an identity that can write both
+        would write it. No service runs, so this needs no named pipe and runs on every system.
+    #>
+    function script:New-CanonicalLedger {
+        param(
+            [Parameter(Mandatory)]
+            [string]$Name,
+
+            [Parameter(Mandatory)]
+            [string]$RunId
+        )
+
+        $utf8 = [System.Text.UTF8Encoding]::new($false)
+        $directory = Join-Path $TestDrive $Name
+        $null = New-Item -Path $directory -ItemType Directory -Force
+        $sink = Join-Path $directory 'run.jsonl'
+        $head = Join-Path $directory 'run.head.json'
+        $report = Join-Path $directory 'final-report.md'
+        [System.IO.File]::WriteAllText($report, "# Final report`n`nThe run $RunId is complete.`n", $utf8)
+        $reportDigest = (Get-FileHash -Algorithm SHA256 -LiteralPath $report).Hash.ToLowerInvariant()
+
+        $record = @(
+            @{ Type = 'Baseline'; Data = '{"note":"contract"}' }
+            @{ Type = 'FinalReport'; Data = '{"sha256":"' + $reportDigest + '"}' }
+            @{ Type = 'Seal'; Data = '{"reason":"run complete"}' }
+        )
+        $previous = '0' * 64
+        $line = [System.Collections.Generic.List[string]]::new()
+
+        for ($index = 0; $index -lt $record.Count; $index++) {
+            # The members in ordinal order of their names; the digest covers all of them but itself.
+            $member = @(
+                '"data":' + $record[$index].Data
+                '"prevSha256":"' + $previous + '"'
+                '"runId":"' + $RunId + '"'
+                '"sequence":' + ($index + 1)
+                '"type":"' + $record[$index].Type + '"'
+                '"utc":"2026-11-14T08:00:00Z"'
+            )
+            $digest = [System.Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($utf8.GetBytes('{' + ($member -join ',') + '}'))).ToLowerInvariant()
+            $line.Add('{' + ((@($member[0], $member[1], ('"recordSha256":"' + $digest + '"')) + $member[2..5]) -join ',') + '}')
+            $previous = $digest
+        }
+
+        [System.IO.File]::WriteAllText($sink, (($line -join "`n") + "`n"), $utf8)
+        [System.IO.File]::WriteAllText($head, ('{"recordSha256":"' + $previous + '","sealed":true,"sequence":3,"updatedUtc":"2026-11-14T08:00:00Z"}'), $utf8)
+
+        return [pscustomobject]@{
+            Sink = $sink
+            Head = $head
+            Report = $report
+        }
+    }
+
+    # The checks of the revalidation that measure the machine, which no test host passes for a real
+    # deployment, pass; everything else runs as the verifier runs it.
+    function script:Set-MachineGatePass {
+        Mock -CommandName Test-VerifierBinding -MockWith { New-CheckResult -Name 'VerifierBinding' -Status 'Pass' -Evidence 'mock' }
+        Mock -CommandName Test-ControlDigest -MockWith { New-CheckResult -Name 'ControlDigest' -Status 'Pass' -Evidence 'mock' }
+        Mock -CommandName Test-ControlImmutability -MockWith { New-CheckResult -Name 'ControlImmutability' -Status 'Pass' -Evidence 'mock' }
+        Mock -CommandName Test-IdentityBinding -MockWith { New-CheckResult -Name 'IdentityBinding' -Status 'Pass' -Evidence 'mock' }
+        Mock -CommandName Test-IdentityPrivilege -MockWith { New-CheckResult -Name 'IdentityPrivilege' -Status 'Pass' -Evidence 'mock' }
+        Mock -CommandName Test-LedgerProtection -MockWith { New-CheckResult -Name 'LedgerProtection' -Status 'Pass' -Evidence 'mock' }
+    }
+
+    <#
+        The revalidation of the verifier, with the real pinned appender, under a profile that names the
+        run id, the sink and the chain head given, as a profile does whose paths an earlier run used.
+    #>
+    function script:Invoke-ContractRevalidation {
+        param(
+            [Parameter(Mandatory)]
+            [string]$Name,
+
+            [Parameter(Mandatory)]
+            [string]$RunId,
+
+            [Parameter(Mandatory)]
+            $Ledger
+        )
+
+        $profilePath = Join-Path $TestDrive "$Name-profile.json"
+        $digest = New-ContractProfile -ProfilePath $profilePath -SinkPath $Ledger.Sink -ChainHeadPath $Ledger.Head -RunId $RunId
+        $containmentProfile = [System.IO.File]::ReadAllText($profilePath) | ConvertFrom-Json
+
+        return @(Get-RevalidationCheck -ContainmentProfile $containmentProfile -ProfilePath $profilePath -ProfileSha256 $digest `
+                -Role 'Controller' -VerifierPath $script:verifierScript -FinalReportPath $Ledger.Report)
+    }
+
+    # Every check of a revalidation on one line, for the reason of a failed assertion.
+    function script:Format-ContractCheck {
+        param(
+            [Parameter(Mandatory)]
+            [AllowEmptyCollection()]
+            [object[]]$Check
+        )
+
+        return (($Check | ForEach-Object -Process { '{0}: {1} ({2})' -f $_.name, $_.status, $_.evidence }) -join '; ')
     }
 
     function script:Get-ContractChain {
@@ -343,5 +464,71 @@ Describe 'Containment ledger contract' -Tag 'Unit' -Skip:(-not $script:onWindows
             $chain.Check.evidence | Should -Match 'refused'
             $chain.Summary | Should -BeNullOrEmpty
         }
+    }
+
+    # Brief 14: -Revalidate did not bind the ledger to a run, so the sealed ledger of another run at the
+    # paths a profile names, with that run's report, revalidated. Each ledger here is built through the
+    # real service and validated by the real pinned appender.
+    Context 'the sealed ledger of another run at the paths this run''s profile names' {
+        BeforeAll {
+            Set-MachineGatePass
+            $script:runA = New-ContractLedger -Name 'run-a' -RunId 'run-a'
+            $script:runB = New-ContractLedger -Name 'run-b' -RunId 'run-b'
+            $script:mixed = New-ContractLedger -Name 'mixed' -RunId 'run-a' -StrayRunId 'run-b'
+        }
+
+        It 'revalidates the run''s own sealed ledger and report' {
+            $result = Invoke-ContractRevalidation -Name 'own' -RunId 'run-a' -Ledger $script:runA
+
+            (Get-Verdict -Check $result).Verdict | Should -Be 'Pass' -Because (Format-ContractCheck -Check $result)
+            ($result | Where-Object { $_.name -ceq 'LedgerRun' }).evidence | Should -Match "'run-a'"
+        }
+
+        It 'does not revalidate another run''s sealed ledger, although its chain and its report are valid' {
+            $result = Invoke-ContractRevalidation -Name 'other' -RunId 'run-a' -Ledger $script:runB
+
+            (Get-Verdict -Check $result).Verdict | Should -Be 'Fail' -Because (Format-ContractCheck -Check $result)
+            ($result | Where-Object { $_.name -ceq 'LedgerChain' }).status | Should -Be 'Pass'
+            ($result | Where-Object { $_.name -ceq 'FinalReport' }).status | Should -Be 'Pass'
+            $run = $result | Where-Object { $_.name -ceq 'LedgerRun' }
+            $run.status | Should -Be 'Fail'
+            $run.evidence | Should -Match "'run-b'"
+            $run.evidence | Should -Match "'run-a'"
+        }
+
+        It 'does not revalidate a ledger that holds a record of another run, and names that record' {
+            $result = Invoke-ContractRevalidation -Name 'mixed' -RunId 'run-a' -Ledger $script:mixed
+
+            (Get-Verdict -Check $result).Verdict | Should -Be 'Fail' -Because (Format-ContractCheck -Check $result)
+            ($result | Where-Object { $_.name -ceq 'LedgerChain' }).status | Should -Be 'Pass'
+            $run = $result | Where-Object { $_.name -ceq 'LedgerRun' }
+            $run.status | Should -Be 'Fail'
+            $run.evidence | Should -Match 'record 2\b'
+        }
+    }
+}
+
+# The same pair of runs without the service, so that the real pinned appender's validation and the run
+# check run on every system, Ubuntu and macOS included.
+Describe 'Containment ledger contract on every system' -Tag 'Unit' {
+    BeforeAll {
+        Set-MachineGatePass
+        $script:canonicalA = New-CanonicalLedger -Name 'canonical-a' -RunId 'run-a'
+        $script:canonicalB = New-CanonicalLedger -Name 'canonical-b' -RunId 'run-b'
+    }
+
+    It 'revalidates the run''s own sealed ledger and report' {
+        $result = Invoke-ContractRevalidation -Name 'canonical-own' -RunId 'run-a' -Ledger $script:canonicalA
+
+        (Get-Verdict -Check $result).Verdict | Should -Be 'Pass' -Because (Format-ContractCheck -Check $result)
+    }
+
+    It 'does not revalidate another run''s sealed ledger, although its chain and its report are valid' {
+        $result = Invoke-ContractRevalidation -Name 'canonical-other' -RunId 'run-a' -Ledger $script:canonicalB
+
+        (Get-Verdict -Check $result).Verdict | Should -Be 'Fail' -Because (Format-ContractCheck -Check $result)
+        ($result | Where-Object { $_.name -ceq 'LedgerChain' }).status | Should -Be 'Pass'
+        ($result | Where-Object { $_.name -ceq 'FinalReport' }).status | Should -Be 'Pass'
+        ($result | Where-Object { $_.name -ceq 'LedgerRun' }).status | Should -Be 'Fail'
     }
 }
