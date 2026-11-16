@@ -9,11 +9,11 @@ source: current task evidence
 
 ## Current focus
 
-**Brief 14, a run id for `-Revalidate` (2026-11-14), is done on `ai/revalidate-run-id`**, stacked on brief 12's branch, not pushed. Design (a)
-under the owner's delegation: the containment profile names its run in `runId` (`schemaVersion` 2), which the operator draws new for every run,
-and `LedgerRun`, between `LedgerChain` and `FinalReport`, requires every record the pinned appender validated to carry it as a JSON string; the
-JSON report and the summary line name it. Review Approve with changes (R14-01 to R14-11), re-review Approve (R14-12, R14-13); gate on `3de81f0`
-6,064 passed, 0 failed, 91.61 %. Verifier `9e150ba8…5c65`, superseding brief 12's; the appender stays at `f55e163b…0572`.
+**Brief 15, a CI retry for the Gallery bootstrap (2026-11-14), is done on `ai/ci-gallery-bootstrap-retry`**, stacked on brief 14's branch,
+not pushed. The `Package Module` job resolves its dependencies in a step of its own, `Resolve Dependencies`: `./build.ps1 -ResolveDependency
+-Tasks noop` up to three times, 15 and then 45 s apart, each attempt in a new pwsh and each retry without the `output/RequiredModules` a
+failed attempt saved, within 15 minutes; `pack`, the tests and the release run once. Review Approve with eight Nits, check Approve with two,
+all fixed; gate on `a97b766` 6,073 passed, 0 failed, 91.61 %. No real runner has run the step yet: the pull request's CI is its first run.
 
 **P5, the containment verifier and the ledger appender, is merged** (#40, `6.1.0-preview0012`;
 record #41). `Test-RunContainment.ps1` measures, for the one identity it runs as, what the run can
@@ -43,6 +43,8 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
 
 ## Previous focuses
 
+- **Brief 14, a run id for `-Revalidate` (2026-11-14).** On `ai/revalidate-run-id`, stacked on brief 12, not pushed: the profile names its
+  run in `runId` (`schemaVersion` 2) and `LedgerRun` requires every validated record to carry it; gate 6,064 passed; verifier `9e150ba8…5c65`.
 - **Brief 12, the module folders in `WritableRoots` (2026-11-14).** On `ai/writable-roots-module-folders`, stacked on brief 17, not pushed:
   every place PowerShell loads modules from is measured, inside a declared root or not; gate 5,989 passed; verifier `d7d2b02f…f869`.
 - **Brief 17, C2 that fails closed (2026-11-14).** On `ai/c2-fail-closed`, stacked on brief 16, not pushed: C2 fails while any delegation
@@ -57,8 +59,6 @@ characters, so one test in `tests/ContributorProfileHooks.Tests.ps1` squeezes at
   adapter report `RuntimeVerified` only for passed runtime cases; the agent host ignores `agents:`, so VS Code stays `StructurallyChecked`.
 - **Brief 05, the hook input probe (2026-11-12).** Merged as #56 (`548a162`): the push guard fires in agent-host chats on runtime
   1.0.108-0, and the hook input of `skill`, `view`, `edit`, and `create` is pinned there and in CLI 1.0.96; no collector (owner).
-- **Brief 10, GitHub issue #49 (2026-11-11).** Merged as #54 (`a3167d8`) and released as the stable `v6.1.0` on that commit:
-  `Update-CopilotAtelier -AllowPrerelease` and prerelease-aware version compares; rollover #55 (`f358226`); the reply to #49 is posted.
 
 ## Environment hazard — scripted bulk writes corrupt file content
 
@@ -156,10 +156,11 @@ unproven — train reached 100 % while validation fell.
 2. The owner checks in a new chat that a prepared `git push` ends with a code block and no
    dialog (P3); agents cannot push, and refreshing `~/.copilot` is the owner's.
 3. The owner's queue is `C:\Users\install\Desktop\CopilotAtelier-handoffs` (start with `00-README.md`): #59 (brief 13) waits on the owner's
-   merge and the re-pin of the appender digest (and #58's verifier digest) in any containment profile. Briefs 16, 17, 12 and 14 (done), 15
-   (next), then 18 and the publish step run stacked on its branch, local and unpushed; after #59 is squash-merged, one rebase moves the stack
-   onto `main`, and brief 14's verifier digest `9e150ba8…5c65` (superseding brief 12's) needs a re-pin once merged, with every profile at
-   `schemaVersion` 2 and a `runId` new for each run. From briefs 03 and 16:
+   merge and the re-pin of the appender digest (and #58's verifier digest) in any containment profile. Briefs 16, 17, 12, 14 and 15 (done),
+   then 18 (next, its design ruled as option 1 plus 2′: every hook line pins the module path to `$PSHOME\Modules` first, and `HookContract`
+   plants a tripwire module) and the publish step run stacked on its branch, local and unpushed; after #59 is squash-merged, one rebase moves
+   the stack onto `main`, brief 14's verifier digest `9e150ba8…5c65` needs a re-pin once merged, with every profile at `schemaVersion` 2 and
+   a new `runId` each run, and the publish step reads brief 15's `Resolve Dependencies` log in the pull request's CI. From briefs 03 and 16:
    delete any leftover `extracted\all-cookies.json`, copy the changed Reddit files into `CareerAuthBrowser`, delete `auth-extract.prompt.md`
    or keep `reddit-read` out of it, and check `reddit-read` and the reader's own chat live. Then close #49 and route R11-01 and the other
    P5 follow-ups (`docs/SECURITY-REVIEW.md`). `ai/travel-photo-diary-skill` exists only on the other machine.

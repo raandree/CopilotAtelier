@@ -19,6 +19,10 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
 
 ## Recent milestones
 
+- **2026-11-14**: Brief 15, a CI retry for the Gallery bootstrap (`software-engineer`, a controller run), on `ai/ci-gallery-bootstrap-retry`,
+  stacked on brief 14, not pushed. The `Package Module` job resolves its dependencies in a step of its own: up to three attempts, 15 and 45 s
+  apart, each in a new pwsh, each retry without what a failed attempt saved, 15 minutes at most; `pack`, the tests and the release run once.
+  Red first; every mutant caught. Approve with eight Nits, then Approve with two, all fixed; gate 6,073 passed, 0 failed, 91.61 %.
 - **2026-11-14**: Brief 14, a run id for `-Revalidate` (`software-engineer`, a controller run), on `ai/revalidate-run-id`, stacked on brief 12,
   not pushed. Design (a) under the owner's delegation: the profile names its run in `runId` (`schemaVersion` 2, new for every run), and
   `LedgerRun` requires every validated ledger record to carry it, so another run's sealed ledger no longer revalidates. Red first; N02 caught in
@@ -50,8 +54,6 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
   composed `software-engineer` variant passed all three on Copilot CLI 1.0.96 once it stopped emitting `target`, and the source profile
   failed C1 and C2 on runtime 1.0.108-0, whose agent host ignores `agents:`. Receipts bound to each file's SHA-256 raise the state only for
   passed runtime cases; fallback test red first. An independent review's 2 Major (unbounded delegation, untested binding) fixed test-first.
-- **2026-11-12**: Brief 05, the hook input probe (`software-engineer`), merged as #56 (`548a162`): the push guard fires in a VS Code agent-host
-  chat on runtime 1.0.108-0, and the hook input of `skill`, `view`, `edit` and `create` is pinned there and in Copilot CLI 1.0.96.
 
 ## Stable capabilities
 
