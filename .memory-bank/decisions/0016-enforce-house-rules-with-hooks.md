@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-07-28
-last-verified: 2026-10-14
+last-verified: 2026-11-14
 owner: software-engineer
 source: VS Code 1.130 agent customization docs; GitHub Copilot hooks configuration reference (2026-09-29); VS Code build 07f806f999 sources and a process capture (2026-10-02); session logs of the 2026-10-02 live checks; a model-free probe of the bundled Copilot SDK runtime (2026-10-04); fake-model conversations with the bundled runtime and Copilot CLI 1.0.92 (2026-10-06); live probes of a hook ask in the Agent Host, VS Code Local, and Copilot CLI 1.0.96, plus VS Code 1.141.0 sources (2026-10-12); live acceptance of the Remote grant in the Agent Host, VS Code Local, and Copilot CLI 1.0.96, started as usual and under --yolo (2026-10-13)
 ---
@@ -130,7 +130,17 @@ Consequences:
   Blocker. The `windows` launcher now ends with
   `; exit (@(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + <failure code>)[0]`,
   which the outer PowerShell runs. `command` cannot carry that statement, because
-  `sh` runs `command` too.
+  `sh` runs `command` too. Dated 2026-11-14 (brief 18): every PowerShell hook
+  line, the 15 of `hooks.json` and the 3 of the contributor-profile asset, starts
+  its `-Command` text with
+  `[Environment]::SetEnvironmentVariable('PSModulePath', [IO.Path]::Combine([AppContext]::BaseDirectory, 'Modules'))`,
+  and the `windows` and `powershell` launchers now end with
+  `; exit (@(<that call>) + @(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + <failure code>)[0]`,
+  so each PowerShell process of the line resolves its commands from its own
+  `Modules` folder and not from a module the identity can plant, which had
+  turned a denial into exit 0 (R12-02, R12-08). The exit codes are unchanged,
+  and `HookContract` refuses the earlier closing statement; see the entry of
+  that date in `docs/SECURITY-REVIEW.md`.
 - The Major findings of that review and of its re-reviews are fixed:
   - The launchers search `USERPROFILE` before `HOME`, so a planted or unreachable
     `HOME` can no longer win or time the guard out.

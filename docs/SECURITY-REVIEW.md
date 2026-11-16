@@ -4,6 +4,315 @@ Independent security and quality reviews of changes to Copilot Atelier, newest
 first. Each entry records the scope, the verdict, every finding with its
 severity and resolution, and the risks that remain.
 
+## 2026-11-14: the module path of every hook line, R12-02 and R12-08 (follow-up of prompt P5)
+
+Brief 18 closes, for the hook lines, the exposure of the guard that the review of brief 12 left
+open (R12-02, R12-08). Windows PowerShell 5.1, which runs every hook line under VS Code, and pwsh,
+which runs it under the Copilot SDK host, load a command such as `Get-Variable` from the first
+module on their module path that exports it, and the account that runs the hook can put a module
+there. On copies, a module that exports `Get-Variable`, first on the module path, in the account's
+own module folder, or in the working directory of a 5.1 whose documents folder did not resolve,
+turned the exit 2 of a denial into exit 0. Every PowerShell hook line, the 15 of `hooks.json` and
+the 3 of the contributor-profile asset, now pins the module path of each PowerShell process it runs
+in to that interpreter's own `Modules` folder before it resolves a command by name, in the inner
+command and in the closing statement, with type names only. `HookContract` accepts only the new
+closing statement and runs every payload with a tripwire module of its own where the PowerShell of
+each spawn looks first. No hook script changes. The design was chosen out of three, hook lines that
+rely on no auto-loaded command (option 1), a `HookContract` that measures with the module path a
+logon gives (option 2), and both, and was decided as both, with the tripwire as the second half,
+under the owner's delegation for the local branch (the handoff ledger, 2026-11-14); merging brief
+18 is the owner's explicit answer. The Custom `security-reviewer` agent reviewed `4667dd7` in a fresh
+context, read-only, with probes on copies under TEMP, and said **Request changes**: the pin holds
+for the shipped lines, but `HookContract` passed three hand-edited copies of the line that a planted
+module then beat (R18-01, Major), two records said more than holds (R18-02 and R18-03, Minor), and
+five Nits (R18-04 to R18-08). The controller ruled to fix all eight in one round, under the owner's
+delegation (the handoff ledger, 2026-11-14); the fix round does that, and `HookContract` now also
+holds the `-Command` text of a pinned line to the pin, with the tripwire as a second net. The same
+reviewer re-reviewed the fix round, `34de586`, and said **Approve with changes**: seven findings
+resolved, R18-07 deferred as ruled, and one new Minor, R18-09: six hand edits made after the pin
+still pass `HookContract` while a planted module or script answers for the guard, and the records
+said that more is refused than is. The controller ruled the reviewer's records option under the
+owner's delegation (the handoff ledger, 2026-11-14): the records state the full residual and what
+the check refuses, and tell operators to keep the inner command text exactly as shipped; holding the
+whole `-Command` text to the shipped template goes to the backlog.
+
+### Scope
+
+- Does a module that exports a command of a hook line or of its script still answer for it, when it
+  stands first on the module path a spawn inherits, in either personal module folder, or in the
+  working directory of a 5.1 whose documents folder does not resolve, under `cmd.exe`, the Windows
+  PowerShell 5.1 wrapper of VS Code, and the PowerShell 7 wrapper of the Copilot SDK host?
+- Does the closing statement keep its exit code in every case: 0, 1, 2, 7 and -1 from the inner
+  program, an inner program that never started, and no native command at all?
+- Does the grant recorder record only what the prompt holds, and drop nothing that it holds, while
+  such a module stands first?
+- Does `HookContract` refuse the old closing statement, and fail a line that resolves a command
+  before it pins its module path, naming the spawn?
+- Do the hooks README, the CHANGELOG and this entry claim only what is shown?
+
+### Design
+
+- **The pin.** The inner `-Command` of every launcher starts with
+  `[Environment]::SetEnvironmentVariable('PSModulePath', [IO.Path]::Combine([AppContext]::BaseDirectory, 'Modules'))`,
+  and the closing statement of `windows` and `powershell` makes the same call first, inside its
+  expression, where it adds nothing to the array:
+  `exit (@(<the call>) + @(Get-Variable -Name LASTEXITCODE -ValueOnly -ErrorAction Ignore) + 2)[0]`,
+  `+ 1` for the lifecycle events. The call names only `[Environment]`, `[IO.Path]` and
+  `[AppContext]`, types that the language resolves and no module can answer for, and holds no `$`,
+  which the outer PowerShell of VS Code would expand. `[AppContext]::BaseDirectory` is `$PSHOME`, the
+  folder of the interpreter that runs the call, so 5.1 gets
+  `%SystemRoot%\System32\WindowsPowerShell\v1.0\Modules` and pwsh its own `Modules` folder. Measured
+  with Windows PowerShell 5.1.26100.33822 and pwsh 7.6.10: a `PSModulePath` set in a running process
+  decides where both auto-load the next command from, and the personal folder that pwsh puts first
+  at its start goes with the rest of the old value.
+- **What it covers.** Every command that a hook line or its script resolves by name, in every
+  PowerShell process of the line: the wrapper a host starts and the interpreter the line starts. In
+  the interpreter the line starts, the pin is the first statement. In the wrapper, the only name
+  resolved before the closing statement is the program the line starts, and the closing statement
+  pins before it names `Get-Variable`. That program comes from `PATH`, or from its absolute path in
+  a pinned line, and not from a module, with one exception the review measured (R18-02): when the
+  `PATH` that VS Code hands its Windows PowerShell 5.1 holds no `powershell`, that 5.1 looks for a
+  command of that name in the modules of the path it inherited, before any pin. pwsh puts its own
+  folder first on its `PATH`. Apart from that condition, no command is taken from a module before
+  the pin.
+- **The text of the pin.** `HookContract` holds the `-Command` text of a pinned line to the pin, as
+  it holds the line's end to the closing statement (R18-01): the interpreter has to get its text
+  with `-Command`, the text has to start with `try { ` and the pin, compared as typed
+  (`HookCommandHead`), and it may not name `PSModulePath` again after it, in any case. Refused before
+  anything runs (`Get-HookPinProblem`) are a line whose `-Command` text does not start with that
+  exact pin, which includes one that resolves a name before the pin through an alias or a
+  module-qualified name and one that pins another folder first; a later mention of `PSModulePath`
+  by name; a line that runs its script with `-File` or `-EncodedCommand`; a line that names no
+  command; and, as before, a closing statement other than the exact one. The rest of the text after
+  the pin is not read, and the re-review passed six hand edits there (R18-09): setting the module
+  path again under another spelling (a computed name with `[Environment]::SetEnvironmentVariable` or
+  `New-Item Env:`, an `Env:PSModuleP*` wildcard), running code by path (`Import-Module` by path, an
+  alias to a script by path), and starting a nested pwsh, which puts the account's personal folder
+  first again. A line derived from the shipped command holds none of them.
+- **The tripwire.** `HookContract` writes a module of its own, `ContainmentTripwire`, which exports
+  every command of the Verb-Noun shape that the line, its `-Command` text and the pinned script name
+  (`Get-HookTripwireName`), and which, when it is imported, appends to a marker file and ends the
+  process with exit 0, as a module that answers for the guard would. The three payloads run with it
+  first on `PSModulePath` and in both personal module folders of a decoy profile under `cmd.exe` and
+  the PowerShell 7 wrapper. The Windows PowerShell 5.1 wrapper is first asked, once and with no
+  command name, under a decoy profile without a documents folder and with the machine's
+  `PSModulePath`, or with none where the machine sets none, which folder it looks in first (R18-04,
+  R18-06). When it names the relative `WindowsPowerShell\Modules`, the payloads run under it with
+  the tripwire in its working directory; when it names a rooted folder, as with a documents folder
+  redirected to a fixed path or a `PSModulePath` of the account, or cannot be asked, they run with
+  the tripwire first on its path, and the evidence says which. A line that loads it fails, and the
+  evidence names each spawn that did. Since the fix round it is a second net: it sees only the names
+  a line spells, so an alias, a module-qualified name or a pin to another folder passed it, which is
+  why the text is held to the pin.
+- **What does not change.** The guard, the grant recorder and every other hook script keep their
+  digests, and so does the ledger appender.
+
+### Verdict
+
+**Request changes** for `4667dd7`. The reviewer found the pin holding in every process of all 18
+lines, under both interpreters and all three spawns, with a tripwire of 5,383 command names and
+decoys named like the modules PowerShell imports by name, in each place a module can sit; the old
+lines were bypassed in 11 of 12 runs. Exit codes, the grant recorder and the lifecycle output were
+unchanged. It requested changes for the second half of the design: `HookContract` did not hold an
+operator's pinned line to the pin (R18-01), and the records claimed a little more than holds. The
+fix round answers all eight findings.
+
+**Approve with changes** for the fix round, `34de586`, in a scoped re-review by the same reviewer.
+`HookContract` refused each of the reviewer's three copies and the second assignment by name before
+anything ran, and the contained shipped line still passed with 0, 2 and 2 under `cmd.exe` and both
+wrappers; R18-01 to R18-06 and R18-08 are resolved and R18-07 deferred as ruled. The re-review's own
+runs gave 585 passed, 0 failed, 80 skipped for `tests/HookLauncher.Tests.ps1` and 384 passed, 0
+failed, 1 skipped for `tests/ContainmentVerifier.HookContract.Tests.ps1`, found no false refusal
+of a legitimate line and no defect, and raised R18-09, which the records now carry.
+
+### Findings
+
+| ID | Severity | Where | Finding | Resolution |
+|---|---|---|---|---|
+| R12-02 | Major | `hooks.json`; the contributor-profile asset; `Test-HookContract`; hooks README, gap 4 and the rows of `HookContract` and `WritableRoots`; this entry; `CHANGELOG.md` | The guard's own exposure under Windows PowerShell 5.1 stayed open after brief 12, for brief 18: a module in `Documents\WindowsPowerShell\Modules` that exports a command of the hook line, such as `Get-Variable`, answers for it, and `HookContract` starts its 5.1 wrapper with the verifier's module path, so it cannot see such a module. pwsh is exposed the same way through `Documents\PowerShell\Modules` | Closed for the hook lines: every PowerShell process of every shipped hook line pins its module path before it resolves a command, so a module in either personal folder, or first on an inherited `PSModulePath`, no longer answers for a command of the line or of its script; `HookContract` holds a pinned line to the pin and fails one that loads its tripwire from any of those places. What acts before the first statement of a line, and the program name of R18-02, stay open; see the remaining risks |
+| R12-08 | Major | the same | When the documents folder does not resolve, 5.1 searches the relative `WindowsPowerShell\Modules` in its working directory, and moving `Documents` aside or re-pointing it during a run sends every later hook's 5.1 there or wherever it points | Closed for the hook lines the same way: the pin replaces the whole module path, the relative entry with it, before 5.1 resolves a command, so the state of `Documents` at the hook call no longer decides what answers. `HookContract` stands the tripwire in the working directory of its 5.1 wrapper when that 5.1 names it first. `WritableRoots` still names that entry unmeasured, which stays right for other PowerShell that the identity starts |
+| R18-01 | Major | `Get-HookTripwireName`, `New-HookTripwire`, `Test-HookContract`; hooks README, the `HookContract` row; this entry | `HookContract` passed three hand-edited copies of the contained line, and in each a planted module turned the guard's denial into exit 0: E1 resolves `gl` and `echo` before anything else and has no pin, E2 names every command module-qualified and has no pin, and E3 pins a folder of the profile ahead of the interpreter's own. The tripwire exports only the Verb-Noun names a line spells and stands only where a logon module path looks, and nothing read the `-Command` text. CVSS 3.1 estimate 5.3 | Fixed as ruled: `Get-HookPinProblem` holds the `-Command` text to `HookCommandHead`, compared as typed, and refuses a later mention of `PSModulePath` by name, a `-File` or `-EncodedCommand` start and a line without a command; `Test-HookContract` fails such a line before anything runs. The tripwire stays, as a second net, and its claim is narrowed in the evidence, the README row and this entry. E1, E2, E3, a second assignment by name after the pin, and a `-File` line each fail `HookContract`; each of the reviewer's three passed it before the change. All 18 shipped lines pass the text check. The text after the pin stays unread, which the re-review found (R18-09) |
+| R18-02 | Minor | this entry, What it covers; hooks README, the launcher paragraph and gap 4; `CHANGELOG.md` | When the `PATH` that VS Code hands its 5.1 lacks the Windows PowerShell folder, the outer 5.1 finds no program `powershell` and looks for a command of that name in the modules of its inherited path, before the closing statement pins; the records said flatly that no module is used before the pin | Fixed in the records, as ruled: the condition is stated where the claim was, and listed among the open items of gap 4 and the remaining risks. The line cannot name 5.1 by an absolute path without `%` or `$`, so it does not change |
+| R18-03 | Minor | `com.github.copilot/rules/copilot-authoring.instructions.md` | The Instruction that loads whenever an agent edits a hooks file taught a launcher that resolves `Join-Path` with no pin, holds `$`, and ends with `exit $LASTEXITCODE`, which a wrapper reports as 1 | Fixed: the bullet points at the shipped entries of `hooks.json` and the Launchers section of the hooks README, names the pin, and says why the text holds no `$` and why `windows` and `powershell` end with the closing statement |
+| R18-04 | Nit | `Get-HookTripwireEnvironment`, `Test-HookContract`; `tests/HookLauncher.Tests.ps1`; `tests/ContainmentVerifier.HookContract.Tests.ps1` | With `PSModulePath` unset, 5.1 puts its own personal folder first too, or the working-directory entry when there is no documents folder, so the evidence and the skip reasons that said it adds no folder of its own were false | Fixed: where the machine sets no value, the 5.1 wrapper runs without the variable and with the tripwire in its working directory, which this machine's 5.1 names first in that case too (measured); the texts are corrected and the two skips are gone, the planted-module cases running with the variable removed instead |
+| R18-05 | Nit | this entry; `New-HookTripwire` | The entry said that the pull request's CI is the first run of the tripwire's POSIX placement; no run reaches it, because off Windows the verifier stops before `HookContract` (`IdentityPrivilege` reads the token on Windows only), and every test of the tripwire was skipped there | Both: new cases that run on every platform hold where the tripwire stands, the environment a spawn gets, `XDG_DATA_HOME` removed so that pwsh takes its personal folder from the decoy `HOME`, and a real pwsh that loads it from the first entry and from its personal folder and not once it pins; the records say that a verification off Windows never reaches the check |
+| R18-06 | Nit | `Test-HookContract`; hooks README, the `HookContract` row | The 5.1 wrapper's placement relied on the decoy `USERPROFILE` moving the documents folder, which a documents folder redirected to a fixed path does not, so the tripwire could stand nowhere that 5.1 looks first while the evidence said it did | Fixed: the check asks that 5.1, with the payloads' environment and working directory and a line that names only types, whether its first module-path entry is the relative `WindowsPowerShell\Modules`; only then does the tripwire stand in its working directory, and otherwise it stands first on its path, and the evidence says which |
+| R18-07 | Nit | `.memory-bank/decisions/0016-enforce-house-rules-with-hooks.md` | Decision 0016 still names the old closing statement as the current one | Deferred, as ruled, to the Memory Bank commit of phase 3, which adds a dated note |
+| R18-08 | Nit | `tests/HookLauncher.Tests.ps1` | The planted-place cases had no positive control, so they would pass without testing anything where the interpreter does not search the place; and the test messages relayed pwsh's raw standard error, whose ANSI escapes stopped Pester's NUnit report at the first one | Fixed: a control per spawn and place runs the launcher without its pins and requires the module to load; and every test message that carries a child's standard error drops escape sequences and turns other characters outside printable ASCII into question marks |
+| R18-09 | Minor | `Get-HookPinProblem`; hooks README, the `HookContract` row and gap 4; this entry; `CHANGELOG.md` (re-review) | The check holds only the start of the `-Command` text and refuses a later `PSModulePath` spelled out. Six hand edits after the pin passed `HookContract` while a planted module or script turned a denial into exit 0, and no tripwire loaded in any spawn: the module path set again through `'PSModule' + 'Path'` with `[Environment]::SetEnvironmentVariable` (N1), an `Env:PSModuleP*` wildcard with `Set-Item` (N2), or `New-Item Env:` with a computed name (N3); `Import-Module` by path (N4); an alias to a script by path (N5b); and a nested pwsh, which puts the account's personal folder first again (N6). The records said that assigning the module path again is refused, and named only a change without the name and `Import-Module` by path | Fixed in the records, the reviewer's option 2, as ruled: the `HookContract` row, gap 4, this entry and the CHANGELOG say exactly what the check refuses and name the six forms by kind, the claim that assigning the module path again is refused is gone, and operators are told to keep the inner `-Command` text of every line exactly as shipped and to change a pinned copy only where the containment profile section allows, such as the interpreter named by absolute path. No line derived from the shipped command holds any of the six, and the pinned file is the operator's, closed to the run. The reviewer's option 1, holding the whole `-Command` text to the shipped text, goes to the backlog. No code changes |
+
+### Tests
+
+- Test first, on `7251dad`, before the change: in the three files the change touches, 119 of
+  1,232 tests failed, each for its stated reason, and 81 were skipped as before. In
+  `tests/HookLauncher.Tests.ps1`, 107 of 657: the contract that every launcher pins the module path
+  first (15) and that `windows` and `powershell` are `command` with the new closing statement (10);
+  the closing statement, 14 cases under both wrappers with a module that exports `Get-Variable`
+  first, where the module was imported in every case; the planted module, 16 cases of a place (first
+  on `PSModulePath`, `Documents\WindowsPowerShell\Modules`, `Documents\PowerShell\Modules`, and the
+  working directory of a 5.1 without a documents folder) and 48 cases of a name (eight names under
+  three spawns, with a denied and an allowed payload each), where the module was imported and a
+  denial gave 0; and the grant recorder, 4 cases under both wrappers, where a module that answers for
+  `ConvertFrom-Json` handed the recorder a session and a prompt of its own choosing, and one that
+  answers for `Select-Object` ended the process before the recorder ran. In
+  `tests/ContainmentVerifier.HookContract.Tests.ps1`, 12 of 344: the old closing statement accepted
+  and the new one refused (2); a module not stood in the working directory of a spawn (1) and not
+  handed on by `Measure-HookWrapper` (1); a line without the inner pin that passed, and evidence
+  without the tripwire (2); the spy that found no tripwire where each spawn looks first (1); and
+  the three cases that a spawn reaches the tripwire and the two tests of the new functions, which
+  failed because those functions were stubs that returned nothing (5).
+  `tests/ContributorProfileHooks.Tests.ps1` stayed green (231), because its test that the asset
+  carries the launchers of `hooks.json` compared two unchanged files; M11 below shows that it fails
+  an asset that is left behind.
+- After the change, through the detached launcher: the suites that run the hooks, `Hooks`,
+  `HookLauncher`, `HookSdkRuntime`, `RemoteMutationLiteral`, `RemoteMutationGrant`,
+  `ContributorProfileHooks` and `ContributorProfileWriter`: 1,799 passed, 0 failed, 80 skipped (the
+  `/bin/sh` spawns, which Windows does not have), in 1,707 seconds. Every `ContainmentVerifier*`
+  suite with `CustomizationSecurity`, `PluginManifest` and `ChangedFileValidation`, which read
+  `hooks.json`: 1,351 passed, 0 failed, 3 skipped by design (a POSIX case, the property test whose
+  fresh seed only CI draws, and an elevation type that this token does not have), in 371 seconds.
+  The grant recorder's cases need no Grant marker: their payload names no session, so a recorder
+  that ran on it says so and records nothing, and no case writes a grant. The full gate runs once,
+  after the review.
+- Mutants, on copies under TEMP and never in the working tree, each against the tests that should
+  catch it, after two control copies passed every one of them (222 and 533 tests): 12 of 12 caught.
+  M1, the inner pin dropped from the guard's `windows` line (48 failures: the contract, 12 places,
+  32 names, and 2 tripwire cases of `HookContract`); M2, dropped from its `powershell` and `command`
+  lines (23, the PowerShell 7 spawns); M3, the pin moved after the statement that resolves the
+  script (48); M4, a pin that appends `$PSHOME\Modules` to the inherited path (48); M5, the old
+  closing statement in all ten lines (41: the 14 cases of the closing statement, among others); M6,
+  the pin after `Get-Variable` in the closing statement (41); M7, the `+ 2` default dropped (9: an
+  inner program that never started, and a line without a native command, gave 0 under both
+  wrappers, and the verifier refused the line); M8, a verifier
+  that accepts the old closing statement too (1); M9, no tripwire in the working directory of the
+  5.1 wrapper (1, the spy); M10, a tripwire that exports only the names of the closing statement (2:
+  the line without the inner pin passed, because `Set-Variable` loads the real
+  `Microsoft.PowerShell.Utility` and its `Get-Variable` before the line names it, and the test of
+  the names); M11, the asset left unpinned (1); and M12, the `windows` line of `Stop` left unpinned
+  (2).
+- The module analysis cache of 5.1, on copies in a scratch folder named by
+  `PSModuleAnalysisCachePath` in the child's environment only: with `Get-Variable` hidden from
+  `Microsoft.PowerShell.Utility`, the guard's pinned line gave 2 for an allowed and for a denied
+  payload; a cache of garbage was ignored. The cache under the user profile was not written.
+- PSScriptAnalyzer 1.25.0 with default rules: 0 findings on the verifier and the two changed test
+  files. markdownlint-cli2 0.24.1 (markdownlint 0.42.1), from the local npx cache without a network
+  call: 0 issues on the three changed documents.
+- The fix round, test first, on `4667dd7` with stubs of the two new functions: 40 of 385 cases of
+  `tests/ContainmentVerifier.HookContract.Tests.ps1` failed. Eleven of them failed for a reason in
+  the test and not in the code: the ten `windows` and `powershell` lines of the lifecycle events end
+  with the failure code 1, which `Get-HookInterpreter` refuses before the pin is read, and an encoded
+  command padded with `=` failed the shape. Both were corrected, and the 26 cases then failed for
+  their stated reason in a run of their own. In all: the text of the pin, 27 cases (the 18 shipped
+  lines, whose `-Command` text was not read yet, 8 refusals, and the joined text); the review's three
+  copies, a second assignment after the pin, and a `-File` line, run through `Test-HookContract` (5:
+  E1 to E3 and the second assignment passed it, which shows that the check passed them before the
+  change, and the `-File` line failed for the canary and not for the pin); the placement of the
+  tripwire (5: 5.1 was not asked, so the spy and the two cases of a 5.1 that names a rooted folder or
+  cannot be asked saw no question, the evidence lacked what it now says, and the wrapper kept the
+  machine's `PSModulePath` where a stand-in machine set none); and the cases that run on every
+  platform (3: `XDG_DATA_HOME` left in place, and the machine's value not taken through
+  `Get-HookMachineModulePath`). The eight controls of `tests/HookLauncher.Tests.ps1` pass on this
+  machine, as they must, and are shown to bite by P01 below. After the change: the HookContract
+  suite 384 passed, 0 failed, 1 skipped. Then, through the detached launcher, the suites that run the
+  hooks: 1,807 passed, 0 failed, 80 skipped, in 1,894 seconds; and every `ContainmentVerifier*`
+  suite with `CustomizationSecurity`, `PluginManifest`, `ChangedFileValidation` and the suites that
+  read the edited Instruction, CHANGELOG and documents (`CustomizationFrontmatter`, `SecretScan`,
+  `SharedLifecycle`, `SkillSelection`, `PlanReview`, `AuthenticatedWebExtraction`): 1,630 passed,
+  0 failed, 3 skipped by design, in 457 seconds. Two older cases changed their line, not their
+  assertion: the line that runs its script from a fixed path, and the slow line, now pin first, so
+  that they still reach the canary and the clock rather than the text check.
+- Mutants of the fix round, on copies under TEMP, after two control copies passed every test they
+  ran (277 and 574): 25 of 25 caught. The twelve of phase 2 again (M1 63 failures, M2 25, M3 61, M4
+  63, M5 59, M6 59, M7 27, M8 1, M9 2, M10 2, M11 4, M12 3; M1 is the review's C1); the review's E1,
+  E2 and E3 applied to the guard's `windows` line in `hooks.json` (32, 23 and 23, among them the
+  contract case and the run of the contained shipped hook; E3 there is the review's M-E3); nine of
+  the new code: the text check removed (13), its refusal of a second `PSModulePath` removed (2), a
+  `-File` line accepted (2), the 5.1 wrapper always given the working-directory placement (2) or the
+  answer read the wrong way round (4), the machine's value read directly and not through
+  `Get-HookMachineModulePath` (3), `XDG_DATA_HOME` left in place (1), the `-Command` text cut to its
+  first word (1), and the check not called from `Test-HookContract` (5); and P01, the planted
+  `Personal51` place moved to a folder 5.1 does not search, where the four place cases of that
+  folder still passed and its two controls failed. The escape sequences, on a red copy with the old
+  closing statement: with the messages unsanitized, Pester's NUnit export stopped on `0x1B` at the
+  13th of 14 cases and left a report that does not parse; with them sanitized, the same copy gave a
+  report that parses, with all 14 cases.
+- The fix round's other checks: PSScriptAnalyzer 1.25.0 found 0 issues in the verifier and the two
+  changed test files, and markdownlint-cli2 0.24.1 found 0 issues in the four changed documents.
+
+### Remaining risks
+
+- What a host passes in the environment acts before the first statement of a line, so no pin in
+  the line reaches it: a .NET profiler for 5.1 (`COR_PROFILER_PATH`) or a startup hook for pwsh
+  (`DOTNET_STARTUP_HOOKS`) loads code into the interpreter first. The environment comes from the
+  host and its logon, the class of gap 2.
+- The pin trusts the `Modules` folder of `$PSHOME`, so a `$PSHOME` that this identity can write,
+  such as a pwsh installed per user, answers for every command of the line. `HookContract` refuses
+  such an interpreter in a pinned line; the shipped file's `pwsh` is whichever `PATH` finds.
+- The module analysis cache of 5.1, which the account can write, can only point a lookup at a
+  module in the pinned folder, so an entry that hides a command makes the line fail closed. Measured
+  on a copy of the cache in a scratch folder, with `Get-Variable` hidden from
+  `Microsoft.PowerShell.Utility`: the closing statement found no `Get-Variable`, its array kept only
+  the default, and the guard's line exited 2 for an allowed and for a denied payload alike; a
+  lifecycle line ends with 1, a warning, the same way. A cache of garbage was ignored.
+- The shipped `hooks.json` starts a bare `powershell` or `pwsh`, which a host looks up in `PATH`,
+  so a folder ahead of the interpreter on `PATH` that this identity can write answers for the whole
+  line. A contained deployment pins an absolute interpreter path, which `HookContract` requires; the
+  shipped file does not.
+- The program name comes before every pin (R18-02): when the `PATH` that VS Code hands its Windows
+  PowerShell 5.1 holds no `powershell`, that 5.1 looks for a command of that name in the modules of
+  the path it inherited, so a module in its personal folder or its working directory answers for the
+  whole line before the closing statement pins; the review measured a denial that exited 0 that way.
+  pwsh puts its own folder first on its `PATH`, so the Copilot SDK host's spawn found its program,
+  and a pinned line names its interpreter by path. The `PATH` a host passes is the environment class
+  above.
+- `HookContract` holds a pinned line to the exact pin at the start of its `-Command` text, to the
+  exact closing statement, and to no later mention of `PSModulePath` by name, and refuses `-File`,
+  `-EncodedCommand` and a line without a command; it does not read the rest of the text (R18-09).
+  Code after the pin can therefore still set the module path again under another spelling (a
+  computed name with `[Environment]::SetEnvironmentVariable` or `New-Item Env:`, an
+  `Env:PSModuleP*` wildcard), run code by path (`Import-Module` by path, an alias to a script by
+  path), or start a nested pwsh, which puts the account's personal folder first again; in each of
+  the six forms the re-review measured, a planted module or script turned a denial into exit 0 and
+  no tripwire loaded. A line derived from the shipped command holds none of them, and the operator
+  writes the pinned file, which `ControlImmutability` shows closed to the run: keep the inner
+  `-Command` text of every line exactly as shipped, and change a pinned copy only where the hooks
+  README allows, such as the interpreter named by absolute path. Holding the whole text to the
+  shipped one is in the backlog.
+- The tripwire shows that the line loaded none of the Verb-Noun names it spells from the places it
+  stood in, under the three payloads, not what a host does: no host ran the line, as before.
+- A registration of the contributor-profile hook that was written from the earlier template keeps
+  the unpinned line until the next profile write replaces it; `Get-CopilotAtelierContributorProfile`
+  reports it as `outdated` until then.
+- The new digests, as checked out (`.gitattributes` gives `*.ps1` CRLF and `*.json` LF on every
+  system): the verifier `32558cf02a594aa2922f8614bb897cab1d651d4f46932a653c98d77801842842` after the
+  fix round, where the reviewed `4667dd7` hashed to
+  `e5df18ddf10cf9ecf5a753d0bbe6c1ce5ad632b263277859a4362b5f044ae0d1` and brief 14 to
+  `9e150ba828847c773055092ace165478f6d31e2ce477cc9bd2ead69b578f5c65`; `hooks.json`
+  `ed05f232b68d0715b5c351d50234f9250ef14b8139801fb5810c9b825512cb14`, was
+  `ba20170a7833aacc95d3b7c0e889e98cabfada4f979dd9d3a2f4a18a90400d65`; and the contributor-profile
+  asset `e553312ef5d9051e510b08a19894a48f0a4bf819998901e22e7652de01ff1eec`, was
+  `773b264a2bc5b904ca6aefc2f57a4402e4c9ed45b39e08488391e571a0f04466`; the fix round changes neither
+  file. The guard is unchanged at
+  `e94968a0f37f5857514f3f5c01f917df369cedfa9ee97fa07a7ed2c058f157a3`, the appender at
+  `f55e163b02fe4db6d318bc3e8c3d8cc6c86c2bf365496ddf22cda5e812030572`, and the grant recorder at
+  `51c0f39b8e9252816eda0a2fbd2869b4f17c0773ed6562945701df57ec341218`. Every containment profile
+  derives its pinned `hooks.json` again from the shipped file, because the verifier refuses the old
+  closing statement, and re-pins it and the verifier; `~/.copilot` has to be refreshed with
+  `./Setup-CopilotSettings.ps1`. The longest hook line is now 1,660 characters, the `windows` line
+  of `PreCompact`; neither the hooks schema of VS Code 1.146.0 nor the hooks reference of the
+  Copilot CLI limits its length, and `cmd.exe` stops at 8,191.
+- Not run: Ubuntu and macOS, where the `command` launcher runs under `sh` and pwsh searches
+  `~/.local/share/powershell/Modules` first, so the pull request's CI is the first run there of the
+  pinned launchers and of the new cases of the tripwire that run on every platform. No verification
+  off Windows reaches `HookContract` at all, because `IdentityPrivilege` reads the access token on
+  Windows only, so the tripwire's placement there is held by those cases and runs in no check
+  (R18-05). Not run either: the spawn code of VS Code and of the Copilot SDK host, a documents folder
+  redirected to a fixed path, whose branch of the 5.1 wrapper is tested with a stand-in answer, and a
+  deployment with separate accounts.
+- The remaining risks of the earlier entries that this change does not touch stay open: the rest of
+  R11-01, `DELETE` on the six places of the escape set, the registry re-point of the module folders
+  for other PowerShell (gap 2), and the second Windows account.
+
 ## 2026-11-14: a run id for `-Revalidate`, the R-11 follow-up (follow-up of prompt P5)
 
 Brief 14 closes, for a profile that names its run, the follow-up that R-11 and the remaining risks

@@ -19,6 +19,10 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
 
 ## Recent milestones
 
+- **2026-11-14**: Brief 18, the module path of every hook line (`software-engineer`, a controller run), on `ai/guard-module-shadowing`, stacked
+  on brief 15, not pushed. Option 3 under the owner's delegation: all 18 PowerShell hook lines set `PSModulePath` to their own `Modules` folder
+  through .NET types before any command, and `HookContract` holds a line to that pin and plants a tripwire module (R12-02, R12-08). Red first;
+  12 and then 25 mutants caught. Request changes, then Approve with changes (R18-09, records); gate 6,231 passed, 0 failed, 91.61 %. Verifier `32558cf0…2842`.
 - **2026-11-14**: Brief 15, a CI retry for the Gallery bootstrap (`software-engineer`, a controller run), on `ai/ci-gallery-bootstrap-retry`,
   stacked on brief 14, not pushed. The `Package Module` job resolves its dependencies in a step of its own: up to three attempts, 15 and 45 s
   apart, each in a new pwsh, each retry without what a failed attempt saved, 15 minutes at most; `pack`, the tests and the release run once.
@@ -50,10 +54,6 @@ at 13:59 UTC. Incremental work is tracked under `[Unreleased]` in `CHANGELOG.md`
   connection and the hook check's four exception texts, two closure details and interpreter path are relayed as printable ASCII,
   closing S-20, V-05 and W-03 (red first, 8 and then 2 tests; 12 mutants caught). The S-04/S-05 functions and the `-Validate`
   stored-line case run on every system. Review: Approve with changes; R11-02 to R11-06 fixed, R11-01 (26+ verifier texts) a follow-up.
-- **2026-11-12**: Brief 04, the adapter smoke check (`software-engineer`), merged as #57 (`0859e9e`): cases C1 to C3 ran offline; the
-  composed `software-engineer` variant passed all three on Copilot CLI 1.0.96 once it stopped emitting `target`, and the source profile
-  failed C1 and C2 on runtime 1.0.108-0, whose agent host ignores `agents:`. Receipts bound to each file's SHA-256 raise the state only for
-  passed runtime cases; fallback test red first. An independent review's 2 Major (unbounded delegation, untested binding) fixed test-first.
 
 ## Stable capabilities
 
